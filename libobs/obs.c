@@ -1,4 +1,4 @@
-/******************************************************************************
+﻿/******************************************************************************
     Copyright (C) 2013-2014 by Hugh Bailey <obs.jim@gmail.com>
 
     This program is free software: you can redistribute it and/or modify
@@ -901,7 +901,7 @@ void obs_add_data_path(const char *path)
 {
 	struct dstr *new_path = da_push_back_new(core_module_paths);
 	dstr_init_copy(new_path, path);
-	da_push_back(core_module_paths, new_path);
+	//da_push_back(core_module_paths, new_path);
 }
 
 bool obs_remove_data_path(const char *path)
@@ -912,11 +912,14 @@ bool obs_remove_data_path(const char *path)
 		if (result == 0) {
 			dstr_free(&core_module_paths.array[i]);
 			da_erase(core_module_paths, i);
-			return true;
+			break;
 		}
 	}
 
-	return false;
+	if (!core_module_paths.num)
+		da_free(core_module_paths);
+
+	return true;
 }
 
 static const char *obs_startup_name = "obs_startup";

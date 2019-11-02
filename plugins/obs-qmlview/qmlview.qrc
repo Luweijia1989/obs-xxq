@@ -1,0 +1,8 @@
+<RCC>
+    <qresource prefix="/qmlfiles">
+        <file>TextSlideShow.qml</file>
+        <file>ImageSlideShow.qml</file>
+        <file>Rank.qml</file>
+        <file>Leave.qml</file>
+    </qresource>
+</RCC>
