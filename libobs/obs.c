@@ -1945,6 +1945,67 @@ void obs_load_sources(obs_data_array_t *array, obs_load_source_cb cb,
 	da_free(sources);
 }
 
+void obs_load_sources_with_specific_iteminfo(obs_data_array_t *array,
+					     obs_source_t *scene,
+					     obs_data_t *iteminfo)
+{
+	if (!obs)
+		return;
+
+	struct obs_core_data *data = &obs->data;
+	DARRAY(obs_source_t *) sources;
+	size_t count;
+	size_t i;
+
+	da_init(sources);
+
+	count = obs_data_array_count(array);
+	da_reserve(sources, count);
+
+	pthread_mutex_lock(&data->sources_mutex);
+
+	for (i = 0; i < count; i++) {
+		obs_data_t *source_data = obs_data_array_item(array, i);
+		obs_source_t *source = obs_load_source(source_data);
+
+		da_push_back(sources, &source);
+
+		obs_data_release(source_data);
+	}
+
+	/* tell sources that we want to load */
+	for (i = 0; i < sources.num; i++) {
+		obs_source_t *source = sources.array[i];
+		obs_data_t *source_data = obs_data_array_item(array, i);
+		if (source) {
+			if (source->info.type == OBS_SOURCE_TYPE_TRANSITION)
+				obs_transition_load(source, source_data);
+			obs_source_load(source);
+			for (size_t i = source->filters.num; i > 0; i--) {
+				obs_source_t *filter =
+					source->filters.array[i - 1];
+				obs_source_load(filter);
+			}
+		}
+		obs_data_release(source_data);
+	}
+
+	if (scene) {
+		obs_data_t *scene_data = obs_source_get_settings(scene);
+		obs_data_clear(scene_data);
+		obs_data_apply(scene_data, iteminfo);
+		obs_source_load(scene);
+		obs_data_release(scene_data);
+	}
+
+	for (i = 0; i < sources.num; i++)
+		obs_source_release(sources.array[i]);
+
+	pthread_mutex_unlock(&data->sources_mutex);
+
+	da_free(sources);
+}
+
 obs_data_t *obs_save_source(obs_source_t *source)
 {
 	obs_data_array_t *filters = obs_data_array_create();
@@ -1980,6 +2041,7 @@ obs_data_t *obs_save_source(obs_source_t *source)
 
 	obs_data_set_int(source_data, "prev_ver", LIBOBS_API_VER);
 
+	obs_data_set_bool(settings, "saved", true);
 	obs_data_set_string(source_data, "name", name);
 	obs_data_set_string(source_data, "id", id);
 	obs_data_set_obj(source_data, "settings", settings);
@@ -2517,4 +2579,63 @@ bool obs_nv12_tex_active(void)
 		return false;
 
 	return video->using_nv12_tex;
+}
+
+EXPORT void obs_source_create_xxqsource(int type /*1=privacy 2=leave*/,
+					obs_data_t *settings)
+{
+	struct obs_core_data *data = &obs->data;
+	if (type == 1) {
+		if (!data->privacy_source) {
+			data->privacy_source = obs_source_create_private(
+				"image_source", PRIVACY_ID, settings);
+		}
+	} else if (type == 2) {
+		if (!data->leave_source) {
+			data->leave_source = obs_source_create_private(
+				"quickleave_source", LEAVING_ID, settings);
+			obs_source_activate(data->leave_source, MAIN_VIEW);
+		}
+	} else if (type == 3) {
+		if (!data->audiowave_source) {
+			data->audiowave_source = obs_source_create_private(
+				"quickaudiowave_source", AUDIOWAVE_ID,
+				settings);
+			obs_source_activate(data->audiowave_source, MAIN_VIEW);
+		}
+	}
+}
+
+EXPORT void obs_source_update_xxqsource(int type /*1=privacy 2=leave*/,
+					obs_data_t *settings)
+{
+	struct obs_core_data *data = &obs->data;
+	switch (type) {
+	case 1:
+		obs_source_update(data->privacy_source, settings);
+		break;
+	case 2:
+		obs_source_update(data->leave_source, settings);
+		break;
+	case 3:
+		obs_source_update(data->audiowave_source, settings);
+		break;
+	default:
+		break;
+	}
+}
+
+EXPORT void obs_source_destroy_xxqsource(int type)
+{
+	struct obs_core_data *data = &obs->data;
+	if (type == 1) {
+		obs_source_release(data->privacy_source);
+		data->privacy_source = NULL;
+	} else if (type == 2) {
+		obs_source_release(data->leave_source);
+		data->leave_source = NULL;
+	} else if (type == 3) {
+		obs_source_release(data->audiowave_source);
+		data->audiowave_source = NULL;
+	}
 }

@@ -1,4 +1,4 @@
-/*
+﻿/*
 Copyright (C) 2014 by Leonhard Oelke <leonhard@in-verted.de>
 
 This program is free software: you can redistribute it and/or modify
@@ -270,12 +270,23 @@ typedef void (*obs_volmeter_updated_t)(
 	const float peak[MAX_AUDIO_CHANNELS],
 	const float input_peak[MAX_AUDIO_CHANNELS]);
 
+typedef void (*obs_volmeter_raw_data_t)(void *param, uint8_t *data,
+					uint32_t frames);
+
 EXPORT void obs_volmeter_add_callback(obs_volmeter_t *volmeter,
 				      obs_volmeter_updated_t callback,
 				      void *param);
 EXPORT void obs_volmeter_remove_callback(obs_volmeter_t *volmeter,
 					 obs_volmeter_updated_t callback,
 					 void *param);
+
+EXPORT void obs_volmeter_add_raw_data_callback(obs_volmeter_t *volmeter,
+					       obs_volmeter_raw_data_t callback,
+					       void *param);
+EXPORT void
+obs_volmeter_remove_raw_data_callback(obs_volmeter_t *volmeter,
+				      obs_volmeter_raw_data_t callback,
+				      void *param);
 
 EXPORT float obs_mul_to_db(float mul);
 EXPORT float obs_db_to_mul(float db);

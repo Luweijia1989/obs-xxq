@@ -1,4 +1,4 @@
-/******************************************************************************
+﻿/******************************************************************************
     Copyright (C) 2013-2014 by Hugh Bailey <obs.jim@gmail.com>
 
     This program is free software: you can redistribute it and/or modify
@@ -120,6 +120,7 @@ static inline void unmap_last_surface(struct obs_core_video *video)
 static const char *render_main_texture_name = "render_main_texture";
 static inline void render_main_texture(struct obs_core_video *video)
 {
+	struct obs_core_data *core_data = &obs->data;
 	profile_start(render_main_texture_name);
 	GS_DEBUG_MARKER_BEGIN(GS_DEBUG_COLOR_MAIN_TEXTURE,
 			      render_main_texture_name);
@@ -145,6 +146,15 @@ static inline void render_main_texture(struct obs_core_video *video)
 	pthread_mutex_unlock(&obs->data.draw_callbacks_mutex);
 
 	obs_view_render(&obs->data.main_view);
+
+	if (core_data->privacy_source)
+		obs_source_default_render(core_data->privacy_source);
+
+	if (core_data->leave_source)
+		obs_source_default_render(core_data->leave_source);
+
+	if (core_data->audiowave_source)
+		obs_source_default_render(core_data->audiowave_source);
 
 	video->texture_rendered = true;
 

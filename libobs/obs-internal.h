@@ -1,4 +1,4 @@
-/******************************************************************************
+﻿/******************************************************************************
     Copyright (C) 2013-2014 by Hugh Bailey <obs.jim@gmail.com>
 
     This program is free software: you can redistribute it and/or modify
@@ -353,6 +353,10 @@ struct obs_core_data {
 	long long unnamed_index;
 
 	obs_data_t *private_data;
+
+	obs_source_t *privacy_source;
+	obs_source_t *leave_source;
+	obs_source_t *audiowave_source;
 
 	volatile bool valid;
 };

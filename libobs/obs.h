@@ -1,4 +1,4 @@
-/******************************************************************************
+﻿/******************************************************************************
     Copyright (C) 2013-2014 by Hugh Bailey <jim@obsproject.com>
 
     This program is free software: you can redistribute it and/or modify
@@ -35,6 +35,10 @@
 #include "obs-ui.h"
 #include "obs-properties.h"
 #include "obs-interaction.h"
+
+#define PRIVACY_ID "f004041a-f99d-4fa4-88f1-6b2db429cd38"
+#define LEAVING_ID "3d3ed3b3-8dbf-40b8-a2af-cd670115f3fd"
+#define AUDIOWAVE_ID "e57194d0-f53b-419d-9715-17c094e58723"
 
 struct matrix4;
 
@@ -679,6 +683,11 @@ typedef void (*obs_load_source_cb)(void *private_data, obs_source_t *source);
 /** Loads sources from a data array */
 EXPORT void obs_load_sources(obs_data_array_t *array, obs_load_source_cb cb,
 			     void *private_data);
+
+/** Loads sources from a data array without scene in it, trigger scene load with params*/
+EXPORT void obs_load_sources_with_specific_iteminfo(obs_data_array_t *array,
+						    obs_source_t *scene,
+						    obs_data_t *iteminfo);
 
 /** Saves sources to a data array */
 EXPORT obs_data_array_t *obs_save_sources(void);
@@ -1491,6 +1500,8 @@ EXPORT obs_source_t *obs_sceneitem_get_source(const obs_sceneitem_t *item);
 /* FIXME: The following functions should be deprecated and replaced with a way
  * to specify savable private user data. -Jim */
 EXPORT void obs_sceneitem_select(obs_sceneitem_t *item, bool select);
+EXPORT void obs_sceneitem_subitem_select(obs_sceneitem_t *group,
+					 obs_sceneitem_t *item, bool select);
 EXPORT bool obs_sceneitem_selected(const obs_sceneitem_t *item);
 EXPORT bool obs_sceneitem_locked(const obs_sceneitem_t *item);
 EXPORT bool obs_sceneitem_set_locked(obs_sceneitem_t *item, bool lock);

@@ -1,4 +1,4 @@
-/*
+﻿/*
 Copyright (C) 2014 by Leonhard Oelke <leonhard@in-verted.de>
 
 This program is free software: you can redistribute it and/or modify
@@ -62,6 +62,11 @@ struct meter_cb {
 	void *param;
 };
 
+struct meter_raw_cb {
+	obs_volmeter_raw_data_t callback;
+	void *param;
+};
+
 struct obs_volmeter {
 	pthread_mutex_t mutex;
 	obs_source_t *source;
@@ -70,6 +75,7 @@ struct obs_volmeter {
 
 	pthread_mutex_t callback_mutex;
 	DARRAY(struct meter_cb) callbacks;
+	DARRAY(struct meter_raw_cb) raw_data_callbacks;
 
 	enum obs_peak_meter_type peak_meter_type;
 	unsigned int update_ms;
@@ -207,6 +213,18 @@ static void signal_levels_updated(struct obs_volmeter *volmeter,
 	for (size_t i = volmeter->callbacks.num; i > 0; i--) {
 		struct meter_cb cb = volmeter->callbacks.array[i - 1];
 		cb.callback(cb.param, magnitude, peak, input_peak);
+	}
+	pthread_mutex_unlock(&volmeter->callback_mutex);
+}
+
+static void signal_raw_data_updated(struct obs_volmeter *volmeter,
+				    uint8_t *data, uint32_t frames)
+{
+	pthread_mutex_lock(&volmeter->callback_mutex);
+	for (size_t i = volmeter->raw_data_callbacks.num; i > 0; i--) {
+		struct meter_raw_cb cb =
+			volmeter->raw_data_callbacks.array[i - 1];
+		cb.callback(cb.param, data, frames);
 	}
 	pthread_mutex_unlock(&volmeter->callback_mutex);
 }
@@ -528,6 +546,8 @@ static void volmeter_source_data_received(void *vptr, obs_source_t *source,
 	float peak[MAX_AUDIO_CHANNELS];
 	float input_peak[MAX_AUDIO_CHANNELS];
 
+	signal_raw_data_updated(volmeter, data->data[0], data->frames);
+
 	pthread_mutex_lock(&volmeter->mutex);
 
 	volmeter_process_audio_data(volmeter, data);
@@ -797,6 +817,7 @@ void obs_volmeter_destroy(obs_volmeter_t *volmeter)
 
 	obs_volmeter_detach_source(volmeter);
 	da_free(volmeter->callbacks);
+	da_free(volmeter->raw_data_callbacks);
 	pthread_mutex_destroy(&volmeter->callback_mutex);
 	pthread_mutex_destroy(&volmeter->mutex);
 
@@ -933,6 +954,34 @@ void obs_volmeter_remove_callback(obs_volmeter_t *volmeter,
 
 	pthread_mutex_lock(&volmeter->callback_mutex);
 	da_erase_item(volmeter->callbacks, &cb);
+	pthread_mutex_unlock(&volmeter->callback_mutex);
+}
+
+void obs_volmeter_add_raw_data_callback(obs_volmeter_t *volmeter,
+					obs_volmeter_raw_data_t callback,
+					void *param)
+{
+	struct meter_raw_cb cb = {callback, param};
+
+	if (!obs_ptr_valid(volmeter, "obs_volmeter_add_raw_data_callback"))
+		return;
+
+	pthread_mutex_lock(&volmeter->callback_mutex);
+	da_push_back(volmeter->raw_data_callbacks, &cb);
+	pthread_mutex_unlock(&volmeter->callback_mutex);
+}
+
+void obs_volmeter_remove_raw_data_callback(obs_volmeter_t *volmeter,
+					   obs_volmeter_raw_data_t callback,
+					   void *param)
+{
+	struct meter_raw_cb cb = {callback, param};
+
+	if (!obs_ptr_valid(volmeter, "obs_volmeter_remove_raw_data_callback"))
+		return;
+
+	pthread_mutex_lock(&volmeter->callback_mutex);
+	da_erase_item(volmeter->raw_data_callbacks, &cb);
 	pthread_mutex_unlock(&volmeter->callback_mutex);
 }
 
