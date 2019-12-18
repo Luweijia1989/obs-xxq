@@ -56,7 +56,9 @@ static void textslide_source_update(void *data, obs_data_t *settings)
 	for (size_t i = 0; i < count; i++) {
 		obs_data_t *item = obs_data_array_item(array, i);
 		const char *path = obs_data_get_string(item, "value");
-		texts.append(path);
+		bool hidden = obs_data_get_bool(item, "hidden");
+		if (!hidden)
+			texts.append(path);
 		obs_data_release(item);
 	}
 	obs_data_array_release(array);
@@ -122,46 +124,6 @@ static void textslide_source_defaults(obs_data_t *settings)
 	TextSlideShow::default(settings);
 }
 
-static void textslide_source_show(void *data)
-{
-	if (!data)
-		return;
-	TextSlideShow *s = (TextSlideShow *)data;
-	s->baseShow();
-}
-
-static void textslide_source_hide(void *data)
-{
-	if (!data)
-		return;
-	TextSlideShow *s = (TextSlideShow *)data;
-	s->baseHide();
-}
-
-static uint32_t textslide_source_getwidth(void *data)
-{
-	if (!data)
-		return 5;
-	TextSlideShow *s = (TextSlideShow *)data;
-	return s->baseGetWidth();
-}
-
-static uint32_t textslide_source_getheight(void *data)
-{
-	if (!data)
-		return 5;
-	TextSlideShow *s = (TextSlideShow *)data;
-	return s->baseGetHeight();
-}
-
-static void textslide_source_render(void *data, gs_effect_t *effect)
-{
-	if (!data)
-		return;
-	TextSlideShow *s = (TextSlideShow *)data;
-	s->baseRender(effect);
-}
-
 static obs_properties_t *textslide_source_properties(void *data)
 {
 	if (!data)
@@ -222,84 +184,34 @@ static obs_properties_t *textslide_source_properties(void *data)
 	return props;
 }
 
-static void textslide_source_mouse_click(void *data,
-					 const struct obs_mouse_event *event,
-					 int32_t type, bool mouse_up,
-					 uint32_t click_count)
-{
-	if (!data)
-		return;
-	TextSlideShow *s = (TextSlideShow *)data;
-	s->baseMouseClick(event->x, event->y, type, mouse_up, click_count);
-}
-
-static void textslide_source_mouse_move(void *data,
-					const struct obs_mouse_event *event,
-					bool mouse_leave)
-{
-	if (!data)
-		return;
-	TextSlideShow *s = (TextSlideShow *)data;
-	s->baseMouseMove(event->x, event->y, mouse_leave);
-}
-
-static void textslide_source_mouse_wheel(void *data,
-					 const struct obs_mouse_event *event,
-					 int x_delta, int y_delta)
-{
-	if (!data)
-		return;
-	TextSlideShow *s = (TextSlideShow *)data;
-	s->baseMouseWheel(x_delta, y_delta);
-}
-
-static void textslide_source_focus(void *data, bool focus)
-{
-	if (!data)
-		return;
-	TextSlideShow *s = (TextSlideShow *)data;
-	s->baseFocus(focus);
-}
-
-static void textslide_source_key_click(void *data,
-				       const struct obs_key_event *event,
-				       bool key_up)
-{
-	if (!data)
-		return;
-	TextSlideShow *s = (TextSlideShow *)data;
-	s->baseKey(event->native_scancode, event->native_vkey,
-		   event->native_modifiers, event->text, key_up);
-}
-
 struct obs_source_info quicktextslideshow_source_info = {
 	"quicktextslideshow_source",
 	OBS_SOURCE_TYPE_INPUT,
-	OBS_SOURCE_VIDEO | OBS_SOURCE_INTERACTION | OBS_SOURCE_DO_NOT_DUPLICATE,
+	OBS_SOURCE_VIDEO | OBS_SOURCE_INTERACTION,
 	textslide_source_get_name,
 	textslide_source_create,
 	textslide_source_destroy,
-	textslide_source_getwidth,
-	textslide_source_getheight,
+	base_source_getwidth,
+	base_source_getheight,
 	textslide_source_defaults,
 	textslide_source_properties,
 	textslide_source_update,
 	nullptr,
 	nullptr,
-	textslide_source_show,
-	textslide_source_hide,
+	base_source_show,
+	base_source_hide,
 	nullptr,
-	textslide_source_render,
-	nullptr,
-	nullptr,
+	base_source_render,
 	nullptr,
 	nullptr,
 	nullptr,
-	textslide_source_mouse_click,
-	textslide_source_mouse_move,
-	textslide_source_mouse_wheel,
-	textslide_source_focus,
-	textslide_source_key_click,
+	nullptr,
+	nullptr,
+	base_source_mouse_click,
+	base_source_mouse_move,
+	base_source_mouse_wheel,
+	base_source_focus,
+	base_source_key_click,
 	nullptr,
 	nullptr,
 	nullptr,

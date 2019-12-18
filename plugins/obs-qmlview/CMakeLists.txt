@@ -41,6 +41,7 @@ set(qmlview_SOURCES
     textslideshow.cpp
     rank.cpp
     leave.cpp
+	audiowave.cpp
 )
 
 set( qmlview_HEADERS
@@ -53,6 +54,7 @@ set( qmlview_HEADERS
     rank.h
     leave.h
     defines.h
+	audiowave.h
 )
 
 set(qmlview_QRC qmlview.qrc)

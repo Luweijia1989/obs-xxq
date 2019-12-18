@@ -289,6 +289,9 @@ void WindowSingleThreaded::resize(QSize newSize)
 	qDebug() << "Resizing: " << newSize;
 	m_quickWindow->resize(newSize);
 
+	if (!m_fbo)
+		createFbo();
+
 	// If this is a resize after the scene is up and running, recreate the fbo and the
 	// Quick item and scene.
 	if (m_fbo && m_fbo->size() != m_quickWindow->size())

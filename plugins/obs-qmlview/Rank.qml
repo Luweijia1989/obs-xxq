@@ -80,7 +80,7 @@ Item {
 
                         Text {
                             Layout.alignment: Qt.AlignVCenter
-                            Layout.preferredWidth: 90
+                            Layout.preferredWidth: 100
                             leftPadding: 30
                             text: diamondNum
                             horizontalAlignment: Text.AlignLeft

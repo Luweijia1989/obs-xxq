@@ -32,3 +32,33 @@ public:
 public:
 	OBSQuickview *quickView;
 };
+
+
+
+void base_source_show(void *data);
+
+void base_source_hide(void *data);
+
+uint32_t base_source_getwidth(void *data);
+
+uint32_t base_source_getheight(void *data);
+
+void base_source_render(void *data, gs_effect_t *effect);
+
+void base_source_mouse_click(void *data,
+	const struct obs_mouse_event *event,
+	int32_t type, bool mouse_up,
+	uint32_t click_count);
+
+void base_source_mouse_move(void *data,
+	const struct obs_mouse_event *event,
+	bool mouse_leave);
+void base_source_mouse_wheel(void *data,
+	const struct obs_mouse_event *event,
+	int x_delta, int y_delta);
+
+void base_source_focus(void *data, bool focus);
+
+void base_source_key_click(void *data,
+	const struct obs_key_event *event,
+	bool key_up);

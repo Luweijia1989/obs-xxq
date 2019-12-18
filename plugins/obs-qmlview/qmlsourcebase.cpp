@@ -139,3 +139,85 @@ void QmlSourceBase::baseFocus(bool onoff)
 {
 	quickView->m_quickView->sendFocus(onoff);
 }
+
+
+void base_source_show(void *data) {
+	if (!data)
+		return;
+	QmlSourceBase *s = (QmlSourceBase *)data;
+	s->baseShow();
+}
+
+void base_source_hide(void *data) {
+	if (!data)
+		return;
+	QmlSourceBase *s = (QmlSourceBase *)data;
+	s->baseHide();
+}
+
+uint32_t base_source_getwidth(void *data) {
+	if (!data)
+		return 5;
+	QmlSourceBase *s = (QmlSourceBase *)data;
+	return s->baseGetWidth();
+}
+
+uint32_t base_source_getheight(void *data) {
+	if (!data)
+		return 5;
+	QmlSourceBase *s = (QmlSourceBase *)data;
+	return s->baseGetHeight();
+}
+
+void base_source_render(void *data, gs_effect_t *effect) {
+	if (!data)
+		return;
+	QmlSourceBase *s = (QmlSourceBase *)data;
+	s->baseRender(effect);
+}
+
+
+void base_source_mouse_click(void *data,
+	const struct obs_mouse_event *event,
+	int32_t type, bool mouse_up,
+	uint32_t click_count) {
+	if (!data)
+		return;
+	QmlSourceBase *s = (QmlSourceBase *)data;
+	s->baseMouseClick(event->x, event->y, type, mouse_up, click_count);
+}
+
+void base_source_mouse_move(void *data,
+	const struct obs_mouse_event *event,
+	bool mouse_leave) {
+	if (!data)
+		return;
+	QmlSourceBase *s = (QmlSourceBase *)data;
+	s->baseMouseMove(event->x, event->y, mouse_leave);
+}
+
+void base_source_mouse_wheel(void *data,
+	const struct obs_mouse_event *event,
+	int x_delta, int y_delta) {
+	if (!data)
+		return;
+	QmlSourceBase *s = (QmlSourceBase *)data;
+	s->baseMouseWheel(x_delta, y_delta);
+}
+
+void base_source_focus(void *data, bool focus) {
+	if (!data)
+		return;
+	QmlSourceBase *s = (QmlSourceBase *)data;
+	s->baseFocus(focus);
+}
+
+void base_source_key_click(void *data,
+	const struct obs_key_event *event,
+	bool key_up) {
+	if (!data)
+		return;
+	QmlSourceBase *s = (QmlSourceBase *)data;
+	s->baseKey(event->native_scancode, event->native_vkey,
+		event->native_modifiers, event->text, key_up);
+}

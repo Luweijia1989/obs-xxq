@@ -4,5 +4,6 @@
         <file>ImageSlideShow.qml</file>
         <file>Rank.qml</file>
         <file>Leave.qml</file>
+        <file>AudioWave.qml</file>
     </qresource>
 </RCC>
