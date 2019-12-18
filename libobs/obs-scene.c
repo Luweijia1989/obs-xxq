@@ -1,4 +1,4 @@
-/******************************************************************************
+﻿/******************************************************************************
     Copyright (C) 2013-2015 by Hugh Bailey <obs.jim@gmail.com>
                                Philippe Groarke <philippe.groarke@gmail.com>
 
@@ -1827,6 +1827,24 @@ void obs_sceneitem_select(obs_sceneitem_t *item, bool select)
 	calldata_set_ptr(&params, "item", item);
 
 	signal_parent(item->parent, command, &params);
+}
+
+void obs_sceneitem_subitem_select(obs_sceneitem_t *group, obs_sceneitem_t *item,
+				  bool select)
+{
+	struct calldata params;
+	uint8_t stack[128];
+	const char *command = select ? "item_select" : "item_deselect";
+
+	if (!item || item->selected == select || !item->parent)
+		return;
+
+	item->selected = select;
+
+	calldata_init_fixed(&params, stack, sizeof(stack));
+	calldata_set_ptr(&params, "item", item);
+
+	signal_parent(group->parent, command, &params);
 }
 
 bool obs_sceneitem_selected(const obs_sceneitem_t *item)
