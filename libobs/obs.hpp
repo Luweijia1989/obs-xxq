@@ -1,4 +1,4 @@
-/******************************************************************************
+﻿/******************************************************************************
     Copyright (C) 2013 by Hugh Bailey <obs.jim@gmail.com>
 
     This program is free software: you can redistribute it and/or modify
@@ -233,6 +233,16 @@ public:
 		callback = callback_;
 		param = param_;
 		signal_handler_connect_ref(handler, signal, callback, param);
+	}
+
+	inline void BlockSignal(bool block)
+	{
+		if (block)
+			signal_handler_disconnect(handler, signal, callback,
+						  param);
+		else
+			signal_handler_connect_ref(handler, signal, callback,
+						   param);
 	}
 
 	OBSSignal(const OBSSignal &) = delete;

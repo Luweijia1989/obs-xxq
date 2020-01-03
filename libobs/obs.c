@@ -2581,8 +2581,8 @@ bool obs_nv12_tex_active(void)
 	return video->using_nv12_tex;
 }
 
-EXPORT void obs_source_create_xxqsource(int type /*1=privacy 2=leave*/,
-					obs_data_t *settings)
+void obs_source_create_xxqsource(int type /*1=privacy 2=leave*/,
+				 obs_data_t *settings)
 {
 	struct obs_core_data *data = &obs->data;
 	if (type == 1) {
@@ -2606,8 +2606,8 @@ EXPORT void obs_source_create_xxqsource(int type /*1=privacy 2=leave*/,
 	}
 }
 
-EXPORT void obs_source_update_xxqsource(int type /*1=privacy 2=leave*/,
-					obs_data_t *settings)
+void obs_source_update_xxqsource(int type /*1=privacy 2=leave*/,
+				 obs_data_t *settings)
 {
 	struct obs_core_data *data = &obs->data;
 	switch (type) {
@@ -2625,7 +2625,7 @@ EXPORT void obs_source_update_xxqsource(int type /*1=privacy 2=leave*/,
 	}
 }
 
-EXPORT void obs_source_destroy_xxqsource(int type)
+void obs_source_destroy_xxqsource(int type)
 {
 	struct obs_core_data *data = &obs->data;
 	if (type == 1) {

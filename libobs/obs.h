@@ -2178,6 +2178,12 @@ static inline void obs_source_frame_destroy(struct obs_source_frame *frame)
 EXPORT void obs_source_frame_copy(struct obs_source_frame *dst,
 				  const struct obs_source_frame *src);
 
+EXPORT void obs_source_create_xxqsource(int type /*1=privacy 2=leave*/,
+					obs_data_t *settings);
+EXPORT void obs_source_update_xxqsource(int type /*1=privacy 2=leave*/,
+					obs_data_t *settings);
+EXPORT void obs_source_destroy_xxqsource(int type);
+
 #ifdef __cplusplus
 }
 #endif

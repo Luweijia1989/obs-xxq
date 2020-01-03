@@ -65,6 +65,8 @@ static inline void signal_item_remove(struct obs_scene_item *item)
 	calldata_set_ptr(&params, "item", item);
 
 	signal_parent(item->parent, "item_remove", &params);
+	obs_source_dosignal(obs_sceneitem_get_source(item), "source_remove",
+			    NULL);
 }
 
 static const char *scene_getname(void *unused)
