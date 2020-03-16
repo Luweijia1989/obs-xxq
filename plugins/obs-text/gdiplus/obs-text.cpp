@@ -1,4 +1,4 @@
-#include <graphics/math-defs.h>
+﻿#include <graphics/math-defs.h>
 #include <util/platform.h>
 #include <util/util.hpp>
 #include <obs-module.h>
@@ -256,6 +256,9 @@ struct TextSource {
 	bool chatlog_mode = false;
 	int chatlog_lines = 6;
 
+	FontFamily families[1];
+	Font *font_set;
+
 	/* --------------------------- */
 
 	inline TextSource(obs_source_t *source_, obs_data_t *settings)
@@ -263,6 +266,7 @@ struct TextSource {
 		  hdc(CreateCompatibleDC(nullptr)),
 		  graphics(hdc)
 	{
+		font_set = nullptr;
 		obs_source_update(source, settings);
 	}
 
@@ -275,6 +279,7 @@ struct TextSource {
 		}
 	}
 
+	bool IsInstallFont(const wchar_t *fontName);
 	void UpdateFont();
 	void GetStringFormat(StringFormat &format);
 	void RemoveNewlinePadding(const StringFormat &format, RectF &box);
@@ -293,6 +298,29 @@ struct TextSource {
 	inline void Render();
 };
 
+bool TextSource::IsInstallFont(const wchar_t *fontName)
+{
+	bool bRtn = false;
+	InstalledFontCollection *fonts = new InstalledFontCollection;
+	INT found;
+	int count = fonts->GetFamilyCount();
+	FontFamily *fontFamily = new FontFamily[count];
+	fonts->GetFamilies(count, fontFamily, &found);
+	for (int i = 0; i < fonts->GetFamilyCount(); i++) {
+		WCHAR wInstallFaceName[LF_FACESIZE];
+		fontFamily[i].GetFamilyName(wInstallFaceName);
+		if (wcscmp(fontName, wInstallFaceName) == 0) {
+			bRtn = true;
+			break;
+		}
+	}
+	delete fonts;
+	fonts = nullptr;
+	delete[] fontFamily;
+	fontFamily = NULL;
+	return bRtn;
+}
+
 static time_t get_modified_timestamp(const char *filename)
 {
 	struct stat stats;
@@ -305,7 +333,50 @@ void TextSource::UpdateFont()
 {
 	hfont = nullptr;
 	font.reset(nullptr);
+	if (face == L"阿里汉仪智能黑体" || face == L"DIN Condensed") {
+		bool bInstall = IsInstallFont(face.c_str());
+		if (bInstall == false) {
 
+			PrivateFontCollection fontCollection;
+
+			wchar_t cwd[MAX_PATH];
+			GetModuleFileNameW(nullptr, cwd, _countof(cwd) - 1);
+			wchar_t *p = wcsrchr(cwd, '\\');
+			if (p)
+				*p = 0;
+			wstring path = cwd;
+
+			if (face == L"DIN Condensed")
+				path = path + L"\\custom_font\\DIN Condensed Bold.ttf";
+			else
+			        path = path + L"\\custom_font\\ALiHanYiZhiNengHeiTi-2.ttf";
+			Status result =fontCollection.AddFontFile(path.c_str());
+			if (result != Ok)
+				goto Normal_Set;
+
+			int numFamilies;
+			fontCollection.GetFamilies(1, families, &numFamilies);
+			int style = FontStyleRegular;
+			if (bold)
+				style = style | FontStyleBold;
+			if (italic)
+				style = style | FontStyleItalic;
+
+			if (underline)
+				style = style | FontStyleUnderline;
+
+			if (strikeout)
+				style = style | FontStyleStrikeout;
+
+			font_set = new Font(&families[0],
+					    face_size * 2.0f / 2.7f, style,
+					    UnitPixel);
+			font.reset(font_set);
+			return;
+		}
+	}
+
+Normal_Set:
 	LOGFONT lf = {};
 	lf.lfHeight = face_size;
 	lf.lfWeight = bold ? FW_BOLD : FW_DONTCARE;
