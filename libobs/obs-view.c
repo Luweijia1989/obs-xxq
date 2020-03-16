@@ -1,4 +1,4 @@
-/******************************************************************************
+﻿/******************************************************************************
     Copyright (C) 2014 by Hugh Bailey <obs.jim@gmail.com>
 
     This program is free software: you can redistribute it and/or modify
@@ -126,6 +126,7 @@ void obs_view_render(obs_view_t *view)
 	if (!view)
 		return;
 
+	struct obs_core_data *core_data = &obs->data;
 	pthread_mutex_lock(&view->channels_mutex);
 
 	for (size_t i = 0; i < MAX_CHANNELS; i++) {
@@ -142,6 +143,30 @@ void obs_view_render(obs_view_t *view)
 			}
 		}
 	}
+
+	if (core_data->sticker_source) {
+		obs_data_t *ss = core_data->sticker_source->context.settings;
+		gs_matrix_push();
+		struct matrix4 sticker_pos;
+		memset(&sticker_pos, 0, sizeof(sticker_pos));
+		vec4_set(&sticker_pos.x, 1, 0, 0, 0);
+		vec4_set(&sticker_pos.y, 0, 1, 0, 0);
+		vec4_set(&sticker_pos.z, 0, 0, 0, 1);
+		vec4_set(&sticker_pos.t, obs_data_get_int(ss, "x"),
+			 obs_data_get_int(ss, "y"), 0, 1);
+		gs_matrix_mul(&sticker_pos);
+		obs_source_default_render(core_data->sticker_source);
+		gs_matrix_pop();
+	}
+
+	if (core_data->privacy_source)
+		obs_source_default_render(core_data->privacy_source);
+
+	if (core_data->leave_source)
+		obs_source_default_render(core_data->leave_source);
+
+	if (core_data->audiowave_source)
+		obs_source_default_render(core_data->audiowave_source);
 
 	pthread_mutex_unlock(&view->channels_mutex);
 }

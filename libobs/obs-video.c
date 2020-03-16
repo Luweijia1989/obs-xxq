@@ -67,6 +67,20 @@ static uint64_t tick_sources(uint64_t cur_time, uint64_t last_time)
 		}
 	}
 
+	if (data->sticker_source) {
+		struct obs_source *cur_source =
+			obs_source_get_ref(data->sticker_source);
+		obs_source_video_tick(cur_source, seconds);
+		obs_source_release(cur_source);
+	}
+
+	if (data->privacy_source) {
+		struct obs_source *cur_source =
+			obs_source_get_ref(data->privacy_source);
+		obs_source_video_tick(cur_source, seconds);
+		obs_source_release(cur_source);
+	}
+
 	pthread_mutex_unlock(&data->sources_mutex);
 
 	return cur_time;
@@ -146,15 +160,6 @@ static inline void render_main_texture(struct obs_core_video *video)
 	pthread_mutex_unlock(&obs->data.draw_callbacks_mutex);
 
 	obs_view_render(&obs->data.main_view);
-
-	if (core_data->privacy_source)
-		obs_source_default_render(core_data->privacy_source);
-
-	if (core_data->leave_source)
-		obs_source_default_render(core_data->leave_source);
-
-	if (core_data->audiowave_source)
-		obs_source_default_render(core_data->audiowave_source);
 
 	video->texture_rendered = true;
 

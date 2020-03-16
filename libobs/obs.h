@@ -39,6 +39,7 @@
 #define PRIVACY_ID "f004041a-f99d-4fa4-88f1-6b2db429cd38"
 #define LEAVING_ID "3d3ed3b3-8dbf-40b8-a2af-cd670115f3fd"
 #define AUDIOWAVE_ID "e57194d0-f53b-419d-9715-17c094e58723"
+#define STICKER_ID "8d63c5bf-6a44-4193-9109-966cbcf236f8"
 
 struct matrix4;
 

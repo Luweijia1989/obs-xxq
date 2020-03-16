@@ -354,9 +354,10 @@ struct obs_core_data {
 
 	obs_data_t *private_data;
 
-	obs_source_t *privacy_source;
-	obs_source_t *leave_source;
-	obs_source_t *audiowave_source;
+	struct obs_source *privacy_source;
+	struct obs_source *leave_source;
+	struct obs_source *audiowave_source;
+	struct obs_source *sticker_source;
 
 	volatile bool valid;
 };

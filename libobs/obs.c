@@ -2589,6 +2589,7 @@ void obs_source_create_xxqsource(int type /*1=privacy 2=leave*/,
 		if (!data->privacy_source) {
 			data->privacy_source = obs_source_create_private(
 				"image_source", PRIVACY_ID, settings);
+			obs_source_activate(data->privacy_source, MAIN_VIEW);
 		}
 	} else if (type == 2) {
 		if (!data->leave_source) {
@@ -2602,6 +2603,12 @@ void obs_source_create_xxqsource(int type /*1=privacy 2=leave*/,
 				"quickaudiowave_source", AUDIOWAVE_ID,
 				settings);
 			obs_source_activate(data->audiowave_source, MAIN_VIEW);
+		}
+	} else if (type == 4) {
+		if (!data->sticker_source) {
+			data->sticker_source = obs_source_create_private(
+				"image_source", STICKER_ID, settings);
+			obs_source_activate(data->sticker_source, MAIN_VIEW);
 		}
 	}
 }
@@ -2637,5 +2644,8 @@ void obs_source_destroy_xxqsource(int type)
 	} else if (type == 3) {
 		obs_source_release(data->audiowave_source);
 		data->audiowave_source = NULL;
+	} else if (type == 4) {
+		obs_source_release(data->sticker_source);
+		data->sticker_source = NULL;
 	}
 }
