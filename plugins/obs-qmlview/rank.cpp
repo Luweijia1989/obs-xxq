@@ -193,7 +193,7 @@ static void rank_source_update(void *data, obs_data_t *settings)
 	s->settopMargin(topMargin);
 
 	int rightMargin = obs_data_get_int(settings, "rightMargin");
-	s->setrightMarin(rightMargin);
+	s->setrightMargin(rightMargin);
 
 	int bottomMargin = obs_data_get_int(settings, "bottomMargin");
 	s->setbottomMargin(bottomMargin);

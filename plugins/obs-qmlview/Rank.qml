@@ -18,6 +18,7 @@ Item {
             anchors.topMargin: rankProperties.topMargin
             anchors.bottomMargin: rankProperties.bottomMargin
             spacing: rankProperties.spacing
+
             Text {
                 text: rankProperties.rankName
                 font.family: rankProperties.font
@@ -40,7 +41,7 @@ Item {
                     width: parent.width
                     RowLayout {
                         anchors.fill: parent
-                        spacing: 10
+                        spacing: 12
 
                         Item {
                             Layout.alignment: Qt.AlignVCenter
@@ -81,7 +82,7 @@ Item {
                         Text {
                             Layout.alignment: Qt.AlignVCenter
                             Layout.preferredWidth: 100
-                            leftPadding: 30
+                            leftPadding: 24
                             text: diamondNum
                             horizontalAlignment: Text.AlignLeft
                             font.family: diamondFontName

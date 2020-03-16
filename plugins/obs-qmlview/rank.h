@@ -82,7 +82,7 @@ public:
 	DEFINE_PROPERTY(QString, rankList)
 	DEFINE_PROPERTY(int, leftMargin)
 	DEFINE_PROPERTY(int, topMargin)
-	DEFINE_PROPERTY(int, rightMarin)
+	DEFINE_PROPERTY(int, rightMargin)
 	DEFINE_PROPERTY(int, bottomMargin)
 	DEFINE_PROPERTY(int, spacing)
 
