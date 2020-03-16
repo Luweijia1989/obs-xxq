@@ -1,7 +1,9 @@
-#include <windows.h>
+﻿#include <windows.h>
 #include <obs-module.h>
 #include <util/windows/win-version.h>
 #include <util/platform.h>
+#define COBJMACROS
+#include <dxgi.h>
 
 OBS_DECLARE_MODULE()
 OBS_MODULE_USE_DEFAULT_LOCALE("win-capture", "en-US")
@@ -51,6 +53,32 @@ static DWORD WINAPI init_hooks(LPVOID param)
 	return 0;
 }
 
+#define MICROSOFT_VENDOR_ID 5140
+bool has_multi_video_adapter()
+{
+	IDXGIFactory1 *pIDXGIFactory = NULL;
+	if (FAILED(CreateDXGIFactory1(&IID_IDXGIFactory1,
+				      (void **)(&pIDXGIFactory))))
+		return false;
+	int i = 0;
+	int adapterCount = 0;
+	IDXGIAdapter1 *pAdapter;
+	while (IDXGIFactory1_EnumAdapters1(pIDXGIFactory, i, &pAdapter) !=
+	       DXGI_ERROR_NOT_FOUND) {
+		DXGI_ADAPTER_DESC1 desc;
+		if (SUCCEEDED(IDXGIAdapter1_GetDesc1(pAdapter, &desc)) &&
+		    desc.VendorId != MICROSOFT_VENDOR_ID) {
+			adapterCount++;
+		}
+		++i;
+	}
+
+	if (pIDXGIFactory)
+		IDXGIFactory1_Release(pIDXGIFactory);
+
+	return adapterCount > 1;
+}
+
 void wait_for_hook_initialization(void)
 {
 	static bool initialized = false;
@@ -83,7 +111,8 @@ bool obs_module_load(void)
 
 	obs_enter_graphics();
 
-	if (win8_or_above && gs_get_device_type() == GS_DEVICE_DIRECT3D_11)
+	if (!has_multi_video_adapter() && win8_or_above &&
+	    gs_get_device_type() == GS_DEVICE_DIRECT3D_11)
 		obs_register_source(&duplicator_capture_info);
 	else
 		obs_register_source(&monitor_capture_info);

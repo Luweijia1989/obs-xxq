@@ -1,4 +1,4 @@
-project(win-capture)
+﻿project(win-capture)
 
 set(win-capture_HEADERS
 	nt-stuff.h
@@ -31,7 +31,9 @@ add_library(win-capture MODULE
 target_link_libraries(win-capture
 	libobs
 	ipc-util
-	psapi)
+	psapi
+	"dxgi.lib"
+	"dxguid.lib")
 
 install_obs_plugin_with_data(win-capture data)
 
