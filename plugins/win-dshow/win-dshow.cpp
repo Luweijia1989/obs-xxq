@@ -1,4 +1,4 @@
-#include <objbase.h>
+﻿#include <objbase.h>
 
 #include <obs-module.h>
 #include <obs.hpp>
@@ -9,6 +9,7 @@
 #include "libdshowcapture/dshowcapture.hpp"
 #include "ffmpeg-decode.h"
 #include "encode-dstr.hpp"
+#include "facesticker/st-thread.h"
 
 #include <algorithm>
 #include <limits>
@@ -46,6 +47,8 @@ using namespace DShow;
 #define COLOR_SPACE       "color_space"
 #define COLOR_RANGE       "color_range"
 #define DEACTIVATE_WNS    "deactivate_when_not_showing"
+#define	USE_FACE_STICKER  "use_face_sticker"
+#define FACE_STICKER_ID	  "face_sticker_id"
 
 #define TEXT_INPUT_NAME     obs_module_text("VideoCaptureDevice")
 #define TEXT_DEVICE         obs_module_text("Device")
@@ -93,7 +96,7 @@ enum class BufferingType : int64_t {
 	Off,
 };
 
-void ffmpeg_log(void *bla, int level, const char *msg, va_list args)
+static void ffmpeg_log(void *bla, int level, const char *msg, va_list args)
 {
 	DStr str;
 	if (level == AV_LOG_WARNING)
@@ -172,6 +175,10 @@ struct DShowInput {
 	bool flip = false;
 	bool active = false;
 
+	bool use_face_sticker = false;
+	QString face_sticker_id;
+	STThread *stThread = nullptr;
+
 	Decoder audio_decoder;
 	Decoder video_decoder;
 
@@ -238,10 +245,19 @@ struct DShowInput {
 
 			active = true;
 		}
+
+		stThread = new STThread(this);
+		stThread->start(QThread::HighestPriority);
 	}
 
 	inline ~DShowInput()
 	{
+		if (stThread) {
+			stThread->stop();
+			delete stThread;
+			stThread = nullptr;
+		}
+
 		{
 			CriticalScope scope(mutex);
 			actions.resize(1);
@@ -260,6 +276,9 @@ struct DShowInput {
 
 	void OnVideoData(const VideoConfig &config, unsigned char *data,
 			 size_t size, long long startTime, long long endTime);
+	void DShowInput::OutputFrame(bool f, VideoFormat vf,
+				     unsigned char *data, size_t size,
+				     long long startTime, long long endTime);
 	void OnAudioData(const AudioConfig &config, unsigned char *data,
 			 size_t size, long long startTime, long long endTime);
 
@@ -396,7 +415,7 @@ static long long FrameRateInterval(const VideoInfo &cap,
 		       : min(desired_interval, cap.maxInterval);
 }
 
-static inline video_format ConvertVideoFormat(VideoFormat format)
+video_format ConvertVideoFormat(VideoFormat format)
 {
 	switch (format) {
 	case VideoFormat::ARGB:
@@ -481,8 +500,10 @@ void DShowInput::OnEncodedVideoData(enum AVCodecID id, unsigned char *data,
 	}
 
 	bool got_output;
+	AVFrame *avFrame = NULL;
 	bool success = ffmpeg_decode_video(video_decoder, data, size, &ts,
-					   range, &frame, &got_output);
+					   range, &frame,
+					   &avFrame, &got_output);
 	if (!success) {
 		blog(LOG_WARNING, "Error decoding video");
 		return;
@@ -495,7 +516,11 @@ void DShowInput::OnEncodedVideoData(enum AVCodecID id, unsigned char *data,
 #if LOG_ENCODED_VIDEO_TS
 		blog(LOG_DEBUG, "video ts: %llu", frame.timestamp);
 #endif
-		obs_source_output_video2(source, &frame);
+		if (use_face_sticker && stThread && stThread->stInited())
+			stThread->addFrame(avFrame, face_sticker_id);
+
+		else 
+			obs_source_output_video2(source, &frame);
 	}
 }
 
@@ -513,32 +538,40 @@ void DShowInput::OnVideoData(const VideoConfig &config, unsigned char *data,
 		return;
 	}
 
-	const int cx = config.cx;
-	const int cy = config.cy;
+	if (use_face_sticker && stThread && stThread->stInited())
+		stThread->addFrame(data, size, startTime, face_sticker_id);
+	else
+		OutputFrame((videoConfig.format == VideoFormat::XRGB ||
+			     videoConfig.format == VideoFormat::ARGB),
+			    videoConfig.format, data, size, startTime, endTime);
+}
+
+void DShowInput::OutputFrame(bool f, VideoFormat vf, unsigned char *data,
+			     size_t size, long long startTime,
+			     long long endTime)
+{
+	const int cx = videoConfig.cx;
+	const int cy = videoConfig.cy;
 
 	frame.timestamp = (uint64_t)startTime * 100;
-	frame.width = config.cx;
-	frame.height = config.cy;
-	frame.format = ConvertVideoFormat(config.format);
-	frame.flip = (config.format == VideoFormat::XRGB ||
-		      config.format == VideoFormat::ARGB);
+	frame.width = videoConfig.cx;
+	frame.height = videoConfig.cy;
+	frame.format = ConvertVideoFormat(vf);
+	frame.flip = f;
 
 	if (flip)
 		frame.flip = !frame.flip;
 
-	if (videoConfig.format == VideoFormat::XRGB ||
-	    videoConfig.format == VideoFormat::ARGB) {
+	if (vf == VideoFormat::XRGB || vf == VideoFormat::ARGB) {
 		frame.data[0] = data;
 		frame.linesize[0] = cx * 4;
 
-	} else if (videoConfig.format == VideoFormat::YVYU ||
-		   videoConfig.format == VideoFormat::YUY2 ||
-		   videoConfig.format == VideoFormat::HDYC ||
-		   videoConfig.format == VideoFormat::UYVY) {
+	} else if (vf == VideoFormat::YVYU || vf == VideoFormat::YUY2 ||
+		   vf == VideoFormat::HDYC || vf == VideoFormat::UYVY) {
 		frame.data[0] = data;
 		frame.linesize[0] = cx * 2;
 
-	} else if (videoConfig.format == VideoFormat::I420) {
+	} else if (vf == VideoFormat::I420) {
 		frame.data[0] = data;
 		frame.data[1] = frame.data[0] + (cx * cy);
 		frame.data[2] = frame.data[1] + (cx * cy / 4);
@@ -546,7 +579,7 @@ void DShowInput::OnVideoData(const VideoConfig &config, unsigned char *data,
 		frame.linesize[1] = cx / 2;
 		frame.linesize[2] = cx / 2;
 
-	} else if (videoConfig.format == VideoFormat::YV12) {
+	} else if (vf == VideoFormat::YV12) {
 		frame.data[0] = data;
 		frame.data[2] = frame.data[0] + (cx * cy);
 		frame.data[1] = frame.data[2] + (cx * cy / 4);
@@ -554,13 +587,13 @@ void DShowInput::OnVideoData(const VideoConfig &config, unsigned char *data,
 		frame.linesize[1] = cx / 2;
 		frame.linesize[2] = cx / 2;
 
-	} else if (videoConfig.format == VideoFormat::NV12) {
+	} else if (vf == VideoFormat::NV12) {
 		frame.data[0] = data;
 		frame.data[1] = frame.data[0] + (cx * cy);
 		frame.linesize[0] = cx;
 		frame.linesize[1] = cx;
 
-	} else if (videoConfig.format == VideoFormat::Y800) {
+	} else if (vf == VideoFormat::Y800) {
 		frame.data[0] = data;
 		frame.linesize[0] = cx;
 
@@ -574,6 +607,31 @@ void DShowInput::OnVideoData(const VideoConfig &config, unsigned char *data,
 	UNUSED_PARAMETER(endTime); /* it's the enndd tiimmes! */
 	UNUSED_PARAMETER(size);
 }
+
+void STThread::processVideoDataInternal(AVFrame *frame, QString id)
+{
+	int linesize = 0;
+	int ret = sws_scale(m_swsctx, (const uint8_t *const *)(frame->data),
+			    frame->linesize, 0, m_curFrameHeight,
+			    m_swsRetFrame->data, m_swsRetFrame->linesize);
+
+	if (m_stFunc->doFaceDetect(m_swsRetFrame->data[0], m_curFrameWidth,
+				   m_curFrameHeight, id, flip)) {
+		BindTexture(m_swsRetFrame->data[0], m_curFrameWidth,
+			    m_curFrameHeight, textureSrc);
+		BindTexture(NULL, m_curFrameWidth, m_curFrameHeight,
+			    textureDst);
+		bool b = m_stFunc->doFaceSticker(textureSrc, textureDst,
+						 m_curFrameWidth,
+						 m_curFrameHeight,
+						 m_stickerBuffer, flip);
+		if (b)
+			m_dshowInput->OutputFrame(
+				flip, DShow::VideoFormat::I420, m_stickerBuffer,
+				m_stickerBufferSize, frame->pts, 0);
+	}
+}
+
 
 void DShowInput::OnEncodedAudioData(enum AVCodecID id, unsigned char *data,
 				    size_t size, long long ts)

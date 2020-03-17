@@ -1,4 +1,4 @@
-/******************************************************************************
+﻿/******************************************************************************
     Copyright (C) 2014 by Hugh Bailey <obs.jim@gmail.com>
 
     This program is free software: you can redistribute it and/or modify
@@ -273,8 +273,10 @@ bool ffmpeg_decode_audio(struct ffmpeg_decode *decode, uint8_t *data,
 bool ffmpeg_decode_video(struct ffmpeg_decode *decode, uint8_t *data,
 			 size_t size, long long *ts,
 			 enum video_range_type range,
-			 struct obs_source_frame2 *frame, bool *got_output)
+			 struct obs_source_frame2 *frame, AVFrame **avFrame,
+			 bool *got_output)
 {
+	*avFrame = NULL;
 	AVPacket packet = {0};
 	int got_frame = false;
 	AVFrame *out_frame;
@@ -368,6 +370,7 @@ bool ffmpeg_decode_video(struct ffmpeg_decode *decode, uint8_t *data,
 	if (frame->format == VIDEO_FORMAT_NONE)
 		return false;
 
+	*avFrame = decode->frame;
 	*got_output = true;
 	return true;
 }
