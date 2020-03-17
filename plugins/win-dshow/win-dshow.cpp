@@ -246,7 +246,8 @@ struct DShowInput {
 			active = true;
 		}
 
-		stThread = new STThread(this);
+		stThread = new STThread;
+		stThread->setDShowInput(this);
 		stThread->start(QThread::HighestPriority);
 	}
 
@@ -606,6 +607,11 @@ void DShowInput::OutputFrame(bool f, VideoFormat vf, unsigned char *data,
 
 	UNUSED_PARAMETER(endTime); /* it's the enndd tiimmes! */
 	UNUSED_PARAMETER(size);
+}
+
+void STThread::setDShowInput(DShowInput *input)
+{
+	m_dshowInput = input;
 }
 
 void STThread::processVideoDataInternal(AVFrame *frame, QString id)

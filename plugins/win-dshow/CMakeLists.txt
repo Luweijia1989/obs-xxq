@@ -11,6 +11,8 @@ include_directories(${FFMPEG_INCLUDE_DIRS})
 include_directories(SYSTEM "${CMAKE_CURRENT_SOURCE_DIR}/facesticker/sensetime/include")
 include_directories(SYSTEM "${CMAKE_CURRENT_SOURCE_DIR}/facesticker/opengl/include")
 
+set(CMAKE_AUTOMOC TRUE)
+
 set(win-dshow_HEADERS
 	encode-dstr.hpp
 	ffmpeg-decode.h

@@ -49,8 +49,9 @@ class STThread : public QThread
 {
 	Q_OBJECT
 public:
-	STThread(DShowInput *dsInput);
+	STThread();
 	~STThread();
+	void setDShowInput(DShowInput *input);
 	void setFrameConfig(const DShow::VideoConfig & cg);
 	void setFrameConfig(int w, int h, AVPixelFormat f);
 	bool stInited() { return m_stFunc->stInited(); }

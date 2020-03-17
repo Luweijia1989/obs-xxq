@@ -27,8 +27,7 @@ enum AVPixelFormat obs_to_ffmpeg_video_format(
 	return AV_PIX_FMT_NONE;
 }
 
-STThread::STThread(DShowInput *dsInput)
-	: m_dshowInput(dsInput)
+STThread::STThread()
 {
 	m_stFunc = new STFunction;
 }
