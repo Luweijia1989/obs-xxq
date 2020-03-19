@@ -1107,32 +1107,6 @@ OBSApp::~OBSApp()
 	os_inhibit_sleep_destroy(sleepInhibitor);
 }
 
-static void installCustonFonts()
-{
-	QString alifont = u8"阿里汉仪智能黑体";
-	QString dingfont = "DIN Condensed";
-	bool findali = false;
-	bool finddin = false;
-	QFontDatabase database;
-	foreach(const QString &family, database.families(QFontDatabase::Any))
-	{
-		if (alifont == family && findali == false)
-			findali = true;
-
-		if (dingfont == family && finddin == false)
-			finddin = true;
-	}
-
-	if (findali == false)
-		QFontDatabase::addApplicationFont(
-			"./custom_font/ALiHanYiZhiNengHeiTi-2.ttf");
-
-	if (finddin == false)
-		QFontDatabase::addApplicationFont(
-			"./custom_font/DIN Condensed Bold.ttf");
-}
-
-
 static void move_basic_to_profiles(void)
 {
 	char path[512];
@@ -1251,8 +1225,6 @@ void OBSApp::AppInit()
 		config_set_string(globalConfig, "Basic", "SceneCollectionFile",
 				  Str("Untitled"));
 	}
-
-	installCustonFonts();
 
 #ifdef _WIN32
 	bool disableAudioDucking =
