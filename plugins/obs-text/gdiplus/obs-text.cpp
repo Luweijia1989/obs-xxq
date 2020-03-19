@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <string>
 #include <memory>
+#include <vector>
 
 using namespace std;
 using namespace Gdiplus;
@@ -333,7 +334,7 @@ void TextSource::UpdateFont()
 {
 	hfont = nullptr;
 	font.reset(nullptr);
-	if (face == L"阿里汉仪智能黑体" || face == L"DIN Condensed") {
+	if (face == L"阿里汉仪智能黑体" || face == L"DIN Condensed" || face == L"阿里巴巴普惠体 R") {
 		bool bInstall = IsInstallFont(face.c_str());
 		if (bInstall == false) {
 
@@ -347,10 +348,17 @@ void TextSource::UpdateFont()
 			wstring path = cwd;
 
 			if (face == L"DIN Condensed")
-				path = path + L"\\custom_font\\DIN Condensed Bold.ttf";
+				path = path +
+				       L"./resource/DIN Condensed Bold.ttf";
+			else if (face == L"阿里汉仪智能黑体")
+				path = path +
+				       L"./resource/ALiHanYiZhiNengHeiTi-2.ttf";
 			else
-			        path = path + L"\\custom_font\\ALiHanYiZhiNengHeiTi-2.ttf";
-			Status result =fontCollection.AddFontFile(path.c_str());
+				path = path +
+				       L"./resource/Alibaba-PuHuiTi-Regular.ttf";
+
+			Status result =
+				fontCollection.AddFontFile(path.c_str());
 			if (result != Ok)
 				goto Normal_Set;
 
