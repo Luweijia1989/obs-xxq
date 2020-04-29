@@ -26,8 +26,8 @@ static void leave_source_update(void *data, obs_data_t *settings)
 	Leave *s = (Leave *)data;
 	s->baseUpdate(settings);
 
-	const char *backgroundImage = obs_data_get_string(settings, "backgroundImage");
-	s->setbackgroundImage(backgroundImage);
+	//const char *backgroundImage = obs_data_get_string(settings, "backgroundImage");
+	//s->setbackgroundImage(backgroundImage);
 
 	const char *currentTime = obs_data_get_string(settings, "currentTime");
 	s->setcurrentTime(currentTime);
@@ -66,7 +66,7 @@ static obs_properties_t *leave_source_properties(void *data)
 	Leave *s = (Leave *)data;
 	obs_properties_t *props = s->baseProperties();
 
-	obs_properties_add_text(props, "backgroundImage", u8"背景图", OBS_TEXT_DEFAULT);
+	//obs_properties_add_text(props, "backgroundImage", u8"背景图", OBS_TEXT_DEFAULT);
 	obs_properties_add_text(props, "currentTime", u8"当前计时", OBS_TEXT_DEFAULT);
 	return props;
 }

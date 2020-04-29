@@ -41,7 +41,8 @@ set(qmlview_SOURCES
     textslideshow.cpp
     rank.cpp
     leave.cpp
-	audiowave.cpp
+    private.cpp
+    audiowave.cpp
 )
 
 set( qmlview_HEADERS
@@ -53,6 +54,7 @@ set( qmlview_HEADERS
     textslideshow.h
     rank.h
     leave.h
+    private.h
     defines.h
 	audiowave.h
 )

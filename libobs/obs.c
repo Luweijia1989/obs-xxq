@@ -2588,7 +2588,7 @@ void obs_source_create_xxqsource(int type /*1=privacy 2=leave*/,
 	if (type == 1) {
 		if (!data->privacy_source) {
 			data->privacy_source = obs_source_create_private(
-				"image_source", PRIVACY_ID, settings);
+				"quickprivate_source", PRIVACY_ID, settings);
 			obs_source_activate(data->privacy_source, MAIN_VIEW);
 		}
 	} else if (type == 2) {

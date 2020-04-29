@@ -197,6 +197,7 @@ OBS_MODULE_USE_DEFAULT_LOCALE("qml-source", "en-US")
 extern struct obs_source_info quicktextslideshow_source_info;
 extern struct obs_source_info quickrank_source_info;
 extern struct obs_source_info quickleave_source_info;
+extern struct obs_source_info quickprivate_source_info;
 extern struct obs_source_info quickaudiowave_source_info;
 
 bool obs_module_load(void)
@@ -205,6 +206,7 @@ bool obs_module_load(void)
 	obs_register_source(&quickimageslideshow_source_info);
 	obs_register_source(&quickrank_source_info);
 	obs_register_source(&quickleave_source_info);
+	obs_register_source(&quickprivate_source_info);
 	obs_register_source(&quickaudiowave_source_info);
 	return true;
 }
