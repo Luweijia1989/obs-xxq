@@ -6,9 +6,17 @@ project(obs-text)
 
 if(WIN32)
 	set(obs-text_PLATFORM_SOURCES
-		gdiplus/obs-text.cpp)
+		gdiplus/obs-text.cpp
+		gdiplus/SlideTextSource.cpp)
 	set(obs-text_PLATFORM_DEPS
 		gdiplus)
+		
+		
+	set(obs-text_PLATFORM_HEADERS
+	gdiplus/SlideTextSource.h
+	gdiplus/Common.h
+	)
+
 endif()
 
 add_library(obs-text MODULE
