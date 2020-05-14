@@ -49,9 +49,8 @@ class STThread : public QThread
 {
 	Q_OBJECT
 public:
-	STThread();
+	STThread(DShowInput *dsInput);
 	~STThread();
-	void setDShowInput(DShowInput *input);
 	void setFrameConfig(const DShow::VideoConfig & cg);
 	void setFrameConfig(int w, int h, AVPixelFormat f);
 	bool stInited() { return m_stFunc->stInited(); }
@@ -73,6 +72,7 @@ private:
 	void processVideoDataInternal(AVFrame *frame, QString id);
 
 private:
+	DShowInput *m_dshowInput = nullptr;
 	STFunction *m_stFunc = nullptr;
 	bool m_running = false;
 	moodycamel::BlockingReaderWriterQueue<FrameInfo> m_frameQueue;
@@ -88,5 +88,4 @@ private:
 	size_t m_stickerBufferSize = 0;
 	GLuint textureSrc = -1;
 	GLuint textureDst = -1;
-	DShowInput *m_dshowInput = nullptr;
 };

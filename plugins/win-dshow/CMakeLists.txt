@@ -14,13 +14,15 @@ include_directories(SYSTEM "${CMAKE_CURRENT_SOURCE_DIR}/facesticker/opengl/inclu
 set(CMAKE_AUTOMOC TRUE)
 
 set(win-dshow_HEADERS
+	win-dshow.h
 	encode-dstr.hpp
 	ffmpeg-decode.h
 	facesticker/st-function.h
 	facesticker/st-helper.h
 	facesticker/st-thread.h
 	facesticker/atomicops.h
-	facesticker/readerwriterqueue.h)
+	facesticker/readerwriterqueue.h
+	)
 
 set(win-dshow_SOURCES
 	win-dshow.cpp
@@ -48,7 +50,7 @@ set(libdshowcapture_SOURCES
 
 set(libdshowcapture_HEADERS
 	libdshowcapture/dshowcapture.hpp
-	libdshowcapture/source/external/IVideoCaptureFilter.h
+	libdshowcapture/source/IVideoCaptureFilter.h
 	libdshowcapture/source/capture-filter.hpp
 	libdshowcapture/source/output-filter.hpp
 	libdshowcapture/source/device.hpp

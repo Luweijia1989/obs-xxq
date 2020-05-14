@@ -2,6 +2,7 @@
 #include "obs.h"
 #include <QDebug>
 #include <QDateTime>
+#include "..\win-dshow.h"
 
 extern video_format ConvertVideoFormat(DShow::VideoFormat format);
 
@@ -27,7 +28,8 @@ enum AVPixelFormat obs_to_ffmpeg_video_format(
 	return AV_PIX_FMT_NONE;
 }
 
-STThread::STThread()
+STThread::STThread(DShowInput *dsInput)
+	: m_dshowInput(dsInput)
 {
 	m_stFunc = new STFunction;
 }
@@ -223,3 +225,19 @@ void STThread::processVideoData(AVFrame *frame, QString id)
 		return;
 	processVideoDataInternal(frame, id);
 }
+
+void STThread::processVideoDataInternal(AVFrame *frame, QString id)
+{
+	int linesize = 0;
+	int ret = sws_scale(m_swsctx, (const uint8_t *const*)(frame->data),
+		frame->linesize, 0, m_curFrameHeight, m_swsRetFrame->data, m_swsRetFrame->linesize);
+
+	if (m_stFunc->doFaceDetect(m_swsRetFrame->data[0], m_curFrameWidth, m_curFrameHeight, id, flip)) {
+		BindTexture(m_swsRetFrame->data[0], m_curFrameWidth, m_curFrameHeight, textureSrc);
+		BindTexture(NULL, m_curFrameWidth, m_curFrameHeight, textureDst);
+		bool b = m_stFunc->doFaceSticker(textureSrc, textureDst, m_curFrameWidth, m_curFrameHeight, m_stickerBuffer, flip);
+		if (b)
+			m_dshowInput->OutputFrame(flip, DShow::VideoFormat::I420, m_stickerBuffer, m_stickerBufferSize, frame->pts, 0);
+	}
+}
+

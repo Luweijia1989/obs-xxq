@@ -15,8 +15,7 @@ static inline void decode_dstr(struct dstr *str)
 }
 
 static inline void EncodeDeviceId(struct dstr *encodedStr,
-				  const wchar_t *name_str,
-				  const wchar_t *path_str)
+		const wchar_t *name_str, const wchar_t *path_str)
 {
 	DStr name;
 	DStr path;
@@ -33,7 +32,7 @@ static inline void EncodeDeviceId(struct dstr *encodedStr,
 }
 
 static inline bool DecodeDeviceDStr(DStr &name, DStr &path,
-				    const char *device_id)
+		const char *device_id)
 {
 	const char *path_str;
 
@@ -44,12 +43,12 @@ static inline bool DecodeDeviceDStr(DStr &name, DStr &path,
 	if (!path_str)
 		return false;
 
-	dstr_copy(path, path_str + 1);
+	dstr_copy(path, path_str+1);
 	dstr_copy(name, device_id);
 
 	size_t len = path_str - device_id;
 	name->array[len] = 0;
-	name->len = len;
+	name->len        = len;
 
 	decode_dstr(name);
 	decode_dstr(path);
@@ -74,3 +73,4 @@ static inline bool DecodeDeviceId(DShow::DeviceId &out, const char *device_id)
 
 	return true;
 }
+
