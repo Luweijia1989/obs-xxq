@@ -58,6 +58,7 @@ static obs_properties_t *private_source_properties(void *data)
 		return nullptr;
 	Private *s = (Private *)data;
 	obs_properties_t *props = s->baseProperties();
+	obs_properties_add_text(props, "backgroundImage", u8"背景图",OBS_TEXT_DEFAULT);
 	return props;
 }
 

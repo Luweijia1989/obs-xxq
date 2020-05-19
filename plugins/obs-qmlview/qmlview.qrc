@@ -6,5 +6,6 @@
         <file>Leave.qml</file>
         <file>AudioWave.qml</file>
         <file>Private.qml</file>
+        <file>pic_background_yr.png</file>
     </qresource>
 </RCC>

@@ -8,10 +8,9 @@ Item {
     height: engine.height
     focus: true
 
-    Rectangle {
+    Image {
         anchors.fill: parent
-        color: "black"
-
+        source: "qrc:/qmlfiles/pic_background_yr.png"
         Rectangle {
             width: 805
             height: 150
