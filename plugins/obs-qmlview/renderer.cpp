@@ -177,11 +177,13 @@ void WindowSingleThreaded::createFbo()
 	// it with the QQuickWindow.
 	if (m_quickWindow->size().isEmpty())
 		return;
+	m_context->makeCurrent(m_offscreenSurface);
 	m_fbo = new QOpenGLFramebufferObject(
-		m_quickWindow->size() ,
-		QOpenGLFramebufferObject::CombinedDepthStencil,
-		GL_TEXTURE_2D, GL_RGBA8);
+		m_quickWindow->size(),
+		QOpenGLFramebufferObject::CombinedDepthStencil, GL_TEXTURE_2D,
+		GL_RGBA8);
 	m_quickWindow->setRenderTarget(m_fbo);
+	m_context->doneCurrent();
 }
 
 void WindowSingleThreaded::destroyFbo()
@@ -255,7 +257,8 @@ QImage *WindowSingleThreaded::getImage()
 #endif
 }
 
-QSize WindowSingleThreaded::fboSize() {
+QSize WindowSingleThreaded::fboSize()
+{
 	if (m_fbo)
 		return m_fbo->size();
 
@@ -404,9 +407,10 @@ void WindowSingleThreaded::startQuick(const QUrl &url)
 			m_quickWindow->incubationController());
 
 	m_qmlEngine->rootContext()->setContextProperty("engine", this);
-	for (auto iter=m_context_properties.begin(); iter!=m_context_properties.end(); iter++)
-	{
-		m_qmlEngine->rootContext()->setContextProperty(iter.key(), iter.value());
+	for (auto iter = m_context_properties.begin();
+	     iter != m_context_properties.end(); iter++) {
+		m_qmlEngine->rootContext()->setContextProperty(iter.key(),
+							       iter.value());
 	}
 	connect(m_qmlEngine, &QQmlEngine::warnings, this,
 		&WindowSingleThreaded::handleWarnings);
