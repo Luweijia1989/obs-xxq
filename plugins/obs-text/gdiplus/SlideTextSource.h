@@ -53,7 +53,7 @@ struct SlideTextSource {
 	float animate_time = 3.0f;
 
 
-	FontFamily families[2];
+	FontFamily families[4];
 	Font* font_set;
 
 	std::vector<wstring> ver_texts;
@@ -103,5 +103,6 @@ struct SlideTextSource {
 	bool NeedRender();
 	wstring GetNextString();
 	bool VerDeleteLineLarge();
+	int FontIndex(const wchar_t *fontName);
 };
 

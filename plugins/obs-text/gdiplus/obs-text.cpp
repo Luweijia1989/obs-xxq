@@ -54,7 +54,7 @@ struct TextSource {
 	int chatlog_lines = 6;
 
 
-	FontFamily families[2];
+	FontFamily families[4];
 	Font* font_set;
 
 	/* --------------------------- */
@@ -78,6 +78,7 @@ struct TextSource {
 	}
 	bool IsInstallFont(const wchar_t* fontName);
 	void UpdateFont();
+	int FontIndex(const wchar_t *fontName); 
 	void GetStringFormat(StringFormat &format);
 	void RemoveNewlinePadding(const StringFormat &format, RectF &box);
 	void CalculateTextSizes(const StringFormat &format,
@@ -120,41 +121,66 @@ bool TextSource::IsInstallFont(const wchar_t* fontName)
 	return bRtn;
 }
 
+int TextSource::FontIndex(const wchar_t *fontName)
+{
+	int index = -1;
+	if (wcscmp(fontName,L"DIN Condensed") == 0)
+		index = 2;
+	else if (wcscmp(fontName,L"阿里汉仪智能黑体") == 0)
+		index = 3;
+	else if (wcscmp(fontName,L"Alibaba PuHuiTi R") == 0)
+		index = 0;
+	else if (wcscmp(fontName, L"Alibaba PuHuiTi M") == 0)
+		index = 1;
+	return index;
+ }
+
 
 void TextSource::UpdateFont()
 {
 	hfont = nullptr;
 	font.reset(nullptr);
-	if (face == L"阿里汉仪智能黑体" || face == L"DIN Condensed")
+	if (face == L"阿里汉仪智能黑体" || face == L"DIN Condensed"||face == L"Alibaba PuHuiTi R" || face == L"Alibaba PuHuiTi M")
 	{
 		bool bInstall = IsInstallFont(face.c_str());
 		if (bInstall == false)
 		{
-			int index = 1;
-			if (face == L"DIN Condensed")
-				index = 0;
+			int index = -1;
+			index = FontIndex(face.c_str());
+			if (index == -1)
+				return;
 			PrivateFontCollection fontCollection;
-
-
 			wchar_t cwd[MAX_PATH];
 			GetModuleFileNameW(nullptr, cwd, _countof(cwd) - 1);
 			wchar_t *p = wcsrchr(cwd, '\\');
 			if (p)
 				*p = 0;
 			wstring path = cwd;
-			path = path + L"\\custom_font\\ALiHanYiZhiNengHeiTi-2.ttf";
+			path = path + L"\\resource\\font\\ALiHanYiZhiNengHeiTi-2.ttf";
 			Status result = fontCollection.AddFontFile(path.c_str());
 			if (result != Ok)
 				goto Normal_Set;
 
 			path = cwd;
-			path = path + L"\\custom_font\\DIN Condensed Bold.ttf";
+			path = path + L"\\resource\\font\\DIN Condensed Bold.ttf";
+			result = fontCollection.AddFontFile(path.c_str());
+			if (result != Ok)
+				goto Normal_Set;
+
+			path = cwd;
+			path = path + L"\\resource\\font\\Alibaba-PuHuiTi-Regular.ttf";
+			result = fontCollection.AddFontFile(path.c_str());
+			if (result != Ok)
+				goto Normal_Set;
+
+			path = cwd;
+			path = path +L"\\resource\\font\\Alibaba-PuHuiTi-Medium.ttf";
 			result = fontCollection.AddFontFile(path.c_str());
 			if (result != Ok)
 				goto Normal_Set;
 
 			int numFamilies;
-			fontCollection.GetFamilies(2, families, &numFamilies);
+			fontCollection.GetFamilies(4, families, &numFamilies);
 			int style = FontStyleRegular;
 			if (bold)
 				style = style | FontStyleBold;
