@@ -8,28 +8,37 @@ extern video_format ConvertVideoFormat(DShow::VideoFormat format);
 
 bool g_st_checkpass = false;
 
-enum AVPixelFormat obs_to_ffmpeg_video_format(
-	enum video_format format)
+enum AVPixelFormat obs_to_ffmpeg_video_format(enum video_format format)
 {
 	switch (format) {
-	case VIDEO_FORMAT_NONE: return AV_PIX_FMT_NONE;
-	case VIDEO_FORMAT_I444: return AV_PIX_FMT_YUV444P;
-	case VIDEO_FORMAT_I420: return AV_PIX_FMT_YUV420P;
-	case VIDEO_FORMAT_NV12: return AV_PIX_FMT_NV12;
-	case VIDEO_FORMAT_YVYU: return AV_PIX_FMT_NONE;
-	case VIDEO_FORMAT_YUY2: return AV_PIX_FMT_YUYV422;
-	case VIDEO_FORMAT_UYVY: return AV_PIX_FMT_UYVY422;
-	case VIDEO_FORMAT_RGBA: return AV_PIX_FMT_RGBA;
-	case VIDEO_FORMAT_BGRA: return AV_PIX_FMT_BGRA;
-	case VIDEO_FORMAT_BGRX: return AV_PIX_FMT_BGRA;
-	case VIDEO_FORMAT_Y800: return AV_PIX_FMT_GRAY8;
+	case VIDEO_FORMAT_NONE:
+		return AV_PIX_FMT_NONE;
+	case VIDEO_FORMAT_I444:
+		return AV_PIX_FMT_YUV444P;
+	case VIDEO_FORMAT_I420:
+		return AV_PIX_FMT_YUV420P;
+	case VIDEO_FORMAT_NV12:
+		return AV_PIX_FMT_NV12;
+	case VIDEO_FORMAT_YVYU:
+		return AV_PIX_FMT_NONE;
+	case VIDEO_FORMAT_YUY2:
+		return AV_PIX_FMT_YUYV422;
+	case VIDEO_FORMAT_UYVY:
+		return AV_PIX_FMT_UYVY422;
+	case VIDEO_FORMAT_RGBA:
+		return AV_PIX_FMT_RGBA;
+	case VIDEO_FORMAT_BGRA:
+		return AV_PIX_FMT_BGRA;
+	case VIDEO_FORMAT_BGRX:
+		return AV_PIX_FMT_BGRA;
+	case VIDEO_FORMAT_Y800:
+		return AV_PIX_FMT_GRAY8;
 	}
 
 	return AV_PIX_FMT_NONE;
 }
 
-STThread::STThread(DShowInput *dsInput)
-	: m_dshowInput(dsInput)
+STThread::STThread(DShowInput *dsInput) : m_dshowInput(dsInput)
 {
 	m_stFunc = new STFunction;
 }
@@ -51,8 +60,11 @@ STThread::~STThread()
 
 void STThread::run()
 {
-	if (!g_st_checkpass)
+	m_running = true;
+	if (!g_st_checkpass) {
+		m_running = false;
 		return;
+	}
 
 	if (!InitGL()) {
 		qDebug() << "STThread fail to start, opengl init fail";
@@ -62,24 +74,28 @@ void STThread::run()
 
 	m_stFunc->initSenseTimeEnv();
 	qDebug() << "SenseTime init result: " << m_stFunc->stInited();
-	if (!m_stFunc->stInited())
+	if (!m_stFunc->stInited()) {
+		m_running = false;
 		return;
-	
-	m_running = true;
-	while (m_running)
-	{
+	}
+
+	while (m_running) {
 		FrameInfo frame;
 		m_frameQueue.wait_dequeue(frame);
 
 		if (!m_running)
 			break;
 
-		if (QDateTime::currentMSecsSinceEpoch() - frame.timestamp < 10) {
+		if (QDateTime::currentMSecsSinceEpoch() - frame.timestamp <
+		    10) {
 			if (frame.avFrame)
-				processVideoData(frame.avFrame, frame.stickerId);
+				processVideoData(frame.avFrame,
+						 frame.stickerId);
 
 			if (frame.data)
-				processVideoData(frame.data, frame.size, frame.startTime, frame.stickerId);
+				processVideoData(frame.data, frame.size,
+						 frame.startTime,
+						 frame.stickerId);
 		}
 
 		if (frame.data)
@@ -96,7 +112,8 @@ void STThread::run()
 	qDebug() << "STThread stopped...";
 }
 
-void STThread::addFrame(unsigned char *data, size_t size, long long startTime, QString id)
+void STThread::addFrame(unsigned char *data, size_t size, long long startTime,
+			QString id)
 {
 	if (!m_running)
 		return;
@@ -141,8 +158,7 @@ void STThread::stop()
 	m_frameQueue.enqueue(FrameInfo());
 
 	FrameInfo info;
-	while (m_frameQueue.try_dequeue(info))
-	{
+	while (m_frameQueue.try_dequeue(info)) {
 		if (info.avFrame)
 			av_frame_free(&info.avFrame);
 
@@ -153,7 +169,7 @@ void STThread::stop()
 	wait();
 }
 
-void STThread::setFrameConfig(const DShow::VideoConfig & cg)
+void STThread::setFrameConfig(const DShow::VideoConfig &cg)
 {
 	video_format format = ConvertVideoFormat(cg.format);
 	setFrameConfig(cg.cx, cg.cy, obs_to_ffmpeg_video_format(format));
@@ -161,11 +177,13 @@ void STThread::setFrameConfig(const DShow::VideoConfig & cg)
 
 void STThread::setFrameConfig(int w, int h, AVPixelFormat f)
 {
-	if (m_curFrameWidth != w || m_curFrameHeight != h || m_curPixelFormat != f) {
+	if (m_curFrameWidth != w || m_curFrameHeight != h ||
+	    m_curPixelFormat != f) {
 		if (m_swsRetFrame)
 			av_frame_free(&m_swsRetFrame);
 		m_swsRetFrame = av_frame_alloc();
-		av_image_alloc(m_swsRetFrame->data, m_swsRetFrame->linesize, w, h, AV_PIX_FMT_RGBA, 1);
+		av_image_alloc(m_swsRetFrame->data, m_swsRetFrame->linesize, w,
+			       h, AV_PIX_FMT_RGBA, 1);
 
 		if (m_swsctx) {
 			sws_freeContext(m_swsctx);
@@ -176,7 +194,9 @@ void STThread::setFrameConfig(int w, int h, AVPixelFormat f)
 			bfree(m_stickerBuffer);
 			m_stickerBuffer = nullptr;
 		}
-		m_stickerBufferSize = sizeof(unsigned char)*avpicture_get_size(AV_PIX_FMT_YUV420P, w, h);
+		m_stickerBufferSize =
+			sizeof(unsigned char) *
+			avpicture_get_size(AV_PIX_FMT_YUV420P, w, h);
 		m_stickerBuffer = (unsigned char *)bmalloc(m_stickerBufferSize);
 
 		m_curPixelFormat = f;
@@ -184,29 +204,23 @@ void STThread::setFrameConfig(int w, int h, AVPixelFormat f)
 		m_curFrameWidth = w;
 		m_curFrameHeight = h;
 		if (m_curPixelFormat != AV_PIX_FMT_NONE)
-			m_swsctx = sws_getContext(w,
-				h,
-				m_curPixelFormat,
-				w,
-				h,
-				AVPixelFormat::AV_PIX_FMT_RGBA,
-				SWS_BICUBIC,
-				NULL,
-				NULL,
-				NULL);
+			m_swsctx =
+				sws_getContext(w, h, m_curPixelFormat, w, h,
+					       AVPixelFormat::AV_PIX_FMT_RGBA,
+					       SWS_BICUBIC, NULL, NULL, NULL);
 	}
 }
 
-
-
-void STThread::processVideoData(unsigned char *buffer, size_t size, long long startTime, QString id)
+void STThread::processVideoData(unsigned char *buffer, size_t size,
+				long long startTime, QString id)
 {
 	if (!m_swsctx)
 		return;
 
 	AVFrame *tempFrame = av_frame_alloc();
 	AVPicture *tempPicture = (AVPicture *)tempFrame;
-	int ret = avpicture_fill(tempPicture, buffer, m_curPixelFormat, m_curFrameWidth, m_curFrameHeight);
+	int ret = avpicture_fill(tempPicture, buffer, m_curPixelFormat,
+				 m_curFrameWidth, m_curFrameHeight);
 	tempFrame->pts = startTime;
 
 	processVideoDataInternal(tempFrame, id);
@@ -216,7 +230,8 @@ void STThread::processVideoData(unsigned char *buffer, size_t size, long long st
 
 void STThread::processVideoData(AVFrame *frame, QString id)
 {
-	setFrameConfig(frame->width, frame->height, (AVPixelFormat)frame->format);
+	setFrameConfig(frame->width, frame->height,
+		       (AVPixelFormat)frame->format);
 
 	if (!m_swsctx)
 		return;
@@ -229,15 +244,23 @@ void STThread::processVideoData(AVFrame *frame, QString id)
 void STThread::processVideoDataInternal(AVFrame *frame, QString id)
 {
 	int linesize = 0;
-	int ret = sws_scale(m_swsctx, (const uint8_t *const*)(frame->data),
-		frame->linesize, 0, m_curFrameHeight, m_swsRetFrame->data, m_swsRetFrame->linesize);
+	int ret = sws_scale(m_swsctx, (const uint8_t *const *)(frame->data),
+			    frame->linesize, 0, m_curFrameHeight,
+			    m_swsRetFrame->data, m_swsRetFrame->linesize);
 
-	if (m_stFunc->doFaceDetect(m_swsRetFrame->data[0], m_curFrameWidth, m_curFrameHeight, id, flip)) {
-		BindTexture(m_swsRetFrame->data[0], m_curFrameWidth, m_curFrameHeight, textureSrc);
-		BindTexture(NULL, m_curFrameWidth, m_curFrameHeight, textureDst);
-		bool b = m_stFunc->doFaceSticker(textureSrc, textureDst, m_curFrameWidth, m_curFrameHeight, m_stickerBuffer, flip);
+	if (m_stFunc->doFaceDetect(m_swsRetFrame->data[0], m_curFrameWidth,
+				   m_curFrameHeight, id, flip)) {
+		BindTexture(m_swsRetFrame->data[0], m_curFrameWidth,
+			    m_curFrameHeight, textureSrc);
+		BindTexture(NULL, m_curFrameWidth, m_curFrameHeight,
+			    textureDst);
+		bool b = m_stFunc->doFaceSticker(textureSrc, textureDst,
+						 m_curFrameWidth,
+						 m_curFrameHeight,
+						 m_stickerBuffer, flip);
 		if (b)
-			m_dshowInput->OutputFrame(flip, DShow::VideoFormat::I420, m_stickerBuffer, m_stickerBufferSize, frame->pts, 0);
+			m_dshowInput->OutputFrame(
+				flip, DShow::VideoFormat::I420, m_stickerBuffer,
+				m_stickerBufferSize, frame->pts, 0);
 	}
 }
-

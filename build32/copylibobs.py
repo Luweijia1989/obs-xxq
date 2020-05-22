@@ -23,8 +23,8 @@ dstlibobsrelease = dstpath + '/libs/Release'
 dstlibobsdebug = dstpath + '/libs/Debug'
 dstrundirrelease = dstpath + '/Win32/Release'
 dstrundirdebug = dstpath + '/Win32/Debug'
-dstrundirplugindebug = dstpath + '/Win32/Debug/obs-plugins/32bit'
-dstrundirpluginrelease = dstpath + '/Win32/Release/obs-plugins/32bit'
+dstrundirplugindebug = dstpath + '/Win32/Debug/plugins/obs-plugins/32bit'
+dstrundirpluginrelease = dstpath + '/Win32/Release/plugins/obs-plugins/32bit'
 
 def copyobsdeps(filepath):
   files = os.listdir(filepath)
