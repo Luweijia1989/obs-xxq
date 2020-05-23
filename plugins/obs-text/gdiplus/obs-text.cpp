@@ -124,9 +124,9 @@ wstring TextSource::FontPath(const wchar_t *fontName)
 		path = L"\\resource\\font\\DIN Condensed Bold.ttf";
 	else if (wcscmp(fontName, L"阿里汉仪智能黑体") == 0)
 		path = L"\\resource\\font\\ALiHanYiZhiNengHeiTi-2.ttf";
-	else if (wcscmp(fontName, L"Alibaba PuHuiTi R") == 0)
+	else if (wcscmp(fontName, L"阿里巴巴普惠体 R") == 0)
 		path = L"\\resource\\font\\Alibaba-PuHuiTi-Regular.ttf";
-	else if (wcscmp(fontName, L"Alibaba PuHuiTi M") == 0)
+	else if (wcscmp(fontName, L"阿里巴巴普惠体 M") == 0)
 		path = L"\\resource\\font\\Alibaba-PuHuiTi-Medium.ttf";
 	return path;
 }
@@ -136,7 +136,7 @@ void TextSource::UpdateFont()
 	hfont = nullptr;
 	font.reset(nullptr);
 	if (face == L"阿里汉仪智能黑体" || face == L"DIN Condensed" ||
-	    face == L"Alibaba PuHuiTi R" || face == L"Alibaba PuHuiTi M") {
+	    face == L"阿里巴巴普惠体 R" || face == L"阿里巴巴普惠体 M") {
 		bool bInstall = IsInstallFont(face.c_str());
 		if (bInstall == false) {
 			wstring fontpath = FontPath(face.c_str());
