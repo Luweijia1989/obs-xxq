@@ -564,7 +564,7 @@ void SlideTextSource::RenderSlideText()
 					      size);
 
 			if ((size.cx > box.Width || size.cy > box.Height) &&
-			    !use_extents) {
+			    !use_extents && fill) {
 				stat = graphics_bitmap.Clear(Color(0));
 				warn_stat("graphics_bitmap.Clear");
 				SolidBrush bk_brush = Color(full_bk_color);
@@ -747,6 +747,11 @@ void SlideTextSource::SlideUpdate(obs_data_t *s)
 								     : false;
 	texts.clear();
 	// 这里兼容一下老版本
+	if (strcmp(new_color,"#00000000") == 0)
+	{
+		fill = false;
+	}
+
 	if (strcmp(new_color, "#FFF244F") == 0) {
 		new_color = "#00000000";
 	}
