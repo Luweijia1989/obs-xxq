@@ -576,6 +576,11 @@ void SlideTextSource::RenderSlideText()
 					Color(full_bk_color));
 				warn_stat("graphics_bitmap.Clear");
 			}
+
+			if (fill == false)
+			{
+				stat = graphics_bitmap.Clear(Color(0));
+			}
 			stat = graphics_bitmap.DrawString(text.c_str(),
 							  (int)text.size(),
 							  font.get(), box,
@@ -747,10 +752,10 @@ void SlideTextSource::SlideUpdate(obs_data_t *s)
 								     : false;
 	texts.clear();
 	// 这里兼容一下老版本
-	if (strcmp(new_color,"#00000000") == 0)
-	{
+	if (strcmp(new_color, "#00000000") == 0)
 		fill = false;
-	}
+	else
+		fill = true;
 
 	if (strcmp(new_color, "#FFF244F") == 0) {
 		new_color = "#00000000";
