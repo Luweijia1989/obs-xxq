@@ -1,19 +1,17 @@
 ﻿#include "SlideTextSource.h"
 
-bool SlideTextSource::IsSlideTextInstallFont(const wchar_t* fontName)
+bool SlideTextSource::IsSlideTextInstallFont(const wchar_t *fontName)
 {
 	bool bRtn = false;
-	InstalledFontCollection* fonts = new InstalledFontCollection;
+	InstalledFontCollection *fonts = new InstalledFontCollection;
 	INT found;
 	int count = fonts->GetFamilyCount();
-	FontFamily * fontFamily = new FontFamily[count];
+	FontFamily *fontFamily = new FontFamily[count];
 	fonts->GetFamilies(count, fontFamily, &found);
-	for (int i = 0; i < fonts->GetFamilyCount(); i++)
-	{
+	for (int i = 0; i < fonts->GetFamilyCount(); i++) {
 		WCHAR wInstallFaceName[LF_FACESIZE];
 		fontFamily[i].GetFamilyName(wInstallFaceName);
-		if (wcscmp(fontName, wInstallFaceName) == 0)
-		{
+		if (wcscmp(fontName, wInstallFaceName) == 0) {
 			bRtn = true;
 			break;
 		}
@@ -25,41 +23,32 @@ bool SlideTextSource::IsSlideTextInstallFont(const wchar_t* fontName)
 	return bRtn;
 }
 
-
 void SlideTextSource::UpdateSlideFont()
 {
 	hfont = nullptr;
 	font.reset(nullptr);
-	if (face == L"阿里汉仪智能黑体" || face == L"DIN Condensed")
-	{
+	if (face == L"阿里汉仪智能黑体" || face == L"DIN Condensed" ||
+	    face == L"Alibaba PuHuiTi R" || face == L"Alibaba PuHuiTi M") {
 		bool bInstall = IsSlideTextInstallFont(face.c_str());
-		if (bInstall == false)
-		{
-			int index = 1;
-			if (face == L"DIN Condensed")
-				index = 0;
+		if (bInstall == false) {
+			wstring fontpath = FontPath(face.c_str());
+			if (fontpath == L"")
+				return;
 			PrivateFontCollection fontCollection;
-
-
 			wchar_t cwd[MAX_PATH];
 			GetModuleFileNameW(nullptr, cwd, _countof(cwd) - 1);
 			wchar_t *p = wcsrchr(cwd, '\\');
 			if (p)
 				*p = 0;
 			wstring path = cwd;
-			path = path + L"\\custom_font\\ALiHanYiZhiNengHeiTi-2.ttf";
-			Status result = fontCollection.AddFontFile(path.c_str());
-			if (result != Ok)
-				goto Normal_Set;
-
-			path = cwd;
-			path = path + L"\\custom_font\\DIN Condensed Bold.ttf";
-			result = fontCollection.AddFontFile(path.c_str());
+			path = path + fontpath;
+			Status result =
+				fontCollection.AddFontFile(path.c_str());
 			if (result != Ok)
 				goto Normal_Set;
 
 			int numFamilies;
-			fontCollection.GetFamilies(2, families, &numFamilies);
+			fontCollection.GetFamilies(1, families, &numFamilies);
 			int style = FontStyleRegular;
 			if (bold)
 				style = style | FontStyleBold;
@@ -70,12 +59,11 @@ void SlideTextSource::UpdateSlideFont()
 				style = style | FontStyleUnderline;
 
 			if (strikeout)
-			{
-				if (!vertical)
-					style = style | FontStyleStrikeout;
-			}
+				style = style | FontStyleStrikeout;
 
-			font_set = new Font(&families[index], face_size * 2.0f / 2.7f, style, UnitPixel);
+			font_set = new Font(&families[0],
+					    face_size * 2.0f / 2.7f, style,
+					    UnitPixel);
 			font.reset(font_set);
 			return;
 		}
@@ -87,10 +75,7 @@ Normal_Set:
 	lf.lfWeight = bold ? FW_BOLD : FW_DONTCARE;
 	lf.lfItalic = italic;
 	lf.lfUnderline = underline;
-	if (!vertical)
-		lf.lfStrikeOut = strikeout;
-	else
-		lf.lfStrikeOut = false;
+	lf.lfStrikeOut = strikeout;
 	lf.lfQuality = ANTIALIASED_QUALITY;
 	lf.lfCharSet = DEFAULT_CHARSET;
 
@@ -106,20 +91,31 @@ Normal_Set:
 
 	if (hfont)
 		font.reset(new Font(hdc, hfont));
+}
 
+wstring SlideTextSource::FontPath(const wchar_t *fontName)
+{
+	wstring path = L"";
+	if (wcscmp(fontName, L"DIN Condensed") == 0)
+		path = L"\\resource\\font\\DIN Condensed Bold.ttf";
+	else if (wcscmp(fontName, L"阿里汉仪智能黑体") == 0)
+		path = L"\\resource\\font\\ALiHanYiZhiNengHeiTi-2.ttf";
+	else if (wcscmp(fontName, L"Alibaba PuHuiTi R") == 0)
+		path = L"\\resource\\font\\Alibaba-PuHuiTi-Regular.ttf";
+	else if (wcscmp(fontName, L"Alibaba PuHuiTi M") == 0)
+		path = L"\\resource\\font\\Alibaba-PuHuiTi-Medium.ttf";
+	return path;
 }
 
 void SlideTextSource::GetSlideStringFormat(StringFormat &format)
 {
 	UINT flags = StringFormatFlagsNoFitBlackBox |
-		StringFormatFlagsMeasureTrailingSpaces;
+		     StringFormatFlagsMeasureTrailingSpaces;
 
 	format.SetFormatFlags(flags);
 	format.SetTrimming(StringTrimmingWord);
 
-
-	if (!vertical)
-	{
+	if (!vertical) {
 		switch (align) {
 		case Align::Left:
 			format.SetAlignment(StringAlignmentNear);
@@ -133,8 +129,7 @@ void SlideTextSource::GetSlideStringFormat(StringFormat &format)
 		}
 	}
 
-	else
-	{
+	else {
 		switch (valign) {
 		case VAlign::Top:
 			format.SetLineAlignment(StringAlignmentNear);
@@ -153,18 +148,19 @@ void SlideTextSource::GetSlideStringFormat(StringFormat &format)
  * calculating the texture size, so we have to calculate the size of '\n' to
  * remove the padding.  Because we always add a newline to the string, we
  * also remove the extra unused newline. */
-void SlideTextSource::RemoveSlideNewlinePadding(const StringFormat &format, RectF &box)
+void SlideTextSource::RemoveSlideNewlinePadding(const StringFormat &format,
+						RectF &box)
 {
 	RectF before;
 	RectF after;
 	Status stat;
 
 	stat = graphics.MeasureString(L"W", 2, font.get(), PointF(0.0f, 0.0f),
-		&format, &before);
+				      &format, &before);
 	warn_stat("MeasureString (without newline)");
 
 	stat = graphics.MeasureString(L"W\n", 3, font.get(), PointF(0.0f, 0.0f),
-		&format, &after);
+				      &format, &after);
 	warn_stat("MeasureString (with newline)");
 
 	float offset_cx = after.Width - before.Width;
@@ -178,8 +174,7 @@ void SlideTextSource::RemoveSlideNewlinePadding(const StringFormat &format, Rect
 			box.Y -= offset_cy * 0.5f;
 		else if (valign == VAlign::Bottom)
 			box.Y -= offset_cy;
-	}
-	else {
+	} else {
 		if (offset_cy >= 1.0f)
 			offset_cy -= 1.0f;
 
@@ -193,41 +188,42 @@ void SlideTextSource::RemoveSlideNewlinePadding(const StringFormat &format, Rect
 	box.Height -= offset_cy;
 }
 
-int SlideTextSource::CaculateSlideTextColums(const wstring& text_measure)
+int SlideTextSource::CaculateSlideTextColums(const wstring &text_measure)
 {
 	wstring strtmp = text_measure;
 	int index = strtmp.find_first_of(L'\n');
 	int column_count = 0;
-	while(index != -1)
-	{
+	while (index != -1) {
 		column_count++;
-		strtmp = strtmp.substr(index+1);
+		strtmp = strtmp.substr(index + 1);
 		index = strtmp.find_first_of(L'\n');
 	}
 	return column_count;
-
 }
 
-void SlideTextSource::CalculateSlideTextPos(int count, const StringFormat &format, float& posx, float& posy, const SIZE& size)
+void SlideTextSource::CalculateSlideTextPos(int count,
+					    const StringFormat &format,
+					    float &posx, float &posy,
+					    const SIZE &size)
 {
 	RectF box;
-        graphics.MeasureString(L"字", 2, font.get(), PointF(0.0f, 0.0f),
-		&format, &box);
+	graphics.MeasureString(L"字", 2, font.get(), PointF(0.0f, 0.0f),
+			       &format, &box);
 	int font_height = box.Height;
 	int font_width = box.Width;
 
 	if (!vertical) {
 		if (valign == VAlign::Center)
-			posy = size.cy * 0.5f - font_height * (count + 0.5f)* 0.5f;
+			posy = size.cy * 0.5f -
+			       font_height * (count + 0.5f) * 0.5f;
 		else if (valign == VAlign::Bottom)
-			posy = size.cy - font_height * (count+1);
-	}
-	else
-	{
+			posy = size.cy - font_height * (count + 1);
+	} else {
 		if (align == Align::Center)
-			posx = size.cx* 0.5f - font_width * (count + 1.0f)* 0.5f;
+			posx = size.cx * 0.5f -
+			       font_width * (count + 1.0f) * 0.5f;
 		else if (align == Align::Right)
-			posx = size.cx  - font_width * count;
+			posx = size.cx - font_width * count;
 
 		if (valign == VAlign::Bottom)
 			posy = posy - font_width;
@@ -237,71 +233,65 @@ void SlideTextSource::CalculateSlideTextPos(int count, const StringFormat &forma
 	float maxtime = animate_time - mintime;
 
 	if (update_time < maxtime && update_time >= mintime)
-	       return;
+		return;
 
 	if (texts.size() == 1)
 		return;
 	float verPos = 0.0f;
 	float horPos = 0.0f;
-	if (vertical)
-	{		
+	if (vertical) {
 		verPos = max_size.cy;
 		horPos = font_width * ver_texts.size();
-	}
-	else
-	{
+	} else {
 		SIZE size;
 		CalculateSlideTextSizes(text, format, box, size);
 		verPos = size.cy;
 		horPos = size.cx;
 	}
 
-	switch (direction)
-	{
-		case BottomToTop:
-		{
-			if (update_time >= maxtime)
-				posy = posy - (verPos +  posy) * (update_time - maxtime) / mintime;
-			else
-				posy = size.cy - (size.cy - posy) * update_time / mintime;
-		}
-			break;
-		case TopToBottom:
-		{
-			if (update_time >= maxtime)
-				posy = posy + (size.cy - posy)* (update_time - maxtime) / mintime;
-			else
-				posy = -verPos + (posy + verPos)*  update_time / mintime;
-			
-		}
-			break;
-		case RightToLeft:
-		{
-			if (update_time >= maxtime)
-				posx = posx - (posx + horPos)* (update_time - maxtime) / mintime;
-			else
-				posx = size.cx - (size.cx - posx)*  update_time / mintime;
+	switch (direction) {
+	case BottomToTop: {
+		if (update_time >= maxtime)
+			posy = posy - (verPos + posy) *
+					      (update_time - maxtime) / mintime;
+		else
+			posy = size.cy -
+			       (size.cy - posy) * update_time / mintime;
+	} break;
+	case TopToBottom: {
+		if (update_time >= maxtime)
+			posy = posy + (size.cy - posy) *
+					      (update_time - maxtime) / mintime;
+		else
+			posy = -verPos +
+			       (posy + verPos) * update_time / mintime;
 
-		}
-			break;
-		case LeftToRight:
-		{
-			if (update_time >= maxtime)
-				posx = posx + (size.cx - posx)* (update_time - maxtime) / mintime;
-			else
-			{
-				if (!vertical)
-					posx = -size.cx + (posx + size.cx) * update_time / mintime;
-				else
-					posx = posx * update_time / mintime;
-			}
+	} break;
+	case RightToLeft: {
+		if (update_time >= maxtime)
+			posx = posx - (posx + horPos) *
+					      (update_time - maxtime) / mintime;
+		else
+			posx = size.cx -
+			       (size.cx - posx) * update_time / mintime;
 
+	} break;
+	case LeftToRight: {
+		if (update_time >= maxtime)
+			posx = posx + (size.cx - posx) *
+					      (update_time - maxtime) / mintime;
+		else {
+			if (!vertical)
+				posx = -size.cx +
+				       (posx + size.cx) * update_time / mintime;
+			else
+				posx = posx * update_time / mintime;
 		}
-			break;
-		default:
-			break;
+
+	} break;
+	default:
+		break;
 	}
-
 }
 
 void SlideTextSource::CalculateMaxSize()
@@ -316,14 +306,12 @@ void SlideTextSource::CalculateMaxSize()
 	SIZE size;
 	GetSlideStringFormat(format);
 
-
-	for (int i = 0; i < count; i++)
-	{
-		if (!vertical)
-		{
+	for (int i = 0; i < count; i++) {
+		if (!vertical) {
 			string tmp = texts.at(i);
 			if (!tmp.empty()) {
-				CalculateSlideTextSizes(to_wide(tmp.c_str()), format, box, size);
+				CalculateSlideTextSizes(to_wide(tmp.c_str()),
+							format, box, size);
 
 				if (box.Width > max_size.cx)
 					max_size.cx = box.Width;
@@ -331,16 +319,15 @@ void SlideTextSource::CalculateMaxSize()
 				if (box.Height > max_size.cy)
 					max_size.cy = box.Height;
 			}
-		}
-		else
-		{
+		} else {
 			string tmp = texts.at(i);
 			if (!tmp.empty()) {
 				std::vector<wstring> texts_vec;
-				GenerateVerSlideText(to_wide(tmp.c_str()), texts_vec);
-				for (auto str : texts_vec)
-				{
-					CalculateSlideTextSizes(str, format, box, size);
+				GenerateVerSlideText(to_wide(tmp.c_str()),
+						     texts_vec);
+				for (auto str : texts_vec) {
+					CalculateSlideTextSizes(str, format,
+								box, size);
 
 					if (size.cx > max_size.cx)
 						max_size.cx = size.cx;
@@ -350,12 +337,11 @@ void SlideTextSource::CalculateMaxSize()
 				}
 			}
 		}
-
 	}
 }
 
-
-void SlideTextSource::GenerateVerSlideText(const wstring& text_tansforms, std::vector<wstring>& texts_vec)
+void SlideTextSource::GenerateVerSlideText(const wstring &text_tansforms,
+					   std::vector<wstring> &texts_vec)
 {
 	wstring text_tmp = text_tansforms;
 	if (!text_tmp.empty())
@@ -364,19 +350,16 @@ void SlideTextSource::GenerateVerSlideText(const wstring& text_tansforms, std::v
 	texts_vec.clear();
 	wstring strtmp1 = text_tmp;
 	int index = strtmp1.find_first_of(L'\n');
-	while (index != -1)
-	{
-		wstring strpre = strtmp1.substr(0,index);
+	while (index != -1) {
+		wstring strpre = strtmp1.substr(0, index);
 		texts_vec.push_back(strpre);
 		strtmp1 = strtmp1.substr(index + 1);
 		index = strtmp1.find_first_of(L'\n');
 	}
 
-	for (auto& str: texts_vec)
-	{
+	for (auto &str : texts_vec) {
 		wstring strtmp2;
-		for (int i = 0; i< str.size(); i++)
-		{
+		for (int i = 0; i < str.size(); i++) {
 			strtmp2.push_back(str.at(i));
 			strtmp2.push_back(L'\n');
 		}
@@ -384,7 +367,10 @@ void SlideTextSource::GenerateVerSlideText(const wstring& text_tansforms, std::v
 	}
 }
 
-void SlideTextSource::CalculateSlideTextSizes(const wstring& text_measure, const StringFormat &format, RectF &bounding_box, SIZE &text_size)
+void SlideTextSource::CalculateSlideTextSizes(const wstring &text_measure,
+					      const StringFormat &format,
+					      RectF &bounding_box,
+					      SIZE &text_size)
 {
 	RectF layout_box;
 	RectF temp_box;
@@ -401,19 +387,18 @@ void SlideTextSource::CalculateSlideTextSizes(const wstring& text_measure, const
 				layout_box.Height -= outline_size;
 			}
 
-			stat = graphics.MeasureString(text_measure.c_str(),
+			stat = graphics.MeasureString(
+				text_measure.c_str(),
 				(int)text_measure.size() + 1, font.get(),
-				layout_box, &format,
-				&bounding_box);
+				layout_box, &format, &bounding_box);
 			warn_stat("MeasureString (wrapped)");
 
 			temp_box = bounding_box;
-		}
-		else {
-			stat = graphics.MeasureString(text_measure.c_str(),
+		} else {
+			stat = graphics.MeasureString(
+				text_measure.c_str(),
 				(int)text_measure.size() + 1, font.get(),
-				PointF(0.0f, 0.0f), &format,
-				&bounding_box);
+				PointF(0.0f, 0.0f), &format, &bounding_box);
 			warn_stat("MeasureString (non-wrapped)");
 
 			temp_box = bounding_box;
@@ -434,19 +419,16 @@ void SlideTextSource::CalculateSlideTextSizes(const wstring& text_measure, const
 		if (bounding_box.Width < face_size) {
 			text_size.cx = face_size;
 			bounding_box.Width = float(face_size);
-		}
-		else {
+		} else {
 			text_size.cx = LONG(bounding_box.Width + EPSILON);
 		}
 
 		text_size.cy = LONG(bounding_box.Height + EPSILON);
-	}
-	else {
+	} else {
 		if (bounding_box.Height < face_size) {
 			text_size.cy = face_size;
 			bounding_box.Height = float(face_size);
-		}
-		else {
+		} else {
 			text_size.cy = LONG(bounding_box.Height + EPSILON);
 		}
 
@@ -482,8 +464,8 @@ void SlideTextSource::CalculateSlideTextSizes(const wstring& text_measure, const
 }
 
 void SlideTextSource::RenderSlideOutlineText(Graphics &graphics,
-	const GraphicsPath &path,
-	const Brush &brush)
+					     const GraphicsPath &path,
+					     const Brush &brush)
 {
 	DWORD outline_rgba = calc_color(outline_color, outline_opacity);
 	Status stat;
@@ -502,13 +484,10 @@ void SlideTextSource::RenderSlideOutlineText(Graphics &graphics,
 bool SlideTextSource::NeedRender()
 {
 	bool render = true;
-	if (vertical)
-	{
+	if (vertical) {
 		if (ver_texts.size() == 0)
 			render = false;
-	}
-	else
-	{
+	} else {
 		if (text.size() == 0)
 			render = false;
 	}
@@ -524,44 +503,38 @@ void SlideTextSource::RenderSlideText()
 	SIZE size;
 
 	GetSlideStringFormat(format);
-	CalculateSlideTextSizes(text,format, box, size);
+	CalculateSlideTextSizes(text, format, box, size);
 	float recbox_with = box.Width;
 	if (vertical)
 		size.cx = 380;
 	else
 		size.cy = 380;
 
-	if (max_size.cx > size.cx)
-	{
+	if (max_size.cx > size.cx) {
 		long offsetx = max_size.cx - size.cx;
 		size.cx = max_size.cx;
 		box.Width += offsetx;
-	}
-	else
-	{
+	} else {
 		max_size.cx = size.cx;
 	}
 
-	if (max_size.cy > size.cy)
-	{
+	if (max_size.cy > size.cy) {
 		long offsety = max_size.cy - size.cy;
 		size.cy = max_size.cy;
 		box.Height += offsety;
-	}
-	else
-	{
+	} else {
 		max_size.cy = size.cy;
 	}
 
 	unique_ptr<uint8_t> bits(new uint8_t[size.cx * size.cy * 4]);
 	Bitmap bitmap(size.cx, size.cy, 4 * size.cx, PixelFormat32bppARGB,
-		bits.get());
+		      bits.get());
 
 	Graphics graphics_bitmap(&bitmap);
 	LinearGradientBrush brush(RectF(0, 0, (float)size.cx, (float)size.cy),
-		Color(calc_color(color, opacity)),
-		Color(calc_color(color2, opacity2)),
-		gradient_dir, 1);
+				  Color(calc_color(color, opacity)),
+				  Color(calc_color(color2, opacity2)),
+				  gradient_dir, 1);
 	DWORD full_bk_color = bk_color & 0xFFFFFF;
 
 	if (!text.empty() || use_extents)
@@ -571,7 +544,6 @@ void SlideTextSource::RenderSlideText()
 	graphics_bitmap.SetCompositingMode(CompositingModeSourceOver);
 	graphics_bitmap.SetSmoothingMode(SmoothingModeAntiAlias);
 
-
 	if (use_outline) {
 		box.Offset(outline_size / 2, outline_size / 2);
 
@@ -579,48 +551,51 @@ void SlideTextSource::RenderSlideText()
 		GraphicsPath path;
 
 		font->GetFamily(&family);
-		stat = path.AddString(text.c_str(), (int)text.size(),
-			&family, font->GetStyle(),
-			font->GetSize(), box, &format);
+		stat = path.AddString(text.c_str(), (int)text.size(), &family,
+				      font->GetStyle(), font->GetSize(), box,
+				      &format);
 		warn_stat("path.AddString");
 
 		RenderSlideOutlineText(graphics_bitmap, path, brush);
-	}
-	else {
-		if (!vertical)
-		{
+	} else {
+		if (!vertical) {
 			int count = CaculateSlideTextColums(text);
-			CalculateSlideTextPos(count,format, box.X, box.Y, size);
+			CalculateSlideTextPos(count, format, box.X, box.Y,
+					      size);
 
-			if ((size.cx > box.Width || size.cy > box.Height) && !use_extents) {
+			if ((size.cx > box.Width || size.cy > box.Height) &&
+			    !use_extents) {
 				stat = graphics_bitmap.Clear(Color(0));
 				warn_stat("graphics_bitmap.Clear");
 				SolidBrush bk_brush = Color(full_bk_color);
-				stat = graphics_bitmap.FillRectangle(&bk_brush, box);
-				warn_stat("graphics_bitmap.FillRectangle");	
-			}
-			else {
-				stat = graphics_bitmap.Clear(Color(full_bk_color));
+				stat = graphics_bitmap.FillRectangle(&bk_brush,
+								     box);
+				warn_stat("graphics_bitmap.FillRectangle");
+			} else {
+				stat = graphics_bitmap.Clear(
+					Color(full_bk_color));
 				warn_stat("graphics_bitmap.Clear");
 			}
 			stat = graphics_bitmap.DrawString(text.c_str(),
-				(int)text.size(), font.get(),
-				box, &format, &brush);
+							  (int)text.size(),
+							  font.get(), box,
+							  &format, &brush);
 			warn_stat("graphics_bitmap.DrawString");
-		}
-		else
-		{
+		} else {
 			bool b = VerDeleteLineLarge();
 			RectF box1;
 			format.SetAlignment(StringAlignmentCenter);
-			graphics.MeasureString(L"字", 2, font.get(), PointF(0.0f, 0.0f),
-				&format, &box1);
+			graphics.MeasureString(L"字", 2, font.get(),
+					       PointF(0.0f, 0.0f), &format,
+					       &box1);
 			int font_width = box1.Width;
 			box.Width = font_width * 2;
 			int count = ver_texts.size();
-			CalculateSlideTextPos(count, format, box.X, box.Y, size);
+			CalculateSlideTextPos(count, format, box.X, box.Y,
+					      size);
 
-			if ((size.cx > box.Width || size.cy > box.Height) && !use_extents) {
+			if ((size.cx > box.Width || size.cy > box.Height) &&
+			    !use_extents) {
 				stat = graphics_bitmap.Clear(Color(0));
 				warn_stat("graphics_bitmap.Clear");
 				SolidBrush bk_brush = Color(full_bk_color);
@@ -631,84 +606,96 @@ void SlideTextSource::RenderSlideText()
 				box_rect.Y = box.Y;
 				box_rect.Width = font_width * count;
 				box_rect.Height = box.Height;
-				stat = graphics_bitmap.FillRectangle(&bk_brush, box_rect);
+				stat = graphics_bitmap.FillRectangle(&bk_brush,
+								     box_rect);
 				warn_stat("graphics_bitmap.FillRectangle");
-			}
-			else {
-				stat = graphics_bitmap.Clear(Color(full_bk_color));
+			} else {
+				stat = graphics_bitmap.Clear(
+					Color(full_bk_color));
 				warn_stat("graphics_bitmap.Clear");
 			}
-			float start = box.X; 
-			for (int i = 0; i< ver_texts.size(); i++)
-			{
+			float start = box.X;
+			for (int i = 0; i < ver_texts.size(); i++) {
 				box.X = start + i * font_width;
 				text = ver_texts.at(i);
-					
-				stat = graphics_bitmap.DrawString(text.c_str(),
-					(int)text.size(), font.get(),
-					box, &format, &brush);
 
-				if (strikeout)
-				{
+				stat = graphics_bitmap.DrawString(
+					text.c_str(), (int)text.size(),
+					font.get(), box, &format, &brush);
+
+				if (strikeout) {
 					RectF box1;
 					SIZE size1;
-					CalculateSlideTextSizes(text, format, box1, size1);
+					CalculateSlideTextSizes(text, format,
+								box1, size1);
 					DWORD rgba = calc_color(color, opacity);
 					Pen pen(Color(rgba), 2);
 					REAL x1, x2, y1, y2;
-					if (vertical)
-					{
-						REAL offsety = (valign == VAlign::Top) ? 0.0f : (font_width / 2.0f);
+					if (vertical) {
+						REAL offsety =
+							(valign == VAlign::Top)
+								? 0.0f
+								: (font_width /
+								   2.0f);
 						if (face == L"SimSun-ExtB")
-							x1 = box.X + font_width *  2.0f / 3.0f;
-						else
-						{
+							x1 = box.X +
+							     font_width * 2.0f /
+								     3.0f;
+						else {
 							if (b)
-								x1 = box.X + font_width * 5.0f /6.0f;
+								x1 = box.X +
+								     font_width *
+									     5.0f /
+									     6.0f;
 							else
-								x1 = box.X + font_width / 2.0f;
+								x1 = box.X +
+								     font_width /
+									     2.0f;
 						}
 
 						y1 = box.Y + offsety;
 						x2 = x1;
 						y2 = y1 + size1.cy;
-						if (valign == VAlign::Center)
-						{
-							REAL offsety = (box.Height - box1.Height) / 2;
+						if (valign == VAlign::Center) {
+							REAL offsety =
+								(box.Height -
+								 box1.Height) /
+								2;
 							y1 += offsety;
 							y2 += offsety;
-						}
-						else if(valign == VAlign::Bottom)
-						{
-							REAL offsety = box.Height - box1.Height + font_width/2;
+						} else if (valign ==
+							   VAlign::Bottom) {
+							REAL offsety =
+								box.Height -
+								box1.Height +
+								font_width / 2;
 							y1 += offsety;
 							y2 += offsety;
 						}
 					}
-					stat = graphics_bitmap.DrawLine(&pen, x1, y1, x2, y2);
+					stat = graphics_bitmap.DrawLine(
+						&pen, x1, y1, x2, y2);
 				}
 				warn_stat("graphics_bitmap.DrawString");
 			}
 		}
 	}
 
-
 	if (!tex || (LONG)cx != size.cx || (LONG)cy != size.cy) {
 		obs_enter_graphics();
 		if (tex)
 			gs_texture_destroy(tex);
 
-		const uint8_t *data = (uint8_t*)bits.get();
+		const uint8_t *data = (uint8_t *)bits.get();
 		tex = gs_texture_create(size.cx, size.cy, GS_BGRA, 1, &data,
-			GS_DYNAMIC);
+					GS_DYNAMIC);
 
 		obs_leave_graphics();
 
 		cx = (uint32_t)size.cx;
 		cy = (uint32_t)size.cy;
 
-	}
-	else if (tex) {
+	} else if (tex) {
 		obs_enter_graphics();
 		gs_texture_set_image(tex, bits.get(), size.cx * 4, false);
 		obs_leave_graphics();
@@ -756,16 +743,15 @@ void SlideTextSource::SlideUpdate(obs_data_t *s)
 	int new_fontSize = obs_data_get_int(s, S_FONTSIZE);
 	const char *new_color = obs_data_get_string(s, S_FILLCOLOR);
 	const char *new_front_color = obs_data_get_string(s, S_FONTCOLOR);
-	bool new_vertical = obs_data_get_bool(s, S_DISPLAY) == false ? true : false;
+	bool new_vertical = obs_data_get_bool(s, S_DISPLAY) == false ? true
+								     : false;
 	texts.clear();
 	// 这里兼容一下老版本
-	if (strcmp(new_color,"#FFF244F") == 0)
-	{
+	if (strcmp(new_color, "#FFF244F") == 0) {
 		new_color = "#00000000";
 	}
 
-	if (strcmp(new_front_color, "#FFF244F") == 0)
-	{
+	if (strcmp(new_front_color, "#FFF244F") == 0) {
 		new_front_color = "#00000000";
 	}
 	obs_data_array_t *array = obs_data_get_array(s, "textStrings");
@@ -801,13 +787,13 @@ void SlideTextSource::SlideUpdate(obs_data_t *s)
 	string str_color = new_front_color;
 	str_color = str_color.substr(1);
 	str_color = "0x" + str_color;
-	sscanf(str_color.c_str(), "%x", &color2);	        //十六进制转数字
-	sscanf(str_color.c_str(), "%x", &color);	        //十六进制转数字
-	sscanf(str_color.c_str(), "%x", &outline_color);	//十六进制转数字
+	sscanf(str_color.c_str(), "%x", &color2);        //十六进制转数字
+	sscanf(str_color.c_str(), "%x", &color);         //十六进制转数字
+	sscanf(str_color.c_str(), "%x", &outline_color); //十六进制转数字
 	str_color = new_color;
 	str_color = str_color.substr(1);
 	str_color = "0x" + str_color;
-	sscanf(str_color.c_str(), "%x", &bk_color);	//十六进制转数字
+	sscanf(str_color.c_str(), "%x", &bk_color); //十六进制转数字
 	CaclculateSpeed();
 
 	if (new_halign == 0x0004)
@@ -834,15 +820,12 @@ void SlideTextSource::SlideUpdate(obs_data_t *s)
 			curIndex = 0;
 
 		text = to_wide(texts.at(curIndex).c_str());
-	}
-	else
-	{
+	} else {
 		text = L"";
 		ver_texts.clear();
 	}
 
-	if (vertical)
-	{
+	if (vertical) {
 		GenerateVerSlideText(text, ver_texts);
 	}
 	CalculateMaxSize();
@@ -854,12 +837,9 @@ wstring SlideTextSource::GetNextString()
 	wstring text_tmp;
 	curIndex = (curIndex + 1) > texts.size() - 1 ? 0 : (curIndex + 1);
 	update_time = 0.0f;
-	if (vertical)
-	{
+	if (vertical) {
 		text_tmp = to_wide(texts.at(curIndex).c_str());
-	}
-	else
-	{
+	} else {
 		text_tmp = to_wide(texts.at(curIndex).c_str());
 	}
 	return text_tmp;
@@ -872,17 +852,13 @@ void SlideTextSource::SlideTick(float seconds)
 		if (texts.size() == 1)
 			return;
 
-		if (update_time < animate_time)
-		{
+		if (update_time < animate_time) {
 			update_time = update_time + seconds;
 			RenderSlideText();
-		}
-		else
-		{
+		} else {
 			int index = 0;
 			text = GetNextString();
-			while (text.size() == 0)
-			{
+			while (text.size() == 0) {
 				index++;
 				text = GetNextString();
 				if (index > texts.size())
@@ -905,7 +881,8 @@ void SlideTextSource::SlideRender()
 	gs_technique_begin(tech);
 	gs_technique_begin_pass(tech, 0);
 
-	gs_effect_set_texture(gs_effect_get_param_by_name(effect, "image"), tex);
+	gs_effect_set_texture(gs_effect_get_param_by_name(effect, "image"),
+			      tex);
 	gs_draw_sprite(tex, 0, cx, cy);
 
 	gs_technique_end_pass(tech);
@@ -914,8 +891,7 @@ void SlideTextSource::SlideRender()
 
 void SlideTextSource::CaclculateSpeed()
 {
-	switch (speed)
-	{
+	switch (speed) {
 	case 1:
 		animate_time = 3.0f;
 		break;
@@ -940,12 +916,9 @@ bool SlideTextSource::VerDeleteLineLarge()
 
 	GetSlideStringFormat(format);
 
-	graphics.MeasureString(L"1",
-		2, font.get(),
-		box, &format,
-		&box);
+	graphics.MeasureString(L"1", 2, font.get(), box, &format, &box);
 
-	if (box.Width > face_size/2.0f)
+	if (box.Width > face_size / 2.0f)
 		return true;
 	else
 		return false;
