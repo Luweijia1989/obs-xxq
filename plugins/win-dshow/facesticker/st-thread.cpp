@@ -2,11 +2,185 @@
 #include "obs.h"
 #include <QDebug>
 #include <QDateTime>
+#include <QtMath>
+#include <QFile>
+#include <QElapsedTimer>
+#include <QTimer>
 #include "..\win-dshow.h"
 
 extern video_format ConvertVideoFormat(DShow::VideoFormat format);
 
 bool g_st_checkpass = false;
+#define FAST_DIV255(x) ((((x) + 128) * 257) >> 16)
+#define G_VALUE 10
+static void blend_image_rgba(struct VideoFrame *main,
+			     struct VideoFrame *overlay, int x, int y)
+{
+	int real_overlay_height = 0;
+	int real_overlay_width = 0;
+	if (x >= 0) {
+		real_overlay_width = main->width - x < overlay->width
+					     ? main->width - x
+					     : overlay->width;
+	} else {
+		real_overlay_width = main->width < overlay->width + x
+					     ? main->width
+					     : overlay->width + x;
+	}
+
+	if (y >= 0) {
+		real_overlay_height = main->height - y < overlay->height
+					      ? main->height - y
+					      : overlay->height;
+	} else {
+		real_overlay_height = main->height < overlay->height + y
+					      ? main->height
+					      : overlay->height + y;
+	}
+
+	for (int j = 0; j < real_overlay_height; j++) {
+		for (int i = 0; i < real_overlay_width; i++) {
+			int overlay_pixel_pos = 0;
+			int main_pixel_pos = 0;
+			if (x >= 0) {
+				if (y >= 0) {
+					overlay_pixel_pos =
+						j * overlay->width + i;
+				} else {
+					overlay_pixel_pos =
+						(-y + j) * overlay->width + i;
+				}
+			} else {
+				if (y >= 0) {
+					overlay_pixel_pos =
+						j * overlay->width + i - x;
+				} else {
+					overlay_pixel_pos =
+						(-y + j) * overlay->width + i -
+						x;
+				}
+			}
+			if (x >= 0) {
+				if (y >= 0) {
+					main_pixel_pos =
+						(y + j) * main->width + (x + i);
+				} else {
+					main_pixel_pos =
+						j * main->width + (x + i);
+				}
+			} else {
+				if (y >= 0) {
+					main_pixel_pos =
+						(y + j) * main->width + i;
+				} else {
+					main_pixel_pos = j * main->width + i;
+				}
+			}
+
+			if (0) {
+				uint8_t overlay_alpha =
+					*(overlay->data +
+					  overlay_pixel_pos * 4 + 3);
+				if (overlay_alpha == 255) {
+					main->data[main_pixel_pos * 4] = *(
+						overlay->data +
+						overlay_pixel_pos * 4 + 2); //A
+					main->data[main_pixel_pos * 4 + 1] = *(
+						overlay->data +
+						overlay_pixel_pos * 4 + 1); //B
+					main->data[main_pixel_pos * 4 + 2] = *(
+						overlay->data +
+						overlay_pixel_pos * 4 + 0); //G
+					main->data[main_pixel_pos * 4 + 3] = *(
+						overlay->data +
+						overlay_pixel_pos * 4 + 3); //R
+				} else if (overlay_alpha < 255 &&
+					   overlay_alpha > 0) {
+					main->data[main_pixel_pos * 4] = FAST_DIV255(
+						main->data[main_pixel_pos * 4] *
+							(255 - overlay_alpha) +
+						overlay->data[overlay_pixel_pos *
+								      4 +
+							      2] *
+							overlay_alpha); //A
+					main->data[main_pixel_pos * 4 + 1] = FAST_DIV255(
+						main->data[main_pixel_pos * 4 +
+							   1] *
+							(255 - overlay_alpha) +
+						overlay->data[overlay_pixel_pos *
+								      4 +
+							      1] *
+							overlay_alpha); //B
+					main->data[main_pixel_pos * 4 + 2] = FAST_DIV255(
+						main->data[main_pixel_pos * 4 +
+							   2] *
+							(255 - overlay_alpha) +
+						overlay->data[overlay_pixel_pos *
+								      4 +
+							      0] *
+							overlay_alpha); //G
+					main->data[main_pixel_pos * 4 + 3] = FAST_DIV255(
+						main->data[main_pixel_pos * 4 +
+							   3] *
+							(255 - overlay_alpha) +
+						overlay->data[overlay_pixel_pos *
+								      4 +
+							      3] *
+							overlay_alpha); //R
+				}
+			} else {
+				uint8_t overlay_alpha = *(
+					overlay->data + overlay_pixel_pos * 4);
+				if (overlay_alpha == 255) {
+					main->data[main_pixel_pos * 4] =
+						*(overlay->data +
+						  overlay_pixel_pos * 4); //A
+					main->data[main_pixel_pos * 4 + 1] = *(
+						overlay->data +
+						overlay_pixel_pos * 4 + 1); //B
+					main->data[main_pixel_pos * 4 + 2] = *(
+						overlay->data +
+						overlay_pixel_pos * 4 + 2); //G
+					main->data[main_pixel_pos * 4 + 3] = *(
+						overlay->data +
+						overlay_pixel_pos * 4 + 3); //R
+				} else if (overlay_alpha < 255 &&
+					   overlay_alpha > 0) {
+					main->data[main_pixel_pos * 4] = FAST_DIV255(
+						main->data[main_pixel_pos * 4] *
+							(255 - overlay_alpha) +
+						overlay->data[overlay_pixel_pos *
+							      4] *
+							overlay_alpha); //A
+					main->data[main_pixel_pos * 4 + 1] = FAST_DIV255(
+						main->data[main_pixel_pos * 4 +
+							   1] *
+							(255 - overlay_alpha) +
+						overlay->data[overlay_pixel_pos *
+								      4 +
+							      1] *
+							overlay_alpha); //B
+					main->data[main_pixel_pos * 4 + 2] = FAST_DIV255(
+						main->data[main_pixel_pos * 4 +
+							   2] *
+							(255 - overlay_alpha) +
+						overlay->data[overlay_pixel_pos *
+								      4 +
+							      2] *
+							overlay_alpha); //G
+					main->data[main_pixel_pos * 4 + 3] = FAST_DIV255(
+						main->data[main_pixel_pos * 4 +
+							   3] *
+							(255 - overlay_alpha) +
+						overlay->data[overlay_pixel_pos *
+								      4 +
+							      3] *
+							overlay_alpha); //R
+				}
+			}
+		}
+	}
+}
 
 enum AVPixelFormat obs_to_ffmpeg_video_format(enum video_format format)
 {
@@ -37,10 +211,28 @@ enum AVPixelFormat obs_to_ffmpeg_video_format(enum video_format format)
 
 	return AV_PIX_FMT_NONE;
 }
-
+QElapsedTimer tt;
 STThread::STThread(DShowInput *dsInput) : m_dshowInput(dsInput)
 {
 	m_stFunc = new STFunction;
+	m_strawberryOverlay = QImage(
+		"C:\\Users\\luweijia.YUPAOPAO\\Desktop\\pic_faceu_strawberry_2x.png");
+	m_strawberryOverlay =
+		m_strawberryOverlay.convertToFormat(QImage::Format_RGBA8888);
+	m_bombOverlay = QImage(
+		"C:\\Users\\luweijia.YUPAOPAO\\Desktop\\pic_faceu_bomb_2x.png");
+	m_bombOverlay = m_bombOverlay.convertToFormat(QImage::Format_RGBA8888);
+	m_strawberryFrameOverlay = {(size_t)m_strawberryOverlay.sizeInBytes(),
+				    m_strawberryOverlay.width(),
+				    m_strawberryOverlay.height(),
+				    m_strawberryOverlay.bits()};
+	m_bombFrameOverlay = {(size_t)m_bombOverlay.sizeInBytes(),
+			      m_bombOverlay.width(), m_bombOverlay.height(),
+			      m_bombOverlay.bits()};
+
+	QTimer::singleShot(3000, this,
+			   [=]() { changeSticker("strawberry", true); });
+	tt.start();
 }
 
 STThread::~STThread()
@@ -86,16 +278,16 @@ void STThread::run()
 		if (!m_running)
 			break;
 
+		updateSticker();
+
 		if (QDateTime::currentMSecsSinceEpoch() - frame.timestamp <
 		    10) {
 			if (frame.avFrame)
-				processVideoData(frame.avFrame,
-						 frame.stickerId);
+				processVideoData(frame.avFrame);
 
 			if (frame.data)
 				processVideoData(frame.data, frame.size,
-						 frame.startTime,
-						 frame.stickerId);
+						 frame.startTime);
 		}
 
 		if (frame.data)
@@ -112,13 +304,11 @@ void STThread::run()
 	qDebug() << "STThread stopped...";
 }
 
-void STThread::addFrame(unsigned char *data, size_t size, long long startTime,
-			QString id)
+void STThread::addFrame(unsigned char *data, size_t size, long long startTime)
 {
 	if (!m_running)
 		return;
 	FrameInfo info;
-	info.stickerId = id;
 	info.size = size;
 	info.startTime = startTime;
 	info.data = (unsigned char *)bmalloc(size * sizeof(unsigned char *));
@@ -127,7 +317,7 @@ void STThread::addFrame(unsigned char *data, size_t size, long long startTime,
 	m_frameQueue.enqueue(info);
 }
 
-void STThread::addFrame(AVFrame *frame, QString id)
+void STThread::addFrame(AVFrame *frame)
 {
 	if (!m_running)
 		return;
@@ -143,7 +333,6 @@ void STThread::addFrame(AVFrame *frame, QString id)
 	av_frame_copy_props(copyFrame, frame);
 
 	FrameInfo info;
-	info.stickerId = id;
 	info.avFrame = copyFrame;
 	info.timestamp = QDateTime::currentMSecsSinceEpoch();
 	m_frameQueue.enqueue(info);
@@ -167,6 +356,73 @@ void STThread::stop()
 	}
 
 	wait();
+}
+
+int STThread::stickerSize()
+{
+	int s = 0;
+	m_stickerSetterMutex.lock();
+	s = m_stickers.size();
+	m_stickerSetterMutex.unlock();
+	return s;
+}
+
+void STThread::changeSticker(QString sticker, bool isAdd)
+{
+	m_stickerSetterMutex.lock();
+	if (!isBomb(sticker) && !isStrawberry(sticker)) {
+		if (isAdd)
+			m_stickers.insert(sticker);
+		else
+			m_stickers.remove(sticker);
+	} else {
+		if (isAdd)
+			m_stickers.insert(sticker);
+		else
+			m_stickers.remove(sticker);
+	}
+	m_stickerChanged = true;
+	m_stickerSetterMutex.unlock();
+}
+
+void STThread::updateSticker()
+{
+	QMutexLocker locker(&m_stickerSetterMutex);
+	if (!m_stickerChanged)
+		return;
+	bool hasGame = false;
+	bool hasBomb = false;
+	bool hasStrawberry = false;
+	m_gameStickerType = None;
+	m_stFunc->clearSticker();
+	for (auto iter = m_stickers.begin(); iter != m_stickers.end(); iter++) {
+		if (!isBomb(*iter) && !isStrawberry(*iter)) {
+			m_stFunc->addSticker(*iter);
+		}
+
+		if (isBomb(*iter))
+			hasBomb = true;
+		if (isStrawberry(*iter))
+			hasStrawberry = true;
+	}
+	hasGame = hasBomb || hasStrawberry;
+	if (hasGame) {
+		if (!m_lastHasGame) {
+			m_lastHasGame = true;
+			m_gameStartTime = QDateTime::currentMSecsSinceEpoch();
+			if (hasBomb)
+				m_gameStickerType = Bomb;
+			else
+				m_gameStickerType = Strawberry;
+		}
+	} else {
+		if (m_lastHasGame) {
+			m_gameStartTime = 0;
+			m_lastHasGame = false;
+		}
+	}
+
+	m_stickerChanged = false;
 }
 
 void STThread::setFrameConfig(const DShow::VideoConfig &cg)
@@ -212,7 +468,7 @@ void STThread::setFrameConfig(int w, int h, AVPixelFormat f)
 }
 
 void STThread::processVideoData(unsigned char *buffer, size_t size,
-				long long startTime, QString id)
+				long long startTime)
 {
 	if (!m_swsctx)
 		return;
@@ -223,12 +479,12 @@ void STThread::processVideoData(unsigned char *buffer, size_t size,
 				 m_curFrameWidth, m_curFrameHeight);
 	tempFrame->pts = startTime;
 
-	processVideoDataInternal(tempFrame, id);
+	processVideoDataInternal(tempFrame);
 
 	av_frame_free(&tempFrame);
 }
 
-void STThread::processVideoData(AVFrame *frame, QString id)
+void STThread::processVideoData(AVFrame *frame)
 {
 	setFrameConfig(frame->width, frame->height,
 		       (AVPixelFormat)frame->format);
@@ -238,18 +494,36 @@ void STThread::processVideoData(AVFrame *frame, QString id)
 
 	if (!frame)
 		return;
-	processVideoDataInternal(frame, id);
+	processVideoDataInternal(frame);
 }
 
-void STThread::processVideoDataInternal(AVFrame *frame, QString id)
+void STThread::processVideoDataInternal(AVFrame *frame)
 {
 	int linesize = 0;
 	int ret = sws_scale(m_swsctx, (const uint8_t *const *)(frame->data),
 			    frame->linesize, 0, m_curFrameHeight,
 			    m_swsRetFrame->data, m_swsRetFrame->linesize);
-
 	if (m_stFunc->doFaceDetect(m_swsRetFrame->data[0], m_curFrameWidth,
-				   m_curFrameHeight, id, flip)) {
+				   m_curFrameHeight, flip)) {
+		if (m_gameStickerType != None) {
+			int s = m_curFrameWidth / 2;
+			int h = m_curFrameHeight / 2;
+			qreal deltaTime = (QDateTime::currentMSecsSinceEpoch() -
+					   m_gameStartTime) /
+					  1000.;
+			int s1 = s / qSqrt(8 * h / G_VALUE) * deltaTime;
+			int h1 = qSqrt(2 * G_VALUE * h) * deltaTime -
+				 0.5 * G_VALUE * deltaTime * deltaTime;
+			VideoFrame vf = {m_curFrameHeight * m_curFrameWidth * 4,
+					 m_curFrameWidth, m_curFrameHeight,
+					 m_swsRetFrame->data[0]};
+			blend_image_rgba(&vf,
+					 m_gameStickerType == Strawberry
+						 ? &m_strawberryFrameOverlay
+						 : &m_bombFrameOverlay,
+					 s1, h1);
+		}
+
 		BindTexture(m_swsRetFrame->data[0], m_curFrameWidth,
 			    m_curFrameHeight, textureSrc);
 		BindTexture(NULL, m_curFrameWidth, m_curFrameHeight,

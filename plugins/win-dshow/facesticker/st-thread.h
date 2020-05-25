@@ -1,6 +1,10 @@
 ﻿#pragma once
 
 #include <QThread>
+#include <QImage>
+#include <QMutex>
+#include <QMap>
+#include <QSet>
 #include "../libdshowcapture/dshowcapture.hpp"
 #include "readerwriterqueue.h"
 #include "st-function.h"
@@ -23,40 +27,53 @@ class QOffscreenSurface;
 class QOpenGLContext;
 class QOpenGLFunctions;
 
-struct FrameInfo
-{
+struct FrameInfo {
 	FrameInfo(unsigned char *d, size_t s, long long t)
-		: data(d)
-		, size(s)
-		, startTime(t)
-		, avFrame(NULL) {}
+		: data(d), size(s), startTime(t), avFrame(NULL)
+	{
+	}
 
-	FrameInfo()
-		: data(nullptr)
-		, size(0)
-		, startTime(0)
-		, avFrame(NULL) {}
+	FrameInfo() : data(nullptr), size(0), startTime(0), avFrame(NULL) {}
 	unsigned char *data; // frame data should be cached
 	size_t size;
 	long long startTime;
 	long long timestamp;
 	AVFrame *avFrame;
-	QString stickerId;
+};
+
+struct VideoFrame {
+	size_t frameSize;
+	int width;
+	int height;
+	uchar *data;
 };
 
 class DShowInput;
-class STThread : public QThread
-{
+class STThread : public QThread {
 	Q_OBJECT
 public:
+	enum GameStickerType {
+		Strawberry,
+		Bomb,
+		None,
+	};
 	STThread(DShowInput *dsInput);
 	~STThread();
-	void setFrameConfig(const DShow::VideoConfig & cg);
+	void setFrameConfig(const DShow::VideoConfig &cg);
 	void setFrameConfig(int w, int h, AVPixelFormat f);
 	bool stInited() { return m_stFunc->stInited(); }
-	void addFrame(unsigned char *data, size_t size, long long startTime, QString id);
-	void addFrame(AVFrame *frame, QString id);
+	void addFrame(unsigned char *data, size_t size, long long startTime);
+	void addFrame(AVFrame *frame);
 	void stop();
+	int stickerSize();
+	void changeSticker(QString sticker, bool isAdd);
+	bool isStrawberry(QString id) { return m_strawberryId == id; }
+	bool isBomb(QString id) { return m_bombId == id; }
+	bool hasGameSticker(QString id)
+	{
+		return isStrawberry(id) || isBomb(id);
+	}
+	void updateSticker();
 
 protected:
 	virtual void run() override;
@@ -65,19 +82,21 @@ private:
 	bool InitGL();
 	void unInitGL();
 	void MesaOpenGL();
-	GLboolean BindTexture(unsigned char *buffer, int width, int height, GLuint& texId);
+	GLboolean BindTexture(unsigned char *buffer, int width, int height,
+			      GLuint &texId);
 
-	void processVideoData(unsigned char *buffer, size_t size, long long startTime, QString id);
-	void processVideoData(AVFrame *frame, QString id);
-	void processVideoDataInternal(AVFrame *frame, QString id);
+	void processVideoData(unsigned char *buffer, size_t size,
+			      long long startTime);
+	void processVideoData(AVFrame *frame);
+	void processVideoDataInternal(AVFrame *frame);
 
 private:
 	DShowInput *m_dshowInput = nullptr;
 	STFunction *m_stFunc = nullptr;
 	bool m_running = false;
 	moodycamel::BlockingReaderWriterQueue<FrameInfo> m_frameQueue;
-	std::map<GLuint, std::vector<int> > gTextures;
-	GLFWwindow* window = nullptr;
+	std::map<GLuint, std::vector<int>> gTextures;
+	GLFWwindow *window = nullptr;
 	struct SwsContext *m_swsctx = NULL;
 	AVPixelFormat m_curPixelFormat = AV_PIX_FMT_NONE;
 	bool flip = false;
@@ -88,4 +107,16 @@ private:
 	size_t m_stickerBufferSize = 0;
 	GLuint textureSrc = -1;
 	GLuint textureDst = -1;
+	QImage m_strawberryOverlay;
+	QImage m_bombOverlay;
+	VideoFrame m_strawberryFrameOverlay;
+	VideoFrame m_bombFrameOverlay;
+	QSet<QString> m_stickers;
+	QMutex m_stickerSetterMutex;
+	QString m_strawberryId = "strawberry";
+	QString m_bombId = "bomb";
+	bool m_stickerChanged = false;
+	GameStickerType m_gameStickerType = None;
+	quint64 m_gameStartTime;
+	bool m_lastHasGame = false;
 };
