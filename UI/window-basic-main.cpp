@@ -2263,6 +2263,7 @@ OBSBasic::~OBSBasic()
 	ClearHotkeys();
 
 	service = nullptr;
+	outputHandler->main = nullptr;
 	outputHandler.reset();
 
 	if (interaction)
