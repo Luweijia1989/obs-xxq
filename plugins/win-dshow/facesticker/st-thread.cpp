@@ -129,8 +129,9 @@ static void blend_image_rgba(struct VideoFrame *main,
 							overlay_alpha); //R
 				}
 			} else {
-				uint8_t overlay_alpha = *(
-					overlay->data + overlay_pixel_pos * 4);
+				uint8_t overlay_alpha =
+					*(overlay->data +
+					  overlay_pixel_pos * 4 + 3);
 				if (overlay_alpha == 255) {
 					main->data[main_pixel_pos * 4] =
 						*(overlay->data +
@@ -211,7 +212,7 @@ enum AVPixelFormat obs_to_ffmpeg_video_format(enum video_format format)
 
 	return AV_PIX_FMT_NONE;
 }
-QElapsedTimer tt;
+
 STThread::STThread(DShowInput *dsInput) : m_dshowInput(dsInput)
 {
 	m_stFunc = new STFunction;
@@ -232,7 +233,6 @@ STThread::STThread(DShowInput *dsInput) : m_dshowInput(dsInput)
 
 	QTimer::singleShot(3000, this,
 			   [=]() { changeSticker("strawberry", true); });
-	tt.start();
 }
 
 STThread::~STThread()
@@ -450,9 +450,8 @@ void STThread::setFrameConfig(int w, int h, AVPixelFormat f)
 			bfree(m_stickerBuffer);
 			m_stickerBuffer = nullptr;
 		}
-		m_stickerBufferSize =
-			sizeof(unsigned char) *
-			avpicture_get_size(AV_PIX_FMT_YUV420P, w, h);
+		m_stickerBufferSize = sizeof(unsigned char) *
+				      avpicture_get_size(AV_PIX_FMT_NV12, w, h);
 		m_stickerBuffer = (unsigned char *)bmalloc(m_stickerBufferSize);
 
 		m_curPixelFormat = f;
@@ -534,7 +533,7 @@ void STThread::processVideoDataInternal(AVFrame *frame)
 						 m_stickerBuffer, flip);
 		if (b)
 			m_dshowInput->OutputFrame(
-				flip, DShow::VideoFormat::I420, m_stickerBuffer,
+				flip, DShow::VideoFormat::NV12, m_stickerBuffer,
 				m_stickerBufferSize, frame->pts, 0);
 	}
 }
