@@ -20,6 +20,7 @@ public:
 	void freeFaceHandler();
 	bool addSticker(QString sticker);
 	bool clearSticker();
+	const st_mobile_human_action_t &detectResult() { return m_result; }
 
 private:
 	st_handle_t m_stHandler = NULL;

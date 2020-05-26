@@ -7,6 +7,8 @@
 #include <QElapsedTimer>
 #include <QTimer>
 #include <QRandomGenerator>
+#include <QApplication>
+#include <QEvent>
 #include "..\win-dshow.h"
 
 extern video_format ConvertVideoFormat(DShow::VideoFormat format);
@@ -239,7 +241,7 @@ STThread::STThread(DShowInput *dsInput) : m_dshowInput(dsInput)
 		changeSticker(
 			"C:\\Users\\luweijia.YUPAOPAO\\AppData\\Local\\yuerlive\\cache\\stickers\\4cf29b1530b145c097b67b431be61706.zip",
 			true, v);
-		QTimer::singleShot(1000, [=]() {
+		QTimer::singleShot(3000, [=]() {
 			changeSticker("strawberry", false);
 			changeSticker(
 				"C:\\Users\\luweijia.YUPAOPAO\\AppData\\Local\\yuerlive\\cache\\stickers\\4cf29b1530b145c097b67b431be61706.zip",
@@ -522,6 +524,42 @@ void STThread::processVideoDataInternal(AVFrame *frame)
 			int s1 = s / qSqrt(8 * h / G_VALUE) * deltaTime;
 			int h1 = qSqrt(2 * G_VALUE * h) * deltaTime -
 				 0.5 * G_VALUE * deltaTime * deltaTime;
+
+			QPoint center(s1 + m_curFrameWidth / 2 - 30,
+				      m_curFrameHeight - h1 - 30);
+			QRect strawberryRect =
+				QRect(center.x() - 30, center.y() - 30, 60, 60);
+
+			bool hit = false;
+			auto detectResult = m_stFunc->detectResult();
+			if (detectResult.p_faces) {
+				QPoint mouthPoint =
+					QPoint(detectResult.p_faces->face106
+						       .points_array[97]
+						       .x,
+					       (detectResult.p_faces->face106
+							.points_array[97]
+							.y +
+						detectResult.p_faces->face106
+							.points_array[101]
+							.y) /
+						       2);
+				hit = strawberryRect.contains(mouthPoint);
+			}
+
+			QRect w(0, 0, m_curFrameWidth, m_curFrameHeight);
+			if (hit || !w.intersects(strawberryRect)) {
+				changeSticker(m_gameStickerType == Strawberry
+						      ? "strawberry"
+						      : "bomb",
+					      false);
+				qApp->postEvent(
+					qApp,
+					new QEvent((QEvent::Type)(
+						hit ? QEvent::User + 1024
+						    : QEvent::User + 1025)));
+			}
+
 			VideoFrame vf = {m_curFrameHeight * m_curFrameWidth * 4,
 					 m_curFrameWidth, m_curFrameHeight,
 					 m_swsRetFrame->data[0]};
@@ -529,8 +567,7 @@ void STThread::processVideoDataInternal(AVFrame *frame)
 					 m_gameStickerType == Strawberry
 						 ? &m_strawberryFrameOverlay
 						 : &m_bombFrameOverlay,
-					 s1 + m_curFrameWidth / 2 - 30,
-					 m_curFrameHeight - h1 - 30);
+					 center.x(), center.y());
 		}
 
 		BindTexture(m_swsRetFrame->data[0], m_curFrameWidth,
