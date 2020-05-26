@@ -66,7 +66,7 @@ public:
 	void addFrame(AVFrame *frame);
 	void stop();
 	int stickerSize();
-	void changeSticker(QString sticker, bool isAdd);
+	void changeSticker(QString sticker, bool isAdd, int region = -1);
 	bool isStrawberry(QString id) { return m_strawberryId == id; }
 	bool isBomb(QString id) { return m_bombId == id; }
 	bool hasGameSticker(QString id)
@@ -89,6 +89,7 @@ private:
 			      long long startTime);
 	void processVideoData(AVFrame *frame);
 	void processVideoDataInternal(AVFrame *frame);
+	void calcPosition(int &width, int &height);
 
 private:
 	DShowInput *m_dshowInput = nullptr;
@@ -119,4 +120,6 @@ private:
 	GameStickerType m_gameStickerType = None;
 	quint64 m_gameStartTime;
 	bool m_lastHasGame = false;
+	int m_curRegion = -1;
+	int m_cacheRegion = -1;
 };

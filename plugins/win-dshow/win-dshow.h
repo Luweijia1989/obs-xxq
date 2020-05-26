@@ -177,7 +177,7 @@ public:
 
 	~DShowInput();
 
-	void changeSticker(QString sticker, bool isAdd);
+	void changeSticker(QString sticker, bool isAdd, int region = -1);
 	void OnEncodedVideoData(enum AVCodecID id, unsigned char *data,
 				size_t size, long long ts);
 	void OnEncodedAudioData(enum AVCodecID id, unsigned char *data,

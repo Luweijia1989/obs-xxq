@@ -21,16 +21,11 @@ bool STFunction::initSenseTimeEnv()
 		return false;
 	}
 
-	st_mobile_human_action_setparam(
-		m_stHandler, ST_HUMAN_ACTION_PARAM_BACKGROUND_BLUR_STRENGTH,
-		35 / 100.0f);
-
 	ret = st_mobile_sticker_create(&m_handleSticker);
 	if (ret != ST_OK) {
 		qDebug() << "fail to init sticker handle: " << ret;
 		return false;
 	}
-
 	m_stInited = true;
 	return true;
 }
@@ -82,6 +77,6 @@ bool STFunction::doFaceDetect(unsigned char *inputBuffer, int width, int height,
 		m_stHandler, inputBuffer, ST_PIX_FMT_RGBA8888, width, height,
 		width * 4,
 		flip ? ST_CLOCKWISE_ROTATE_180 : ST_CLOCKWISE_ROTATE_0,
-		m_detectConfig, &m_result);
+		ST_MOBILE_FACE_DETECT, &m_result);
 	return ret == ST_OK;
 }

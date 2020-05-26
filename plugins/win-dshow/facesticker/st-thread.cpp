@@ -6,13 +6,14 @@
 #include <QFile>
 #include <QElapsedTimer>
 #include <QTimer>
+#include <QRandomGenerator>
 #include "..\win-dshow.h"
 
 extern video_format ConvertVideoFormat(DShow::VideoFormat format);
 
 bool g_st_checkpass = false;
 #define FAST_DIV255(x) ((((x) + 128) * 257) >> 16)
-#define G_VALUE 10
+#define G_VALUE 1000
 static void blend_image_rgba(struct VideoFrame *main,
 			     struct VideoFrame *overlay, int x, int y)
 {
@@ -216,12 +217,12 @@ enum AVPixelFormat obs_to_ffmpeg_video_format(enum video_format format)
 STThread::STThread(DShowInput *dsInput) : m_dshowInput(dsInput)
 {
 	m_stFunc = new STFunction;
-	m_strawberryOverlay = QImage(
-		"C:\\Users\\luweijia.YUPAOPAO\\Desktop\\pic_faceu_strawberry_2x.png");
+	m_strawberryOverlay =
+		QImage("C:\\Users\\luweijia.YUPAOPAO\\Desktop\\strawberry.png");
 	m_strawberryOverlay =
 		m_strawberryOverlay.convertToFormat(QImage::Format_RGBA8888);
-	m_bombOverlay = QImage(
-		"C:\\Users\\luweijia.YUPAOPAO\\Desktop\\pic_faceu_bomb_2x.png");
+	m_bombOverlay =
+		QImage("C:\\Users\\luweijia.YUPAOPAO\\Desktop\\bomb.png");
 	m_bombOverlay = m_bombOverlay.convertToFormat(QImage::Format_RGBA8888);
 	m_strawberryFrameOverlay = {(size_t)m_strawberryOverlay.sizeInBytes(),
 				    m_strawberryOverlay.width(),
@@ -231,8 +232,22 @@ STThread::STThread(DShowInput *dsInput) : m_dshowInput(dsInput)
 			      m_bombOverlay.width(), m_bombOverlay.height(),
 			      m_bombOverlay.bits()};
 
-	QTimer::singleShot(3000, this,
-			   [=]() { changeSticker("strawberry", true); });
+	QTimer *t = new QTimer(this);
+	connect(t, &QTimer::timeout, this, [=]() {
+		quint32 v = QRandomGenerator::global()->bounded(0, 14);
+		changeSticker("strawberry", true, v);
+		changeSticker(
+			"C:\\Users\\luweijia.YUPAOPAO\\AppData\\Local\\yuerlive\\cache\\stickers\\4cf29b1530b145c097b67b431be61706.zip",
+			true, v);
+		QTimer::singleShot(1000, [=]() {
+			changeSticker("strawberry", false);
+			changeSticker(
+				"C:\\Users\\luweijia.YUPAOPAO\\AppData\\Local\\yuerlive\\cache\\stickers\\4cf29b1530b145c097b67b431be61706.zip",
+				false);
+		});
+	});
+	t->setSingleShot(false);
+	t->start(5000);
 }
 
 STThread::~STThread()
@@ -278,7 +293,7 @@ void STThread::run()
 		if (!m_running)
 			break;
 
-		updateSticker();
+		//updateSticker();
 
 		if (QDateTime::currentMSecsSinceEpoch() - frame.timestamp <
 		    10) {
@@ -367,33 +382,26 @@ int STThread::stickerSize()
 	return s;
 }
 
-void STThread::changeSticker(QString sticker, bool isAdd)
+void STThread::changeSticker(QString sticker, bool isAdd, int region)
 {
 	m_stickerSetterMutex.lock();
-	if (!isBomb(sticker) && !isStrawberry(sticker)) {
-		if (isAdd)
-			m_stickers.insert(sticker);
-		else
-			m_stickers.remove(sticker);
-	} else {
-		if (isAdd)
-			m_stickers.insert(sticker);
-		else
-			m_stickers.remove(sticker);
-	}
+	if (isAdd)
+		m_stickers.insert(sticker);
+	else
+		m_stickers.remove(sticker);
 	m_stickerChanged = true;
+	m_cacheRegion = region;
+	updateSticker();
 	m_stickerSetterMutex.unlock();
 }
 
 void STThread::updateSticker()
 {
-	QMutexLocker locker(&m_stickerSetterMutex);
 	if (!m_stickerChanged)
 		return;
 	bool hasGame = false;
 	bool hasBomb = false;
 	bool hasStrawberry = false;
-	m_gameStickerType = None;
 	m_stFunc->clearSticker();
 	for (auto iter = m_stickers.begin(); iter != m_stickers.end(); iter++) {
 		if (!isBomb(*iter) && !isStrawberry(*iter)) {
@@ -410,6 +418,7 @@ void STThread::updateSticker()
 		if (!m_lastHasGame) {
 			m_lastHasGame = true;
 			m_gameStartTime = QDateTime::currentMSecsSinceEpoch();
+			m_curRegion = m_cacheRegion;
 			if (hasBomb)
 				m_gameStickerType = Bomb;
 			else
@@ -505,8 +514,8 @@ void STThread::processVideoDataInternal(AVFrame *frame)
 	if (m_stFunc->doFaceDetect(m_swsRetFrame->data[0], m_curFrameWidth,
 				   m_curFrameHeight, flip)) {
 		if (m_gameStickerType != None) {
-			int s = m_curFrameWidth / 2;
-			int h = m_curFrameHeight / 2;
+			int s, h;
+			calcPosition(s, h);
 			qreal deltaTime = (QDateTime::currentMSecsSinceEpoch() -
 					   m_gameStartTime) /
 					  1000.;
@@ -520,7 +529,8 @@ void STThread::processVideoDataInternal(AVFrame *frame)
 					 m_gameStickerType == Strawberry
 						 ? &m_strawberryFrameOverlay
 						 : &m_bombFrameOverlay,
-					 s1, h1);
+					 s1 + m_curFrameWidth / 2 - 30,
+					 m_curFrameHeight - h1 - 30);
 		}
 
 		BindTexture(m_swsRetFrame->data[0], m_curFrameWidth,
@@ -536,4 +546,22 @@ void STThread::processVideoDataInternal(AVFrame *frame)
 				flip, DShow::VideoFormat::NV12, m_stickerBuffer,
 				m_stickerBufferSize, frame->pts, 0);
 	}
+}
+
+void STThread::calcPosition(int &width, int &height)
+{
+	if (m_curRegion == -1) {
+		width = 0;
+		height = 0;
+	}
+
+	int totalCount = 15;
+
+	int stepx = m_curFrameWidth / 5;
+	int stepy = m_curFrameHeight / 3;
+	int x_r = m_curRegion % 5;
+	int y_r = m_curRegion / 5;
+
+	width = x_r < 2 ? (x_r - 2.5) * stepx : (x_r - 1.5) * stepx;
+	height = m_curFrameHeight - y_r * stepy;
 }

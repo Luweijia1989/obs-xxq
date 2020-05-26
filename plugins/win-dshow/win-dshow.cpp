@@ -116,10 +116,10 @@ DShowInput::~DShowInput()
 	WaitForSingleObject(thread, INFINITE);
 }
 
-void DShowInput::changeSticker(QString sticker, bool isAdd)
+void DShowInput::changeSticker(QString sticker, bool isAdd, int region)
 {
 	if (stThread)
-		stThread->changeSticker(sticker, isAdd);
+		stThread->changeSticker(sticker, isAdd, region);
 }
 
 /* Always keep directshow in a single thread for a given device */
