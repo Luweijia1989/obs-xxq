@@ -116,10 +116,10 @@ DShowInput::~DShowInput()
 	WaitForSingleObject(thread, INFINITE);
 }
 
-void DShowInput::changeSticker(QString sticker, bool isAdd, int region)
+void DShowInput::updateInfo(const char *data)
 {
 	if (stThread)
-		stThread->changeSticker(sticker, isAdd, region);
+		stThread->updateInfo(data);
 }
 
 /* Always keep directshow in a single thread for a given device */
@@ -311,12 +311,13 @@ void DShowInput::OnEncodedVideoData(enum AVCodecID id, unsigned char *data,
 
 	if (got_output) {
 		frame.timestamp = (uint64_t)ts * 100;
+		frame.flip_h = true;
 		if (flip)
 			frame.flip = !frame.flip;
 #if LOG_ENCODED_VIDEO_TS
 		blog(LOG_DEBUG, "video ts: %llu", frame.timestamp);
 #endif
-		if (stThread && stThread->stInited() && stThread->stickerSize())
+		if (stThread && stThread->stInited() && stThread->needProcess())
 			stThread->addFrame(avFrame);
 
 		else {
@@ -334,7 +335,7 @@ void DShowInput::OnVideoData(const VideoConfig &config, unsigned char *data,
 		return;
 	}
 
-	if (stThread && stThread->stInited() && stThread->stickerSize())
+	if (stThread && stThread->stInited() && stThread->needProcess())
 		stThread->addFrame(data, size, startTime);
 	else
 		OutputFrame((videoConfig.format == VideoFormat::XRGB ||
@@ -354,6 +355,7 @@ void DShowInput::OutputFrame(bool f, VideoFormat vf, unsigned char *data,
 	frame.height = videoConfig.cy;
 	frame.format = ConvertVideoFormat(vf);
 	frame.flip = f;
+	frame.flip_h = true;
 
 	if (flip)
 		frame.flip = !frame.flip;
@@ -974,10 +976,7 @@ static void UpdateDShowInput(void *data, obs_data_t *settings)
 
 	if (obs_data_get_bool(settings, "st_setting")) {
 		auto info = obs_data_get_string(settings, FACE_STICKER_ID);
-		QJsonDocument jd = QJsonDocument::fromJson(info);
-		QJsonObject obj = jd.object();
-		input->changeSticker(obj["sticker"].toString(),
-				     obj["isAdd"].toBool());
+		input->updateInfo(info);
 		obs_data_set_bool(settings, "st_setting", false);
 	} else {
 		if (input->active)

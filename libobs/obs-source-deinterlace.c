@@ -1,4 +1,4 @@
-/******************************************************************************
+﻿/******************************************************************************
     Copyright (C) 2016 by Hugh Bailey <obs.jim@gmail.com>
 
     This program is free software: you can redistribute it and/or modify
@@ -382,9 +382,13 @@ void deinterlace_render(obs_source_t *s)
 
 	gs_effect_set_bool(frame2, obs->video.video_time >= frame2_ts);
 
+	uint32_t flag = 0;
+	if (s->async_flip)
+		flag |= GS_FLIP_V;
+	if (s->async_flip_h)
+		flag |= GS_FLIP_U;
 	while (gs_effect_loop(effect, "Draw"))
-		gs_draw_sprite(NULL, s->async_flip ? GS_FLIP_V : 0,
-			       s->async_width, s->async_height);
+		gs_draw_sprite(NULL, flag, s->async_width, s->async_height);
 }
 
 static void enable_deinterlacing(obs_source_t *source,

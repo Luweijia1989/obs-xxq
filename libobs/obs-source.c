@@ -1,4 +1,4 @@
-/******************************************************************************
+﻿/******************************************************************************
     Copyright (C) 2013-2014 by Hugh Bailey <obs.jim@gmail.com>
 
     This program is free software: you can redistribute it and/or modify
@@ -1901,6 +1901,7 @@ bool update_async_textures(struct obs_source *source,
 	enum convert_type type;
 
 	source->async_flip = frame->flip;
+	source->async_flip_h = frame->flip_h;
 
 	if (source->async_gpu_conversion && texrender)
 		return update_async_texrender(source, frame, tex, texrender);
@@ -1927,7 +1928,12 @@ static inline void obs_source_draw_texture(struct obs_source *source,
 	param = gs_effect_get_param_by_name(effect, "image");
 	gs_effect_set_texture(param, tex);
 
-	gs_draw_sprite(tex, source->async_flip ? GS_FLIP_V : 0, 0, 0);
+	uint32_t flag = 0;
+	if (source->async_flip)
+		flag |= GS_FLIP_V;
+	if (source->async_flip_h)
+		flag |= GS_FLIP_U;
+	gs_draw_sprite(tex, flag, 0, 0);
 }
 
 static void obs_source_draw_async_texture(struct obs_source *source)
@@ -2521,6 +2527,7 @@ static void copy_frame_data(struct obs_source_frame *dst,
 			    const struct obs_source_frame *src)
 {
 	dst->flip = src->flip;
+	dst->flip_h = src->flip_h;
 	dst->full_range = src->full_range;
 	dst->timestamp = src->timestamp;
 	memcpy(dst->color_matrix, src->color_matrix, sizeof(float) * 16);
@@ -2753,6 +2760,7 @@ void obs_source_output_video2(obs_source_t *source,
 	new_frame.format = frame->format;
 	new_frame.full_range = range == VIDEO_RANGE_FULL;
 	new_frame.flip = frame->flip;
+	new_frame.flip_h = frame->flip_h;
 
 	memcpy(&new_frame.color_matrix, &frame->color_matrix,
 	       sizeof(frame->color_matrix));
@@ -2840,6 +2848,7 @@ void obs_source_preload_video2(obs_source_t *source,
 	new_frame.format = frame->format;
 	new_frame.full_range = range == VIDEO_RANGE_FULL;
 	new_frame.flip = frame->flip;
+	new_frame.flip_h = frame->flip_h;
 
 	memcpy(&new_frame.color_matrix, &frame->color_matrix,
 	       sizeof(frame->color_matrix));

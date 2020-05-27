@@ -243,6 +243,7 @@ struct obs_source_frame {
 	float color_range_min[3];
 	float color_range_max[3];
 	bool flip;
+	bool flip_h;
 
 	/* used internally by libobs */
 	volatile long refs;
@@ -262,6 +263,7 @@ struct obs_source_frame2 {
 	float color_range_min[3];
 	float color_range_max[3];
 	bool flip;
+	bool flip_h;
 };
 
 /** Access to the argc/argv used to start OBS. What you see is what you get. */

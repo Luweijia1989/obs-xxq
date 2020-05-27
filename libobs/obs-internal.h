@@ -647,6 +647,7 @@ struct obs_source {
 	enum gs_color_format async_texture_formats[MAX_AV_PLANES];
 	int async_channel_count;
 	bool async_flip;
+	bool async_flip_h;
 	bool async_active;
 	bool async_update_texture;
 	bool async_unbuffered;

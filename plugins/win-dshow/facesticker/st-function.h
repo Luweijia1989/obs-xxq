@@ -18,7 +18,8 @@ public:
 	bool stInited() { return m_stInited; }
 	void freeSticker();
 	void freeFaceHandler();
-	bool addSticker(QString sticker);
+	int addSticker(QString sticker);
+	void removeSticker(int id);
 	bool clearSticker();
 	const st_mobile_human_action_t &detectResult() { return m_result; }
 

@@ -42,12 +42,19 @@ void STFunction::freeFaceHandler()
 		st_mobile_human_action_destroy(m_stHandler);
 }
 
-bool STFunction::addSticker(QString sticker)
+int STFunction::addSticker(QString sticker)
 {
+	int id = 0;
 	int ret = st_mobile_sticker_add_package(
-		m_handleSticker, sticker.toStdString().c_str(), NULL);
+		m_handleSticker, sticker.toStdString().c_str(), &id);
 	st_mobile_sticker_get_trigger_action(m_handleSticker, &m_detectConfig);
-	return ret == ST_OK;
+	return id;
+}
+
+void STFunction::removeSticker(int id)
+{
+	st_mobile_sticker_remove_package(m_handleSticker, id);
+	st_mobile_sticker_get_trigger_action(m_handleSticker, &m_detectConfig);
 }
 
 bool STFunction::clearSticker()

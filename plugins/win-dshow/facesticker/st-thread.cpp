@@ -9,6 +9,8 @@
 #include <QRandomGenerator>
 #include <QApplication>
 #include <QEvent>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include "..\win-dshow.h"
 
 extern video_format ConvertVideoFormat(DShow::VideoFormat format);
@@ -237,13 +239,13 @@ STThread::STThread(DShowInput *dsInput) : m_dshowInput(dsInput)
 	QTimer *t = new QTimer(this);
 	connect(t, &QTimer::timeout, this, [=]() {
 		quint32 v = QRandomGenerator::global()->bounded(0, 14);
-		changeSticker("strawberry", true, v);
-		changeSticker(
+		updateSticker(
 			"C:\\Users\\luweijia.YUPAOPAO\\AppData\\Local\\yuerlive\\cache\\stickers\\4cf29b1530b145c097b67b431be61706.zip",
-			true, v);
-		QTimer::singleShot(3000, [=]() {
-			changeSticker("strawberry", false);
-			changeSticker(
+			true);
+		updateGameInfo(Bomb, v);
+
+		QTimer::singleShot(2000, [=]() {
+			updateSticker(
 				"C:\\Users\\luweijia.YUPAOPAO\\AppData\\Local\\yuerlive\\cache\\stickers\\4cf29b1530b145c097b67b431be61706.zip",
 				false);
 		});
@@ -375,65 +377,54 @@ void STThread::stop()
 	wait();
 }
 
-int STThread::stickerSize()
+bool STThread::needProcess()
 {
-	int s = 0;
-	m_stickerSetterMutex.lock();
-	s = m_stickers.size();
-	m_stickerSetterMutex.unlock();
-	return s;
+	QMutexLocker locker(&m_stickerSetterMutex);
+	return !m_stickers.isEmpty() || m_gameStickerType != None;
 }
 
-void STThread::changeSticker(QString sticker, bool isAdd, int region)
+void STThread::updateInfo(const char *data)
 {
-	m_stickerSetterMutex.lock();
-	if (isAdd)
-		m_stickers.insert(sticker);
-	else
-		m_stickers.remove(sticker);
-	m_stickerChanged = true;
-	m_cacheRegion = region;
-	updateSticker();
-	m_stickerSetterMutex.unlock();
-}
-
-void STThread::updateSticker()
-{
-	if (!m_stickerChanged)
+	QJsonDocument jd = QJsonDocument::fromJson(data);
+	QJsonObject obj = jd.object();
+	if (obj.isEmpty())
 		return;
-	bool hasGame = false;
-	bool hasBomb = false;
-	bool hasStrawberry = false;
-	m_stFunc->clearSticker();
-	for (auto iter = m_stickers.begin(); iter != m_stickers.end(); iter++) {
-		if (!isBomb(*iter) && !isStrawberry(*iter)) {
-			m_stFunc->addSticker(*iter);
-		}
 
-		if (isBomb(*iter))
-			hasBomb = true;
-		if (isStrawberry(*iter))
-			hasStrawberry = true;
+	int type = obj["type"].toInt(); //0 商汤贴纸 1 游戏
+	if (type == 0) {
+		updateSticker(obj["sticker"].toString(), obj["isAdd"].toBool());
+	} else if (type == 1) {
+		int gameType = obj["gameType"].toInt(); //0 草莓 1炸弹
+		int region = obj["region"].toInt();
+		updateGameInfo((GameStickerType)gameType, region);
 	}
-	hasGame = hasBomb || hasStrawberry;
-	if (hasGame) {
-		if (!m_lastHasGame) {
-			m_lastHasGame = true;
-			m_gameStartTime = QDateTime::currentMSecsSinceEpoch();
-			m_curRegion = m_cacheRegion;
-			if (hasBomb)
-				m_gameStickerType = Bomb;
-			else
-				m_gameStickerType = Strawberry;
-		}
+}
+
+void STThread::updateGameInfo(GameStickerType type, int region)
+{
+	QMutexLocker locker(&m_stickerSetterMutex);
+	m_gameStickerType = type;
+	if (type == Bomb || type == Strawberry) {
+		m_curRegion = region;
+		m_gameStartTime = QDateTime::currentMSecsSinceEpoch();
+	}
+}
+
+void STThread::updateSticker(const QString &stickerId, bool isAdd)
+{
+	QMutexLocker locker(&m_stickerSetterMutex);
+	if (isAdd) {
+		if (m_stickers.contains(stickerId))
+			return;
+		int id = m_stFunc->addSticker(stickerId);
+		m_stickers.insert(stickerId, id);
 	} else {
-		if (m_lastHasGame) {
-			m_gameStartTime = 0;
-			m_lastHasGame = false;
-		}
-	}
+		if (!m_stickers.contains(stickerId))
+			return;
 
-	m_stickerChanged = false;
+		m_stFunc->removeSticker(m_stickers.value(stickerId));
+		m_stickers.remove(stickerId);
+	}
 }
 
 void STThread::setFrameConfig(const DShow::VideoConfig &cg)
@@ -549,10 +540,7 @@ void STThread::processVideoDataInternal(AVFrame *frame)
 
 			QRect w(0, 0, m_curFrameWidth, m_curFrameHeight);
 			if (hit || !w.intersects(strawberryRect)) {
-				changeSticker(m_gameStickerType == Strawberry
-						      ? "strawberry"
-						      : "bomb",
-					      false);
+				updateGameInfo(None, -1);
 				qApp->postEvent(
 					qApp,
 					new QEvent((QEvent::Type)(

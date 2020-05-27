@@ -5,6 +5,7 @@
 #include <QMutex>
 #include <QMap>
 #include <QSet>
+#include <QEvent>
 #include "../libdshowcapture/dshowcapture.hpp"
 #include "readerwriterqueue.h"
 #include "st-function.h"
@@ -55,6 +56,8 @@ public:
 	enum GameStickerType {
 		Strawberry,
 		Bomb,
+		GameStart,
+		GameStop,
 		None,
 	};
 	STThread(DShowInput *dsInput);
@@ -65,15 +68,10 @@ public:
 	void addFrame(unsigned char *data, size_t size, long long startTime);
 	void addFrame(AVFrame *frame);
 	void stop();
-	int stickerSize();
-	void changeSticker(QString sticker, bool isAdd, int region = -1);
-	bool isStrawberry(QString id) { return m_strawberryId == id; }
-	bool isBomb(QString id) { return m_bombId == id; }
-	bool hasGameSticker(QString id)
-	{
-		return isStrawberry(id) || isBomb(id);
-	}
-	void updateSticker();
+	bool needProcess();
+	void updateInfo(const char *data);
+	void updateSticker(const QString &stickerId, bool isAdd);
+	void updateGameInfo(GameStickerType type, int region);
 
 protected:
 	virtual void run() override;
@@ -112,14 +110,9 @@ private:
 	QImage m_bombOverlay;
 	VideoFrame m_strawberryFrameOverlay;
 	VideoFrame m_bombFrameOverlay;
-	QSet<QString> m_stickers;
+	QMap<QString, int> m_stickers;
 	QMutex m_stickerSetterMutex;
-	QString m_strawberryId = "strawberry";
-	QString m_bombId = "bomb";
-	bool m_stickerChanged = false;
 	GameStickerType m_gameStickerType = None;
 	quint64 m_gameStartTime;
-	bool m_lastHasGame = false;
 	int m_curRegion = -1;
-	int m_cacheRegion = -1;
 };
