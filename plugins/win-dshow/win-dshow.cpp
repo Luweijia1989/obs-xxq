@@ -340,12 +340,13 @@ void DShowInput::OnVideoData(const VideoConfig &config, unsigned char *data,
 	else
 		OutputFrame((videoConfig.format == VideoFormat::XRGB ||
 			     videoConfig.format == VideoFormat::ARGB),
-			    videoConfig.format, data, size, startTime, endTime);
+			    true, videoConfig.format, data, size, startTime,
+			    endTime);
 }
 
-void DShowInput::OutputFrame(bool f, VideoFormat vf, unsigned char *data,
-			     size_t size, long long startTime,
-			     long long endTime)
+void DShowInput::OutputFrame(bool f, bool fh, VideoFormat vf,
+			     unsigned char *data, size_t size,
+			     long long startTime, long long endTime)
 {
 	const int cx = videoConfig.cx;
 	const int cy = videoConfig.cy;
@@ -355,7 +356,7 @@ void DShowInput::OutputFrame(bool f, VideoFormat vf, unsigned char *data,
 	frame.height = videoConfig.cy;
 	frame.format = ConvertVideoFormat(vf);
 	frame.flip = f;
-	frame.flip_h = true;
+	frame.flip_h = fh;
 
 	if (flip)
 		frame.flip = !frame.flip;

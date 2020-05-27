@@ -236,22 +236,22 @@ STThread::STThread(DShowInput *dsInput) : m_dshowInput(dsInput)
 			      m_bombOverlay.width(), m_bombOverlay.height(),
 			      m_bombOverlay.bits()};
 
-	QTimer *t = new QTimer(this);
-	connect(t, &QTimer::timeout, this, [=]() {
-		quint32 v = QRandomGenerator::global()->bounded(0, 14);
-		updateSticker(
-			"C:\\Users\\luweijia.YUPAOPAO\\AppData\\Local\\yuerlive\\cache\\stickers\\4cf29b1530b145c097b67b431be61706.zip",
-			true);
-		updateGameInfo(Bomb, v);
+	//QTimer *t = new QTimer(this);
+	//connect(t, &QTimer::timeout, this, [=]() {
+	//	quint32 v = QRandomGenerator::global()->bounded(0, 14);
+	//	updateSticker(
+	//		"C:\\Users\\luweijia.YUPAOPAO\\AppData\\Local\\yuerlive\\cache\\stickers\\4cf29b1530b145c097b67b431be61706.zip",
+	//		true);
+	//	updateGameInfo(Bomb, 0);
 
-		QTimer::singleShot(2000, [=]() {
-			updateSticker(
-				"C:\\Users\\luweijia.YUPAOPAO\\AppData\\Local\\yuerlive\\cache\\stickers\\4cf29b1530b145c097b67b431be61706.zip",
-				false);
-		});
-	});
-	t->setSingleShot(false);
-	t->start(5000);
+	//	QTimer::singleShot(2000, [=]() {
+	//		updateSticker(
+	//			"C:\\Users\\luweijia.YUPAOPAO\\AppData\\Local\\yuerlive\\cache\\stickers\\4cf29b1530b145c097b67b431be61706.zip",
+	//			false);
+	//	});
+	//});
+	//t->setSingleShot(false);
+	//t->start(5000);
 }
 
 STThread::~STThread()
@@ -394,7 +394,7 @@ void STThread::updateInfo(const char *data)
 	if (type == 0) {
 		updateSticker(obj["sticker"].toString(), obj["isAdd"].toBool());
 	} else if (type == 1) {
-		int gameType = obj["gameType"].toInt(); //0 草莓 1炸弹
+		int gameType = obj["gameType"].toInt(); //1 草莓 0炸弹
 		int region = obj["region"].toInt();
 		updateGameInfo((GameStickerType)gameType, region);
 	}
@@ -504,6 +504,7 @@ void STThread::processVideoDataInternal(AVFrame *frame)
 	int ret = sws_scale(m_swsctx, (const uint8_t *const *)(frame->data),
 			    frame->linesize, 0, m_curFrameHeight,
 			    m_swsRetFrame->data, m_swsRetFrame->linesize);
+	fliph();
 	if (m_stFunc->doFaceDetect(m_swsRetFrame->data[0], m_curFrameWidth,
 				   m_curFrameHeight, flip)) {
 		if (m_gameStickerType != None) {
@@ -522,20 +523,31 @@ void STThread::processVideoDataInternal(AVFrame *frame)
 				QRect(center.x() - 30, center.y() - 30, 60, 60);
 
 			bool hit = false;
+
 			auto detectResult = m_stFunc->detectResult();
 			if (detectResult.p_faces) {
-				QPoint mouthPoint =
-					QPoint(detectResult.p_faces->face106
-						       .points_array[97]
-						       .x,
-					       (detectResult.p_faces->face106
-							.points_array[97]
-							.y +
+				if (m_gameStickerType == Strawberry) {
+					QPoint mouthPoint = QPoint(
 						detectResult.p_faces->face106
-							.points_array[101]
-							.y) /
-						       2);
-				hit = strawberryRect.contains(mouthPoint);
+							.points_array[97]
+							.x,
+						(detectResult.p_faces->face106
+							 .points_array[97]
+							 .y +
+						 detectResult.p_faces->face106
+							 .points_array[101]
+							 .y) /
+							2);
+					hit = strawberryRect.contains(
+						mouthPoint);
+				} else if (m_gameStickerType == Bomb) {
+					auto r = detectResult.p_faces->face106
+							 .rect;
+					QRect fr = QRect(QPoint(r.left, r.top),
+							 QPoint(r.right,
+								r.bottom));
+					hit = fr.intersects(strawberryRect);
+				}
 			}
 
 			QRect w(0, 0, m_curFrameWidth, m_curFrameHeight);
@@ -567,9 +579,11 @@ void STThread::processVideoDataInternal(AVFrame *frame)
 						 m_curFrameHeight,
 						 m_stickerBuffer, flip);
 		if (b)
-			m_dshowInput->OutputFrame(
-				flip, DShow::VideoFormat::NV12, m_stickerBuffer,
-				m_stickerBufferSize, frame->pts, 0);
+			m_dshowInput->OutputFrame(flip, false,
+						  DShow::VideoFormat::NV12,
+						  m_stickerBuffer,
+						  m_stickerBufferSize,
+						  frame->pts, 0);
 	}
 }
 
@@ -587,6 +601,26 @@ void STThread::calcPosition(int &width, int &height)
 	int x_r = m_curRegion % 5;
 	int y_r = m_curRegion / 5;
 
-	width = x_r < 2 ? (x_r - 2.5) * stepx : (x_r - 1.5) * stepx;
+	width = -(x_r < 2 ? (x_r - 2.5) * stepx : (x_r - 1.5) * stepx);
 	height = m_curFrameHeight - y_r * stepy;
+}
+
+void STThread::fliph()
+{
+	int y;
+	int x;
+	int l, r;
+	char tmp;
+
+	uchar *data = m_swsRetFrame->data[0];
+	for (y = 0; y < m_curFrameHeight; ++y) {
+		for (l = 0, r = m_curFrameWidth - 1; l < r; ++l, --r) {
+			for (int d = 0; d < 4; ++d) {
+				tmp = data[(y * m_curFrameWidth + l) * 4 + d];
+				data[(y * m_curFrameWidth + l) * 4 + d] =
+					data[(y * m_curFrameWidth + r) * 4 + d];
+				data[(y * m_curFrameWidth + r) * 4 + d] = tmp;
+			}
+		}
+	}
 }

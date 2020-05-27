@@ -54,8 +54,8 @@ class STThread : public QThread {
 	Q_OBJECT
 public:
 	enum GameStickerType {
-		Strawberry,
 		Bomb,
+		Strawberry,
 		GameStart,
 		GameStop,
 		None,
@@ -88,6 +88,7 @@ private:
 	void processVideoData(AVFrame *frame);
 	void processVideoDataInternal(AVFrame *frame);
 	void calcPosition(int &width, int &height);
+	void fliph();
 
 private:
 	DShowInput *m_dshowInput = nullptr;
