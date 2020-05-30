@@ -1,4 +1,4 @@
-﻿#include <obs-module.h>
+#include <obs-module.h>
 #include <util/threading.h>
 #include <util/platform.h>
 #include <util/darray.h>
@@ -10,72 +10,54 @@
 
 #define warn(format, ...) do_log(LOG_WARNING, format, ##__VA_ARGS__)
 
-#define S_TR_SPEED "transition_speed"
-#define S_CUSTOM_SIZE "use_custom_size"
-#define S_SLIDE_TIME "slide_time"
-#define S_TRANSITION "transition"
-#define S_RANDOMIZE "randomize"
-#define S_LOOP "loop"
-#define S_HIDE "hide"
-#define S_BEHAVIOR "playback_behavior"
-#define S_BEHAVIOR_STOP_RESTART "stop_restart"
-#define S_BEHAVIOR_PAUSE_UNPAUSE "pause_unpause"
-#define S_BEHAVIOR_ALWAYS_PLAY "always_play"
-#define S_MODE "slide_mode"
-#define S_MODE_AUTO "mode_auto"
-#define S_MODE_MANUAL "mode_manual"
-/////////////////////////////////////////////////////////////
-#define S_FILES "imageUrls"
-#define S_DIRECTION "direction"
-#define S_SPEED "speed"
-#define S_HORIZONTAL_ALIGN "horizontalAlignment"
-#define S_VERTICAL_ALIGN "verticalAlignment"
+/* clang-format off */
 
-enum SlideDirection { BottomToTop = 1, TopToBottom, RightToLeft, LeftToRight };
+#define S_TR_SPEED                     "transition_speed"
+#define S_CUSTOM_SIZE                  "use_custom_size"
+#define S_SLIDE_TIME                   "slide_time"
+#define S_TRANSITION                   "transition"
+#define S_RANDOMIZE                    "randomize"
+#define S_LOOP                         "loop"
+#define S_HIDE                         "hide"
+#define S_FILES                        "files"
+#define S_BEHAVIOR                     "playback_behavior"
+#define S_BEHAVIOR_STOP_RESTART        "stop_restart"
+#define S_BEHAVIOR_PAUSE_UNPAUSE       "pause_unpause"
+#define S_BEHAVIOR_ALWAYS_PLAY         "always_play"
+#define S_MODE                         "slide_mode"
+#define S_MODE_AUTO                    "mode_auto"
+#define S_MODE_MANUAL                  "mode_manual"
 
-enum SlideSpeed { SpeedSlow = 1, SpeedMiddle, SpeedFast };
-
-enum HorizontalAlignment {
-	LeftAlign = 0x0001,
-	HorCenterAlign = 0x0004,
-	RightAlign = 0x0002
-};
-
-enum VerticalAlignment {
-	TopAlign = 0x0020,
-	VerCenterAlign = 0x0080,
-	BottomAlign = 0x0040
-};
-////////////////////////////////////////////////////////////
-
-#define TR_CUT "cut"
-#define TR_FADE "fade"
-#define TR_SWIPE "swipe"
-#define TR_SLIDE "slide"
+#define TR_CUT                         "cut"
+#define TR_FADE                        "fade"
+#define TR_SWIPE                       "swipe"
+#define TR_SLIDE                       "slide"
 
 #define T_(text) obs_module_text("SlideShow." text)
-#define T_TR_SPEED T_("TransitionSpeed")
-#define T_CUSTOM_SIZE T_("CustomSize")
-#define T_CUSTOM_SIZE_AUTO T_("CustomSize.Auto")
-#define T_SLIDE_TIME T_("SlideTime")
-#define T_TRANSITION T_("Transition")
-#define T_RANDOMIZE T_("Randomize")
-#define T_LOOP T_("Loop")
-#define T_HIDE T_("HideWhenDone")
-#define T_FILES T_("Files")
-#define T_BEHAVIOR T_("PlaybackBehavior")
-#define T_BEHAVIOR_STOP_RESTART T_("PlaybackBehavior.StopRestart")
-#define T_BEHAVIOR_PAUSE_UNPAUSE T_("PlaybackBehavior.PauseUnpause")
-#define T_BEHAVIOR_ALWAYS_PLAY T_("PlaybackBehavior.AlwaysPlay")
-#define T_MODE T_("SlideMode")
-#define T_MODE_AUTO T_("SlideMode.Auto")
-#define T_MODE_MANUAL T_("SlideMode.Manual")
+#define T_TR_SPEED                     T_("TransitionSpeed")
+#define T_CUSTOM_SIZE                  T_("CustomSize")
+#define T_CUSTOM_SIZE_AUTO             T_("CustomSize.Auto")
+#define T_SLIDE_TIME                   T_("SlideTime")
+#define T_TRANSITION                   T_("Transition")
+#define T_RANDOMIZE                    T_("Randomize")
+#define T_LOOP                         T_("Loop")
+#define T_HIDE                         T_("HideWhenDone")
+#define T_FILES                        T_("Files")
+#define T_BEHAVIOR                     T_("PlaybackBehavior")
+#define T_BEHAVIOR_STOP_RESTART        T_("PlaybackBehavior.StopRestart")
+#define T_BEHAVIOR_PAUSE_UNPAUSE       T_("PlaybackBehavior.PauseUnpause")
+#define T_BEHAVIOR_ALWAYS_PLAY         T_("PlaybackBehavior.AlwaysPlay")
+#define T_MODE                         T_("SlideMode")
+#define T_MODE_AUTO                    T_("SlideMode.Auto")
+#define T_MODE_MANUAL                  T_("SlideMode.Manual")
 
 #define T_TR_(text) obs_module_text("SlideShow.Transition." text)
-#define T_TR_CUT T_TR_("Cut")
-#define T_TR_FADE T_TR_("Fade")
-#define T_TR_SWIPE T_TR_("Swipe")
-#define T_TR_SLIDE T_TR_("Slide")
+#define T_TR_CUT                       T_TR_("Cut")
+#define T_TR_FADE                      T_TR_("Fade")
+#define T_TR_SWIPE                     T_TR_("Swipe")
+#define T_TR_SLIDE                     T_TR_("Slide")
+
+/* clang-format on */
 
 /* ------------------------------------------------------------------------- */
 
@@ -130,7 +112,6 @@ struct slideshow {
 	obs_hotkey_id stop_hotkey;
 	obs_hotkey_id next_hotkey;
 	obs_hotkey_id prev_hotkey;
-	uint32_t color;
 };
 
 static obs_source_t *get_transition(struct slideshow *ss)
@@ -204,27 +185,8 @@ static const char *ss_getname(void *unused)
 	return obs_module_text("SlideShow");
 }
 
-static uint32_t CaculaDuration(uint32_t speedtype)
-{
-	uint32_t duration = 2300;
-	switch (speedtype) {
-	case SpeedSlow: {
-		duration = 2300;
-	} break;
-	case SpeedMiddle: {
-		duration = 1300;
-	} break;
-	case SpeedFast: {
-		duration = 600;
-	} break;
-	default:
-		break;
-	}
-	return duration;
-}
-
 static void add_file(struct slideshow *ss, struct darray *array,
-		     const char *path)
+		     const char *path, uint32_t *cx, uint32_t *cy)
 {
 	DARRAY(struct image_file_data) new_files;
 	struct image_file_data data;
@@ -242,9 +204,18 @@ static void add_file(struct slideshow *ss, struct darray *array,
 		new_source = create_source_from_file(path);
 
 	if (new_source) {
+		uint32_t new_cx = obs_source_get_width(new_source);
+		uint32_t new_cy = obs_source_get_height(new_source);
+
 		data.path = bstrdup(path);
 		data.source = new_source;
 		da_push_back(new_files, &data);
+
+		if (new_cx > *cx)
+			*cx = new_cx;
+		if (new_cy > *cy)
+			*cy = new_cy;
+
 		void *source_data = obs_obj_get_data(new_source);
 		ss->mem_usage += image_source_get_memory_usage(source_data);
 	}
@@ -285,62 +256,6 @@ static void do_transition(void *data, bool to_null)
 				     ss->tr_speed, NULL);
 }
 
-static inline uint32_t calc_color(char *color)
-{
-	if (strlen(color) == 0)
-		return 0;
-
-	// 这里兼容一下老版本
-	if (strcmp(color, "#FFF244F") == 0 || strcmp(color, "#00000000") == 0 ||
-	    strlen(color) == 9) {
-		return 0;
-	}
-
-	color++;
-	char *colortmp = "0xFF";
-	char ac_color[32] = {0};
-	sprintf_s(ac_color, 32, "%s%s", colortmp, color);
-	uint32_t color2 = 0;
-	sscanf(ac_color, "%x", &color2); //十六进制转数字
-
-	int b = color2 & 0xFF;
-	int g = (color2 >> 8) & 0xFF;
-	int r = (color2 >> 16) & 0xFF;
-	int a = (color2 >> 24) & 0xFF;
-	color2 = r | ((g & 0xFF) << 8) | ((b & 0xFF) << 16) |
-		 ((a & 0xFF) << 24);
-	return color2;
-}
-
-static uint32_t calc_align(uint32_t halign, uint32_t valign)
-{
-	uint32_t align = 0;
-	switch (halign) {
-	case LeftAlign:
-		align |= OBS_ALIGN_LEFT;
-		break;
-	case RightAlign: {
-		align |= OBS_ALIGN_RIGHT;
-	} break;
-	default:
-		align |= OBS_ALIGN_CENTER;
-		break;
-	}
-
-	switch (valign) {
-	case TopAlign:
-		align |= OBS_ALIGN_TOP;
-		break;
-	case BottomAlign:
-		align |= OBS_ALIGN_BOTTOM;
-		break;
-	default:
-		align |= OBS_ALIGN_CENTER;
-		break;
-	}
-	return align;
-}
-
 static void ss_update(void *data, obs_data_t *settings)
 {
 	DARRAY(struct image_file_data) new_files;
@@ -358,15 +273,33 @@ static void ss_update(void *data, obs_data_t *settings)
 	const char *behavior;
 	const char *mode;
 
+	/* ------------------------------------- */
+	/* get settings data */
+
 	da_init(new_files);
 
-	ss->behavior = BEHAVIOR_ALWAYS_PLAY;
+	behavior = obs_data_get_string(settings, S_BEHAVIOR);
+
+	if (astrcmpi(behavior, S_BEHAVIOR_PAUSE_UNPAUSE) == 0)
+		ss->behavior = BEHAVIOR_PAUSE_UNPAUSE;
+	else if (astrcmpi(behavior, S_BEHAVIOR_ALWAYS_PLAY) == 0)
+		ss->behavior = BEHAVIOR_ALWAYS_PLAY;
+	else /* S_BEHAVIOR_STOP_RESTART */
+		ss->behavior = BEHAVIOR_STOP_RESTART;
 
 	mode = obs_data_get_string(settings, S_MODE);
 
 	ss->manual = (astrcmpi(mode, S_MODE_MANUAL) == 0);
-	// 这里暂时写死，用轮播源中的幻灯片效果
-	tr_name = "slide_transition";
+
+	tr_name = obs_data_get_string(settings, S_TRANSITION);
+	if (astrcmpi(tr_name, TR_CUT) == 0)
+		tr_name = "cut_transition";
+	else if (astrcmpi(tr_name, TR_SWIPE) == 0)
+		tr_name = "swipe_transition";
+	else if (astrcmpi(tr_name, TR_SLIDE) == 0)
+		tr_name = "slide_transition";
+	else
+		tr_name = "fade_transition";
 
 	ss->randomize = obs_data_get_bool(settings, S_RANDOMIZE);
 	ss->loop = obs_data_get_bool(settings, S_LOOP);
@@ -375,26 +308,20 @@ static void ss_update(void *data, obs_data_t *settings)
 	if (!ss->tr_name || strcmp(tr_name, ss->tr_name) != 0)
 		new_tr = obs_source_create_private(tr_name, NULL, NULL);
 
+	new_duration = (uint32_t)obs_data_get_int(settings, S_SLIDE_TIME);
+	new_speed = (uint32_t)obs_data_get_int(settings, S_TR_SPEED);
+
 	array = obs_data_get_array(settings, S_FILES);
-	cx = obs_data_get_int(settings, "width");
-	cy = obs_data_get_int(settings, "height");
 	count = obs_data_array_count(array);
 
-	uint32_t speedtype = (uint32_t)obs_data_get_int(settings, S_SPEED);
-	new_duration = CaculaDuration(speedtype);
-	new_speed = 500;
+	/* ------------------------------------- */
+	/* create new list of sources */
 
 	ss->mem_usage = 0;
+
 	for (size_t i = 0; i < count; i++) {
 		obs_data_t *item = obs_data_array_item(array, i);
-		bool hidden = obs_data_get_bool(item, "hidden");
-		if (hidden)
-			continue;
-
 		const char *path = obs_data_get_string(item, "value");
-		if (strlen(path) == 0)
-			continue;
-
 		os_dir_t *dir = os_opendir(path);
 
 		if (dir) {
@@ -417,22 +344,23 @@ static void ss_update(void *data, obs_data_t *settings)
 				dstr_copy(&dir_path, path);
 				dstr_cat_ch(&dir_path, '/');
 				dstr_cat(&dir_path, ent->d_name);
-				add_file(ss, &new_files.da, dir_path.array);
+				add_file(ss, &new_files.da, dir_path.array, &cx,
+					 &cy);
 
-				//if (ss->mem_usage >= MAX_MEM_USAGE)
-				//break;
+				if (ss->mem_usage >= MAX_MEM_USAGE)
+					break;
 			}
 
 			dstr_free(&dir_path);
 			os_closedir(dir);
 		} else {
-			add_file(ss, &new_files.da, path);
+			add_file(ss, &new_files.da, path, &cx, &cy);
 		}
 
 		obs_data_release(item);
 
-		//if (ss->mem_usage >= MAX_MEM_USAGE)
-		//break;
+		if (ss->mem_usage >= MAX_MEM_USAGE)
+			break;
 	}
 
 	/* ------------------------------------- */
@@ -470,53 +398,61 @@ static void ss_update(void *data, obs_data_t *settings)
 		obs_source_release(old_tr);
 	free_files(&old_files.da);
 
-	uint32_t halign = obs_data_get_int(settings, S_HORIZONTAL_ALIGN);
-	uint32_t valign = obs_data_get_int(settings, S_VERTICAL_ALIGN);
-	uint32_t align = calc_align(halign, valign);
+	/* ------------------------- */
 
-	if (ss->randomize && ss->files.num)
-		ss->cur_item = random_file(ss);
-	if (new_tr) {
-		obs_source_add_active_child(ss->source, new_tr);
-	}
+	const char *res_str = obs_data_get_string(settings, S_CUSTOM_SIZE);
+	bool aspect_only = false, use_auto = true;
+	int cx_in = 0, cy_in = 0;
 
-	if (ss->transition && strcmp(tr_name, "slide_transition") == 0) {
-		uint32_t direction = obs_data_get_int(settings, S_DIRECTION);
-		obs_data_t *source_setting =
-			obs_source_get_settings(ss->transition);
-		if (source_setting) {
-			switch (direction) {
-			case BottomToTop:
-				obs_data_set_string(source_setting, S_DIRECTION,
-						    "up");
-				break;
-			case TopToBottom:
-				obs_data_set_string(source_setting, S_DIRECTION,
-						    "down");
-				break;
-			case LeftToRight:
-				obs_data_set_string(source_setting, S_DIRECTION,
-						    "right");
-				break;
-			default:
-				obs_data_set_string(source_setting, S_DIRECTION,
-						    "left");
-				break;
+	if (strcmp(res_str, T_CUSTOM_SIZE_AUTO) != 0) {
+		int ret = sscanf(res_str, "%dx%d", &cx_in, &cy_in);
+		if (ret == 2) {
+			aspect_only = false;
+			use_auto = false;
+		} else {
+			ret = sscanf(res_str, "%d:%d", &cx_in, &cy_in);
+			if (ret == 2) {
+				aspect_only = true;
+				use_auto = false;
 			}
 		}
-		obs_source_update(ss->transition, source_setting);
 	}
 
-	char *color = obs_data_get_string(settings, "fillColor");
-	ss->color = calc_color(color);
+	if (!use_auto) {
+		double cx_f = (double)cx;
+		double cy_f = (double)cy;
+
+		double old_aspect = cx_f / cy_f;
+		double new_aspect = (double)cx_in / (double)cy_in;
+
+		if (aspect_only) {
+			if (fabs(old_aspect - new_aspect) > EPSILON) {
+				if (new_aspect > old_aspect)
+					cx = (uint32_t)(cy_f * new_aspect);
+				else
+					cy = (uint32_t)(cx_f / new_aspect);
+			}
+		} else {
+			cx = (uint32_t)cx_in;
+			cy = (uint32_t)cy_in;
+		}
+	}
+
+	/* ------------------------- */
+
 	ss->cx = cx;
 	ss->cy = cy;
 	ss->cur_item = 0;
 	ss->elapsed = 0.0f;
 	obs_transition_set_size(ss->transition, cx, cy);
-	obs_transition_set_alignment(ss->transition, align);
+	obs_transition_set_alignment(ss->transition, OBS_ALIGN_CENTER);
 	obs_transition_set_scale_type(ss->transition,
 				      OBS_TRANSITION_SCALE_ASPECT);
+
+	if (ss->randomize && ss->files.num)
+		ss->cur_item = random_file(ss);
+	if (new_tr)
+		obs_source_add_active_child(ss->source, new_tr);
 	if (ss->files.num)
 		do_transition(ss, false);
 
@@ -709,23 +645,6 @@ error:
 static void ss_video_render(void *data, gs_effect_t *effect)
 {
 	struct slideshow *ss = data;
-
-	gs_effect_t *solid = obs_get_base_effect(OBS_EFFECT_SOLID);
-	gs_eparam_t *color = gs_effect_get_param_by_name(solid, "color");
-	gs_technique_t *tech = gs_effect_get_technique(solid, "Solid");
-
-	struct vec4 colorVal;
-	vec4_from_rgba(&colorVal, ss->color);
-	gs_effect_set_vec4(color, &colorVal);
-
-	gs_technique_begin(tech);
-	gs_technique_begin_pass(tech, 0);
-
-	gs_draw_sprite(0, 0, ss->cx, ss->cy);
-
-	gs_technique_end_pass(tech);
-	gs_technique_end(tech);
-
 	obs_source_t *transition = get_transition(ss);
 
 	if (transition) {
@@ -1003,7 +922,7 @@ static void ss_deactivate(void *data)
 }
 
 struct obs_source_info slideshow_info = {
-	.id = "quickimageslideshow_source",
+	.id = "slideshow",
 	.type = OBS_SOURCE_TYPE_INPUT,
 	.output_flags = OBS_SOURCE_VIDEO | OBS_SOURCE_CUSTOM_DRAW |
 			OBS_SOURCE_COMPOSITE,
@@ -1020,4 +939,5 @@ struct obs_source_info slideshow_info = {
 	.get_width = ss_width,
 	.get_height = ss_height,
 	.get_defaults = ss_defaults,
-	.get_properties = ss_properties};
+	.get_properties = ss_properties,
+};
