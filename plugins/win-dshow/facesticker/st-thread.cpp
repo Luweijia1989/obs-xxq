@@ -235,23 +235,6 @@ STThread::STThread(DShowInput *dsInput) : m_dshowInput(dsInput)
 	m_bombFrameOverlay = {(size_t)m_bombOverlay.sizeInBytes(),
 			      m_bombOverlay.width(), m_bombOverlay.height(),
 			      m_bombOverlay.bits()};
-
-	//QTimer *t = new QTimer(this);
-	//connect(t, &QTimer::timeout, this, [=]() {
-	//	quint32 v = QRandomGenerator::global()->bounded(0, 14);
-	//	updateSticker(
-	//		"C:\\Users\\luweijia.YUPAOPAO\\AppData\\Local\\yuerlive\\cache\\stickers\\4cf29b1530b145c097b67b431be61706.zip",
-	//		true);
-	//	updateGameInfo(Bomb, 0);
-
-	//	QTimer::singleShot(2000, [=]() {
-	//		updateSticker(
-	//			"C:\\Users\\luweijia.YUPAOPAO\\AppData\\Local\\yuerlive\\cache\\stickers\\4cf29b1530b145c097b67b431be61706.zip",
-	//			false);
-	//	});
-	//});
-	//t->setSingleShot(false);
-	//t->start(5000);
 }
 
 STThread::~STThread()
@@ -452,8 +435,9 @@ void STThread::setFrameConfig(int w, int h, AVPixelFormat f)
 			bfree(m_stickerBuffer);
 			m_stickerBuffer = nullptr;
 		}
-		m_stickerBufferSize = sizeof(unsigned char) *
-				      avpicture_get_size(AV_PIX_FMT_NV12, w, h);
+		m_stickerBufferSize =
+			sizeof(unsigned char) *
+			avpicture_get_size(AV_PIX_FMT_YUV420P, w, h);
 		m_stickerBuffer = (unsigned char *)bmalloc(m_stickerBufferSize);
 
 		m_curPixelFormat = f;
@@ -520,7 +504,7 @@ void STThread::processVideoDataInternal(AVFrame *frame)
 			QPoint center(s1 + m_curFrameWidth / 2 - 30,
 				      m_curFrameHeight - h1 - 30);
 			QRect strawberryRect =
-				QRect(center.x() - 30, center.y() - 30, 60, 60);
+				QRect(center.x(), center.y(), 60, 60);
 
 			bool hit = false;
 
@@ -580,7 +564,7 @@ void STThread::processVideoDataInternal(AVFrame *frame)
 						 m_stickerBuffer, flip);
 		if (b)
 			m_dshowInput->OutputFrame(flip, false,
-						  DShow::VideoFormat::NV12,
+						  DShow::VideoFormat::I420,
 						  m_stickerBuffer,
 						  m_stickerBufferSize,
 						  frame->pts, 0);
