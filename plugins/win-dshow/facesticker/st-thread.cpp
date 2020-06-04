@@ -221,12 +221,10 @@ enum AVPixelFormat obs_to_ffmpeg_video_format(enum video_format format)
 STThread::STThread(DShowInput *dsInput) : m_dshowInput(dsInput)
 {
 	m_stFunc = new STFunction;
-	m_strawberryOverlay =
-		QImage("C:\\Users\\luweijia.YUPAOPAO\\Desktop\\strawberry.png");
+	m_strawberryOverlay = QImage("qrc:/mark/image/main/strawberry2.png");
 	m_strawberryOverlay =
 		m_strawberryOverlay.convertToFormat(QImage::Format_RGBA8888);
-	m_bombOverlay =
-		QImage("C:\\Users\\luweijia.YUPAOPAO\\Desktop\\bomb.png");
+	m_bombOverlay = QImage("qrc:/mark/image/main/bomb2.png");
 	m_bombOverlay = m_bombOverlay.convertToFormat(QImage::Format_RGBA8888);
 	m_strawberryFrameOverlay = {(size_t)m_strawberryOverlay.sizeInBytes(),
 				    m_strawberryOverlay.width(),
