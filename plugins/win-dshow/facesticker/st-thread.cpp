@@ -221,10 +221,10 @@ enum AVPixelFormat obs_to_ffmpeg_video_format(enum video_format format)
 STThread::STThread(DShowInput *dsInput) : m_dshowInput(dsInput)
 {
 	m_stFunc = new STFunction;
-	m_strawberryOverlay = QImage("qrc:/mark/image/main/strawberry2.png");
+	m_strawberryOverlay = QImage(":/mark/image/main/strawberry2.png");
 	m_strawberryOverlay =
 		m_strawberryOverlay.convertToFormat(QImage::Format_RGBA8888);
-	m_bombOverlay = QImage("qrc:/mark/image/main/bomb2.png");
+	m_bombOverlay = QImage(":/mark/image/main/bomb2.png");
 	m_bombOverlay = m_bombOverlay.convertToFormat(QImage::Format_RGBA8888);
 	m_strawberryFrameOverlay = {(size_t)m_strawberryOverlay.sizeInBytes(),
 				    m_strawberryOverlay.width(),
@@ -233,6 +233,19 @@ STThread::STThread(DShowInput *dsInput) : m_dshowInput(dsInput)
 	m_bombFrameOverlay = {(size_t)m_bombOverlay.sizeInBytes(),
 			      m_bombOverlay.width(), m_bombOverlay.height(),
 			      m_bombOverlay.bits()};
+
+	m_strawberryOverlayFlipV = m_strawberryOverlay.mirrored();
+	m_strawberryFrameOverlayFlipV = {
+		(size_t)m_strawberryOverlayFlipV.sizeInBytes(),
+		m_strawberryOverlayFlipV.width(),
+		m_strawberryOverlayFlipV.height(),
+		m_strawberryOverlayFlipV.bits()};
+
+	m_bombOverlayFlipV = m_bombOverlay.mirrored();
+	m_bombFrameOverlayFlipV = {(size_t)m_bombOverlayFlipV.sizeInBytes(),
+				   m_bombOverlayFlipV.width(),
+				   m_bombOverlayFlipV.height(),
+				   m_bombOverlayFlipV.bits()};
 }
 
 STThread::~STThread()
@@ -497,9 +510,14 @@ void STThread::processVideoDataInternal(AVFrame *frame)
 			int s1 = s / qSqrt(8 * h / G_VALUE) * deltaTime;
 			int h1 = qSqrt(2 * G_VALUE * h) * deltaTime -
 				 0.5 * G_VALUE * deltaTime * deltaTime;
+			QPoint center;
+			if (flip)
+				center = QPoint(s1 + m_curFrameWidth / 2 - 30,
+						h1 + 30);
+			else
+				center = QPoint(s1 + m_curFrameWidth / 2 - 30,
+						m_curFrameHeight - h1 - 30);
 
-			QPoint center(s1 + m_curFrameWidth / 2 - 30,
-				      m_curFrameHeight - h1 - 30);
 			QRect strawberryRect =
 				QRect(center.x(), center.y(), 60, 60);
 
@@ -544,11 +562,21 @@ void STThread::processVideoDataInternal(AVFrame *frame)
 			VideoFrame vf = {m_curFrameHeight * m_curFrameWidth * 4,
 					 m_curFrameWidth, m_curFrameHeight,
 					 m_swsRetFrame->data[0]};
-			blend_image_rgba(&vf,
-					 m_gameStickerType == Strawberry
-						 ? &m_strawberryFrameOverlay
-						 : &m_bombFrameOverlay,
-					 center.x(), center.y());
+
+			if (flip)
+				blend_image_rgba(
+					&vf,
+					m_gameStickerType == Strawberry
+						? &m_strawberryFrameOverlayFlipV
+						: &m_bombFrameOverlayFlipV,
+					center.x(), center.y());
+			else
+				blend_image_rgba(
+					&vf,
+					m_gameStickerType == Strawberry
+						? &m_strawberryFrameOverlay
+						: &m_bombFrameOverlay,
+					center.x(), center.y());
 		}
 
 		BindTexture(m_swsRetFrame->data[0], m_curFrameWidth,

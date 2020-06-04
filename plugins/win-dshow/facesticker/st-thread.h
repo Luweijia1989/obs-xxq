@@ -109,8 +109,12 @@ private:
 	GLuint textureDst = -1;
 	QImage m_strawberryOverlay;
 	QImage m_bombOverlay;
+	QImage m_strawberryOverlayFlipV;
+	QImage m_bombOverlayFlipV;
 	VideoFrame m_strawberryFrameOverlay;
 	VideoFrame m_bombFrameOverlay;
+	VideoFrame m_strawberryFrameOverlayFlipV;
+	VideoFrame m_bombFrameOverlayFlipV;
 	QMap<QString, int> m_stickers;
 	QMutex m_stickerSetterMutex;
 	GameStickerType m_gameStickerType = None;
