@@ -509,8 +509,7 @@ void STThread::processVideoDataInternal(AVFrame *frame)
 					   m_gameStartTime) /
 					  1000.;
 			qreal gvalue =
-				8 * h /
-				(STRAWBERRY_TIME * STRAWBERRY_TIME * 0.25);
+				8 * h / (STRAWBERRY_TIME * STRAWBERRY_TIME);
 			int s1 = s / qSqrt(8 * h / gvalue) * deltaTime;
 			int h1 = qSqrt(2 * gvalue * h) * deltaTime -
 				 0.5 * gvalue * deltaTime * deltaTime;
