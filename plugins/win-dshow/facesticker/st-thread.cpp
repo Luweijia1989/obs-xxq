@@ -18,6 +18,7 @@ extern video_format ConvertVideoFormat(DShow::VideoFormat format);
 bool g_st_checkpass = false;
 #define FAST_DIV255(x) ((((x) + 128) * 257) >> 16)
 #define G_VALUE 1000
+#define STRAWBERRY_TIME 3
 static void blend_image_rgba(struct VideoFrame *main,
 			     struct VideoFrame *overlay, int x, int y)
 {
@@ -507,9 +508,10 @@ void STThread::processVideoDataInternal(AVFrame *frame)
 			qreal deltaTime = (QDateTime::currentMSecsSinceEpoch() -
 					   m_gameStartTime) /
 					  1000.;
-			int s1 = s / qSqrt(8 * h / G_VALUE) * deltaTime;
-			int h1 = qSqrt(2 * G_VALUE * h) * deltaTime -
-				 0.5 * G_VALUE * deltaTime * deltaTime;
+			qreal gvalue = 8 * h / (Strawberry * STRAWBERRY_TIME);
+			int s1 = s / qSqrt(8 * h / gvalue) * deltaTime;
+			int h1 = qSqrt(2 * gvalue * h) * deltaTime -
+				 0.5 * gvalue * deltaTime * deltaTime;
 			QPoint center;
 			if (flip)
 				center = QPoint(s1 + m_curFrameWidth / 2 - 30,
@@ -525,7 +527,9 @@ void STThread::processVideoDataInternal(AVFrame *frame)
 
 			auto detectResult = m_stFunc->detectResult();
 			if (detectResult.p_faces) {
-				if (m_gameStickerType == Strawberry) {
+				if (m_gameStickerType == Strawberry &&
+				    (detectResult.p_faces->face_action &
+				     ST_MOBILE_MOUTH_AH)) {
 					QPoint mouthPoint = QPoint(
 						detectResult.p_faces->face106
 							.points_array[97]
@@ -611,6 +615,7 @@ void STThread::calcPosition(int &width, int &height)
 	int y_r = m_curRegion / 5;
 
 	width = (x_r < 2 ? (x_r - 2.5) * stepx : (x_r - 1.5) * stepx);
+	width *= 2;
 	height = m_curFrameHeight - y_r * stepy;
 }
 
