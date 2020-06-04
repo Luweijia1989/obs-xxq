@@ -435,9 +435,8 @@ void STThread::setFrameConfig(int w, int h, AVPixelFormat f)
 			bfree(m_stickerBuffer);
 			m_stickerBuffer = nullptr;
 		}
-		m_stickerBufferSize =
-			sizeof(unsigned char) *
-			avpicture_get_size(AV_PIX_FMT_YUV420P, w, h);
+		m_stickerBufferSize = sizeof(unsigned char) *
+				      avpicture_get_size(AV_PIX_FMT_NV12, w, h);
 		m_stickerBuffer = (unsigned char *)bmalloc(m_stickerBufferSize);
 
 		m_curPixelFormat = f;
@@ -564,7 +563,7 @@ void STThread::processVideoDataInternal(AVFrame *frame)
 						 m_stickerBuffer, flip);
 		if (b)
 			m_dshowInput->OutputFrame(flip, false,
-						  DShow::VideoFormat::I420,
+						  DShow::VideoFormat::NV12,
 						  m_stickerBuffer,
 						  m_stickerBufferSize,
 						  frame->pts, 0);
@@ -585,7 +584,7 @@ void STThread::calcPosition(int &width, int &height)
 	int x_r = m_curRegion % 5;
 	int y_r = m_curRegion / 5;
 
-	width = -(x_r < 2 ? (x_r - 2.5) * stepx : (x_r - 1.5) * stepx);
+	width = (x_r < 2 ? (x_r - 2.5) * stepx : (x_r - 1.5) * stepx);
 	height = m_curFrameHeight - y_r * stepy;
 }
 
