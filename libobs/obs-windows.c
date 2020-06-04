@@ -1,4 +1,4 @@
-﻿/******************************************************************************
+/******************************************************************************
     Copyright (C) 2013 by Hugh Bailey <obs.jim@gmail.com>
 
     This program is free software: you can redistribute it and/or modify
@@ -40,12 +40,12 @@ const char *get_module_extension(void)
 #endif
 
 static const char *module_bin[] = {
-	"plugins/obs-plugins/" BIT_STRING,
-	//"../../obs-plugins/" BIT_STRING,
+	"obs-plugins/" BIT_STRING,
+	"../../obs-plugins/" BIT_STRING,
 };
 
-static const char *module_data[] = {"plugins/data/obs-plugins/%module%",
-				    /*"../../data/obs-plugins/%module%"*/};
+static const char *module_data[] = {"data/%module%",
+				    "../../data/obs-plugins/%module%"};
 
 static const int module_patterns_size =
 	sizeof(module_bin) / sizeof(module_bin[0]);
@@ -62,11 +62,11 @@ char *find_libobs_data_file(const char *file)
 	struct dstr path;
 	dstr_init(&path);
 
-	if (check_path(file, "plugins/data/libobs/", &path))
+	if (check_path(file, "data/libobs/", &path))
 		return path.array;
 
-	/*if (check_path(file, "../../data/libobs/", &path))
-		return path.array;*/
+	if (check_path(file, "../../data/libobs/", &path))
+		return path.array;
 
 	dstr_free(&path);
 	return NULL;
