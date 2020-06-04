@@ -508,7 +508,9 @@ void STThread::processVideoDataInternal(AVFrame *frame)
 			qreal deltaTime = (QDateTime::currentMSecsSinceEpoch() -
 					   m_gameStartTime) /
 					  1000.;
-			qreal gvalue = 8 * h / (Strawberry * STRAWBERRY_TIME);
+			qreal gvalue =
+				8 * h /
+				(STRAWBERRY_TIME * STRAWBERRY_TIME * 0.25);
 			int s1 = s / qSqrt(8 * h / gvalue) * deltaTime;
 			int h1 = qSqrt(2 * gvalue * h) * deltaTime -
 				 0.5 * gvalue * deltaTime * deltaTime;
@@ -524,25 +526,29 @@ void STThread::processVideoDataInternal(AVFrame *frame)
 				QRect(center.x(), center.y(), 60, 60);
 
 			bool hit = false;
-
 			auto detectResult = m_stFunc->detectResult();
 			if (detectResult.p_faces) {
-				if (m_gameStickerType == Strawberry &&
-				    (detectResult.p_faces->face_action &
-				     ST_MOBILE_MOUTH_AH)) {
-					QPoint mouthPoint = QPoint(
-						detectResult.p_faces->face106
-							.points_array[97]
-							.x,
-						(detectResult.p_faces->face106
-							 .points_array[97]
-							 .y +
-						 detectResult.p_faces->face106
-							 .points_array[101]
-							 .y) /
-							2);
-					hit = strawberryRect.contains(
-						mouthPoint);
+				auto faceAction =
+					detectResult.p_faces->face_action;
+				if (m_gameStickerType == Strawberry) {
+					bool mouseOpen = (faceAction &
+							  ST_MOBILE_MOUTH_AH) ==
+							 ST_MOBILE_MOUTH_AH;
+					if (mouseOpen) {
+						auto points =
+							detectResult.p_faces
+								->face106
+								.points_array;
+
+						QRect mouseRect = QRect(
+							QPoint(points[84].x,
+							       points[87].y),
+							QPoint(points[90].x,
+							       points[93].y));
+
+						hit = strawberryRect.intersects(
+							mouseRect);
+					}
 				} else if (m_gameStickerType == Bomb) {
 					auto r = detectResult.p_faces->face106
 							 .rect;
