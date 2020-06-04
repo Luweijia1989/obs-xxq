@@ -71,7 +71,7 @@ bool STFunction::doFaceSticker(unsigned int input, unsigned int output,
 	int ret = st_mobile_sticker_process_and_output_texture(
 		m_handleSticker, input, width, height,
 		flip ? ST_CLOCKWISE_ROTATE_180 : ST_CLOCKWISE_ROTATE_0,
-		flip ? ST_CLOCKWISE_ROTATE_180 : ST_CLOCKWISE_ROTATE_0, 0,
+		flip ? ST_CLOCKWISE_ROTATE_180 : ST_CLOCKWISE_ROTATE_0, flip,
 		&m_result, nullptr, output, outputBuffer, ST_PIX_FMT_NV12);
 
 	return ret == ST_OK;
