@@ -18,7 +18,7 @@ extern video_format ConvertVideoFormat(DShow::VideoFormat format);
 bool g_st_checkpass = false;
 #define FAST_DIV255(x) ((((x) + 128) * 257) >> 16)
 #define G_VALUE 1000
-#define STRAWBERRY_TIME 3
+#define STRAWBERRY_TIME 4
 static void blend_image_rgba(struct VideoFrame *main,
 			     struct VideoFrame *overlay, int x, int y)
 {
@@ -620,7 +620,6 @@ void STThread::calcPosition(int &width, int &height)
 	int y_r = m_curRegion / 5;
 
 	width = (x_r < 2 ? (x_r - 2.5) * stepx : (x_r - 1.5) * stepx);
-	width *= 2;
 	height = m_curFrameHeight - y_r * stepy;
 }
 
