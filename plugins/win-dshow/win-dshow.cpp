@@ -311,7 +311,7 @@ void DShowInput::OnEncodedVideoData(enum AVCodecID id, unsigned char *data,
 
 	if (got_output) {
 		frame.timestamp = (uint64_t)ts * 100;
-		frame.flip_h = true;
+		frame.flip_h = flipH;
 		if (flip)
 			frame.flip = !frame.flip;
 #if LOG_ENCODED_VIDEO_TS
@@ -340,7 +340,7 @@ void DShowInput::OnVideoData(const VideoConfig &config, unsigned char *data,
 	else
 		OutputFrame((videoConfig.format == VideoFormat::XRGB ||
 			     videoConfig.format == VideoFormat::ARGB),
-			    true, videoConfig.format, data, size, startTime,
+			    flipH, videoConfig.format, data, size, startTime,
 			    endTime);
 }
 
@@ -901,6 +901,7 @@ DShowInput::GetColorRange(obs_data_t *settings) const
 
 inline bool DShowInput::Activate(obs_data_t *settings)
 {
+	flipH = obs_data_get_bool(settings, "flipH");
 	if (!device.ResetGraph())
 		return false;
 
