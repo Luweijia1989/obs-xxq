@@ -11,6 +11,7 @@
 #include <QEvent>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QDebug>
 #include "..\win-dshow.h"
 
 extern video_format ConvertVideoFormat(DShow::VideoFormat format);
@@ -516,11 +517,10 @@ void STThread::processVideoDataInternal(AVFrame *frame)
 			QPoint center;
 			if (flip)
 				center = QPoint(s1 + m_curFrameWidth / 2 - 30,
-						h1 + 30);
+						h1);
 			else
 				center = QPoint(s1 + m_curFrameWidth / 2 - 30,
-						m_curFrameHeight - h1 - 30);
-
+						m_curFrameHeight - h1);
 			QRect strawberryRect =
 				QRect(center.x(), center.y(), 60, 60);
 
@@ -568,24 +568,27 @@ void STThread::processVideoDataInternal(AVFrame *frame)
 						    : QEvent::User + 1025)));
 			}
 
-			VideoFrame vf = {m_curFrameHeight * m_curFrameWidth * 4,
-					 m_curFrameWidth, m_curFrameHeight,
-					 m_swsRetFrame->data[0]};
+			if (m_gameStickerType != None)
+			{
+				VideoFrame vf = {m_curFrameHeight * m_curFrameWidth * 4,
+						 m_curFrameWidth, m_curFrameHeight,
+						 m_swsRetFrame->data[0]};
 
-			if (flip)
-				blend_image_rgba(
-					&vf,
-					m_gameStickerType == Strawberry
+				if (flip)
+					blend_image_rgba(
+						&vf,
+						m_gameStickerType == Strawberry
 						? &m_strawberryFrameOverlayFlipV
 						: &m_bombFrameOverlayFlipV,
-					center.x(), center.y());
-			else
-				blend_image_rgba(
-					&vf,
-					m_gameStickerType == Strawberry
+						center.x(), center.y());
+				else
+					blend_image_rgba(
+						&vf,
+						m_gameStickerType == Strawberry
 						? &m_strawberryFrameOverlay
 						: &m_bombFrameOverlay,
-					center.x(), center.y());
+						center.x(), center.y());
+			}
 		}
 
 		BindTexture(m_swsRetFrame->data[0], m_curFrameWidth,
@@ -620,7 +623,7 @@ void STThread::calcPosition(int &width, int &height)
 	int y_r = m_curRegion / 5;
 
 	width = (x_r < 2 ? (x_r - 2.5) * stepx : (x_r - 1.5) * stepx);
-	height = m_curFrameHeight - y_r * stepy;
+	height = m_curFrameHeight - (y_r+0.5) * stepy;
 }
 
 void STThread::fliph()
