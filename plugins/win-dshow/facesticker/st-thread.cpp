@@ -499,10 +499,13 @@ void STThread::processVideoDataInternal(AVFrame *frame)
 	int ret = sws_scale(m_swsctx, (const uint8_t *const *)(frame->data),
 			    frame->linesize, 0, m_curFrameHeight,
 			    m_swsRetFrame->data, m_swsRetFrame->linesize);
+	if (flip)
+		flipV();
+
 	if (m_dshowInput->flipH)
 		fliph();
 	if (m_stFunc->doFaceDetect(m_swsRetFrame->data[0], m_curFrameWidth,
-				   m_curFrameHeight, flip)) {
+				   m_curFrameHeight)) {
 		if (m_gameStickerType != None) {
 			int s, h;
 			calcPosition(s, h);
@@ -593,12 +596,11 @@ void STThread::processVideoDataInternal(AVFrame *frame)
 			    m_curFrameHeight, textureSrc);
 		BindTexture(NULL, m_curFrameWidth, m_curFrameHeight,
 			    textureDst);
-		bool b = m_stFunc->doFaceSticker(textureSrc, textureDst,
-						 m_curFrameWidth,
-						 m_curFrameHeight,
-						 m_stickerBuffer, flip);
+		bool b = m_stFunc->doFaceSticker(
+			textureSrc, textureDst, m_curFrameWidth,
+			m_curFrameHeight, m_stickerBuffer, m_dshowInput->flipH);
 		if (b)
-			m_dshowInput->OutputFrame(flip, false,
+			m_dshowInput->OutputFrame(false, false,
 						  DShow::VideoFormat::NV12,
 						  m_stickerBuffer,
 						  m_stickerBufferSize,
@@ -639,6 +641,26 @@ void STThread::fliph()
 				data[(y * m_curFrameWidth + l) * 4 + d] =
 					data[(y * m_curFrameWidth + r) * 4 + d];
 				data[(y * m_curFrameWidth + r) * 4 + d] = tmp;
+			}
+		}
+	}
+}
+
+void STThread::flipV()
+{
+	int y;
+	int x;
+	int l, r;
+	char tmp;
+
+	uchar *data = m_swsRetFrame->data[0];
+	for (y = 0; y < m_curFrameWidth; ++y) {
+		for (l = 0, r = m_curFrameHeight - 1; l < r; ++l, --r) {
+			for (int d = 0; d < 4; ++d) {
+				tmp = data[(y + l * m_curFrameWidth) * 4 + d];
+				data[(y + l * m_curFrameWidth) * 4 + d] =
+					data[(y + m_curFrameWidth * r) * 4 + d];
+				data[(y + m_curFrameWidth * r) * 4 + d] = tmp;
 			}
 		}
 	}

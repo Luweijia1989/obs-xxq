@@ -89,6 +89,7 @@ private:
 	void processVideoDataInternal(AVFrame *frame);
 	void calcPosition(int &width, int &height);
 	void fliph();
+	void flipV();
 
 private:
 	DShowInput *m_dshowInput = nullptr;
