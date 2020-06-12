@@ -85,6 +85,7 @@ DShowInput::DShowInput(obs_source_t *source_, obs_data_t *settings)
 		throw "Failed to create thread";
 
 	deactivateWhenNotShowing = obs_data_get_bool(settings, DEACTIVATE_WNS);
+	flipH = obs_data_get_bool(settings, "flipH");
 
 	if (obs_data_get_bool(settings, "active")) {
 		bool showing = obs_source_showing(source);
@@ -666,6 +667,7 @@ bool DShowInput::UpdateVideoConfig(obs_data_t *settings)
 	string video_device_id = obs_data_get_string(settings, VIDEO_DEVICE_ID);
 	deactivateWhenNotShowing = obs_data_get_bool(settings, DEACTIVATE_WNS);
 	flip = obs_data_get_bool(settings, FLIP_IMAGE);
+	flipH = obs_data_get_bool(settings, "flipH");
 
 	DeviceId id;
 	if (!DecodeDeviceId(id, video_device_id.c_str())) {
@@ -901,7 +903,6 @@ DShowInput::GetColorRange(obs_data_t *settings) const
 
 inline bool DShowInput::Activate(obs_data_t *settings)
 {
-	flipH = obs_data_get_bool(settings, "flipH");
 	if (!device.ResetGraph())
 		return false;
 
