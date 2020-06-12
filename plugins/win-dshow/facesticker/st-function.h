@@ -11,7 +11,7 @@ public:
 	~STFunction();
 
 	bool doFaceSticker(unsigned int input, unsigned int output, int width,
-			   int height, unsigned char *outputBuffer, bool flipH);
+			   int height, unsigned char *outputBuffer);
 	bool doFaceDetect(unsigned char *inputBuffer, int width, int height);
 	bool initSenseTimeEnv();
 	bool stInited() { return m_stInited; }

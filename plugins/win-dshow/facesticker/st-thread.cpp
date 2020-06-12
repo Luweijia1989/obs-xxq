@@ -235,19 +235,6 @@ STThread::STThread(DShowInput *dsInput) : m_dshowInput(dsInput)
 	m_bombFrameOverlay = {(size_t)m_bombOverlay.sizeInBytes(),
 			      m_bombOverlay.width(), m_bombOverlay.height(),
 			      m_bombOverlay.bits()};
-
-	m_strawberryOverlayFlipV = m_strawberryOverlay.mirrored();
-	m_strawberryFrameOverlayFlipV = {
-		(size_t)m_strawberryOverlayFlipV.sizeInBytes(),
-		m_strawberryOverlayFlipV.width(),
-		m_strawberryOverlayFlipV.height(),
-		m_strawberryOverlayFlipV.bits()};
-
-	m_bombOverlayFlipV = m_bombOverlay.mirrored();
-	m_bombFrameOverlayFlipV = {(size_t)m_bombOverlayFlipV.sizeInBytes(),
-				   m_bombOverlayFlipV.width(),
-				   m_bombOverlayFlipV.height(),
-				   m_bombOverlayFlipV.bits()};
 }
 
 STThread::~STThread()
@@ -518,12 +505,7 @@ void STThread::processVideoDataInternal(AVFrame *frame)
 			int s1 = s / qSqrt(8 * h / gvalue) * deltaTime;
 			int h1 = qSqrt(2 * gvalue * h) * deltaTime -
 				 0.5 * gvalue * deltaTime * deltaTime;
-			QPoint center;
-			if (flip)
-				center = QPoint(s1 + m_curFrameWidth / 2 - 30,
-						h1);
-			else
-				center = QPoint(s1 + m_curFrameWidth / 2 - 30,
+			QPoint center = QPoint(s1 + m_curFrameWidth / 2 - 30,
 						m_curFrameHeight - h1);
 			QRect strawberryRect =
 				QRect(center.x(), center.y(), 60, 60);
@@ -577,15 +559,6 @@ void STThread::processVideoDataInternal(AVFrame *frame)
 				VideoFrame vf = {m_curFrameHeight * m_curFrameWidth * 4,
 						 m_curFrameWidth, m_curFrameHeight,
 						 m_swsRetFrame->data[0]};
-
-				if (flip)
-					blend_image_rgba(
-						&vf,
-						m_gameStickerType == Strawberry
-						? &m_strawberryFrameOverlayFlipV
-						: &m_bombFrameOverlayFlipV,
-						center.x(), center.y());
-				else
 					blend_image_rgba(
 						&vf,
 						m_gameStickerType == Strawberry
@@ -601,7 +574,7 @@ void STThread::processVideoDataInternal(AVFrame *frame)
 			    textureDst);
 		bool b = m_stFunc->doFaceSticker(
 			textureSrc, textureDst, m_curFrameWidth,
-			m_curFrameHeight, m_stickerBuffer, m_dshowInput->flipH);
+			m_curFrameHeight, m_stickerBuffer);
 		if (b)
 			m_dshowInput->OutputFrame(false, false,
 						  DShow::VideoFormat::NV12,
