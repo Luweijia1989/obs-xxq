@@ -147,11 +147,9 @@ public:
 	bool deviceHasAudio = false;
 	bool deviceHasSeparateAudioFilter = false;
 	bool flip = false;
+	bool flipH = false;
 	bool active = false;
 
-	//bool	     use_face_sticker = false;
-	QString face_sticker_id =
-		"C:\\Users\\luweijia.YUPAOPAO\\AppData\\Local\\yuerlive\\cache\\stickers\\1a493e27424248a0878d06c2bfe895d4.zip";
 	STThread *stThread = nullptr;
 
 	Decoder audio_decoder;

@@ -500,7 +500,8 @@ void STThread::processVideoDataInternal(AVFrame *frame)
 	int ret = sws_scale(m_swsctx, (const uint8_t *const *)(frame->data),
 			    frame->linesize, 0, m_curFrameHeight,
 			    m_swsRetFrame->data, m_swsRetFrame->linesize);
-	fliph();
+	if (m_dshowInput->flipH)
+		fliph();
 	if (m_stFunc->doFaceDetect(m_swsRetFrame->data[0], m_curFrameWidth,
 				   m_curFrameHeight, flip)) {
 		if (m_gameStickerType != None) {

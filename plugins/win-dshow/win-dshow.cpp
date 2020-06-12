@@ -85,6 +85,7 @@ DShowInput::DShowInput(obs_source_t *source_, obs_data_t *settings)
 		throw "Failed to create thread";
 
 	deactivateWhenNotShowing = obs_data_get_bool(settings, DEACTIVATE_WNS);
+	flipH = obs_data_get_bool(settings, "flipH");
 
 	if (obs_data_get_bool(settings, "active")) {
 		bool showing = obs_source_showing(source);
@@ -311,7 +312,7 @@ void DShowInput::OnEncodedVideoData(enum AVCodecID id, unsigned char *data,
 
 	if (got_output) {
 		frame.timestamp = (uint64_t)ts * 100;
-		frame.flip_h = true;
+		frame.flip_h = flipH;
 		if (flip)
 			frame.flip = !frame.flip;
 #if LOG_ENCODED_VIDEO_TS
@@ -340,7 +341,7 @@ void DShowInput::OnVideoData(const VideoConfig &config, unsigned char *data,
 	else
 		OutputFrame((videoConfig.format == VideoFormat::XRGB ||
 			     videoConfig.format == VideoFormat::ARGB),
-			    true, videoConfig.format, data, size, startTime,
+			    flipH, videoConfig.format, data, size, startTime,
 			    endTime);
 }
 
@@ -666,6 +667,7 @@ bool DShowInput::UpdateVideoConfig(obs_data_t *settings)
 	string video_device_id = obs_data_get_string(settings, VIDEO_DEVICE_ID);
 	deactivateWhenNotShowing = obs_data_get_bool(settings, DEACTIVATE_WNS);
 	flip = obs_data_get_bool(settings, FLIP_IMAGE);
+	flipH = obs_data_get_bool(settings, "flipH");
 
 	DeviceId id;
 	if (!DecodeDeviceId(id, video_device_id.c_str())) {
