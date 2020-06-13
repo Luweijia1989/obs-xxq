@@ -1,4 +1,4 @@
-#include "jim-nvenc.h"
+﻿#include "jim-nvenc.h"
 #include <util/circlebuf.h>
 #include <util/darray.h>
 #include <util/dstr.h>
@@ -71,6 +71,9 @@ struct nvenc_data {
 
 	uint8_t *sei;
 	size_t sei_size;
+
+	uint8_t *custom_sei;
+	size_t custom_sei_size;
 };
 
 /* ------------------------------------------------------------------------- */
@@ -229,6 +232,16 @@ static inline int nv_get_cap(struct nvenc_data *enc, NV_ENC_CAPS cap)
 static bool nvenc_update(void *data, obs_data_t *settings)
 {
 	struct nvenc_data *enc = data;
+
+	const char *sei = obs_data_get_string(settings, "cus_sei");
+	int sei_len = obs_data_get_int(settings, "cus_sei_size");
+
+	if (sei_len > 0) {
+		enc->custom_sei_size = sei_len > 102400 ? 102400 : sei_len;
+		memcpy(enc->custom_sei, sei, enc->custom_sei_size);
+
+		return true;
+	}
 
 	/* Only support reconfiguration of CBR bitrate */
 	if (enc->can_change_bitrate) {
@@ -573,6 +586,7 @@ static void *nvenc_create(obs_data_t *settings, obs_encoder_t *encoder)
 	struct nvenc_data *enc = bzalloc(sizeof(*enc));
 	enc->encoder = encoder;
 	enc->first_packet = true;
+	enc->custom_sei = bzalloc(sizeof(uint8_t) * 1024 * 100);
 
 	/* this encoder requires shared textures, this cannot be used on a
 	 * gpu other than the one OBS is currently running on. */
@@ -653,6 +667,7 @@ static void nvenc_destroy(void *data)
 
 	bfree(enc->header);
 	bfree(enc->sei);
+	bfree(enc->custom_sei);
 	circlebuf_free(&enc->dts_list);
 	da_free(enc->textures);
 	da_free(enc->bitstreams);
@@ -884,6 +899,10 @@ static bool nvenc_encode_tex(void *data, uint32_t handle, int64_t pts,
 		/* subtract bframe delay from dts */
 		if (enc->bframes)
 			dts -= packet->timebase_num;
+
+		if (enc->custom_sei_size > 0)
+			da_push_back_array(enc->packet_data, enc->custom_sei,
+					   enc->custom_sei_size);
 
 		*received_packet = true;
 		packet->data = enc->packet_data.array;
