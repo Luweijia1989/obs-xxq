@@ -1,4 +1,4 @@
-/******************************************************************************
+﻿/******************************************************************************
     Copyright (C) 2014 by Hugh Bailey <obs.jim@gmail.com>
 
     This program is free software: you can redistribute it and/or modify
@@ -83,6 +83,8 @@ EXPORT void obs_data_clear(obs_data_t *data);
 /* Set functions */
 EXPORT void obs_data_set_string(obs_data_t *data, const char *name,
 				const char *val);
+EXPORT void obs_data_set_binary(obs_data_t *data, const char *name,
+				const char *val, long long length);
 EXPORT void obs_data_set_int(obs_data_t *data, const char *name, long long val);
 EXPORT void obs_data_set_double(obs_data_t *data, const char *name, double val);
 EXPORT void obs_data_set_bool(obs_data_t *data, const char *name, bool val);

@@ -1,4 +1,4 @@
-/******************************************************************************
+﻿/******************************************************************************
     Copyright (C) 2014 by Hugh Bailey <obs.jim@gmail.com>
 
     This program is free software: you can redistribute it and/or modify
@@ -53,11 +53,13 @@ struct obs_x264 {
 	size_t extra_data_size;
 	size_t sei_size;
 
+	uint8_t *custom_sei;
+	uint8_t custom_sei_size;
+
 	os_performance_token_t *performance_token;
 };
 
 /* ------------------------------------------------------------------------- */
-
 static const char *obs_x264_getname(void *unused)
 {
 	UNUSED_PARAMETER(unused);
@@ -87,6 +89,7 @@ static void obs_x264_destroy(void *data)
 		os_end_high_performance(obsx264->performance_token);
 		clear_data(obsx264);
 		da_free(obsx264->packet_data);
+		bfree(obsx264->custom_sei);
 		bfree(obsx264);
 	}
 }
@@ -588,6 +591,17 @@ static bool update_settings(struct obs_x264 *obsx264, obs_data_t *settings,
 static bool obs_x264_update(void *data, obs_data_t *settings)
 {
 	struct obs_x264 *obsx264 = data;
+
+	const char *sei = obs_data_get_string(settings, "cus_sei");
+	int sei_len = obs_data_get_int(settings, "cus_sei_size");
+
+	if (sei_len > 0) {
+		obsx264->custom_sei_size = sei_len > 102400 ? 102400 : sei_len;
+		memcpy(obsx264->custom_sei, sei, obsx264->custom_sei_size);
+
+		return true;
+	}
+
 	bool success = update_settings(obsx264, settings, true);
 	int ret;
 
@@ -633,6 +647,7 @@ static void *obs_x264_create(obs_data_t *settings, obs_encoder_t *encoder)
 {
 	struct obs_x264 *obsx264 = bzalloc(sizeof(struct obs_x264));
 	obsx264->encoder = encoder;
+	obsx264->custom_sei = bzalloc(sizeof(uint8_t) * 1024 * 100);
 
 	if (update_settings(obsx264, settings, false)) {
 		obsx264->context = x264_encoder_open(&obsx264->params);
@@ -670,6 +685,10 @@ static void parse_packet(struct obs_x264 *obsx264,
 		da_push_back_array(obsx264->packet_data, nal->p_payload,
 				   nal->i_payload);
 	}
+
+	if (obsx264->custom_sei_size > 0)
+		da_push_back_array(obsx264->packet_data, obsx264->custom_sei,
+				   obsx264->custom_sei_size);
 
 	packet->data = obsx264->packet_data.array;
 	packet->size = obsx264->packet_data.num;

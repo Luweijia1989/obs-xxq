@@ -1,4 +1,4 @@
-/******************************************************************************
+﻿/******************************************************************************
     Copyright (C) 2014 by Hugh Bailey <obs.jim@gmail.com>
 
     This program is free software: you can redistribute it and/or modify
@@ -1079,6 +1079,16 @@ static inline void obs_take_obj(obs_data_t *data, obs_data_item_t **item,
 void obs_data_set_string(obs_data_t *data, const char *name, const char *val)
 {
 	obs_set_string(data, NULL, name, val, set_item);
+}
+
+void obs_data_set_binary(obs_data_t *data, const char *name, const char *val,
+			 long long length)
+{
+	if (!val) {
+		val = "";
+		length = 0;
+	}
+	set_item(data, NULL, name, val, length, OBS_DATA_STRING);
 }
 
 void obs_data_set_int(obs_data_t *data, const char *name, long long val)
