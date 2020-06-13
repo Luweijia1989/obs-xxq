@@ -54,7 +54,7 @@ struct obs_x264 {
 	size_t sei_size;
 
 	uint8_t *custom_sei;
-	uint8_t custom_sei_size;
+	size_t custom_sei_size;
 
 	os_performance_token_t *performance_token;
 };
@@ -595,9 +595,17 @@ static bool obs_x264_update(void *data, obs_data_t *settings)
 	const char *sei = obs_data_get_string(settings, "cus_sei");
 	int sei_len = obs_data_get_int(settings, "cus_sei_size");
 
-	if (sei_len > 0) {
-		obsx264->custom_sei_size = sei_len > 102400 ? 102400 : sei_len;
-		memcpy(obsx264->custom_sei, sei, obsx264->custom_sei_size);
+	if (sei_len != 0) {
+		if (sei_len > 0) {
+			obsx264->custom_sei_size = sei_len > 102400 ? 102400
+								    : sei_len;
+			memcpy(obsx264->custom_sei, sei,
+			       obsx264->custom_sei_size);
+		} else {
+			memset(obsx264->custom_sei, 0,
+			       obsx264->custom_sei_size);
+			obsx264->custom_sei_size = 0;
+		}
 
 		return true;
 	}

@@ -1,4 +1,4 @@
-/*
+﻿/*
 
 This file is provided under a dual BSD/GPLv2 license.  When using or
 redistributing this file, you may do so under either license.
@@ -89,6 +89,9 @@ struct obs_qsv {
 	uint8_t *extra_data;
 	uint8_t *sei;
 
+	uint8_t *custom_sei;
+	size_t custom_sei_size;
+
 	size_t extra_data_size;
 	size_t sei_size;
 
@@ -136,6 +139,7 @@ static void obs_qsv_destroy(void *data)
 		os_end_high_performance(obsqsv->performance_token);
 		clear_data(obsqsv);
 		da_free(obsqsv->packet_data);
+		bfree(obsqsv->custom_sei);
 		bfree(obsqsv);
 	}
 }
@@ -474,6 +478,24 @@ static void load_headers(struct obs_qsv *obsqsv)
 static bool obs_qsv_update(void *data, obs_data_t *settings)
 {
 	struct obs_qsv *obsqsv = data;
+
+	const char *sei = obs_data_get_string(settings, "cus_sei");
+	int sei_len = obs_data_get_int(settings, "cus_sei_size");
+
+	if (sei_len != 0) {
+		if (sei_len > 0) {
+			obsqsv->custom_sei_size = sei_len > 102400 ? 102400
+								   : sei_len;
+			memcpy(obsqsv->custom_sei, sei,
+			       obsqsv->custom_sei_size);
+		} else {
+			memset(obsqsv->custom_sei, 0, obsqsv->custom_sei_size);
+			obsqsv->custom_sei_size = 0;
+		}
+
+		return true;
+	}
+
 	bool success = update_settings(obsqsv, settings);
 	int ret;
 
@@ -498,6 +520,7 @@ static void *obs_qsv_create(obs_data_t *settings, obs_encoder_t *encoder)
 
 	struct obs_qsv *obsqsv = bzalloc(sizeof(struct obs_qsv));
 	obsqsv->encoder = encoder;
+	obsqsv->custom_sei = bzalloc(sizeof(uint8_t) * 1024 * 100);
 
 	if (update_settings(obsqsv, settings)) {
 		EnterCriticalSection(&g_QsvCs);
@@ -635,6 +658,10 @@ static void parse_packet(struct obs_qsv *obsqsv, struct encoder_packet *packet,
 	da_resize(obsqsv->packet_data, 0);
 	da_push_back_array(obsqsv->packet_data, &pBS->Data[pBS->DataOffset],
 			   pBS->DataLength);
+
+	if (obsqsv->custom_sei_size > 0)
+		da_push_back_array(obsqsv->packet_data, obsqsv->custom_sei,
+				   obsqsv->custom_sei_size);
 
 	packet->data = obsqsv->packet_data.array;
 	packet->size = obsqsv->packet_data.num;

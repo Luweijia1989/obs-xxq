@@ -1,4 +1,4 @@
-/******************************************************************************
+﻿/******************************************************************************
     Copyright (C) 2016 by Hugh Bailey <obs.jim@gmail.com>
 
     This program is free software: you can redistribute it and/or modify
@@ -51,6 +51,9 @@ struct nvenc_encoder {
 
 	uint8_t *sei;
 	size_t sei_size;
+
+	uint8_t *custom_sei;
+	size_t custom_sei_size;
 
 	int height;
 	bool first_packet;
@@ -230,9 +233,24 @@ static bool nvenc_update(void *data, obs_data_t *settings)
 
 static bool nvenc_reconfigure(void *data, obs_data_t *settings)
 {
-#if LIBAVCODEC_VERSION_INT >= AV_VERSION_INT(58, 19, 101)
 	struct nvenc_encoder *enc = data;
 
+	const char *sei = obs_data_get_string(settings, "cus_sei");
+	int sei_len = obs_data_get_int(settings, "cus_sei_size");
+
+	if (sei_len != 0) {
+		if (sei_len > 0) {
+			enc->custom_sei_size = sei_len > 102400 ? 102400
+								: sei_len;
+			memcpy(enc->custom_sei, sei, enc->custom_sei_size);
+		} else {
+			memset(enc->custom_sei, 0, enc->custom_sei_size);
+			enc->custom_sei_size = 0;
+		}
+
+		return true;
+	}
+#if LIBAVCODEC_VERSION_INT >= AV_VERSION_INT(58, 19, 101)
 	int bitrate = (int)obs_data_get_int(settings, "bitrate");
 	const char *rc = obs_data_get_string(settings, "rate_control");
 	bool cbr = astrcmpi(rc, "CBR") == 0;
@@ -274,6 +292,7 @@ static void nvenc_destroy(void *data)
 	da_free(enc->buffer);
 	bfree(enc->header);
 	bfree(enc->sei);
+	bfree(enc->custom_sei);
 
 	bfree(enc);
 }
@@ -289,6 +308,7 @@ static void *nvenc_create(obs_data_t *settings, obs_encoder_t *encoder)
 	enc = bzalloc(sizeof(*enc));
 	enc->encoder = encoder;
 	enc->nvenc = avcodec_find_encoder_by_name("h264_nvenc");
+	enc->custom_sei = bzalloc(sizeof(uint8_t) * 1024 * 100);
 	if (!enc->nvenc)
 		enc->nvenc = avcodec_find_encoder_by_name("nvenc_h264");
 	enc->first_packet = true;
@@ -389,6 +409,10 @@ static bool nvenc_encode(void *data, struct encoder_frame *frame,
 		} else {
 			da_copy_array(enc->buffer, av_pkt.data, av_pkt.size);
 		}
+
+		if (enc->custom_sei_size > 0)
+			da_push_back_array(enc->buffer, enc->custom_sei,
+					   enc->custom_sei_size);
 
 		packet->pts = av_pkt.pts;
 		packet->dts = av_pkt.dts;

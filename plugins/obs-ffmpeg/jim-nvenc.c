@@ -236,9 +236,15 @@ static bool nvenc_update(void *data, obs_data_t *settings)
 	const char *sei = obs_data_get_string(settings, "cus_sei");
 	int sei_len = obs_data_get_int(settings, "cus_sei_size");
 
-	if (sei_len > 0) {
-		enc->custom_sei_size = sei_len > 102400 ? 102400 : sei_len;
-		memcpy(enc->custom_sei, sei, enc->custom_sei_size);
+	if (sei_len != 0) {
+		if (sei_len > 0) {
+			enc->custom_sei_size = sei_len > 102400 ? 102400
+								: sei_len;
+			memcpy(enc->custom_sei, sei, enc->custom_sei_size);
+		} else {
+			memset(enc->custom_sei, 0, enc->custom_sei_size);
+			enc->custom_sei_size = 0;
+		}
 
 		return true;
 	}
