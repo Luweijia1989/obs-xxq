@@ -10,6 +10,7 @@ class ObsXXQConan(ConanFile):
 
     def package(self):
         self.copy("*.h", dst="include/libobs", src="libobs", keep_path=True)
+        self.copy("*.hpp", dst="include/libobs", src="libobs", keep_path=True)
         self.copy("*.dll", dst="bin", src="../dependencies2017/win32/bin", keep_path=False)
         
         if self.settings.build_type=="Debug":

@@ -505,10 +505,14 @@ void STThread::processVideoDataInternal(AVFrame *frame)
 			int s1 = s / qSqrt(8 * h / gvalue) * deltaTime;
 			int h1 = qSqrt(2 * gvalue * h) * deltaTime -
 				 0.5 * gvalue * deltaTime * deltaTime;
-			QPoint center = QPoint(s1 + m_curFrameWidth / 2 - 30,
-						m_curFrameHeight - h1);
+			QPoint center =
+				QPoint(s1 + m_curFrameWidth / 2 -
+					       m_strawberryOverlay.width() / 2,
+				       m_curFrameHeight - h1);
 			QRect strawberryRect =
-				QRect(center.x(), center.y(), 60, 60);
+				QRect(center.x(), center.y(),
+				      m_strawberryOverlay.width(),
+				      m_strawberryOverlay.height());
 
 			bool hit = false;
 			auto detectResult = m_stFunc->detectResult();
@@ -554,17 +558,17 @@ void STThread::processVideoDataInternal(AVFrame *frame)
 						    : QEvent::User + 1025)));
 			}
 
-			if (m_gameStickerType != None)
-			{
-				VideoFrame vf = {m_curFrameHeight * m_curFrameWidth * 4,
-						 m_curFrameWidth, m_curFrameHeight,
-						 m_swsRetFrame->data[0]};
-					blend_image_rgba(
-						&vf,
-						m_gameStickerType == Strawberry
+			if (m_gameStickerType != None) {
+				VideoFrame vf = {
+					m_curFrameHeight * m_curFrameWidth * 4,
+					m_curFrameWidth, m_curFrameHeight,
+					m_swsRetFrame->data[0]};
+				blend_image_rgba(
+					&vf,
+					m_gameStickerType == Strawberry
 						? &m_strawberryFrameOverlay
 						: &m_bombFrameOverlay,
-						center.x(), center.y());
+					center.x(), center.y());
 			}
 		}
 
@@ -572,9 +576,10 @@ void STThread::processVideoDataInternal(AVFrame *frame)
 			    m_curFrameHeight, textureSrc);
 		BindTexture(NULL, m_curFrameWidth, m_curFrameHeight,
 			    textureDst);
-		bool b = m_stFunc->doFaceSticker(
-			textureSrc, textureDst, m_curFrameWidth,
-			m_curFrameHeight, m_stickerBuffer);
+		bool b = m_stFunc->doFaceSticker(textureSrc, textureDst,
+						 m_curFrameWidth,
+						 m_curFrameHeight,
+						 m_stickerBuffer);
 		if (b)
 			m_dshowInput->OutputFrame(false, false,
 						  DShow::VideoFormat::NV12,
@@ -599,7 +604,7 @@ void STThread::calcPosition(int &width, int &height)
 	int y_r = m_curRegion / 5;
 
 	width = (x_r < 2 ? (x_r - 2.5) * stepx : (x_r - 1.5) * stepx);
-	height = m_curFrameHeight - (y_r+0.5) * stepy;
+	height = m_curFrameHeight - (y_r + 0.5) * stepy;
 }
 
 void STThread::fliph()
