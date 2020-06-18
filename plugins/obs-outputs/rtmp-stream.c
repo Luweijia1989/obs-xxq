@@ -689,13 +689,6 @@ static bool send_audio_header(struct rtmp_stream *stream, size_t idx,
 
 static bool send_video_header(struct rtmp_stream *stream)
 {
-	obs_data_t *settings = obs_output_get_settings(stream->output);
-	bool onlyAudio = obs_data_get_bool(settings, "onlyAudio");
-	obs_data_release(settings);
-
-	if (onlyAudio)
-		return true;
-
 	obs_output_t *context = stream->output;
 	obs_encoder_t *vencoder = obs_output_get_video_encoder(context);
 	uint8_t *header;
@@ -1403,13 +1396,6 @@ static void rtmp_stream_data(void *data, struct encoder_packet *packet)
 		os_sem_post(stream->send_sem);
 		return;
 	}
-
-	obs_data_t *settings = obs_output_get_settings(stream->output);
-	bool onlyAudio = obs_data_get_bool(settings, "onlyAudio");
-	obs_data_release(settings);
-
-	if (onlyAudio && packet->type == OBS_ENCODER_VIDEO)
-		return;
 
 	if (packet->type == OBS_ENCODER_VIDEO) {
 		if (!stream->got_first_video) {
