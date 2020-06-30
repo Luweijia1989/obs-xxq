@@ -6,6 +6,8 @@ Item {
     id: container
     width: engine.width
     height: engine.height
+	x: -4
+	y: -4
     focus: true
 
     Image {

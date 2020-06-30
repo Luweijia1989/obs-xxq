@@ -2,9 +2,7 @@
 #include "renderer.h"
 #include <QDebug>
 
-
-Leave::Leave(QObject *parent /* = nullptr */)
-	: QmlSourceBase(parent)
+Leave::Leave(QObject *parent /* = nullptr */) : QmlSourceBase(parent)
 {
 	addProperties("leaveProperties", this);
 }
@@ -51,8 +49,8 @@ static void leave_source_destroy(void *data)
 static void leave_source_defaults(obs_data_t *settings)
 {
 	QmlSourceBase::baseDefault(settings);
-	obs_data_set_default_int(settings, "width", 1920);
-	obs_data_set_default_int(settings, "height", 1080);
+	obs_data_set_default_int(settings, "width", 1928);
+	obs_data_set_default_int(settings, "height", 1088);
 	Leave::default(settings);
 }
 
@@ -63,8 +61,10 @@ static obs_properties_t *leave_source_properties(void *data)
 	Leave *s = (Leave *)data;
 	obs_properties_t *props = s->baseProperties();
 
-	obs_properties_add_text(props, "backgroundImage", u8"背景图", OBS_TEXT_DEFAULT);
-	obs_properties_add_text(props, "currentTime", u8"当前计时", OBS_TEXT_DEFAULT);
+	obs_properties_add_text(props, "backgroundImage", u8"背景图",
+				OBS_TEXT_DEFAULT);
+	obs_properties_add_text(props, "currentTime", u8"当前计时",
+				OBS_TEXT_DEFAULT);
 	return props;
 }
 
@@ -105,5 +105,4 @@ struct obs_source_info quickleave_source_info = {
 	nullptr,
 	nullptr,
 	nullptr,
-	nullptr
-};
+	nullptr};

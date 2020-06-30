@@ -2,16 +2,15 @@
 #include "renderer.h"
 #include <QDebug>
 
-
-Private::Private(QObject *parent /* = nullptr */)
-	: QmlSourceBase(parent)
+Private::Private(QObject *parent /* = nullptr */) : QmlSourceBase(parent)
 {
 	addProperties("privateProperties", this);
 }
 
 void Private::default(obs_data_t *settings)
 {
-	obs_data_set_default_string(settings, "file", "qrc:/qmlfiles/Private.qml");
+	obs_data_set_default_string(settings, "file",
+				    "qrc:/qmlfiles/Private.qml");
 }
 
 static const char *private_source_get_name(void *unused)
@@ -47,8 +46,8 @@ static void private_source_destroy(void *data)
 static void private_source_defaults(obs_data_t *settings)
 {
 	QmlSourceBase::baseDefault(settings);
-	obs_data_set_default_int(settings, "width", 1920);
-	obs_data_set_default_int(settings, "height", 1080);
+	obs_data_set_default_int(settings, "width", 1928);
+	obs_data_set_default_int(settings, "height", 1088);
 	Private::default(settings);
 }
 
@@ -58,7 +57,8 @@ static obs_properties_t *private_source_properties(void *data)
 		return nullptr;
 	Private *s = (Private *)data;
 	obs_properties_t *props = s->baseProperties();
-	obs_properties_add_text(props, "backgroundImage", u8"背景图",OBS_TEXT_DEFAULT);
+	obs_properties_add_text(props, "backgroundImage", u8"背景图",
+				OBS_TEXT_DEFAULT);
 	return props;
 }
 
@@ -99,5 +99,4 @@ struct obs_source_info quickprivate_source_info = {
 	nullptr,
 	nullptr,
 	nullptr,
-	nullptr
-};
+	nullptr};
