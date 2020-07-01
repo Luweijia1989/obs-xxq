@@ -310,7 +310,7 @@ static void obs_source_init_audio_hotkeys(struct obs_source *source)
 static obs_source_t *
 obs_source_create_internal(const char *id, const char *name,
 			   obs_data_t *settings, obs_data_t *hotkey_data,
-			   bool private, uint32_t last_obs_ver)
+			   bool isprivate, uint32_t last_obs_ver)
 {
 	struct obs_source *source = bzalloc(sizeof(struct obs_source));
 
@@ -328,8 +328,7 @@ obs_source_create_internal(const char *id, const char *name,
 		 *
 		 * XXX: Fix design flaws with filters */
 		if (info->type == OBS_SOURCE_TYPE_FILTER)
-		private
-		= true;
+			isprivate = true;
 	}
 
 	source->mute_unmute_key = OBS_INVALID_HOTKEY_PAIR_ID;
@@ -338,7 +337,7 @@ obs_source_create_internal(const char *id, const char *name,
 	source->last_obs_ver = last_obs_ver;
 
 	if (!obs_source_init_context(source, settings, name, hotkey_data,
-				     private))
+				     isprivate))
 		goto fail;
 
 	if (info) {
@@ -354,7 +353,7 @@ obs_source_create_internal(const char *id, const char *name,
 	if (!obs_source_init(source))
 		goto fail;
 
-	if (!private)
+	if (!isprivate)
 		obs_source_init_audio_hotkeys(source);
 
 	/* allow the source to be created even if creation fails so that the
@@ -365,13 +364,13 @@ obs_source_create_internal(const char *id, const char *name,
 	if ((!info || info->create) && !source->context.data)
 		blog(LOG_ERROR, "Failed to create source '%s'!", name);
 
-	blog(LOG_DEBUG, "%ssource '%s' (%s) created", private ? "private " : "",
-	     name, id);
+	blog(LOG_DEBUG, "%ssource '%s' (%s) created",
+	     isprivate ? "private " : "", name, id);
 
 	source->flags = source->default_flags;
 	source->enabled = true;
 
-	if (!private) {
+	if (!isprivate) {
 		obs_source_dosignal(source, "source_create", NULL);
 	}
 
