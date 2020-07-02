@@ -2058,6 +2058,16 @@ EXPORT void obs_encoder_packet_release(struct encoder_packet *packet);
 EXPORT void *obs_encoder_create_rerouted(obs_encoder_t *encoder,
 					 const char *reroute_id);
 
+EXPORT void obs_encoder_add_encoded_callback(
+	obs_encoder_t *encoder,
+	void (*new_packet)(void *param, struct encoder_packet *packet),
+	void *param);
+
+EXPORT void obs_encoder_remove_encoded_callback(
+	obs_encoder_t *encoder,
+	void (*new_packet)(void *param, struct encoder_packet *packet),
+	void *param);
+
 /** Returns whether encoder is paused */
 EXPORT bool obs_encoder_paused(const obs_encoder_t *output);
 

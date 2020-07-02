@@ -1,4 +1,4 @@
-/******************************************************************************
+﻿/******************************************************************************
     Copyright (C) 2013-2014 by Hugh Bailey <obs.jim@gmail.com>
 
     This program is free software: you can redistribute it and/or modify
@@ -494,6 +494,42 @@ void *obs_encoder_create_rerouted(obs_encoder_t *encoder,
 	}
 
 	return NULL;
+}
+
+void obs_encoder_add_encoded_callback(
+	obs_encoder_t *encoder,
+	void (*new_packet)(void *param, struct encoder_packet *packet),
+	void *param)
+{
+	struct encoder_callback cb = {false, new_packet, param};
+
+	if (!encoder->context.data)
+		return;
+
+	pthread_mutex_lock(&encoder->callbacks_mutex);
+
+	size_t idx = get_callback_idx(encoder, new_packet, param);
+	if (idx == DARRAY_INVALID)
+		da_push_back(encoder->callbacks, &cb);
+
+	pthread_mutex_unlock(&encoder->callbacks_mutex);
+}
+
+void obs_encoder_remove_encoded_callback(
+	obs_encoder_t *encoder,
+	void (*new_packet)(void *param, struct encoder_packet *packet),
+	void *param)
+{
+	if (!encoder->context.data)
+		return;
+
+	pthread_mutex_lock(&encoder->callbacks_mutex);
+
+	size_t idx = get_callback_idx(encoder, new_packet, param);
+	if (idx != DARRAY_INVALID)
+		da_erase(encoder->callbacks, idx);
+
+	pthread_mutex_unlock(&encoder->callbacks_mutex);
 }
 
 bool obs_encoder_initialize(obs_encoder_t *encoder)
