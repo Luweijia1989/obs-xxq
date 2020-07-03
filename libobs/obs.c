@@ -1177,7 +1177,7 @@ int obs_reset_video(struct obs_video_info *ovi)
 	return obs_init_video(ovi);
 }
 
-bool obs_reset_audio(const struct obs_audio_info *oai, enum audio_format format)
+bool obs_reset_audio(const struct obs_audio_info *oai)
 {
 	struct audio_output_info ai;
 
@@ -1194,7 +1194,7 @@ bool obs_reset_audio(const struct obs_audio_info *oai, enum audio_format format)
 
 	ai.name = "Audio";
 	ai.samples_per_sec = oai->samples_per_sec;
-	ai.format = format;
+	ai.format = AUDIO_FORMAT_FLOAT_PLANAR;
 	ai.speakers = oai->speakers;
 	ai.input_callback = audio_callback;
 
