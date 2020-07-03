@@ -3641,7 +3641,7 @@ bool OBSBasic::ResetAudio()
 	else
 		ai.speakers = SPEAKERS_STEREO;
 
-	return obs_reset_audio(&ai);
+	return obs_reset_audio(&ai, AUDIO_FORMAT_FLOAT_PLANAR);
 }
 
 void OBSBasic::ResetAudioDevice(const char *sourceId, const char *deviceId,
