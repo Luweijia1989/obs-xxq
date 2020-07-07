@@ -69,6 +69,8 @@ class ObsXXQConan(ConanFile):
             self.copy("*.pdb", dst="plugins/obs-plugins/32bit", src="build32/plugins/win-mf/Debug", keep_path=False)
             self.copy("*.dll", dst="plugins/obs-plugins/32bit", src="build32/plugins/win-wasapi/Debug", keep_path=False)
             self.copy("*.pdb", dst="plugins/obs-plugins/32bit", src="build32/plugins/win-wasapi/Debug", keep_path=False)
+            self.copy("*.dll", dst="plugins/obs-plugins/32bit", src="build32/plugins/enc-amf/Debug", keep_path=False)
+            self.copy("*.pdb", dst="plugins/obs-plugins/32bit", src="build32/plugins/enc-amf/Debug", keep_path=False)
         else:
             self.copy("*.dll", dst="bin", src="build32/libobs/RelWithDebInfo", keep_path=False)
             self.copy("*.pdb", dst="bin", src="build32/libobs/RelWithDebInfo", keep_path=False)
@@ -119,6 +121,8 @@ class ObsXXQConan(ConanFile):
             self.copy("*.pdb", dst="plugins/obs-plugins/32bit", src="build32/plugins/win-mf/RelWithDebInfo", keep_path=False)
             self.copy("*.dll", dst="plugins/obs-plugins/32bit", src="build32/plugins/win-wasapi/RelWithDebInfo", keep_path=False)
             self.copy("*.pdb", dst="plugins/obs-plugins/32bit", src="build32/plugins/win-wasapi/RelWithDebInfo", keep_path=False)
+            self.copy("*.dll", dst="plugins/obs-plugins/32bit", src="build32/plugins/enc-amf/RelWithDebInfo", keep_path=False)
+            self.copy("*.pdb", dst="plugins/obs-plugins/32bit", src="build32/plugins/enc-amf/RelWithDebInfo", keep_path=False)
             
             
         self.copy("*.*", dst="plugins/data/libobs", src="libobs/data", keep_path=True)
@@ -142,6 +146,7 @@ class ObsXXQConan(ConanFile):
         self.copy("*.*", dst="plugins/data/obs-plugins/win-mf", src="plugins/win-mf/data", keep_path=True)
         self.copy("*.*", dst="plugins/data/obs-plugins/win-wasapi", src="plugins/win-wasapi/data", keep_path=True)
         self.copy("*.*", dst="plugins/data/obs-plugins/win-capture", src="win-capture-data", keep_path=True)
+        self.copy("*.*", dst="plugins/data/obs-plugins/win-capture", src="plugins/enc-amf/data", keep_path=True)
 
     def package_info(self):
         self.cpp_info.libs = ["obs"]
