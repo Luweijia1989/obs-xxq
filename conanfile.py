@@ -146,7 +146,7 @@ class ObsXXQConan(ConanFile):
         self.copy("*.*", dst="plugins/data/obs-plugins/win-mf", src="plugins/win-mf/data", keep_path=True)
         self.copy("*.*", dst="plugins/data/obs-plugins/win-wasapi", src="plugins/win-wasapi/data", keep_path=True)
         self.copy("*.*", dst="plugins/data/obs-plugins/win-capture", src="win-capture-data", keep_path=True)
-        self.copy("*.*", dst="plugins/data/obs-plugins/win-capture", src="plugins/enc-amf/data", keep_path=True)
+        self.copy("*.*", dst="plugins/data/obs-plugins/enc-amf", src="build32/plugins/enc-amf/data", keep_path=True)
 
     def package_info(self):
         self.cpp_info.libs = ["obs"]
