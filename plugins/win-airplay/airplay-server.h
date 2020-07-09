@@ -17,6 +17,7 @@ private:
 
 private:
 	obs_source_t *m_source = nullptr;
+	obs_source_t *m_cropFilter = nullptr;
 	CAirServer m_server;
 	obs_source_audio m_audioFrame;
 	obs_source_frame2 m_videoFrame;

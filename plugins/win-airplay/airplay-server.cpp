@@ -25,6 +25,7 @@ AirPlayServer::~AirPlayServer()
 
 void AirPlayServer::clearVideoFrameBuffer()
 {
+	return;
 	for (int i = 0; i < MAX_AV_PLANES; i++) {
 		free(m_videoFrame.data[i]);
 		m_videoFrame.data[i] = nullptr;
@@ -33,46 +34,39 @@ void AirPlayServer::clearVideoFrameBuffer()
 
 void AirPlayServer::outputVideo(SFgVideoFrame *data)
 {
-	int picWidth = data->width;
-	int picHeight = data->height;
+	if (data->pitch[0] != m_videoFrame.width ||
+	    data->height != m_videoFrame.height) {
 
-	if (picWidth != m_videoFrame.width ||
-	    picHeight != m_videoFrame.height) {
-		clearVideoFrameBuffer();
+		m_cropFilter =
+			obs_source_filter_get_by_name(m_source, "cropFilter");
+		if (!m_cropFilter) {
+			m_cropFilter = obs_source_create(
+				"crop_filter", "cropFilter", nullptr, nullptr);
+			obs_source_filter_add(m_source, m_cropFilter);
+		}
 
-		m_videoFrame.data[0] = (uint8_t *)malloc(picWidth * picHeight);
-		m_videoFrame.data[1] =
-			(uint8_t *)malloc(picWidth * picHeight / 4);
-		m_videoFrame.data[2] =
-			(uint8_t *)malloc(picWidth * picHeight / 4);
+		obs_data_t *setting = obs_source_get_settings(m_cropFilter);
+		obs_data_set_int(setting, "right",
+				 labs(data->pitch[0] - data->width));
+		obs_source_update(m_cropFilter, setting);
+		obs_data_release(setting);
 	}
-
 	m_videoFrame.timestamp = data->pts;
-	m_videoFrame.width = picWidth;
-	m_videoFrame.height = picHeight;
+	m_videoFrame.width = data->pitch[0];
+	m_videoFrame.height = data->height;
 	m_videoFrame.format = VIDEO_FORMAT_I420;
 	m_videoFrame.flip = false;
 	m_videoFrame.flip_h = false;
 
-	for (size_t i = 0; i < data->height; i++) {
-		memcpy(m_videoFrame.data[0] + i * picWidth,
-		       data->data + i * data->pitch[0], picWidth);
-		if (i % 2 == 0) {
-			uint8_t *u_start = data->data + data->dataLen[0];
-			memcpy(m_videoFrame.data[1] + (i >> 1) * picWidth,
-			       u_start + (i >> 1) * data->pitch[1],
-			       (i >> 1) * picWidth);
-			/*memcpy(m_videoFrame.data[2] + (i >> 1) * picWidth,
-			       data->data + data->dataLen[0] +
-				       data->dataLen[1] +
-				       (i >> 1) * data->pitch[2],
-			       (i >> 1) * picWidth);*/
-		}
-	}
+	m_videoFrame.data[0] = data->data;
+	m_videoFrame.data[1] =
+		m_videoFrame.data[0] + m_videoFrame.width * m_videoFrame.height;
+	m_videoFrame.data[2] = m_videoFrame.data[1] +
+			       m_videoFrame.width * m_videoFrame.height / 4;
 
-	m_videoFrame.linesize[0] = picWidth;
-	m_videoFrame.linesize[1] = picWidth / 2;
-	m_videoFrame.linesize[2] = picWidth / 2;
+	m_videoFrame.linesize[0] = data->pitch[0];
+	m_videoFrame.linesize[1] = data->pitch[1];
+	m_videoFrame.linesize[2] = data->pitch[2];
 	obs_source_output_video2(m_source, &m_videoFrame);
 }
 

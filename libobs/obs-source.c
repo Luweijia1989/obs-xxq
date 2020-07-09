@@ -2462,6 +2462,24 @@ void obs_source_filter_set_order(obs_source_t *source, obs_source_t *filter,
 		obs_source_dosignal(source, NULL, "reorder_filters");
 }
 
+obs_source_t *obs_source_filter_get_by_name(obs_source_t *source,
+					    const char *name)
+{
+	obs_source_t *ret = NULL;
+
+	pthread_mutex_lock(&source->filter_mutex);
+	for (int i = 0; i < source->filters.num; i++) {
+		struct obs_source *filter = source->filters.array[i];
+		if (strcmp(obs_source_get_name(filter), name) == 0) {
+			ret = filter;
+			break;
+		}
+	}
+	pthread_mutex_unlock(&source->filter_mutex);
+
+	return ret;
+}
+
 obs_data_t *obs_source_get_settings(const obs_source_t *source)
 {
 	if (!obs_source_valid(source, "obs_source_get_settings"))
