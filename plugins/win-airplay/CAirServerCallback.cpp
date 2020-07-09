@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include "FgUtf8Utils.h"
 #include <locale.h>
+#include "airplay-server.h"
 
 #define min(a, b) (((a) < (b)) ? (a) : (b))
 
@@ -11,6 +12,11 @@ CAirServerCallback::CAirServerCallback()
 }
 
 CAirServerCallback::~CAirServerCallback() {}
+
+void CAirServerCallback::setAirplayServer(AirPlayServer *s)
+{
+	m_airplayServer = s;
+}
 
 void CAirServerCallback::connected(const char *remoteName,
 				   const char *remoteDeviceId)
@@ -34,14 +40,14 @@ void CAirServerCallback::outputAudio(SFgAudioFrame *data,
 				     const char *remoteName,
 				     const char *remoteDeviceId)
 {
-	if (m_pPlayer) {
+	if (m_airplayServer) {
 		if (m_chRemoteDeviceId[0] == '\0' && remoteDeviceId != NULL) {
 			strncpy(m_chRemoteDeviceId, remoteDeviceId, 128);
 		}
 		if (0 != strcmp(m_chRemoteDeviceId, remoteDeviceId)) {
 			return;
 		}
-		m_pPlayer->outputAudio(data);
+		m_airplayServer->outputAudio(data);
 	}
 }
 
@@ -49,14 +55,14 @@ void CAirServerCallback::outputVideo(SFgVideoFrame *data,
 				     const char *remoteName,
 				     const char *remoteDeviceId)
 {
-	if (m_pPlayer) {
+	if (m_airplayServer) {
 		if (m_chRemoteDeviceId[0] == '\0' && remoteDeviceId != NULL) {
 			strncpy(m_chRemoteDeviceId, remoteDeviceId, 128);
 		}
 		if (0 != strcmp(m_chRemoteDeviceId, remoteDeviceId)) {
 			return;
 		}
-		m_pPlayer->outputVideo(data);
+		m_airplayServer->outputVideo(data);
 	}
 }
 

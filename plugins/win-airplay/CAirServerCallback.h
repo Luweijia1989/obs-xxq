@@ -2,12 +2,16 @@
 #include <Windows.h>
 #include "Airplay2Head.h"
 
+class AirPlayServer;
+
 class CAirServerCallback : public IAirServerCallback {
 public:
 	CAirServerCallback();
 	virtual ~CAirServerCallback();
 
 public:
+	void setAirplayServer(AirPlayServer *s);
+
 public:
 	virtual void connected(const char *remoteName,
 			       const char *remoteDeviceId);
@@ -26,4 +30,5 @@ public:
 
 protected:
 	char m_chRemoteDeviceId[128];
+	AirPlayServer *m_airplayServer = nullptr;
 };

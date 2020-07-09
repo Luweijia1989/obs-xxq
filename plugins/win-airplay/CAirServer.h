@@ -1,21 +1,19 @@
-#pragma once
+﻿#pragma once
 
-class CSDLPlayer;
 class CAirServerCallback;
+class AirPlayServer;
 
-class CAirServer
-{
+class CAirServer {
 public:
 	CAirServer();
 	~CAirServer();
 
 public:
-	void start(CSDLPlayer* pPlayer);
+	void start(AirPlayServer *s);
 	void stop();
 	float setVideoScale(float fRatio);
 
 private:
-	CAirServerCallback* m_pCallback;
-	void* m_pServer;
+	CAirServerCallback *m_pCallback;
+	void *m_pServer;
 };
-

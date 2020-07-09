@@ -32,10 +32,10 @@ bool getHostName(char hostName[512])
 	}
 }
 
-void CAirServer::start(CSDLPlayer *pPlayer)
+void CAirServer::start(AirPlayServer *s)
 {
 	stop();
-	m_pCallback->setPlayer(pPlayer);
+	m_pCallback->setAirplayServer(s);
 	char hostName[512];
 	memset(hostName, 0, sizeof(hostName));
 	getHostName(hostName);
