@@ -8,6 +8,7 @@ include_directories(${FFMPEG_INCLUDE_DIRS})
 
 include_directories(
 		${PROJECT_SOURCE_DIR}/airplay2/include
+		${PROJECT_SOURCE_DIR}/airplay2/lib
         )
 
 set(win-airplay_SOURCES

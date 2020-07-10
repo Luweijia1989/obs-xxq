@@ -32,7 +32,7 @@ bool getHostName(char hostName[512])
 	}
 }
 
-void CAirServer::start(AirPlayServer *s)
+bool CAirServer::start(AirPlayServer *s)
 {
 	stop();
 	m_pCallback->setAirplayServer(s);
@@ -40,8 +40,9 @@ void CAirServer::start(AirPlayServer *s)
 	memset(hostName, 0, sizeof(hostName));
 	getHostName(hostName);
 	char serverName[1024] = {0};
-	sprintf_s(serverName, 1024, "FgAirplay[%s]", hostName);
+	sprintf_s(serverName, 1024, "YuerLive[%s]", hostName);
 	m_pServer = fgServerStart(serverName, 5001, 7001, m_pCallback);
+	return m_pServer != NULL;
 }
 
 void CAirServer::stop()

@@ -9,7 +9,7 @@ public:
 	~CAirServer();
 
 public:
-	void start(AirPlayServer *s);
+	bool start(AirPlayServer *s);
 	void stop();
 	float setVideoScale(float fRatio);
 

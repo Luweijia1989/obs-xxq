@@ -14,22 +14,12 @@ AirPlayServer::AirPlayServer(obs_source_t *source) : m_source(source)
 				    m_videoFrame.color_range_min,
 				    m_videoFrame.color_range_max);
 
-	m_server.start(this);
+	bool success = m_server.start(this); //返回失败可以搞一个默认图片显示
 }
 
 AirPlayServer::~AirPlayServer()
 {
 	m_server.stop();
-	clearVideoFrameBuffer();
-}
-
-void AirPlayServer::clearVideoFrameBuffer()
-{
-	return;
-	for (int i = 0; i < MAX_AV_PLANES; i++) {
-		free(m_videoFrame.data[i]);
-		m_videoFrame.data[i] = nullptr;
-	}
 }
 
 void AirPlayServer::outputVideo(SFgVideoFrame *data)
