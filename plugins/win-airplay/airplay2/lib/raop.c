@@ -1,4 +1,4 @@
-/**
+﻿/**
  *  Copyright (C) 2011-2012  Juho Vähä-Herttua
  *
  *  This library is free software; you can redistribute it and/or
@@ -29,10 +29,10 @@
 #include "logger.h"
 #include "compat.h"
 #include "raop_rtp_mirror.h"
-// #include <android/log.h>
+#include "raop_ntp.h"
 
 struct raop_s {
-	/* Callbacks for audio */
+	/* Callbacks for audio and video */
 	raop_callbacks_t callbacks;
 
 	/* Logger instance */
@@ -42,11 +42,14 @@ struct raop_s {
 	pairing_t *pairing;
 	httpd_t *httpd;
 
-    unsigned short port;
+	dnssd_t *dnssd;
+
+	unsigned short port;
 };
 
 struct raop_conn_s {
 	raop_t *raop;
+	raop_ntp_t *raop_ntp;
 	raop_rtp_t *raop_rtp;
 	raop_rtp_mirror_t *raop_rtp_mirror;
 	fairplay_t *fairplay;
@@ -57,14 +60,13 @@ struct raop_conn_s {
 
 	unsigned char *remote;
 	int remotelen;
-
 };
 typedef struct raop_conn_s raop_conn_t;
 
 #include "raop_handlers.h"
 
-static void *
-conn_init(void *opaque, unsigned char *local, int locallen, unsigned char *remote, int remotelen)
+static void *conn_init(void *opaque, unsigned char *local, int locallen,
+		       unsigned char *remote, int remotelen)
 {
 	raop_t *raop = opaque;
 	raop_conn_t *conn;
@@ -77,8 +79,9 @@ conn_init(void *opaque, unsigned char *local, int locallen, unsigned char *remot
 	}
 	conn->raop = raop;
 	conn->raop_rtp = NULL;
+	conn->raop_ntp = NULL;
 	conn->fairplay = fairplay_init(raop->logger);
-	//fairplay_init2();
+
 	if (!conn->fairplay) {
 		free(conn);
 		return NULL;
@@ -92,23 +95,29 @@ conn_init(void *opaque, unsigned char *local, int locallen, unsigned char *remot
 
 	if (locallen == 4) {
 		logger_log(conn->raop->logger, LOGGER_INFO,
-		           "Local: %d.%d.%d.%d",
-		           local[0], local[1], local[2], local[3]);
+			   "Local: %d.%d.%d.%d", local[0], local[1], local[2],
+			   local[3]);
 	} else if (locallen == 16) {
-		logger_log(conn->raop->logger, LOGGER_INFO,
-		           "Local: %02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x",
-		           local[0], local[1], local[2], local[3], local[4], local[5], local[6], local[7],
-		           local[8], local[9], local[10], local[11], local[12], local[13], local[14], local[15]);
+		logger_log(
+			conn->raop->logger, LOGGER_INFO,
+			"Local: %02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x",
+			local[0], local[1], local[2], local[3], local[4],
+			local[5], local[6], local[7], local[8], local[9],
+			local[10], local[11], local[12], local[13], local[14],
+			local[15]);
 	}
 	if (remotelen == 4) {
 		logger_log(conn->raop->logger, LOGGER_INFO,
-		           "Remote: %d.%d.%d.%d",
-		           remote[0], remote[1], remote[2], remote[3]);
+			   "Remote: %d.%d.%d.%d", remote[0], remote[1],
+			   remote[2], remote[3]);
 	} else if (remotelen == 16) {
-		logger_log(conn->raop->logger, LOGGER_INFO,
-		           "Remote: %02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x",
-		           remote[0], remote[1], remote[2], remote[3], remote[4], remote[5], remote[6], remote[7],
-		           remote[8], remote[9], remote[10], remote[11], remote[12], remote[13], remote[14], remote[15]);
+		logger_log(
+			conn->raop->logger, LOGGER_INFO,
+			"Remote: %02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x",
+			remote[0], remote[1], remote[2], remote[3], remote[4],
+			remote[5], remote[6], remote[7], remote[8], remote[9],
+			remote[10], remote[11], remote[12], remote[13],
+			remote[14], remote[15]);
 	}
 
 	conn->local = malloc(locallen);
@@ -122,14 +131,18 @@ conn_init(void *opaque, unsigned char *local, int locallen, unsigned char *remot
 	conn->locallen = locallen;
 	conn->remotelen = remotelen;
 
+	if (raop->callbacks.conn_init) {
+		raop->callbacks.conn_init(raop->callbacks.cls);
+	}
+
 	return conn;
 }
 
-static void
-conn_request(void *ptr, http_request_t *request, http_response_t **response)
+static void conn_request(void *ptr, http_request_t *request,
+			 http_response_t **response)
 {
 	raop_conn_t *conn = ptr;
-    logger_log(conn->raop->logger, LOGGER_DEBUG, "conn_request");
+	logger_log(conn->raop->logger, LOGGER_DEBUG, "conn_request");
 	const char *method;
 	const char *url;
 	const char *cseq;
@@ -150,7 +163,8 @@ conn_request(void *ptr, http_request_t *request, http_response_t **response)
 	//http_response_add_header(*response, "Apple-Jack-Status", "connected; type=analog");
 	http_response_add_header(*response, "Server", "AirTunes/220.68");
 
-	logger_log(conn->raop->logger, LOGGER_DEBUG, "Handling request %s with URL %s", method, url);
+	logger_log(conn->raop->logger, LOGGER_DEBUG,
+		   "Handling request %s with URL %s", method, url);
 	raop_handler_t handler = NULL;
 	if (!strcmp(method, "GET") && !strcmp(url, "/info")) {
 		handler = &raop_handler_info;
@@ -171,39 +185,42 @@ conn_request(void *ptr, http_request_t *request, http_response_t **response)
 	} else if (!strcmp(method, "POST") && !strcmp(url, "/feedback")) {
 		handler = &raop_handler_feedback;
 	} else if (!strcmp(method, "RECORD")) {
-        handler = &raop_handler_record;
+		handler = &raop_handler_record;
 	} else if (!strcmp(method, "FLUSH")) {
 		const char *rtpinfo;
 		int next_seq = -1;
 
 		rtpinfo = http_request_get_header(request, "RTP-Info");
 		if (rtpinfo) {
-			logger_log(conn->raop->logger, LOGGER_INFO, "Flush with RTP-Info: %s", rtpinfo);
+			logger_log(conn->raop->logger, LOGGER_DEBUG,
+				   "Flush with RTP-Info: %s", rtpinfo);
 			if (!strncmp(rtpinfo, "seq=", 4)) {
-				next_seq = strtol(rtpinfo+4, NULL, 10);
+				next_seq = strtol(rtpinfo + 4, NULL, 10);
 			}
 		}
 		if (conn->raop_rtp) {
 			raop_rtp_flush(conn->raop_rtp, next_seq);
 		} else {
-			logger_log(conn->raop->logger, LOGGER_WARNING, "RAOP not initialized at FLUSH");
+			logger_log(conn->raop->logger, LOGGER_WARNING,
+				   "RAOP not initialized at FLUSH");
 		}
 	} else if (!strcmp(method, "TEARDOWN")) {
-		handler = &raop_handler_teardown;
 		//http_response_add_header(*response, "Connection", "close");
-		//if (conn->raop_rtp) {
-		//	/* Destroy our RTP session */
-		//	raop_rtp_destroy(conn->raop_rtp);
-		//	conn->raop_rtp = NULL;
-		//}
-  //      if (conn->raop_rtp_mirror) {
-  //          /* Destroy our mirror session */
-  //          raop_rtp_mirror_destroy(conn->raop_rtp_mirror);
-  //          conn->raop_rtp_mirror = NULL;
-  //      }
+		if (conn->raop_rtp != NULL &&
+		    raop_rtp_is_running(conn->raop_rtp)) {
+			/* Destroy our RTP session */
+			raop_rtp_stop(conn->raop_rtp);
+		} else if (conn->raop_rtp_mirror) {
+			/* Destroy our sessions */
+			raop_rtp_destroy(conn->raop_rtp);
+			conn->raop_rtp = NULL;
+			raop_rtp_mirror_destroy(conn->raop_rtp_mirror);
+			conn->raop_rtp_mirror = NULL;
+		}
 	}
 	if (handler != NULL) {
-		handler(conn, request, *response, &response_data, &response_datalen);
+		handler(conn, request, *response, &response_data,
+			&response_datalen);
 	}
 	http_response_finish(*response, response_data, response_datalen);
 	if (response_data) {
@@ -213,19 +230,30 @@ conn_request(void *ptr, http_request_t *request, http_response_t **response)
 	}
 }
 
-static void
-conn_destroy(void *ptr)
+static void conn_destroy(void *ptr)
 {
 	raop_conn_t *conn = ptr;
 
+	logger_log(conn->raop->logger, LOGGER_INFO, "Destroying connection");
+
+	if (conn->raop->callbacks.conn_destroy) {
+		conn->raop->callbacks.conn_destroy(conn->raop->callbacks.cls);
+	}
+
+	if (conn->raop_ntp) {
+		raop_ntp_destroy(conn->raop_ntp);
+	}
 	if (conn->raop_rtp) {
 		/* This is done in case TEARDOWN was not called */
 		raop_rtp_destroy(conn->raop_rtp);
 	}
-    if (conn->raop_rtp_mirror) {
-        /* This is done in case TEARDOWN was not called */
-        raop_rtp_mirror_destroy(conn->raop_rtp_mirror);
-    }
+	if (conn->raop_rtp_mirror) {
+		/* This is done in case TEARDOWN was not called */
+		raop_rtp_mirror_destroy(conn->raop_rtp_mirror);
+	}
+
+	conn->raop->callbacks.video_flush(conn->raop->callbacks.cls);
+
 	free(conn->local);
 	free(conn->remote);
 	pairing_session_destroy(conn->pairing);
@@ -233,8 +261,7 @@ conn_destroy(void *ptr)
 	free(conn);
 }
 
-raop_t *
-raop_init(int max_clients, raop_callbacks_t *callbacks)
+raop_t *raop_init(int max_clients, raop_callbacks_t *callbacks)
 {
 	raop_t *raop;
 	pairing_t *pairing;
@@ -251,7 +278,7 @@ raop_init(int max_clients, raop_callbacks_t *callbacks)
 	}
 
 	/* Validate the callbacks structure */
-	if (!callbacks->audio_process) {
+	if (!callbacks->audio_process || !callbacks->video_process) {
 		return NULL;
 	}
 
@@ -290,12 +317,10 @@ raop_init(int max_clients, raop_callbacks_t *callbacks)
 	return raop;
 }
 
-void
-raop_destroy(raop_t *raop)
+void raop_destroy(raop_t *raop)
 {
 	if (raop) {
 		raop_stop(raop);
-
 		pairing_destroy(raop->pairing);
 		httpd_destroy(raop->httpd);
 		logger_destroy(raop->logger);
@@ -306,52 +331,47 @@ raop_destroy(raop_t *raop)
 	}
 }
 
-int
-raop_is_running(raop_t *raop)
+int raop_is_running(raop_t *raop)
 {
 	assert(raop);
 
 	return httpd_is_running(raop->httpd);
 }
 
-void
-raop_set_log_level(raop_t *raop, int level)
+void raop_set_log_level(raop_t *raop, int level)
 {
 	assert(raop);
 
 	logger_set_level(raop->logger, level);
 }
 
-void
-raop_set_port(raop_t *raop, unsigned short port)
+void raop_set_port(raop_t *raop, unsigned short port)
 {
-    assert(raop);
-    raop->port = port;
+	assert(raop);
+	raop->port = port;
 }
 
-unsigned short
-raop_get_port(raop_t *raop)
+unsigned short raop_get_port(raop_t *raop)
 {
-    assert(raop);
-    return raop->port;
+	assert(raop);
+	return raop->port;
 }
 
-void *
-raop_get_callback_cls(raop_t *raop)
+void *raop_get_callback_cls(raop_t *raop)
 {
-    assert(raop);
-    return raop->callbacks.cls;
+	assert(raop);
+	return raop->callbacks.cls;
 }
 
-void
-raop_set_log_callback(raop_t *raop, raop_log_callback_t callback, void *cls)
+void raop_set_log_callback(raop_t *raop, raop_log_callback_t callback,
+			   void *cls)
 {
 	assert(raop);
 
 	logger_set_callback(raop->logger, callback, cls);
 }
 
-void raop_log(raop_t* raop, int level, const char* fmt, ...)
+void raop_log(raop_t *raop, int level, const char *fmt, ...)
 {
 	static char buffer[4096];
 	va_list ap;
@@ -364,18 +384,21 @@ void raop_log(raop_t* raop, int level, const char* fmt, ...)
 	logger_log(raop->logger, level, buffer);
 }
 
-int
-raop_start(raop_t *raop, unsigned short *port)
+void raop_set_dnssd(raop_t *raop, dnssd_t *dnssd)
+{
+	assert(dnssd);
+	raop->dnssd = dnssd;
+}
+
+int raop_start(raop_t *raop, unsigned short *port)
 {
 	assert(raop);
 	assert(port);
 	return httpd_start(raop->httpd, port);
 }
 
-void
-raop_stop(raop_t *raop)
+void raop_stop(raop_t *raop)
 {
 	assert(raop);
 	httpd_stop(raop->httpd);
 }
-

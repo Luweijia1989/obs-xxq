@@ -11,23 +11,10 @@
 BOOL GetMacAddress(char strMac[6]);
 
 FgAirplayServer::FgAirplayServer()
-	: m_pCallback(NULL),
-	  m_pDnsSd(NULL),
-	  m_pAirplay(NULL),
-	  m_pRaop(NULL),
-	  m_fScaleRatio(1.0f)
+	: m_pCallback(NULL), m_pDnsSd(NULL), m_pRaop(NULL), m_fScaleRatio(1.0f)
 {
-	memset(&m_stAirplayCB, 0, sizeof(airplay_callbacks_t));
 	memset(&m_stRaopCB, 0, sizeof(raop_callbacks_t));
-	m_stAirplayCB.cls = this;
 	m_stRaopCB.cls = this;
-
-	// 	m_stAirplayCB.audio_init = audio_init;
-	// 	m_stAirplayCB.audio_process = audio_process_ap;
-	// 	m_stAirplayCB.audio_flush = audio_flush;
-	// 	m_stAirplayCB.audio_destroy = audio_destroy;
-	m_stAirplayCB.video_play = ap_video_play;
-	m_stAirplayCB.video_get_play_info = ap_video_get_play_info;
 
 	m_stRaopCB.connected = connected;
 	m_stRaopCB.disconnected = disconnected;
@@ -68,19 +55,6 @@ int FgAirplayServer::start(const char serverName[AIRPLAY_NAME_LEN],
 
 		GetMacAddress(hwaddr);
 
-		m_pAirplay = airplay_init(10, &m_stAirplayCB, pemstr, &ret);
-		if (m_pAirplay == NULL) {
-			ret = -1;
-			break;
-		}
-		ret = airplay_start(m_pAirplay, &airplay_port, hwaddr,
-				    sizeof(hwaddr), NULL);
-		if (ret < 0) {
-			break;
-		}
-		airplay_set_log_level(m_pAirplay, RAOP_LOG_DEBUG);
-		airplay_set_log_callback(m_pAirplay, &log_callback, this);
-
 		m_pRaop = raop_init(10, &m_stRaopCB);
 		if (m_pRaop == NULL) {
 			ret = -1;
@@ -95,18 +69,17 @@ int FgAirplayServer::start(const char serverName[AIRPLAY_NAME_LEN],
 		}
 		raop_set_port(m_pRaop, raop_port);
 
-		m_pDnsSd = dnssd_init(&ret);
+		m_pDnsSd = dnssd_init(serverName, strlen(serverName), hwaddr,
+				      sizeof(hwaddr), &ret);
 		if (m_pDnsSd == NULL) {
 			ret = -1;
 			break;
 		}
-		ret = dnssd_register_raop(m_pDnsSd, serverName, raop_port,
-					  hwaddr, sizeof(hwaddr), 0);
+		ret = dnssd_register_raop(m_pDnsSd, raop_port);
 		if (ret < 0) {
 			break;
 		}
-		ret = dnssd_register_airplay(m_pDnsSd, serverName, airplay_port,
-					     hwaddr, sizeof(hwaddr));
+		ret = dnssd_register_airplay(m_pDnsSd, airplay_port);
 		if (ret < 0) {
 			break;
 		}
@@ -135,12 +108,6 @@ void FgAirplayServer::stop()
 		raop_destroy(m_pRaop);
 		// 		raop_set_log_callback(m_pRaop, &log_callback, NULL);
 		m_pRaop = NULL;
-	}
-
-	if (m_pAirplay) {
-		airplay_destroy(m_pAirplay);
-		// 		airplay_set_log_callback(m_pAirplay, &log_callback, NULL);
-		m_pAirplay = NULL;
 	}
 
 	clearChannels();
@@ -245,7 +212,8 @@ void FgAirplayServer::audio_set_coverart(void *cls, void *session,
 // {
 // }
 
-void FgAirplayServer::audio_process(void *cls, pcm_data_struct *data,
+void FgAirplayServer::audio_process(void *cls, raop_ntp_t *ntp,
+				    aac_decode_struct *data,
 				    const char *remoteName,
 				    const char *remoteDeviceId)
 {
@@ -254,21 +222,21 @@ void FgAirplayServer::audio_process(void *cls, pcm_data_struct *data,
 		return;
 	}
 
-	if (pServer->m_pCallback != NULL) {
-		SFgAudioFrame *frame = new SFgAudioFrame();
-		frame->bitsPerSample = data->bits_per_sample;
-		frame->channels = data->channels;
-		frame->pts = data->pts;
-		frame->sampleRate = data->sample_rate;
-		frame->dataLen = data->data_len;
-		frame->data = new uint8_t[frame->dataLen];
-		memcpy(frame->data, data->data, frame->dataLen);
+	//if (pServer->m_pCallback != NULL) {
+	//	SFgAudioFrame *frame = new SFgAudioFrame();
+	//	frame->bitsPerSample = data->bits_per_sample;
+	//	frame->channels = data->channels;
+	//	frame->pts = data->pts;
+	//	frame->sampleRate = data->sample_rate;
+	//	frame->dataLen = data->data_len;
+	//	frame->data = new uint8_t[frame->dataLen];
+	//	memcpy(frame->data, data->data, frame->dataLen);
 
-		pServer->m_pCallback->outputAudio(frame, remoteName,
-						  remoteDeviceId);
-		delete[] frame->data;
-		delete frame;
-	}
+	//	pServer->m_pCallback->outputAudio(frame, remoteName,
+	//					  remoteDeviceId);
+	//	delete[] frame->data;
+	//	delete frame;
+	//}
 }
 
 void FgAirplayServer::audio_flush(void *cls, void *session,
@@ -283,7 +251,8 @@ void FgAirplayServer::audio_destroy(void *cls, void *session,
 {
 }
 
-void FgAirplayServer::video_process(void *cls, h264_decode_struct *h264data,
+void FgAirplayServer::video_process(void *cls, raop_ntp_t *ntp,
+				    h264_decode_struct *h264data,
 				    const char *remoteName,
 				    const char *remoteDeviceId)
 {
@@ -309,6 +278,7 @@ void FgAirplayServer::video_process(void *cls, h264_decode_struct *h264data,
 		pData->data = new uint8_t[pData->size];
 		memcpy(pData->data, h264data->data, h264data->data_len);
 	}
+	pData->pts = h264data->pts;
 
 	FgAirplayChannel *pChannel = NULL;
 	{

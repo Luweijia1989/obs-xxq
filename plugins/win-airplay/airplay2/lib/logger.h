@@ -15,6 +15,10 @@
 #ifndef LOGGER_H
 #define LOGGER_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /* Define syslog style log levels */
 #define LOGGER_EMERG       0       /* system is unusable */
 #define LOGGER_ALERT       1       /* action must be taken immediately */
@@ -37,25 +41,8 @@ void logger_set_callback(logger_t *logger, logger_callback_t callback, void *cls
 
 void logger_log(logger_t *logger, int level, const char *fmt, ...);
 
-// #include <stdlib.h>
-// #include <assert.h>
-// #include <stdio.h>
-// inline void* malloc(size_t len) {
-// 	void* v = malloc(len);
-// // 	printf("malloc: %d\n", (int)len);
-// 	return v;
-// }
-// 
-// inline void* calloc(size_t count, size_t len) {
-// 	void* v = calloc(count, len);
-// 	printf("calloc: %d\n", (int)count * len);
-// 	return v;
-// }
-// 
-// inline void* realloc(void* p, size_t len) {
-// 	void* v = realloc(p, len);
-// 	printf("realloc: %d\n", (int)len);
-// 	return v;
-// }
+#ifdef __cplusplus
+}
+#endif
 
 #endif

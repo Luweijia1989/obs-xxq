@@ -22,6 +22,21 @@
 #define set_encoder_active(encoder, val) \
 	os_atomic_set_bool(&encoder->active, val)
 
+static inline size_t
+get_callback_idx(const struct obs_encoder *encoder,
+		 void (*new_packet)(void *param, struct encoder_packet *packet),
+		 void *param)
+{
+	for (size_t i = 0; i < encoder->callbacks.num; i++) {
+		struct encoder_callback *cb = encoder->callbacks.array + i;
+
+		if (cb->new_packet == new_packet && cb->param == param)
+			return i;
+	}
+
+	return DARRAY_INVALID;
+}
+
 struct obs_encoder_info *find_encoder(const char *id)
 {
 	for (size_t i = 0; i < obs->encoder_types.num; i++) {
@@ -558,21 +573,6 @@ void obs_encoder_shutdown(obs_encoder_t *encoder)
 		encoder->start_ts = 0;
 	}
 	pthread_mutex_unlock(&encoder->init_mutex);
-}
-
-static inline size_t
-get_callback_idx(const struct obs_encoder *encoder,
-		 void (*new_packet)(void *param, struct encoder_packet *packet),
-		 void *param)
-{
-	for (size_t i = 0; i < encoder->callbacks.num; i++) {
-		struct encoder_callback *cb = encoder->callbacks.array + i;
-
-		if (cb->new_packet == new_packet && cb->param == param)
-			return i;
-	}
-
-	return DARRAY_INVALID;
 }
 
 void pause_reset(struct pause_data *pause)

@@ -1,4 +1,4 @@
-/**
+﻿/**
  *  Copyright (C) 2011-2012  Juho Vähä-Herttua
  *
  *  This library is free software; you can redistribute it and/or
@@ -21,6 +21,12 @@
 
 #define sleepms(x) Sleep(x)
 
+struct timezone
+{
+	__int32  tz_minuteswest; /* minutes W of Greenwich */
+	BOOL  tz_dsttime;     /* type of dst correction */
+};
+
 typedef HANDLE thread_handle_t;
 
 #define THREAD_RETVAL DWORD WINAPI
@@ -40,6 +46,7 @@ typedef HANDLE cond_handle_t;
 #define COND_SIGNAL(handle) if (handle != NULL) { SetEvent(handle); }
 #define COND_DESTROY(handle) if (handle != NULL) { CloseHandle(handle); handle = NULL;}
 
+int gettimeofday(struct timeval* tv/*in*/, struct timezone* tz/*in*/);
 int pthread_cond_timedwait(cond_handle_t* __cond, mutex_handle_t* __mutex, const struct timespec* __timeout);
 
 #else /* Use pthread library */

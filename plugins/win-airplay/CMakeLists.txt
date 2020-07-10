@@ -1,4 +1,4 @@
-project(win-airplay)
+﻿project(win-airplay)
 
 set(CMAKE_INCLUDE_CURRENT_DIR TRUE)
 
@@ -7,7 +7,6 @@ find_package(FFmpeg REQUIRED
 include_directories(${FFMPEG_INCLUDE_DIRS})
 
 include_directories(
-		${PROJECT_SOURCE_DIR}/airplay2/include
 		${PROJECT_SOURCE_DIR}/airplay2/lib
         )
 
@@ -21,7 +20,7 @@ set(win-airplay_SOURCES
 	CAirServerCallback.cpp
 	FgUtf8Utils.cpp
 )
-			
+			 
 set(win-airplay_HEADERS
 	airplay-server.h
 	Airplay2Def.h
@@ -43,7 +42,7 @@ add_library(win-airplay MODULE
 target_link_libraries(win-airplay
 	Ws2_32
 	Winmm
-	airplay2
+	airplay
 	libobs
 	${FFMPEG_LIBRARIES})
 

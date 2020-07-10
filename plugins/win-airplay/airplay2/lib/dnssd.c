@@ -1,4 +1,4 @@
-/**
+﻿/**
  *  Copyright (C) 2011-2012  Juho Vähä-Herttua
  *
  *  This library is free software; you can redistribute it and/or
@@ -12,7 +12,7 @@
  *  Lesser General Public License for more details.
  */
 
-/* These defines allow us to compile on iOS */
+ /* These defines allow us to compile on iOS */
 #ifndef __has_feature
 # define __has_feature(x) 0
 #endif
@@ -29,11 +29,13 @@
 #include "config.h"
 #endif
 
-#include "dnssd.h"
 #include "dnssdint.h"
+#include "dnssd.h"
 #include "global.h"
 #include "compat.h"
 #include "utils.h"
+
+//#include <dns_sd.h>
 
 #define MAX_DEVICEID 18
 #define MAX_SERVNAME 256
@@ -64,52 +66,52 @@ typedef uint32_t DNSServiceFlags;
 typedef int32_t  DNSServiceErrorType;
 
 typedef void (DNSSD_STDCALL *DNSServiceRegisterReply)
-    (
-    DNSServiceRef                       sdRef,
-    DNSServiceFlags                     flags,
-    DNSServiceErrorType                 errorCode,
-    const char                          *name,
-    const char                          *regtype,
-    const char                          *domain,
-    void                                *context
-    );
+(
+	DNSServiceRef                       sdRef,
+	DNSServiceFlags                     flags,
+	DNSServiceErrorType                 errorCode,
+	const char                          *name,
+	const char                          *regtype,
+	const char                          *domain,
+	void                                *context
+	);
 
 #else
-# include <dns_sd.h>
+//# include <dns_sd.h>
 # define DNSSD_STDCALL
 #endif
 
-typedef DNSServiceErrorType (DNSSD_STDCALL *DNSServiceRegister_t)
-    (
-    DNSServiceRef                       *sdRef,
-    DNSServiceFlags                     flags,
-    uint32_t                            interfaceIndex,
-    const char                          *name,
-    const char                          *regtype,
-    const char                          *domain,
-    const char                          *host,
-    uint16_t                            port,
-    uint16_t                            txtLen,
-    const void                          *txtRecord,
-    DNSServiceRegisterReply             callBack,
-    void                                *context
-    );
+typedef DNSServiceErrorType(DNSSD_STDCALL *DNSServiceRegister_t)
+(
+	DNSServiceRef                       *sdRef,
+	DNSServiceFlags                     flags,
+	uint32_t                            interfaceIndex,
+	const char                          *name,
+	const char                          *regtype,
+	const char                          *domain,
+	const char                          *host,
+	uint16_t                            port,
+	uint16_t                            txtLen,
+	const void                          *txtRecord,
+	DNSServiceRegisterReply             callBack,
+	void                                *context
+	);
 typedef void (DNSSD_STDCALL *DNSServiceRefDeallocate_t)(DNSServiceRef sdRef);
 typedef void (DNSSD_STDCALL *TXTRecordCreate_t)
-    (
-    TXTRecordRef     *txtRecord,
-    uint16_t         bufferLen,
-    void             *buffer
-    );
+(
+	TXTRecordRef     *txtRecord,
+	uint16_t         bufferLen,
+	void             *buffer
+	);
 typedef void (DNSSD_STDCALL *TXTRecordDeallocate_t)(TXTRecordRef *txtRecord);
-typedef DNSServiceErrorType (DNSSD_STDCALL *TXTRecordSetValue_t)
-    (
-    TXTRecordRef     *txtRecord,
-    const char       *key,
-    uint8_t          valueSize,
-    const void       *value
-    );
-typedef uint16_t (DNSSD_STDCALL *TXTRecordGetLength_t)(const TXTRecordRef *txtRecord);
+typedef DNSServiceErrorType(DNSSD_STDCALL *TXTRecordSetValue_t)
+(
+	TXTRecordRef     *txtRecord,
+	const char       *key,
+	uint8_t          valueSize,
+	const void       *value
+	);
+typedef uint16_t(DNSSD_STDCALL *TXTRecordGetLength_t)(const TXTRecordRef *txtRecord);
 typedef const void * (DNSSD_STDCALL *TXTRecordGetBytesPtr_t)(const TXTRecordRef *txtRecord);
 
 
@@ -128,14 +130,23 @@ struct dnssd_s {
 	TXTRecordGetBytesPtr_t     TXTRecordGetBytesPtr;
 	TXTRecordDeallocate_t      TXTRecordDeallocate;
 
-	DNSServiceRef raopService;
-	DNSServiceRef airplayService;
+	TXTRecordRef raop_record;
+	TXTRecordRef airplay_record;
+
+	DNSServiceRef raop_service;
+	DNSServiceRef airplay_service;
+
+	char *name;
+	int name_len;
+
+	char *hw_addr;
+	int hw_addr_len;
 };
 
 
 
 dnssd_t *
-dnssd_init(int *error)
+dnssd_init(const char* name, int name_len, const char* hw_addr, int hw_addr_len, int *error)
 {
 	dnssd_t *dnssd;
 
@@ -163,8 +174,8 @@ dnssd_init(int *error)
 	dnssd->TXTRecordDeallocate = (TXTRecordDeallocate_t)GetProcAddress(dnssd->module, "TXTRecordDeallocate");
 
 	if (!dnssd->DNSServiceRegister || !dnssd->DNSServiceRefDeallocate || !dnssd->TXTRecordCreate ||
-	    !dnssd->TXTRecordSetValue || !dnssd->TXTRecordGetLength || !dnssd->TXTRecordGetBytesPtr ||
-	    !dnssd->TXTRecordDeallocate) {
+		!dnssd->TXTRecordSetValue || !dnssd->TXTRecordGetLength || !dnssd->TXTRecordGetBytesPtr ||
+		!dnssd->TXTRecordDeallocate) {
 		if (error) *error = DNSSD_ERROR_PROCNOTFOUND;
 		FreeLibrary(dnssd->module);
 		free(dnssd);
@@ -186,8 +197,8 @@ dnssd_init(int *error)
 	dnssd->TXTRecordDeallocate = (TXTRecordDeallocate_t)dlsym(dnssd->module, "TXTRecordDeallocate");
 
 	if (!dnssd->DNSServiceRegister || !dnssd->DNSServiceRefDeallocate || !dnssd->TXTRecordCreate ||
-	    !dnssd->TXTRecordSetValue || !dnssd->TXTRecordGetLength || !dnssd->TXTRecordGetBytesPtr ||
-	    !dnssd->TXTRecordDeallocate) {
+		!dnssd->TXTRecordSetValue || !dnssd->TXTRecordGetLength || !dnssd->TXTRecordGetBytesPtr ||
+		!dnssd->TXTRecordDeallocate) {
 		if (error) *error = DNSSD_ERROR_PROCNOTFOUND;
 		dlclose(dnssd->module);
 		free(dnssd);
@@ -202,6 +213,26 @@ dnssd_init(int *error)
 	dnssd->TXTRecordGetBytesPtr = &TXTRecordGetBytesPtr;
 	dnssd->TXTRecordDeallocate = &TXTRecordDeallocate;
 #endif
+
+	dnssd->name_len = name_len;
+	dnssd->name = calloc(1, name_len + 1);
+	if (!dnssd->name) {
+		free(dnssd);
+		if (error) *error = DNSSD_ERROR_OUTOFMEM;
+		return NULL;
+	}
+	memcpy(dnssd->name, name, name_len);
+
+	dnssd->hw_addr_len = hw_addr_len;
+	dnssd->hw_addr = calloc(1, dnssd->hw_addr_len);
+	if (!dnssd->hw_addr) {
+		free(dnssd->name);
+		free(dnssd);
+		if (error) *error = DNSSD_ERROR_OUTOFMEM;
+		return NULL;
+	}
+
+	memcpy(dnssd->hw_addr, hw_addr, hw_addr_len);
 
 	return dnssd;
 }
@@ -218,134 +249,118 @@ dnssd_destroy(dnssd_t *dnssd)
 		free(dnssd);
 	}
 }
-static void __stdcall MyRegisterServiceReply
-(
-	DNSServiceRef                       sdRef,
-	DNSServiceFlags                     flags,
-	DNSServiceErrorType                 errorCode,
-	const char* name,
-	const char* regtype,
-	const char* domain,
-	void* context
-)
-{
-}
 
 int
-dnssd_register_raop(dnssd_t *dnssd, const char *name, unsigned short port, const char *hwaddr, int hwaddrlen, int password)
+dnssd_register_raop(dnssd_t *dnssd, unsigned short port)
 {
-	TXTRecordRef txtRecord;
 	char servname[MAX_SERVNAME];
-	int ret;
 
 	assert(dnssd);
-	assert(name);
-	assert(hwaddr);
 
-	dnssd->TXTRecordCreate(&txtRecord, 0, NULL);
-	dnssd->TXTRecordSetValue(&txtRecord, "txtvers", strlen(RAOP_TXTVERS), RAOP_TXTVERS);
-	dnssd->TXTRecordSetValue(&txtRecord, "ch", strlen(RAOP_CH), RAOP_CH);
-	dnssd->TXTRecordSetValue(&txtRecord, "cn", strlen(RAOP_CN), RAOP_CN);
-	dnssd->TXTRecordSetValue(&txtRecord, "et", strlen(RAOP_ET), RAOP_ET);
-	dnssd->TXTRecordSetValue(&txtRecord, "sv", strlen(RAOP_SV), RAOP_SV);
-	dnssd->TXTRecordSetValue(&txtRecord, "da", strlen(RAOP_DA), RAOP_DA);
-	dnssd->TXTRecordSetValue(&txtRecord, "sr", strlen(RAOP_SR), RAOP_SR);
-	dnssd->TXTRecordSetValue(&txtRecord, "ss", strlen(RAOP_SS), RAOP_SS);
-	if (password) {
-		dnssd->TXTRecordSetValue(&txtRecord, "pw", strlen("true"), "true");
-	} else {
-		dnssd->TXTRecordSetValue(&txtRecord, "pw", strlen("false"), "false");
-	}
-	dnssd->TXTRecordSetValue(&txtRecord, "vn", strlen(RAOP_VN), RAOP_VN);
-	dnssd->TXTRecordSetValue(&txtRecord, "tp", strlen(RAOP_TP), RAOP_TP);
-	dnssd->TXTRecordSetValue(&txtRecord, "md", strlen(RAOP_MD), RAOP_MD);
-	dnssd->TXTRecordSetValue(&txtRecord, "vs", strlen(GLOBAL_VERSION), GLOBAL_VERSION);
-	dnssd->TXTRecordSetValue(&txtRecord, "sm", strlen(RAOP_SM), RAOP_SM);
-	dnssd->TXTRecordSetValue(&txtRecord, "ek", strlen(RAOP_EK), RAOP_EK);
-	dnssd->TXTRecordSetValue(&txtRecord, "sf", strlen(RAOP_SF), RAOP_SF);
-	dnssd->TXTRecordSetValue(&txtRecord, "am", strlen(GLOBAL_MODEL), GLOBAL_MODEL);
+	dnssd->TXTRecordCreate(&dnssd->raop_record, 0, NULL);
+	dnssd->TXTRecordSetValue(&dnssd->raop_record, "ch", strlen(RAOP_CH), RAOP_CH);
+	dnssd->TXTRecordSetValue(&dnssd->raop_record, "cn", strlen(RAOP_CN), RAOP_CN);
+	dnssd->TXTRecordSetValue(&dnssd->raop_record, "da", strlen(RAOP_DA), RAOP_DA);
+	dnssd->TXTRecordSetValue(&dnssd->raop_record, "et", strlen(RAOP_ET), RAOP_ET);
+	dnssd->TXTRecordSetValue(&dnssd->raop_record, "vv", strlen(RAOP_VV), RAOP_VV);
+	dnssd->TXTRecordSetValue(&dnssd->raop_record, "ft", strlen(RAOP_FT), RAOP_FT);
+	dnssd->TXTRecordSetValue(&dnssd->raop_record, "am", strlen(GLOBAL_MODEL), GLOBAL_MODEL);
+	dnssd->TXTRecordSetValue(&dnssd->raop_record, "md", strlen(RAOP_MD), RAOP_MD);
+	dnssd->TXTRecordSetValue(&dnssd->raop_record, "rhd", strlen(RAOP_RHD), RAOP_RHD);
+	dnssd->TXTRecordSetValue(&dnssd->raop_record, "pw", strlen("false"), "false");
+	dnssd->TXTRecordSetValue(&dnssd->raop_record, "sr", strlen(RAOP_SR), RAOP_SR);
+	dnssd->TXTRecordSetValue(&dnssd->raop_record, "ss", strlen(RAOP_SS), RAOP_SS);
+	dnssd->TXTRecordSetValue(&dnssd->raop_record, "sv", strlen(RAOP_SV), RAOP_SV);
+	dnssd->TXTRecordSetValue(&dnssd->raop_record, "tp", strlen(RAOP_TP), RAOP_TP);
+	dnssd->TXTRecordSetValue(&dnssd->raop_record, "txtvers", strlen(RAOP_TXTVERS), RAOP_TXTVERS);
+	dnssd->TXTRecordSetValue(&dnssd->raop_record, "sf", strlen(RAOP_SF), RAOP_SF);
+	dnssd->TXTRecordSetValue(&dnssd->raop_record, "vs", strlen(RAOP_VS), RAOP_VS);
+	dnssd->TXTRecordSetValue(&dnssd->raop_record, "vn", strlen(RAOP_VN), RAOP_VN);
+	dnssd->TXTRecordSetValue(&dnssd->raop_record, "pk", strlen(RAOP_PK), RAOP_PK);
 
 	/* Convert hardware address to string */
-	ret = utils_hwaddr_raop(servname, sizeof(servname), hwaddr, hwaddrlen);
-	if (ret < 0) {
+	if (utils_hwaddr_raop(servname, sizeof(servname), dnssd->hw_addr, dnssd->hw_addr_len) < 0) {
 		/* FIXME: handle better */
 		return -1;
 	}
 
 	/* Check that we have bytes for 'hw@name' format */
-	if (sizeof(servname) < strlen(servname)+1+strlen(name)+1) {
+	if (sizeof(servname) < strlen(servname) + 1 + dnssd->name_len + 1) {
 		/* FIXME: handle better */
 		return -2;
 	}
 
-	strncat(servname, "@", sizeof(servname)-strlen(servname)-1);
-	strncat(servname, name, sizeof(servname)-strlen(servname)-1);
+	strncat(servname, "@", sizeof(servname) - strlen(servname) - 1);
+	strncat(servname, dnssd->name, sizeof(servname) - strlen(servname) - 1);
 
-//	int len = dnssd->TXTRecordGetLength(&txtRecord) + 1;
-//	char* txt = malloc(len);
-//	txt[len - 1] = '\0';
-//	memcpy(txt, dnssd->TXTRecordGetBytesPtr(&txtRecord), len);
 	/* Register the service */
-	ret = dnssd->DNSServiceRegister(&dnssd->raopService, 0, 0,
-	                          servname, "_raop._tcp",
-	                          NULL, NULL,
-	                          htons(port),
-	                          dnssd->TXTRecordGetLength(&txtRecord),
-	                          dnssd->TXTRecordGetBytesPtr(&txtRecord),
-		MyRegisterServiceReply, NULL);
+	dnssd->DNSServiceRegister(&dnssd->raop_service, 0, 0,
+		servname, "_raop._tcp",
+		NULL, NULL,
+		htons(port),
+		dnssd->TXTRecordGetLength(&dnssd->raop_record),
+		dnssd->TXTRecordGetBytesPtr(&dnssd->raop_record),
+		NULL, NULL);
 
-	/* Deallocate TXT record */
-	dnssd->TXTRecordDeallocate(&txtRecord);
+
 	return 1;
 }
 
 int
-dnssd_register_airplay(dnssd_t *dnssd, const char *name, unsigned short port, const char *hwaddr, int hwaddrlen)
+dnssd_register_airplay(dnssd_t *dnssd, unsigned short port)
 {
-	TXTRecordRef txtRecord;
-	char deviceid[3*MAX_HWADDR_LEN];
-	char features[16];
-	int ret;
+	char device_id[3 * MAX_HWADDR_LEN];
 
 	assert(dnssd);
-	assert(name);
-	assert(hwaddr);
 
 	/* Convert hardware address to string */
-	ret = utils_hwaddr_airplay(deviceid, sizeof(deviceid), hwaddr, hwaddrlen);
-	if (ret < 0) {
+	if (utils_hwaddr_airplay(device_id, sizeof(device_id), dnssd->hw_addr, dnssd->hw_addr_len) < 0) {
 		/* FIXME: handle better */
 		return -1;
 	}
 
-	features[sizeof(features)-1] = '\0';
-	snprintf(features, sizeof(features)-1, "0x%x", GLOBAL_FEATURES);
 
-	dnssd->TXTRecordCreate(&txtRecord, 0, NULL);
-	dnssd->TXTRecordSetValue(&txtRecord, "srcvers", strlen(GLOBAL_VERSION), GLOBAL_VERSION);
-	dnssd->TXTRecordSetValue(&txtRecord, "deviceid", strlen(deviceid), deviceid);
-	dnssd->TXTRecordSetValue(&txtRecord, "features", strlen("0x5A7FFFF7, 0x1E"), "0x5A7FFFF7,0x1E");
-	dnssd->TXTRecordSetValue(&txtRecord, "model", strlen(GLOBAL_MODEL), GLOBAL_MODEL);
-	dnssd->TXTRecordSetValue(&txtRecord, "flags", strlen(RAOP_SF), RAOP_SF);
-	dnssd->TXTRecordSetValue(&txtRecord, "vv", strlen(RAOP_VV), RAOP_VV);
-
-//	int len = dnssd->TXTRecordGetLength(&txtRecord) + 1;
-//	char* txt = malloc(len);
-//	txt[len - 1] = '\0';
-//	memcpy(txt, dnssd->TXTRecordGetBytesPtr(&txtRecord), len);
+	dnssd->TXTRecordCreate(&dnssd->airplay_record, 0, NULL);
+	dnssd->TXTRecordSetValue(&dnssd->airplay_record, "deviceid", strlen(device_id), device_id);
+	dnssd->TXTRecordSetValue(&dnssd->airplay_record, "features", strlen(AIRPLAY_FEATURES), AIRPLAY_FEATURES);
+	dnssd->TXTRecordSetValue(&dnssd->airplay_record, "flags", strlen(AIRPLAY_FLAGS), AIRPLAY_FLAGS);
+	dnssd->TXTRecordSetValue(&dnssd->airplay_record, "model", strlen(GLOBAL_MODEL), GLOBAL_MODEL);
+	dnssd->TXTRecordSetValue(&dnssd->airplay_record, "pk", strlen(AIRPLAY_PK), AIRPLAY_PK);
+	dnssd->TXTRecordSetValue(&dnssd->airplay_record, "pi", strlen(AIRPLAY_PI), AIRPLAY_PI);
+	dnssd->TXTRecordSetValue(&dnssd->airplay_record, "srcvers", strlen(AIRPLAY_SRCVERS), AIRPLAY_SRCVERS);
+	dnssd->TXTRecordSetValue(&dnssd->airplay_record, "vv", strlen(AIRPLAY_VV), AIRPLAY_VV);
 
 	/* Register the service */
-	ret = dnssd->DNSServiceRegister(&dnssd->airplayService, 0, 0,
-	                          name, "_airplay._tcp",
-	                          NULL, NULL,
-	                          htons(port),
-	                          dnssd->TXTRecordGetLength(&txtRecord),
-	                          dnssd->TXTRecordGetBytesPtr(&txtRecord),
-	                          MyRegisterServiceReply, NULL);
+	dnssd->DNSServiceRegister(&dnssd->airplay_service, 0, 0,
+		dnssd->name, "_airplay._tcp",
+		NULL, NULL,
+		htons(port),
+		dnssd->TXTRecordGetLength(&dnssd->airplay_record),
+		dnssd->TXTRecordGetBytesPtr(&dnssd->airplay_record),
+		NULL, NULL);
 
-	/* Deallocate TXT record */
-	dnssd->TXTRecordDeallocate(&txtRecord);
-	return 0;
+	return 1;
+}
+
+const char *
+dnssd_get_airplay_txt(dnssd_t *dnssd, int *length)
+{
+	*length = dnssd->TXTRecordGetLength(&dnssd->airplay_record);
+	return dnssd->TXTRecordGetBytesPtr(&dnssd->airplay_record);
+}
+
+const char *
+dnssd_get_name(dnssd_t *dnssd, int *length)
+{
+	*length = dnssd->name_len;
+	return dnssd->name;
+}
+
+const char *
+dnssd_get_hw_addr(dnssd_t *dnssd, int *length)
+{
+	*length = dnssd->hw_addr_len;
+	return dnssd->hw_addr;
 }
 
 void
@@ -353,12 +368,20 @@ dnssd_unregister_raop(dnssd_t *dnssd)
 {
 	assert(dnssd);
 
-	if (!dnssd->raopService) {
+	if (!dnssd->raop_service) {
 		return;
 	}
 
-	dnssd->DNSServiceRefDeallocate(dnssd->raopService);
-	dnssd->raopService = NULL;
+	/* Deallocate TXT record */
+	dnssd->TXTRecordDeallocate(&dnssd->raop_record);
+
+	dnssd->DNSServiceRefDeallocate(dnssd->raop_service);
+	dnssd->raop_service = NULL;
+
+	if (dnssd->airplay_service == NULL) {
+		free(dnssd->name);
+		free(dnssd->hw_addr);
+	}
 }
 
 void
@@ -366,10 +389,18 @@ dnssd_unregister_airplay(dnssd_t *dnssd)
 {
 	assert(dnssd);
 
-	if (!dnssd->airplayService) {
+	if (!dnssd->airplay_service) {
 		return;
 	}
 
-	dnssd->DNSServiceRefDeallocate(dnssd->airplayService);
-	dnssd->airplayService = NULL;
+	/* Deallocate TXT record */
+	dnssd->TXTRecordDeallocate(&dnssd->airplay_record);
+
+	dnssd->DNSServiceRefDeallocate(dnssd->airplay_service);
+	dnssd->airplay_service = NULL;
+
+	if (dnssd->raop_service == NULL) {
+		free(dnssd->name);
+		free(dnssd->hw_addr);
+	}
 }
