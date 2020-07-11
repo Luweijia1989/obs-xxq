@@ -36,7 +36,7 @@ typedef struct {
 typedef struct {
 	unsigned short *data;
 	int data_len;
-	unsigned int pts;
+	uint64_t pts;
 	uint32_t sample_rate;
 	uint16_t channels;
 	uint16_t bits_per_sample;

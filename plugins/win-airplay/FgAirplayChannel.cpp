@@ -142,7 +142,7 @@ int FgAirplayChannel::decodeH264Data(SFgH264Data *data, const char *remoteName,
 
 		m_sVideoFrameOri.width = pFrame->width;
 		m_sVideoFrameOri.height = pFrame->height;
-		m_sVideoFrameOri.pts = data->pts;
+		m_sVideoFrameOri.pts = data->pts / 1000;
 		m_sVideoFrameOri.isKey = pFrame->key_frame;
 		int ySize = pFrame->linesize[0] * pFrame->height;
 		int uSize = pFrame->linesize[1] * pFrame->height >> 1;

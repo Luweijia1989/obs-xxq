@@ -578,22 +578,30 @@ static THREAD_RETVAL raop_rtp_thread_udp(void *arg)
 				assert(result >= 0);
 
 				// Render continuous buffer entries
-				void *payload = NULL;
-				unsigned int payload_size;
+				void *audiobuf = NULL;
+				size_t audiobuf_size;
 				uint64_t timestamp;
-				while ((payload = raop_buffer_dequeue(
-						raop_rtp->buffer, &payload_size,
-						&timestamp, no_resend))) {
-					aac_decode_struct aac_data;
-					aac_data.data_len = payload_size;
-					aac_data.data = payload;
-					aac_data.pts = timestamp;
+				uint32_t sample_rate = 0;
+				uint16_t channels = 0;
+				uint16_t bits_per_sample = 0;
+				while ((audiobuf = raop_buffer_dequeue(
+						raop_rtp->buffer,
+						&audiobuf_size, &timestamp,
+						no_resend, &sample_rate,
+						&channels, &bits_per_sample))) {
+					pcm_data_struct pcm_data;
+					pcm_data.data_len = audiobuf_size;
+					pcm_data.data = audiobuf;
+					pcm_data.pts = timestamp / 1000;
+					pcm_data.sample_rate = sample_rate;
+					pcm_data.channels = channels;
+					pcm_data.bits_per_sample =
+						bits_per_sample;
 					raop_rtp->callbacks.audio_process(
 						raop_rtp->callbacks.cls,
-						raop_rtp->ntp, &aac_data,
+						raop_rtp->ntp, &pcm_data,
 						raop_rtp->remoteName,
 						raop_rtp->remoteDeviceId);
-					free(payload);
 				}
 
 				/* Handle possible resend requests */

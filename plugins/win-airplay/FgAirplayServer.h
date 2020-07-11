@@ -43,8 +43,7 @@ protected:
 				       const char *remoteDeviceId);
 	// 	static void audio_process_ap(void* cls, void* session, const void* buffer, int buflen);
 	static void audio_process(void *cls, raop_ntp_t *ntp,
-				  aac_decode_struct *data,
-				  const char *remoteName,
+				  pcm_data_struct *data, const char *remoteName,
 				  const char *remoteDeviceId);
 	static void audio_flush(void *cls, void *session,
 				const char *remoteName,

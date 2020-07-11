@@ -47,8 +47,8 @@ struct raop_callbacks_s {
 			  const char *remoteDeviceId);
 	void (*disconnected)(void *cls, const char *remoteName,
 			     const char *remoteDeviceId);
-	void (*audio_process)(void *cls, raop_ntp_t *ntp,
-			      aac_decode_struct *data, const char *remoteName,
+	void (*audio_process)(void *cls, raop_ntp_t *ntp, pcm_data_struct *data,
+			      const char *remoteName,
 			      const char *remoteDeviceId);
 	void (*video_process)(void *cls, raop_ntp_t *ntp,
 			      h264_decode_struct *data, const char *remoteName,

@@ -244,6 +244,28 @@ static THREAD_RETVAL raop_rtp_mirror_thread(void *arg)
 			}
 
 			// We're calling recv for a certain amount of data, so we need a timeout
+#if defined(WIN32)
+			struct timeval tv;
+			tv.tv_sec = 0;
+			tv.tv_usec = 5000;
+			if (setsockopt(stream_fd, SOL_SOCKET, SO_RCVTIMEO, &tv,
+				       sizeof(tv)) != 0) {
+				logger_log(
+					raop_rtp_mirror->logger, LOGGER_ERR,
+					"raop_rtp_mirror could not set stream socket timeout %d %s",
+					errno, strerror(errno));
+				break;
+			}
+			int option;
+			option = 1;
+			if (setsockopt(stream_fd, SOL_SOCKET, SO_KEEPALIVE,
+				       &option, sizeof(option)) != 0) {
+				logger_log(
+					raop_rtp_mirror->logger, LOGGER_WARNING,
+					"raop_rtp_mirror could not set stream socket keepalive %d %s",
+					errno, strerror(errno));
+			}
+#else
 			struct timeval tv;
 			tv.tv_sec = 0;
 			tv.tv_usec = 5000;
@@ -264,7 +286,6 @@ static THREAD_RETVAL raop_rtp_mirror_thread(void *arg)
 					"raop_rtp_mirror could not set stream socket keepalive %d %s",
 					errno, strerror(errno));
 			}
-#ifndef WIN32
 			option = 60;
 			if (setsockopt(stream_fd, SOL_TCP, TCP_KEEPIDLE,
 				       &option, sizeof(option)) < 0) {
@@ -289,7 +310,7 @@ static THREAD_RETVAL raop_rtp_mirror_thread(void *arg)
 					"raop_rtp_mirror could not set stream socket keepalive probes %d %s",
 					errno, strerror(errno));
 			}
-#endif // !
+#endif
 			readstart = 0;
 		}
 

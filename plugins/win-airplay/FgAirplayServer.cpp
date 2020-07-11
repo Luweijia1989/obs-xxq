@@ -213,7 +213,7 @@ void FgAirplayServer::audio_set_coverart(void *cls, void *session,
 // }
 
 void FgAirplayServer::audio_process(void *cls, raop_ntp_t *ntp,
-				    aac_decode_struct *data,
+				    pcm_data_struct *data,
 				    const char *remoteName,
 				    const char *remoteDeviceId)
 {

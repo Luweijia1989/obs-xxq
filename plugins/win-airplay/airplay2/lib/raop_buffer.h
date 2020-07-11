@@ -1,4 +1,4 @@
-/**
+﻿/**
  *  Copyright (C) 2011-2012  Juho Vähä-Herttua
  *
  *  This library is free software; you can redistribute it and/or
@@ -20,19 +20,26 @@
 
 typedef struct raop_buffer_s raop_buffer_t;
 
-typedef int (*raop_resend_cb_t)(void *opaque, unsigned short seqno, unsigned short count);
+typedef int (*raop_resend_cb_t)(void *opaque, unsigned short seqno,
+				unsigned short count);
 
-raop_buffer_t *raop_buffer_init(logger_t *logger,
-                                const unsigned char *aeskey,
-                                const unsigned char *aesiv,
-                                const unsigned char *ecdh_secret);
-int raop_buffer_enqueue(raop_buffer_t *raop_buffer, unsigned char *data, unsigned short datalen, uint64_t timestamp, int use_seqnum);
-void *raop_buffer_dequeue(raop_buffer_t *raop_buffer, unsigned int *length, uint64_t *timestamp, int no_resend);
-void raop_buffer_handle_resends(raop_buffer_t *raop_buffer, raop_resend_cb_t resend_cb, void *opaque);
+raop_buffer_t *raop_buffer_init(logger_t *logger, const unsigned char *aeskey,
+				const unsigned char *aesiv,
+				const unsigned char *ecdh_secret);
+int raop_buffer_enqueue(raop_buffer_t *raop_buffer, unsigned char *data,
+			unsigned short datalen, uint64_t timestamp,
+			int use_seqnum);
+void *raop_buffer_dequeue(raop_buffer_t *raop_buffer, unsigned int *length,
+			  uint64_t *timestamp, int no_resend,
+			  uint32_t *sample_rate, uint16_t *channels,
+			  uint16_t *bits_per_sample);
+void raop_buffer_handle_resends(raop_buffer_t *raop_buffer,
+				raop_resend_cb_t resend_cb, void *opaque);
 void raop_buffer_flush(raop_buffer_t *raop_buffer, int next_seq);
 
-int raop_buffer_decrypt(raop_buffer_t *raop_buffer, unsigned char *data, unsigned char* output,
-                        unsigned int datalen, unsigned int *outputlen);
+int raop_buffer_decrypt(raop_buffer_t *raop_buffer, unsigned char *data,
+			unsigned char *output, unsigned int datalen,
+			unsigned int *outputlen);
 void raop_buffer_destroy(raop_buffer_t *raop_buffer);
 
 #endif

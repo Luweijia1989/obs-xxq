@@ -24,6 +24,7 @@ AirPlayServer::~AirPlayServer()
 
 void AirPlayServer::outputVideo(SFgVideoFrame *data)
 {
+	lastPts = data->pts;
 	if (data->pitch[0] != m_videoFrame.width ||
 	    data->height != m_videoFrame.height) {
 
@@ -62,6 +63,7 @@ void AirPlayServer::outputVideo(SFgVideoFrame *data)
 
 void AirPlayServer::outputAudio(SFgAudioFrame *data)
 {
+	blog(LOG_INFO, "=================%lld", data->pts - lastPts);
 	m_audioFrame.format = AUDIO_FORMAT_16BIT;
 	m_audioFrame.samples_per_sec = data->sampleRate;
 	m_audioFrame.speakers = data->channels == 2 ? SPEAKERS_STEREO

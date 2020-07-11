@@ -18,4 +18,5 @@ private:
 	CAirServer m_server;
 	obs_source_audio m_audioFrame;
 	obs_source_frame2 m_videoFrame;
+	long long lastPts = 0;
 };

@@ -27,11 +27,19 @@
 #include "compat.h"
 #include "stream.h"
 
+#ifndef FIXP_SGL
+typedef SHORT FIXP_SGL;
+#endif
 #include "fdk-aac/libAACdec/include/aacdecoder_lib.h"
 #include "fdk-aac/libFDK/include/clz.h"
 #include "fdk-aac/libSYS/include/FDK_audio.h"
 
 #define RAOP_BUFFER_LENGTH 32
+
+static int fdk_flags = 0;
+/* period size 480 samples */
+#define N_SAMPLE 480
+static int pcm_pkt_size = 4 * N_SAMPLE;
 
 typedef struct {
 	/* Data available */
@@ -41,9 +49,13 @@ typedef struct {
 	unsigned short seqnum;
 	uint64_t timestamp;
 
-	/* Payload data */
-	unsigned int payload_size;
-	void *payload_data;
+	uint32_t sample_rate;
+	uint16_t channels;
+	uint16_t bits_per_sample;
+
+	size_t audio_buffer_size;
+	size_t audio_buffer_len;
+	uint8_t *audio_buffer;
 } raop_buffer_entry_t;
 
 struct raop_buffer_s {
@@ -59,7 +71,82 @@ struct raop_buffer_s {
 
 	/* RTP buffer entries */
 	raop_buffer_entry_t entries[RAOP_BUFFER_LENGTH];
+
+	HANDLE_AACDECODER aacdecoder_handler;
+
+	/* Buffer for all decoded data */
+	size_t total_pcm_buffer_size;
+	uint8_t *pcm_buffer;
 };
+
+HANDLE_AACDECODER
+create_fdk_aac_decoder(logger_t *logger)
+{
+	int ret = 0;
+	UINT nrOfLayers = 1;
+	HANDLE_AACDECODER phandle = aacDecoder_Open(TT_MP4_RAW, nrOfLayers);
+	if (phandle == NULL) {
+		logger_log(logger, LOGGER_DEBUG, "aacDecoder open faild!\n");
+		return NULL;
+	}
+	/* ASC config binary data */
+	UCHAR eld_conf[] = {0xF8, 0xE8, 0x50, 0x00};
+	UCHAR *conf[] = {eld_conf};
+	static UINT conf_len = sizeof(eld_conf);
+	ret = aacDecoder_ConfigRaw(phandle, conf, &conf_len);
+	if (ret != AAC_DEC_OK) {
+		logger_log(logger, LOGGER_DEBUG, "Unable to set configRaw\n");
+		return NULL;
+	}
+	CStreamInfo *aac_stream_info = aacDecoder_GetStreamInfo(phandle);
+	if (aac_stream_info == NULL) {
+		logger_log(logger, LOGGER_DEBUG,
+			   "aacDecoder_GetStreamInfo failed!\n");
+		return NULL;
+	}
+	logger_log(
+		logger, LOGGER_DEBUG,
+		"> stream info: channel = %d\tsample_rate = %d\tframe_size = %d\taot = %d\tbitrate = %d\n",
+		aac_stream_info->channelConfig, aac_stream_info->aacSampleRate,
+		aac_stream_info->aacSamplesPerFrame, aac_stream_info->aot,
+		aac_stream_info->bitRate);
+	return phandle;
+}
+
+void fdk_aac_decode(raop_buffer_t *raop_buffer, raop_buffer_entry_t *entry,
+		    uint8_t *pcm_data, size_t pcm_size)
+{
+	int ret = 0;
+	int pkt_size = pcm_size;
+	UINT valid_size = pcm_size;
+	UCHAR *input_buf[1] = {pcm_data};
+	ret = aacDecoder_Fill(raop_buffer->aacdecoder_handler, input_buf,
+			      &pkt_size, &valid_size);
+	if (ret != AAC_DEC_OK) {
+		logger_log(raop_buffer->logger, LOGGER_ERR,
+			   "aacDecoder_Fill error : %x", ret);
+	}
+	ret = aacDecoder_DecodeFrame(raop_buffer->aacdecoder_handler,
+				     entry->audio_buffer, pcm_pkt_size,
+				     fdk_flags);
+	entry->audio_buffer_len = pcm_pkt_size;
+	if (ret != AAC_DEC_OK) {
+		logger_log(raop_buffer->logger, LOGGER_ERR,
+			   "aacDecoder_DecodeFrame error : 0x%x", ret);
+	}
+
+	CStreamInfo *streamInfo =
+		aacDecoder_GetStreamInfo(raop_buffer->aacdecoder_handler);
+	if (streamInfo != NULL) {
+		entry->sample_rate = streamInfo->sampleRate;
+		entry->channels = streamInfo->numChannels;
+		if (entry->channels != 0 && streamInfo->frameSize != 0) {
+			entry->bits_per_sample =
+				pcm_pkt_size * 8 /
+				(streamInfo->frameSize * entry->channels);
+		}
+	}
+}
 
 void raop_buffer_init_key_iv(raop_buffer_t *raop_buffer,
 			     const unsigned char *aeskey,
@@ -101,13 +188,31 @@ raop_buffer_t *raop_buffer_init(logger_t *logger, const unsigned char *aeskey,
 	if (!raop_buffer) {
 		return NULL;
 	}
+
+	raop_buffer->aacdecoder_handler = create_fdk_aac_decoder(logger);
+
 	raop_buffer->logger = logger;
 	raop_buffer_init_key_iv(raop_buffer, aeskey, aesiv, ecdh_secret);
 
+	// samples * channels * s16
+	size_t one_frame_pcm_size = N_SAMPLE * 2 * 2;
+	raop_buffer->total_pcm_buffer_size =
+		one_frame_pcm_size * RAOP_BUFFER_LENGTH;
+	raop_buffer->pcm_buffer =
+		(uint8_t *)malloc(raop_buffer->total_pcm_buffer_size);
+	if (!raop_buffer->pcm_buffer) {
+		if (raop_buffer->aacdecoder_handler)
+			aacDecoder_Close(raop_buffer->aacdecoder_handler);
+		free(raop_buffer);
+		return NULL;
+	}
+
 	for (int i = 0; i < RAOP_BUFFER_LENGTH; i++) {
 		raop_buffer_entry_t *entry = &raop_buffer->entries[i];
-		entry->payload_data = NULL;
-		entry->payload_size = 0;
+		entry->audio_buffer_size = one_frame_pcm_size;
+		entry->audio_buffer_len = 0;
+		entry->audio_buffer =
+			raop_buffer->pcm_buffer + i * one_frame_pcm_size;
 	}
 
 	raop_buffer->is_empty = 1;
@@ -117,14 +222,10 @@ raop_buffer_t *raop_buffer_init(logger_t *logger, const unsigned char *aeskey,
 
 void raop_buffer_destroy(raop_buffer_t *raop_buffer)
 {
-	for (int i = 0; i < RAOP_BUFFER_LENGTH; i++) {
-		raop_buffer_entry_t *entry = &raop_buffer->entries[i];
-		if (entry->payload_data != NULL) {
-			free(entry->payload_data);
-		}
-	}
-
 	if (raop_buffer) {
+		if (raop_buffer->aacdecoder_handler)
+			aacDecoder_Close(raop_buffer->aacdecoder_handler);
+		free(raop_buffer->pcm_buffer);
 		free(raop_buffer);
 	}
 
@@ -240,12 +341,16 @@ int raop_buffer_enqueue(raop_buffer_t *raop_buffer, unsigned char *data,
 	entry->timestamp = timestamp;
 	entry->filled = 1;
 
-	entry->payload_data = malloc(payload_size);
-	int decrypt_ret = raop_buffer_decrypt(raop_buffer, data,
-					      entry->payload_data, payload_size,
-					      &entry->payload_size);
+	uint8_t *packet_buffer = malloc(payload_size);
+	size_t output_len = 0;
+	int decrypt_ret = raop_buffer_decrypt(raop_buffer, data, packet_buffer,
+					      payload_size, &output_len);
 	assert(decrypt_ret >= 0);
-	assert(entry->payload_size <= payload_size);
+	assert(output_len <= payload_size);
+
+	//do aac decode
+	fdk_aac_decode(raop_buffer, entry, packet_buffer, payload_size);
+	free(packet_buffer);
 
 	/* Update the raop_buffer seqnums */
 	if (raop_buffer->is_empty) {
@@ -260,7 +365,9 @@ int raop_buffer_enqueue(raop_buffer_t *raop_buffer, unsigned char *data,
 }
 
 void *raop_buffer_dequeue(raop_buffer_t *raop_buffer, unsigned int *length,
-			  uint64_t *timestamp, int no_resend)
+			  uint64_t *timestamp, int no_resend,
+			  uint32_t *sample_rate, uint16_t *channels,
+			  uint16_t *bits_per_sample)
 {
 	assert(raop_buffer);
 
@@ -296,13 +403,15 @@ void *raop_buffer_dequeue(raop_buffer_t *raop_buffer, unsigned int *length,
 	}
 	entry->filled = 0;
 
-	/* Return entry payload buffer */
+	/* Return entry audio buffer */
 	*timestamp = entry->timestamp;
-	*length = entry->payload_size;
-	entry->payload_size = 0;
-	void *data = entry->payload_data;
-	entry->payload_data = NULL;
-	return data;
+	*length = entry->audio_buffer_len;
+	*sample_rate = entry->sample_rate;
+	*channels = entry->channels;
+	*bits_per_sample = entry->bits_per_sample;
+
+	entry->audio_buffer_len = 0;
+	return entry->audio_buffer;
 }
 
 void raop_buffer_handle_resends(raop_buffer_t *raop_buffer,
@@ -338,10 +447,7 @@ void raop_buffer_flush(raop_buffer_t *raop_buffer, int next_seq)
 	assert(raop_buffer);
 
 	for (int i = 0; i < RAOP_BUFFER_LENGTH; i++) {
-		if (raop_buffer->entries[i].payload_data) {
-			free(raop_buffer->entries[i].payload_data);
-			raop_buffer->entries[i].payload_size = 0;
-		}
+		raop_buffer->entries[i].audio_buffer_len = 0;
 		raop_buffer->entries[i].filled = 0;
 	}
 	if (next_seq < 0 || next_seq > 0xffff) {
