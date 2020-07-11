@@ -15,7 +15,7 @@ extern "C" {
 
 // H264 data for decoding
 typedef struct SFgH264Data {
-	int pts;
+	long long pts;
 	int size;
 	int is_key;
 	int width;

@@ -83,12 +83,12 @@ int FgAirplayServer::start(const char serverName[AIRPLAY_NAME_LEN],
 		if (ret < 0) {
 			break;
 		}
-
+		raop_set_dnssd(m_pRaop, m_pDnsSd);
 		raop_log_info(m_pRaop,
 			      "Startup complete... Kill with Ctrl+C\n");
 	} while (false);
 
-	if (ret != 0) {
+	if (ret < 0) {
 		stop();
 	}
 
@@ -222,21 +222,21 @@ void FgAirplayServer::audio_process(void *cls, raop_ntp_t *ntp,
 		return;
 	}
 
-	//if (pServer->m_pCallback != NULL) {
-	//	SFgAudioFrame *frame = new SFgAudioFrame();
-	//	frame->bitsPerSample = data->bits_per_sample;
-	//	frame->channels = data->channels;
-	//	frame->pts = data->pts;
-	//	frame->sampleRate = data->sample_rate;
-	//	frame->dataLen = data->data_len;
-	//	frame->data = new uint8_t[frame->dataLen];
-	//	memcpy(frame->data, data->data, frame->dataLen);
+	if (pServer->m_pCallback != NULL) {
+		SFgAudioFrame *frame = new SFgAudioFrame();
+		frame->bitsPerSample = data->bits_per_sample;
+		frame->channels = data->channels;
+		frame->pts = data->pts;
+		frame->sampleRate = data->sample_rate;
+		frame->dataLen = data->data_len;
+		frame->data = new uint8_t[frame->dataLen];
+		memcpy(frame->data, data->data, frame->dataLen);
 
-	//	pServer->m_pCallback->outputAudio(frame, remoteName,
-	//					  remoteDeviceId);
-	//	delete[] frame->data;
-	//	delete frame;
-	//}
+		pServer->m_pCallback->outputAudio(frame, remoteName,
+						  remoteDeviceId);
+		delete[] frame->data;
+		delete frame;
+	}
 }
 
 void FgAirplayServer::audio_flush(void *cls, void *session,
