@@ -1,4 +1,4 @@
-﻿#include "CAirServer.h"
+#include "CAirServer.h"
 #include "CAirServerCallback.h"
 #include <cstdio>
 
@@ -32,7 +32,7 @@ bool getHostName(char hostName[512])
 	}
 }
 
-bool CAirServer::start(AirPlayServer *s)
+bool CAirServer::start(ScreenMirrorServer *s)
 {
 	stop();
 	m_pCallback->setAirplayServer(s);

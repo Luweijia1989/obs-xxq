@@ -1,7 +1,7 @@
-﻿#pragma once
+#pragma once
 
 class CAirServerCallback;
-class AirPlayServer;
+class ScreenMirrorServer;
 
 class CAirServer {
 public:
@@ -9,7 +9,7 @@ public:
 	~CAirServer();
 
 public:
-	bool start(AirPlayServer *s);
+	bool start(ScreenMirrorServer *s);
 	void stop();
 	float setVideoScale(float fRatio);
 

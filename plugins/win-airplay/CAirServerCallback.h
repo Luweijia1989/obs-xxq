@@ -1,8 +1,8 @@
-﻿#pragma once
+#pragma once
 #include <Windows.h>
 #include "Airplay2Head.h"
 
-class AirPlayServer;
+class ScreenMirrorServer;
 
 class CAirServerCallback : public IAirServerCallback {
 public:
@@ -10,7 +10,7 @@ public:
 	virtual ~CAirServerCallback();
 
 public:
-	void setAirplayServer(AirPlayServer *s);
+	void setAirplayServer(ScreenMirrorServer *s);
 
 public:
 	virtual void connected(const char *remoteName,
@@ -30,5 +30,5 @@ public:
 
 protected:
 	char m_chRemoteDeviceId[128];
-	AirPlayServer *m_airplayServer = nullptr;
+	ScreenMirrorServer *m_airplayServer = nullptr;
 };

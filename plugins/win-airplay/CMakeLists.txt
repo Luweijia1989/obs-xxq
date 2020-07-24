@@ -1,4 +1,4 @@
-﻿project(win-airplay)
+project(win-airplay)
 
 set(CMAKE_INCLUDE_CURRENT_DIR TRUE)
 
@@ -32,9 +32,11 @@ set(win-airplay_HEADERS
 	CAirServer.h
 	CAirServerCallback.h
 	FgUtf8Utils.h
+	common-define.h
 )
 
 add_subdirectory(${PROJECT_SOURCE_DIR}/airplay2/lib)
+add_subdirectory(${PROJECT_SOURCE_DIR}/iosusbmirror)
 
 add_library(win-airplay MODULE
 	${win-airplay_SOURCES}
@@ -44,6 +46,7 @@ target_link_libraries(win-airplay
 	Winmm
 	airplay
 	libobs
+	ipc-util
 	${FFMPEG_LIBRARIES})
 
 install_obs_plugin(win-airplay)

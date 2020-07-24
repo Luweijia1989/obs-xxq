@@ -1,4 +1,4 @@
-﻿#include "CAirServerCallback.h"
+#include "CAirServerCallback.h"
 #include <stdio.h>
 #include "FgUtf8Utils.h"
 #include <locale.h>
@@ -13,7 +13,7 @@ CAirServerCallback::CAirServerCallback()
 
 CAirServerCallback::~CAirServerCallback() {}
 
-void CAirServerCallback::setAirplayServer(AirPlayServer *s)
+void CAirServerCallback::setAirplayServer(ScreenMirrorServer *s)
 {
 	m_airplayServer = s;
 }

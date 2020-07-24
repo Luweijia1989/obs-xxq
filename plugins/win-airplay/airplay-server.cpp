@@ -1,8 +1,13 @@
-﻿#include <obs-module.h>
+#include <obs-module.h>
 #include "airplay-server.h"
 #include <cstdio>
+#include "common-define.h"
+#include <util/dstr.h>
+#include <util/platform.h>
 
-AirPlayServer::AirPlayServer(obs_source_t *source) : m_source(source)
+#define IOS_USB_EXE "ios-usb-mirror.exe"
+
+ScreenMirrorServer::ScreenMirrorServer(obs_source_t *source) : m_source(source)
 {
 	memset(m_videoFrame.data, 0, sizeof(m_videoFrame.data));
 	memset(&m_audioFrame, 0, sizeof(&m_audioFrame));
@@ -14,15 +19,47 @@ AirPlayServer::AirPlayServer(obs_source_t *source) : m_source(source)
 				    m_videoFrame.color_range_min,
 				    m_videoFrame.color_range_max);
 
-	bool success = m_server.start(this); //返回失败可以搞一个默认图片显示
+	//bool success = m_server.start(this); //返回失败可以搞一个默认图片显示
+
+	if (!init_pipe())
+		blog(LOG_ERROR, "fail to create pipe");
+	else
+	{
+		//struct dstr cmd;
+		//dstr_init_move_array(&cmd, os_get_executable_path_ptr(IOS_USB_EXE));
+		//dstr_insert_ch(&cmd, 0, '\"');
+		//dstr_cat(&cmd, "\" \"");
+		//process = os_process_pipe_create(cmd.array, "w");
+		//dstr_free(&cmd);
+	}
 }
 
-AirPlayServer::~AirPlayServer()
+ScreenMirrorServer::~ScreenMirrorServer()
 {
 	m_server.stop();
 }
 
-void AirPlayServer::outputVideo(SFgVideoFrame *data)
+static void pipe_log(void *param, uint8_t *data, size_t size)
+{
+	struct ScreenMirrorServer *sm = (ScreenMirrorServer *)param;
+	if (data && size)
+		blog(LOG_INFO, "%s", data);
+}
+
+bool ScreenMirrorServer::init_pipe()
+{
+	char name[64];
+	sprintf(name, "%s", PIPE_NAME);
+
+	if (!ipc_pipe_server_start(&pipe, name, pipe_log, this)) {
+		blog(LOG_WARNING, "init_pipe: failed to start pipe");
+		return false;
+	}
+
+	return true;
+}
+
+void ScreenMirrorServer::outputVideo(SFgVideoFrame *data)
 {
 	lastPts = data->pts;
 	if (data->pitch[0] != m_videoFrame.width ||
@@ -61,7 +98,7 @@ void AirPlayServer::outputVideo(SFgVideoFrame *data)
 	obs_source_output_video2(m_source, &m_videoFrame);
 }
 
-void AirPlayServer::outputAudio(SFgAudioFrame *data)
+void ScreenMirrorServer::outputAudio(SFgAudioFrame *data)
 {
 	blog(LOG_INFO, "=================%lld", data->pts - lastPts);
 	m_audioFrame.format = AUDIO_FORMAT_16BIT;
@@ -90,13 +127,13 @@ static const char *GetWinAirplayName(void *type_data)
 
 static void *CreateWinAirplay(obs_data_t *settings, obs_source_t *source)
 {
-	AirPlayServer *server = new AirPlayServer(source);
+	ScreenMirrorServer *server = new ScreenMirrorServer(source);
 	return server;
 }
 
 static void DestroyWinAirplay(void *obj)
 {
-	delete reinterpret_cast<AirPlayServer *>(obj);
+	delete reinterpret_cast<ScreenMirrorServer *>(obj);
 }
 
 static void UpdateWinAirplaySource(void *obj, obs_data_t *settings) {}
