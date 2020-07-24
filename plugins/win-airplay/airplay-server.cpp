@@ -23,8 +23,7 @@ ScreenMirrorServer::ScreenMirrorServer(obs_source_t *source) : m_source(source)
 
 	if (!init_pipe())
 		blog(LOG_ERROR, "fail to create pipe");
-	else
-	{
+	else {
 		struct dstr cmd;
 		dstr_init_move_array(&cmd,
 				     os_get_executable_path_ptr(IOS_USB_EXE));
@@ -37,7 +36,9 @@ ScreenMirrorServer::ScreenMirrorServer(obs_source_t *source) : m_source(source)
 
 ScreenMirrorServer::~ScreenMirrorServer()
 {
-	m_server.stop();
+	os_process_pipe_destroy(process); //这里需要通知进程退出并等待
+	ipc_pipe_server_free(&pipe);
+	//m_server.stop();
 }
 
 static void pipe_log(void *param, uint8_t *data, size_t size)
@@ -51,7 +52,7 @@ bool ScreenMirrorServer::init_pipe()
 {
 	char name[64];
 	sprintf(name, "%s", PIPE_NAME);
-
+	memset(&pipe, 0, sizeof(ipc_pipe_server_t));
 	if (!ipc_pipe_server_start(&pipe, name, pipe_log, this)) {
 		blog(LOG_WARNING, "init_pipe: failed to start pipe");
 		return false;

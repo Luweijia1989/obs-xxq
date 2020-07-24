@@ -546,11 +546,11 @@ void pipeConsume(struct CMSampleBuffer *buf, void *c)
 {
 	struct AVFileWriterConsumer *writer = (struct AVFileWriterConsumer *)c;
 	if (buf->MediaType == MediaTypeSound) {
-		ipc_pipe_client_write(&ipc_client, buf->SampleData,
-				      buf->SampleData_len);
+		/*ipc_pipe_client_write(&ipc_client, buf->SampleData,
+				      buf->SampleData_len);*/
 	} else {
-		ipc_pipe_client_write(&ipc_client, buf->SampleData,
-				      buf->SampleData_len);
+		/*ipc_pipe_client_write(&ipc_client, buf->SampleData,
+				      buf->SampleData_len);*/
 	}
 }
 
@@ -601,11 +601,11 @@ int usb_device_discover()
 
 int main(void)
 {
-	//Sleep(20000);
-	//if (!ipc_pipe_client_open(&ipc_client, PIPE_NAME)) {
-	//	usbmuxd_log(LL_ERROR, "ipc pipe create failed!");
-	//	return -1;
-	//}
+	freopen("/dev/null", "w", stderr);
+	if (!ipc_pipe_client_open(&ipc_client, PIPE_NAME)) {
+		usbmuxd_log(LL_ERROR, "ipc pipe create failed!");
+		return -1;
+	}
 	lock_down_event = CreateEvent(NULL, FALSE, FALSE, NULL);
 
 	client_init();
