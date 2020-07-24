@@ -25,12 +25,13 @@ ScreenMirrorServer::ScreenMirrorServer(obs_source_t *source) : m_source(source)
 		blog(LOG_ERROR, "fail to create pipe");
 	else
 	{
-		//struct dstr cmd;
-		//dstr_init_move_array(&cmd, os_get_executable_path_ptr(IOS_USB_EXE));
-		//dstr_insert_ch(&cmd, 0, '\"');
-		//dstr_cat(&cmd, "\" \"");
-		//process = os_process_pipe_create(cmd.array, "w");
-		//dstr_free(&cmd);
+		struct dstr cmd;
+		dstr_init_move_array(&cmd,
+				     os_get_executable_path_ptr(IOS_USB_EXE));
+		dstr_insert_ch(&cmd, 0, '\"');
+		dstr_cat(&cmd, "\" \"");
+		process = os_process_pipe_create(cmd.array, "w");
+		dstr_free(&cmd);
 	}
 }
 
