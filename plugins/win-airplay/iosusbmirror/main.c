@@ -611,7 +611,6 @@ int main(void)
 	client_init();
 	device_init();
 	pthread_t socket_t = create_socket_thread();
-	usb_set_debug(0);
 	usb_init(); /* initialize the library */
 	pthread_mutex_init(&exit_mutex, NULL);
 
