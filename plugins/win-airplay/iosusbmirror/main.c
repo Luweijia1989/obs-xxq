@@ -23,6 +23,7 @@
 #include <ipc-util/pipe.h>
 #include "../common-define.h"
 #include <fcntl.h>
+#include <io.h>
 
 struct MessageProcessor {
 	struct CMClock clock;
@@ -55,6 +56,7 @@ struct usb_device_info {
 	uint16_t rx_seq;
 	uint16_t tx_seq;
 	pthread_t thread_handle;
+	void *bulk_read_context;
 	bool read_exit;
 	bool lock_down_read_exit;
 
@@ -429,18 +431,26 @@ void *usb_read_thread(void *data)
 {
 	usb_clear_halt(app_device.device_handle, app_device.ep_in_fa);
 	usb_clear_halt(app_device.device_handle, app_device.ep_out_fa);
-	uint8_t read_buffer[65536];
-	int read_len = 0;
-	while (!app_device.read_exit) {
-		read_len = usb_bulk_read(app_device.device_handle,
-					 app_device.ep_in_fa, read_buffer,
-					 65536, 0);
-		if (read_len < 0) {
-			break;
-		}
 
-		usb_extract_frame(read_buffer, read_len);
+	int ret = usb_bulk_setup_async(app_device.device_handle,
+				       &app_device.bulk_read_context,
+				       app_device.ep_in_fa);
+
+	uint8_t read_buffer[65536];
+	while (!app_device.read_exit) {
+		ret = usb_submit_async(app_device.bulk_read_context,
+				       read_buffer, 65536);
+		if (ret < 0)
+			break;
+
+		ret = usb_reap_async(app_device.bulk_read_context, INFINITE);
+		if (ret < 0 && ret != -ETIMEDOUT)
+			break;
+
+		usb_extract_frame(read_buffer, ret);
 	}
+	usb_free_async(&app_device.bulk_read_context);
+	app_device.bulk_read_context = NULL;
 	return NULL;
 }
 
@@ -472,6 +482,8 @@ void reset_app_device()
 		CloseHandle(app_device.stop_signal);
 
 	device_remove(app_device.device_handle);
+	if (app_device.bulk_read_context)
+		usb_cancel_async(app_device.bulk_read_context);
 	app_device.read_exit = true;
 	pthread_join(app_device.thread_handle, NULL);
 
@@ -526,7 +538,6 @@ void closeSession()
 
 	usb_control_msg(app_device.device_handle, 0x40, 0x52, 0x00, 0x00, NULL,
 			0, 1000 /* LIBUSB_DEFAULT_TIMEOUT */);
-
 }
 
 void exit_app()
@@ -611,6 +622,7 @@ void *stdin_read_thread(void *data)
 			}
 		}
 	}
+	return NULL;
 }
 
 static void create_stdin_thread()
