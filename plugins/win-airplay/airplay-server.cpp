@@ -79,10 +79,20 @@ void ScreenMirrorServer::pipeCallback(void *param, uint8_t *data, size_t size)
 
 			blog(LOG_INFO,
 			     "recv media info, pps_len: %d, sps_len: %d", info.pps_len, info.sps_len);
+
+			if (info.sps_len == 0 || info.pps_len == 0)
+				continue;
 #ifdef DUMPFILE
 			sm->doWithNalu(info.pps, info.pps_len);
 			sm->doWithNalu(info.sps, info.sps_len);
 #endif // DUMPFILE
+			uint8_t *temp_buff = (uint8_t *)calloc(1, info.sps_len+info.pps_len+8);
+			memcpy(temp_buff, start_code, 4);
+			memcpy(temp_buff+4, info.pps, info.pps_len);
+			memcpy(temp_buff+4+info.pps_len, start_code, 4);
+			memcpy(temp_buff+4+info.pps_len +4, info.sps, info.sps_len);
+			sm->m_decoder.docode(temp_buff, info.sps_len + info.pps_len + 8, true, 0);
+			free(temp_buff);
 		}
 		else
 		{
@@ -98,7 +108,15 @@ void ScreenMirrorServer::pipeCallback(void *param, uint8_t *data, size_t size)
 			}
 			else
 			{
-				sm->parseNalus(temp_buf, req_size);
+				uint8_t *all = NULL;
+				size_t all_len = 0;
+				sm->parseNalus(temp_buf, req_size, &all, &all_len);
+				if (all_len)
+				{
+					int res = sm->m_decoder.docode(all, all_len, false, header_info.pts);
+					if (res == 1)
+						sm->outputVideo(&sm->m_decoder.m_sVideoFrameOri);
+				}
 			}
 
 			free(temp_buf);
@@ -139,13 +157,32 @@ void ScreenMirrorServer::quitUsbMirror()
 	os_process_pipe_destroy(process);
 }
 
-void ScreenMirrorServer::parseNalus(uint8_t *data, size_t size)
+void ScreenMirrorServer::parseNalus(uint8_t *data, size_t size, uint8_t **out, size_t *out_len)
 {
+	int total_size = 0;
 	uint8_t *slice = data;
 	while (slice < data + size) {
 		size_t length = byteutils_get_int_be(slice, 0);
-		doWithNalu(slice + 4, length);
+		total_size += length + 4;
 		slice += length + 4;
+	}
+
+	if (total_size)
+	{
+		*out = (uint8_t *)calloc(1, total_size);
+		uint8_t *ptr = *out;
+		*out_len = total_size;
+		slice = data;
+		size_t copy_index = 0;
+		while (slice < data + size) {
+			memcpy(ptr+copy_index, start_code, 4);
+			copy_index+=4;
+			size_t length = byteutils_get_int_be(slice, 0);
+			total_size += length + 4;
+			memcpy(ptr+copy_index, slice+4, length);
+			copy_index += length;
+			slice += length + 4;
+		}
 	}
 }
 

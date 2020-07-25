@@ -11,6 +11,7 @@ extern "C" {
 #include <libswscale/swscale.h>
 }
 
+#include "Airplay2Def.h"
 
 class VideoDecoder
 {
@@ -18,7 +19,8 @@ public:
 	VideoDecoder();
 	~VideoDecoder();
 
-	int docode(uint8_t *data, size_t data_len);
+	int docode(uint8_t *data, size_t data_len, bool is_key, uint64_t ts);
+	SFgVideoFrame m_sVideoFrameOri;
 
 private:
 	int initFFMPEG(const void *privatedata, int privatedatalen);

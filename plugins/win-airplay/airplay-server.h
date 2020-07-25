@@ -6,6 +6,7 @@
 #include "Airplay2Def.h"
 #include <ipc-util/pipe.h>
 #include <util/circlebuf.h>
+#include "VideoDecoder.h"
 extern "C" {
 #include <util/pipe.h>
 }
@@ -28,7 +29,7 @@ private:
 	bool initPipe();
 	void checkAndOpenUsbMirror();
 	void quitUsbMirror();
-	void parseNalus(uint8_t *data, size_t size);
+	void parseNalus(uint8_t *data, size_t size, uint8_t **out, size_t *out_len);
 	void doWithNalu(uint8_t *data, size_t size);
 
 private:
@@ -42,6 +43,7 @@ private:
 	ipc_pipe_server_t pipe;
 	os_process_pipe_t *process;
 	circlebuf m_avBuffer;
+	VideoDecoder m_decoder;
 
 #ifdef DUMPFILE
 	FILE *m_auioFile;

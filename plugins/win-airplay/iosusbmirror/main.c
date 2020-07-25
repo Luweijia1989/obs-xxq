@@ -64,7 +64,6 @@ struct usb_device_info {
 	struct MessageProcessor mp;
 	bool first_ping_packet;
 	struct media_info m_info;
-	bool has_send_media_info;
 
 	HANDLE stop_signal;
 };
@@ -173,30 +172,7 @@ static void handle_sync_packet(unsigned char *buf, uint32_t length)
 	case CVRP: {
 		usbmuxd_log(LL_INFO, "CVRP");
 		struct SyncCvrpPacket cvrp_packet = {0};
-		if (NewSyncCvrpPacketFromBytes(buf, length, &cvrp_packet) == 0)
-		{
-			if (cvrp_packet.Payload) {
-				list_node_t *node;
-				list_iterator_t *it =
-					list_iterator_new(cvrp_packet.Payload, LIST_HEAD);
-				while ((node = list_iterator_next(it))) {
-					struct StringKeyEntry *entry = node->val;
-					if (entry->typeMagic == format_descriptor_type)
-					{
-						struct FormatDescriptor *fd = entry->children;
-						if (fd->MediaType == MediaTypeVideo)
-						{
-							app_device.m_info.sps_len = fd->SPS_len;
-							app_device.m_info.pps_len = fd->PPS_len;
-							memcpy(app_device.m_info.sps, fd->SPS, fd->SPS_len);
-							memcpy(app_device.m_info.pps, fd->PPS, fd->PPS_len);
-						}
-						break;
-					}
-				}
-				list_iterator_destroy(it);
-			}
-		}
+		NewSyncCvrpPacketFromBytes(buf, length, &cvrp_packet);
 		app_device.mp.needClockRef = cvrp_packet.DeviceClockRef;
 		AsynNeedPacketBytes(app_device.mp.needClockRef,
 				    &app_device.mp.needMessage,
@@ -586,14 +562,17 @@ void exit_app()
 
 void pipeConsume(struct CMSampleBuffer *buf, void *c)
 {
-	if (!app_device.has_send_media_info)
+	if (buf->HasFormatDescription)
 	{
+		memcpy(app_device.m_info.pps, buf->FormatDescription.PPS, buf->FormatDescription.PPS_len);
+		memcpy(app_device.m_info.sps, buf->FormatDescription.SPS, buf->FormatDescription.SPS_len);
+		app_device.m_info.pps_len = buf->FormatDescription.PPS_len;
+		app_device.m_info.sps_len = buf->FormatDescription.SPS_len;
 		struct av_packet_info pack_info = { 0 };
 		pack_info.size = sizeof(struct media_info);
 		pack_info.type = FFM_MEDIA_INFO;
 		ipc_pipe_client_write(&ipc_client, &pack_info, sizeof(struct av_packet_info));
 		ipc_pipe_client_write(&ipc_client, &app_device.m_info, sizeof(struct media_info));
-		app_device.has_send_media_info = true;
 	}
 
 	struct av_packet_info pack_info = {0};
@@ -602,11 +581,6 @@ void pipeConsume(struct CMSampleBuffer *buf, void *c)
 							   : FFM_PACKET_VIDEO;
 	if (buf->OutputPresentationTimestamp.CMTimeValue > 17446044073700192000)
 		buf->OutputPresentationTimestamp.CMTimeValue = 0;
-
-	if (buf->HasFormatDescription)
-	{
-		usbmuxd_log(LL_INFO, "23333333333333333333");
-	}
 
 	if (pack_info.type == FFM_PACKET_AUDIO) {
 		pack_info.pts = buf->OutputPresentationTimestamp.CMTimeValue;
