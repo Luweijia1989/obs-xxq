@@ -148,6 +148,14 @@ void ScreenMirrorServer::pipeCallback(void *param, uint8_t *data, size_t size)
 	}
 }
 
+void ScreenMirrorServer::quitUsbMirror()
+{
+	uint8_t data[1] = {1};
+	os_process_pipe_write(process, data, 1);
+	os_process_pipe_destroy(process);
+	process = NULL;
+}
+
 void ScreenMirrorServer::ipcSetup()
 {
 	if (!initPipe())
@@ -172,13 +180,6 @@ void ScreenMirrorServer::checkAndOpenUsbMirror()
 	dstr_cat(&cmd, "\" \"");
 	process = os_process_pipe_create(cmd.array, "w");
 	dstr_free(&cmd);
-}
-
-void ScreenMirrorServer::quitUsbMirror()
-{
-	uint8_t data[1] = {1};
-	os_process_pipe_write(process, data, 1);
-	os_process_pipe_destroy(process);
 }
 
 void ScreenMirrorServer::parseNalus(uint8_t *data, size_t size, uint8_t **out,
@@ -243,6 +244,7 @@ void ScreenMirrorServer::outputVideo(SFgVideoFrame *data)
 			m_cropFilter = obs_source_create(
 				"crop_filter", "cropFilter", nullptr, nullptr);
 			obs_source_filter_add(m_source, m_cropFilter);
+			obs_source_release(m_cropFilter);
 		}
 
 		obs_data_t *setting = obs_source_get_settings(m_cropFilter);
@@ -272,7 +274,7 @@ void ScreenMirrorServer::outputVideo(SFgVideoFrame *data)
 
 void ScreenMirrorServer::outputAudio(SFgAudioFrame *data)
 {
-	blog(LOG_INFO, "=================%lld", data->pts - lastPts);
+//	blog(LOG_INFO, "=================%lld", data->pts - lastPts);
 	m_audioFrame.format = AUDIO_FORMAT_16BIT;
 	m_audioFrame.samples_per_sec = data->sampleRate;
 	m_audioFrame.speakers = data->channels == 2 ? SPEAKERS_STEREO
