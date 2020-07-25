@@ -555,6 +555,12 @@ void exit_app()
 
 void pipeConsume(struct CMSampleBuffer *buf, void *c)
 {
+	struct av_packet_info pack_info = {0};
+	pack_info.size = buf->SampleData_len;
+	pack_info.type == buf->MediaType == MediaTypeSound ? FFM_PACKET_AUDIO
+							   : FFM_PACKET_VIDEO;
+	pack_info.pts = buf->OutputPresentationTimestamp.CMTimeValue;
+
 	struct AVFileWriterConsumer *writer = (struct AVFileWriterConsumer *)c;
 	if (buf->MediaType == MediaTypeSound) {
 		ipc_pipe_client_write(&ipc_client, buf->SampleData,

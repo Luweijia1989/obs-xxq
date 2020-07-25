@@ -1097,4 +1097,5 @@ void os_kill_process(const char *name)
 		hRes = Process32Next(hSnapShot, &pEntry);
 	}
 	CloseHandle(hSnapShot);
+	bfree(wname);
 }

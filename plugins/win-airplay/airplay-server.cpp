@@ -34,11 +34,11 @@ ScreenMirrorServer::~ScreenMirrorServer()
 
 void ScreenMirrorServer::pipeCallback(void *param, uint8_t *data, size_t size)
 {
-	struct ScreenMirrorServer *sm = (ScreenMirrorServer *)param;
+	ScreenMirrorServer *sm = (ScreenMirrorServer *)param;
 	circlebuf_push_back(&sm->m_avBuffer, data, size);
-
-	while (true) {
-	}
+	blog(LOG_INFO, "%d", size);
+	/*while (true) {
+	}*/
 }
 
 void ScreenMirrorServer::ipcSetup()
