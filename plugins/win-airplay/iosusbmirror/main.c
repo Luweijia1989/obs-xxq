@@ -443,6 +443,7 @@ static void usb_extract_frame(unsigned char *buf, uint32_t length)
 
 void *usb_read_thread(void *data)
 {
+	in_progress = true;
 	usb_clear_halt(app_device.device_handle, app_device.ep_in_fa);
 	usb_clear_halt(app_device.device_handle, app_device.ep_out_fa);
 
@@ -465,6 +466,7 @@ void *usb_read_thread(void *data)
 	}
 	usb_free_async(&app_device.bulk_read_context);
 	app_device.bulk_read_context = NULL;
+	in_progress = false;
 	return NULL;
 }
 
@@ -492,8 +494,10 @@ void *usb_read_lock_down_thread(void *data)
 
 void reset_app_device()
 {
-	if (app_device.stop_signal != INVALID_HANDLE_VALUE)
-		CloseHandle(app_device.stop_signal);
+	if (!app_device.device_handle)
+		return;
+
+	CloseHandle(app_device.stop_signal);
 
 	device_remove(app_device.device_handle);
 	if (app_device.bulk_read_context)
@@ -503,8 +507,7 @@ void reset_app_device()
 
 	clearConsumer(&app_device.mp.consumer);
 
-	if (app_device.device_handle)
-		usb_close(app_device.device_handle);
+	usb_close(app_device.device_handle);
 
 	free(app_device.mp.needMessage);
 	ringbuf_free(&app_device.usb_data_buffer);
@@ -565,8 +568,8 @@ void exit_app()
 
 	if (in_progress) {
 		closeSession();
-		reset_app_device();
 	}
+	reset_app_device();
 
 	pthread_mutex_unlock(&exit_mutex);
 }
@@ -664,7 +667,6 @@ int usb_device_discover()
 			app_device.usb_data_buffer =
 				ringbuf_new(1024 * 1024 * 2);
 			app_device.mp.consumer = PipeWriter();
-			in_progress = true;
 			res = 1;
 		}
 	}
