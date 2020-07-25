@@ -21,39 +21,65 @@ ScreenMirrorServer::ScreenMirrorServer(obs_source_t *source) : m_source(source)
 
 	//bool success = m_server.start(this); //返回失败可以搞一个默认图片显示
 
-	if (!init_pipe())
-		blog(LOG_ERROR, "fail to create pipe");
-	else {
-		struct dstr cmd;
-		dstr_init_move_array(&cmd,
-				     os_get_executable_path_ptr(IOS_USB_EXE));
-		dstr_insert_ch(&cmd, 0, '\"');
-		dstr_cat(&cmd, "\" \"");
-		process = os_process_pipe_create(cmd.array, "w");
-		dstr_free(&cmd);
-	}
+	circlebuf_init(&m_avBuffer);
+	ipcSetup();
 }
 
 ScreenMirrorServer::~ScreenMirrorServer()
 {
-	os_process_pipe_destroy(process); //这里需要通知进程退出并等待
-	ipc_pipe_server_free(&pipe);
+	ipcDestroy();
+	circlebuf_free(&m_avBuffer);
 	//m_server.stop();
 }
 
-static void pipe_log(void *param, uint8_t *data, size_t size)
+void ScreenMirrorServer::pipeCallback(void *param, uint8_t *data, size_t size)
 {
 	struct ScreenMirrorServer *sm = (ScreenMirrorServer *)param;
-	if (data && size)
-		blog(LOG_INFO, "%s", data);
+	circlebuf_push_back(&sm->m_avBuffer, data, size);
+
+	while (true) {
+	}
 }
 
-bool ScreenMirrorServer::init_pipe()
+void ScreenMirrorServer::ipcSetup()
+{
+	if (!initPipe())
+		blog(LOG_ERROR, "fail to create pipe");
+	else {
+		checkAndOpenUsbMirror();
+	}
+}
+
+void ScreenMirrorServer::ipcDestroy()
+{
+	quitUsbMirror();
+	ipc_pipe_server_free(&pipe);
+}
+
+void ScreenMirrorServer::checkAndOpenUsbMirror()
+{
+	os_kill_process(IOS_USB_EXE);
+	struct dstr cmd;
+	dstr_init_move_array(&cmd, os_get_executable_path_ptr(IOS_USB_EXE));
+	dstr_insert_ch(&cmd, 0, '\"');
+	dstr_cat(&cmd, "\" \"");
+	process = os_process_pipe_create(cmd.array, "w");
+	dstr_free(&cmd);
+}
+
+void ScreenMirrorServer::quitUsbMirror()
+{
+	uint8_t data[1] = {1};
+	os_process_pipe_write(process, data, 1);
+	os_process_pipe_destroy(process);
+}
+
+bool ScreenMirrorServer::initPipe()
 {
 	char name[64];
 	sprintf(name, "%s", PIPE_NAME);
 	memset(&pipe, 0, sizeof(ipc_pipe_server_t));
-	if (!ipc_pipe_server_start(&pipe, name, pipe_log, this)) {
+	if (!ipc_pipe_server_start(&pipe, name, pipeCallback, this)) {
 		blog(LOG_WARNING, "init_pipe: failed to start pipe");
 		return false;
 	}

@@ -5,8 +5,8 @@
 #include "CAirServer.h"
 #include "Airplay2Def.h"
 #include <ipc-util/pipe.h>
-extern "C"
-{
+#include <util/circlebuf.h>
+extern "C" {
 #include <util/pipe.h>
 }
 
@@ -17,7 +17,15 @@ public:
 	void outputVideo(SFgVideoFrame *data);
 	void outputAudio(SFgAudioFrame *data);
 
-	bool init_pipe();
+	void ipcSetup();
+	void ipcDestroy();
+
+	static void pipeCallback(void *param, uint8_t *data, size_t size);
+
+private:
+	bool initPipe();
+	void checkAndOpenUsbMirror();
+	void quitUsbMirror();
 
 private:
 	obs_source_t *m_source = nullptr;
@@ -29,4 +37,5 @@ private:
 
 	ipc_pipe_server_t pipe;
 	os_process_pipe_t *process;
+	circlebuf m_avBuffer;
 };

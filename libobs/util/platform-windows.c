@@ -21,6 +21,7 @@
 #include <shlobj.h>
 #include <intrin.h>
 #include <psapi.h>
+#include <Tlhelp32.h>
 
 #include "base.h"
 #include "platform.h"
@@ -1071,4 +1072,29 @@ uint64_t os_get_free_disk_space(const char *dir)
 	bfree(wdir);
 
 	return success ? free.QuadPart : 0;
+}
+
+void os_kill_process(const char *name)
+{
+	wchar_t *wname = NULL;
+	if (!os_utf8_to_wcs_ptr(name, 0, &wname))
+		return;
+
+	HANDLE hSnapShot = CreateToolhelp32Snapshot(TH32CS_SNAPALL, NULL);
+	PROCESSENTRY32 pEntry;
+	pEntry.dwSize = sizeof(pEntry);
+	BOOL hRes = Process32First(hSnapShot, &pEntry);
+	while (hRes) {
+		if (wcscmp(pEntry.szExeFile, wname) == 0) {
+			HANDLE hProcess =
+				OpenProcess(PROCESS_TERMINATE, 0,
+					    (DWORD)pEntry.th32ProcessID);
+			if (hProcess != NULL) {
+				TerminateProcess(hProcess, 9);
+				CloseHandle(hProcess);
+			}
+		}
+		hRes = Process32Next(hSnapShot, &pEntry);
+	}
+	CloseHandle(hSnapShot);
 }

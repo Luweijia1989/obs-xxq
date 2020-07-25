@@ -101,6 +101,11 @@ static inline bool ipc_pipe_internal_io_pending(void)
 	return GetLastError() == ERROR_IO_PENDING;
 }
 
+static inline bool ipc_pipe_internal_io_moredata(void)
+{
+	return GetLastError() == ERROR_MORE_DATA;
+}
+
 static DWORD CALLBACK ipc_pipe_internal_server_thread(LPVOID param)
 {
 	ipc_pipe_server_t *pipe = param;
@@ -119,7 +124,8 @@ static DWORD CALLBACK ipc_pipe_internal_server_thread(LPVOID param)
 
 		success = !!ReadFile(pipe->handle, buf, IPC_PIPE_BUF_SIZE, NULL,
 				     &pipe->overlap);
-		if (!success && !ipc_pipe_internal_io_pending()) {
+		if (!success && (!ipc_pipe_internal_io_pending() &&
+				 !ipc_pipe_internal_io_moredata())) {
 			break;
 		}
 
@@ -131,7 +137,8 @@ static DWORD CALLBACK ipc_pipe_internal_server_thread(LPVOID param)
 		success = !!GetOverlappedResult(pipe->handle, &pipe->overlap,
 						&bytes, true);
 		if (!success || !bytes) {
-			break;
+			if (!ipc_pipe_internal_io_moredata())
+				break;
 		}
 
 		ipc_pipe_internal_append_bytes(pipe, buf, (size_t)bytes);

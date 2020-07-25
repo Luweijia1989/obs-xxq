@@ -22,6 +22,7 @@
 #include "consumer.h"
 #include <ipc-util/pipe.h>
 #include "../common-define.h"
+#include <fcntl.h>
 
 struct MessageProcessor {
 	struct CMClock clock;
@@ -526,7 +527,6 @@ void closeSession()
 	usb_control_msg(app_device.device_handle, 0x40, 0x52, 0x00, 0x00, NULL,
 			0, 1000 /* LIBUSB_DEFAULT_TIMEOUT */);
 
-	usb_reset(app_device.device_handle);
 }
 
 void exit_app()
@@ -546,8 +546,8 @@ void pipeConsume(struct CMSampleBuffer *buf, void *c)
 {
 	struct AVFileWriterConsumer *writer = (struct AVFileWriterConsumer *)c;
 	if (buf->MediaType == MediaTypeSound) {
-		/*ipc_pipe_client_write(&ipc_client, buf->SampleData,
-				      buf->SampleData_len);*/
+		ipc_pipe_client_write(&ipc_client, buf->SampleData,
+				      buf->SampleData_len);
 	} else {
 		/*ipc_pipe_client_write(&ipc_client, buf->SampleData,
 				      buf->SampleData_len);*/
@@ -599,9 +599,40 @@ int usb_device_discover()
 	return res;
 }
 
+void *stdin_read_thread(void *data)
+{
+	uint8_t buf[1024] = {0};
+	while (true) {
+		int read_len = fread(buf, 1, 1024, stdin);
+		if (read_len) {
+			if (buf[0] == 1) {
+				exit_app();
+				break;
+			}
+		}
+	}
+}
+
+static void create_stdin_thread()
+{
+	pthread_t th;
+	pthread_attr_t attr;
+
+	pthread_attr_init(&attr);
+	pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
+
+	pthread_create(&th, &attr, stdin_read_thread, NULL);
+}
+
 int main(void)
 {
+	SetErrorMode(SEM_FAILCRITICALERRORS);
+	_setmode(_fileno(stdin), O_BINARY);
+
+	create_stdin_thread();
+
 	freopen("/dev/null", "w", stderr);
+	memset(&ipc_client, 0, sizeof(ipc_pipe_client_t));
 	if (!ipc_pipe_client_open(&ipc_client, PIPE_NAME)) {
 		usbmuxd_log(LL_ERROR, "ipc pipe create failed!");
 		return -1;
