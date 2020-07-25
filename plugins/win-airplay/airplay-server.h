@@ -10,6 +10,8 @@ extern "C" {
 #include <util/pipe.h>
 }
 
+#define DUMPFILE
+
 class ScreenMirrorServer {
 public:
 	ScreenMirrorServer(obs_source_t *source);
@@ -26,6 +28,8 @@ private:
 	bool initPipe();
 	void checkAndOpenUsbMirror();
 	void quitUsbMirror();
+	void parseNalus(uint8_t *data, size_t size);
+	void doWithNalu(uint8_t *data, size_t size);
 
 private:
 	obs_source_t *m_source = nullptr;
@@ -38,4 +42,9 @@ private:
 	ipc_pipe_server_t pipe;
 	os_process_pipe_t *process;
 	circlebuf m_avBuffer;
+
+#ifdef DUMPFILE
+	FILE *m_auioFile;
+	FILE *m_videoFile;
+#endif
 };

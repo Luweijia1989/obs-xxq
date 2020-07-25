@@ -63,6 +63,8 @@ struct usb_device_info {
 	ringbuf_t usb_data_buffer;
 	struct MessageProcessor mp;
 	bool first_ping_packet;
+	struct media_info m_info;
+	bool has_send_media_info;
 
 	HANDLE stop_signal;
 };
@@ -151,7 +153,13 @@ static void handle_sync_packet(unsigned char *buf, uint32_t length)
 	case AFMT: {
 		usbmuxd_log(LL_INFO, "AFMT");
 		struct SyncAfmtPacket afmtPacket = {0};
-		NewSyncAfmtPacketFromBytes(buf, length, &afmtPacket);
+		if (NewSyncAfmtPacketFromBytes(buf, length, &afmtPacket) == 0)
+		{
+			app_device.m_info.samples_per_sec = (uint32_t)afmtPacket.AudioStreamInfo.SampleRate;
+			app_device.m_info.format = AUDIO_FORMAT_16BIT;
+			app_device.m_info.speakers = afmtPacket.AudioStreamInfo.ChannelsPerFrame;
+			app_device.m_info.bytes_per_frame = afmtPacket.AudioStreamInfo.BytesPerFrame;
+		}
 
 		uint8_t *afmt;
 		size_t afmt_len;
@@ -165,7 +173,30 @@ static void handle_sync_packet(unsigned char *buf, uint32_t length)
 	case CVRP: {
 		usbmuxd_log(LL_INFO, "CVRP");
 		struct SyncCvrpPacket cvrp_packet = {0};
-		NewSyncCvrpPacketFromBytes(buf, length, &cvrp_packet);
+		if (NewSyncCvrpPacketFromBytes(buf, length, &cvrp_packet) == 0)
+		{
+			if (cvrp_packet.Payload) {
+				list_node_t *node;
+				list_iterator_t *it =
+					list_iterator_new(cvrp_packet.Payload, LIST_HEAD);
+				while ((node = list_iterator_next(it))) {
+					struct StringKeyEntry *entry = node->val;
+					if (entry->typeMagic == format_descriptor_type)
+					{
+						struct FormatDescriptor *fd = entry->children;
+						if (fd->MediaType == MediaTypeVideo)
+						{
+							app_device.m_info.sps_len = fd->SPS_len;
+							app_device.m_info.pps_len = fd->PPS_len;
+							memcpy(app_device.m_info.sps, fd->SPS, fd->SPS_len);
+							memcpy(app_device.m_info.pps, fd->PPS, fd->PPS_len);
+						}
+						break;
+					}
+				}
+				list_iterator_destroy(it);
+			}
+		}
 		app_device.mp.needClockRef = cvrp_packet.DeviceClockRef;
 		AsynNeedPacketBytes(app_device.mp.needClockRef,
 				    &app_device.mp.needMessage,
@@ -555,20 +586,36 @@ void exit_app()
 
 void pipeConsume(struct CMSampleBuffer *buf, void *c)
 {
+	if (!app_device.has_send_media_info)
+	{
+		struct av_packet_info pack_info = { 0 };
+		pack_info.size = sizeof(struct media_info);
+		pack_info.type = FFM_MEDIA_INFO;
+		ipc_pipe_client_write(&ipc_client, &pack_info, sizeof(struct av_packet_info));
+		ipc_pipe_client_write(&ipc_client, &app_device.m_info, sizeof(struct media_info));
+		app_device.has_send_media_info = true;
+	}
+
 	struct av_packet_info pack_info = {0};
 	pack_info.size = buf->SampleData_len;
-	pack_info.type == buf->MediaType == MediaTypeSound ? FFM_PACKET_AUDIO
+	pack_info.type = buf->MediaType == MediaTypeSound ? FFM_PACKET_AUDIO
 							   : FFM_PACKET_VIDEO;
-	pack_info.pts = buf->OutputPresentationTimestamp.CMTimeValue;
+	if (buf->OutputPresentationTimestamp.CMTimeValue > 17446044073700192000)
+		buf->OutputPresentationTimestamp.CMTimeValue = 0;
 
-	struct AVFileWriterConsumer *writer = (struct AVFileWriterConsumer *)c;
-	if (buf->MediaType == MediaTypeSound) {
-		ipc_pipe_client_write(&ipc_client, buf->SampleData,
-				      buf->SampleData_len);
-	} else {
-		/*ipc_pipe_client_write(&ipc_client, buf->SampleData,
-				      buf->SampleData_len);*/
+	if (buf->HasFormatDescription)
+	{
+		usbmuxd_log(LL_INFO, "23333333333333333333");
 	}
+
+	if (pack_info.type == FFM_PACKET_AUDIO) {
+		pack_info.pts = buf->OutputPresentationTimestamp.CMTimeValue;
+	}
+	else {
+		pack_info.pts = buf->OutputPresentationTimestamp.CMTimeValue;
+	}
+	ipc_pipe_client_write(&ipc_client, &pack_info, sizeof(struct av_packet_info));
+	ipc_pipe_client_write(&ipc_client, buf->SampleData, buf->SampleData_len);
 }
 
 struct Consumer PipeWriter()

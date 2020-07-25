@@ -19,6 +19,7 @@ set(win-airplay_SOURCES
 	CAirServer.cpp
 	CAirServerCallback.cpp
 	FgUtf8Utils.cpp
+	VideoDecoder.cpp
 )
 			 
 set(win-airplay_HEADERS
@@ -33,6 +34,7 @@ set(win-airplay_HEADERS
 	CAirServerCallback.h
 	FgUtf8Utils.h
 	common-define.h
+	VideoDecoder.h
 )
 
 add_subdirectory(${PROJECT_SOURCE_DIR}/airplay2/lib)

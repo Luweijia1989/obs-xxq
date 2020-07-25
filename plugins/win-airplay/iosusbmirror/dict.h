@@ -18,6 +18,12 @@
 #define	HPD0              0x68706430
 #define	HPA0              0x68706130
 
+static const int bool_type = 0;
+static const int nsnumber_type = 1;
+static const int string_type = 2;
+static const int byte_type = 3;
+static const int string_keydict_type = 4;
+static const int format_descriptor_type = 5;
 
 #pragma pack(1)
 struct StringKeyEntry

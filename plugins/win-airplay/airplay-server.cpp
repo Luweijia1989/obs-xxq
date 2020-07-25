@@ -6,6 +6,17 @@
 #include <util/platform.h>
 
 #define IOS_USB_EXE "ios-usb-mirror.exe"
+uint8_t start_code[4] = {00, 00, 00, 01};
+
+static uint32_t byteutils_get_int(unsigned char *b, int offset)
+{
+	return *((uint32_t *)(b + offset));
+}
+
+static uint32_t byteutils_get_int_be(unsigned char *b, int offset)
+{
+	return ntohl(byteutils_get_int(b, offset));
+}
 
 ScreenMirrorServer::ScreenMirrorServer(obs_source_t *source) : m_source(source)
 {
@@ -21,6 +32,11 @@ ScreenMirrorServer::ScreenMirrorServer(obs_source_t *source) : m_source(source)
 
 	//bool success = m_server.start(this); //返回失败可以搞一个默认图片显示
 
+#ifdef DUMPFILE
+	m_auioFile = fopen("audio.pcm", "wb");
+	m_videoFile = fopen("video.x264", "wb");
+#endif	
+
 	circlebuf_init(&m_avBuffer);
 	ipcSetup();
 }
@@ -30,15 +46,64 @@ ScreenMirrorServer::~ScreenMirrorServer()
 	ipcDestroy();
 	circlebuf_free(&m_avBuffer);
 	//m_server.stop();
+#ifdef DUMPFILE
+	fclose(m_auioFile);
+	fclose(m_videoFile);
+#endif
 }
 
 void ScreenMirrorServer::pipeCallback(void *param, uint8_t *data, size_t size)
 {
 	ScreenMirrorServer *sm = (ScreenMirrorServer *)param;
 	circlebuf_push_back(&sm->m_avBuffer, data, size);
-	blog(LOG_INFO, "%d", size);
-	/*while (true) {
-	}*/
+	
+	while (true) {
+		size_t header_size = sizeof(struct av_packet_info);
+		if (sm->m_avBuffer.size < header_size)
+			break;
+
+		struct av_packet_info header_info = { 0 };
+		circlebuf_peek_front(&sm->m_avBuffer, &header_info, header_size);
+
+		size_t req_size = header_info.size;
+		if (sm->m_avBuffer.size < req_size + header_size)
+			break;
+
+		circlebuf_pop_front(&sm->m_avBuffer, &header_info, header_size); // remove it
+
+		if (header_info.type == FFM_MEDIA_INFO)
+		{
+			struct media_info info;
+			memset(&info, 0, req_size);
+			circlebuf_pop_front(&sm->m_avBuffer, &info, req_size);
+
+			blog(LOG_INFO,
+			     "recv media info, pps_len: %d, sps_len: %d", info.pps_len, info.sps_len);
+#ifdef DUMPFILE
+			sm->doWithNalu(info.pps, info.pps_len);
+			sm->doWithNalu(info.sps, info.sps_len);
+#endif // DUMPFILE
+		}
+		else
+		{
+			uint8_t *temp_buf = (uint8_t *)calloc(1, req_size);
+			circlebuf_pop_front(&sm->m_avBuffer, temp_buf, req_size);
+
+			if (header_info.type == FFM_PACKET_AUDIO)
+			{
+#ifdef DUMPFILE
+				fwrite(temp_buf, 1, req_size, sm->m_auioFile);
+#endif // DUMPFILE
+
+			}
+			else
+			{
+				sm->parseNalus(temp_buf, req_size);
+			}
+
+			free(temp_buf);
+		}
+	}
 }
 
 void ScreenMirrorServer::ipcSetup()
@@ -72,6 +137,25 @@ void ScreenMirrorServer::quitUsbMirror()
 	uint8_t data[1] = {1};
 	os_process_pipe_write(process, data, 1);
 	os_process_pipe_destroy(process);
+}
+
+void ScreenMirrorServer::parseNalus(uint8_t *data, size_t size)
+{
+	uint8_t *slice = data;
+	while (slice < data + size) {
+		size_t length = byteutils_get_int_be(slice, 0);
+		doWithNalu(slice + 4, length);
+		slice += length + 4;
+	}
+}
+
+void ScreenMirrorServer::doWithNalu(uint8_t *data, size_t size)
+{
+#ifdef DUMPFILE
+	fwrite(start_code, 1, 4, m_videoFile);
+	fwrite(data, 1, size, m_videoFile);
+#endif // DUMPFILE
+
 }
 
 bool ScreenMirrorServer::initPipe()

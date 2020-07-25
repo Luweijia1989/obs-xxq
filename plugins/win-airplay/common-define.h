@@ -1,10 +1,12 @@
 #pragma once
 
+#include "../../libobs/media-io/audio-io.h"
 #define PIPE_NAME "ScreenMirror_Pipe"
 
 enum av_packet_type {
 	FFM_PACKET_VIDEO,
 	FFM_PACKET_AUDIO,
+	FFM_MEDIA_INFO,
 };
 
 #define FFM_SUCCESS 0
@@ -13,9 +15,18 @@ enum av_packet_type {
 
 struct av_packet_info {
 	int64_t pts;
-	int64_t dts;
 	uint32_t size;
-	uint32_t index;
 	enum av_packet_type type;
-	bool keyframe;
+};
+
+struct media_info {
+	enum speaker_layout speakers;
+	enum audio_format format;
+	uint32_t samples_per_sec;
+	size_t bytes_per_frame;
+
+	uint8_t sps[256];
+	size_t sps_len;
+	uint8_t pps[256];
+	size_t pps_len;
 };

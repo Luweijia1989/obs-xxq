@@ -18,13 +18,6 @@
 #define StringValueMagic	 0x73747276		
 #define NumberValueMagic	 0x6E6D6276
 
-static const int bool_type	 = 0;
-static const int nsnumber_type = 1;
-static const int string_type	 = 2;
-static const int byte_type	 = 3;
-static const int string_keydict_type = 4;
-static const int format_descriptor_type = 5;
-
 void WriteLengthAndMagic(uint8_t *dst_buffer, int length, uint32_t magic)
 {
 	byteutils_put_int(dst_buffer, 0, length);
