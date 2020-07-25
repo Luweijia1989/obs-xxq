@@ -1,7 +1,6 @@
 #include <obs-module.h>
 #include "airplay-server.h"
 #include <cstdio>
-#include "common-define.h"
 #include <util/dstr.h>
 #include <util/platform.h>
 
@@ -35,7 +34,7 @@ ScreenMirrorServer::ScreenMirrorServer(obs_source_t *source) : m_source(source)
 #ifdef DUMPFILE
 	m_auioFile = fopen("audio.pcm", "wb");
 	m_videoFile = fopen("video.x264", "wb");
-#endif	
+#endif
 
 	circlebuf_init(&m_avBuffer);
 	ipcSetup();
@@ -56,67 +55,92 @@ void ScreenMirrorServer::pipeCallback(void *param, uint8_t *data, size_t size)
 {
 	ScreenMirrorServer *sm = (ScreenMirrorServer *)param;
 	circlebuf_push_back(&sm->m_avBuffer, data, size);
-	
+
 	while (true) {
 		size_t header_size = sizeof(struct av_packet_info);
 		if (sm->m_avBuffer.size < header_size)
 			break;
 
-		struct av_packet_info header_info = { 0 };
-		circlebuf_peek_front(&sm->m_avBuffer, &header_info, header_size);
+		struct av_packet_info header_info = {0};
+		circlebuf_peek_front(&sm->m_avBuffer, &header_info,
+				     header_size);
 
 		size_t req_size = header_info.size;
 		if (sm->m_avBuffer.size < req_size + header_size)
 			break;
 
-		circlebuf_pop_front(&sm->m_avBuffer, &header_info, header_size); // remove it
+		circlebuf_pop_front(&sm->m_avBuffer, &header_info,
+				    header_size); // remove it
 
-		if (header_info.type == FFM_MEDIA_INFO)
-		{
+		if (header_info.type == FFM_MEDIA_INFO) {
 			struct media_info info;
 			memset(&info, 0, req_size);
 			circlebuf_pop_front(&sm->m_avBuffer, &info, req_size);
 
 			blog(LOG_INFO,
-			     "recv media info, pps_len: %d, sps_len: %d", info.pps_len, info.sps_len);
+			     "recv media info, pps_len: %d, sps_len: %d",
+			     info.pps_len, info.sps_len);
 
 			if (info.sps_len == 0 || info.pps_len == 0)
 				continue;
+
+			sm->m_mediaInfo = info;
+			if (!sm->m_infoReceived)
+				sm->m_infoReceived = true;
 #ifdef DUMPFILE
 			sm->doWithNalu(info.pps, info.pps_len);
 			sm->doWithNalu(info.sps, info.sps_len);
 #endif // DUMPFILE
-			uint8_t *temp_buff = (uint8_t *)calloc(1, info.sps_len+info.pps_len+8);
+			uint8_t *temp_buff = (uint8_t *)calloc(
+				1, info.sps_len + info.pps_len + 8);
 			memcpy(temp_buff, start_code, 4);
-			memcpy(temp_buff+4, info.pps, info.pps_len);
-			memcpy(temp_buff+4+info.pps_len, start_code, 4);
-			memcpy(temp_buff+4+info.pps_len +4, info.sps, info.sps_len);
-			sm->m_decoder.docode(temp_buff, info.sps_len + info.pps_len + 8, true, 0);
+			memcpy(temp_buff + 4, info.pps, info.pps_len);
+			memcpy(temp_buff + 4 + info.pps_len, start_code, 4);
+			memcpy(temp_buff + 4 + info.pps_len + 4, info.sps,
+			       info.sps_len);
+			sm->m_decoder.docode(temp_buff,
+					     info.sps_len + info.pps_len + 8,
+					     true, 0);
 			free(temp_buff);
-		}
-		else
-		{
+		} else {
 			uint8_t *temp_buf = (uint8_t *)calloc(1, req_size);
-			circlebuf_pop_front(&sm->m_avBuffer, temp_buf, req_size);
+			circlebuf_pop_front(&sm->m_avBuffer, temp_buf,
+					    req_size);
 
-			if (header_info.type == FFM_PACKET_AUDIO)
-			{
+			if (header_info.type == FFM_PACKET_AUDIO) {
 #ifdef DUMPFILE
 				fwrite(temp_buf, 1, req_size, sm->m_auioFile);
 #endif // DUMPFILE
-
-			}
-			else
-			{
+				if (sm->m_infoReceived) {
+					SFgAudioFrame *frame =
+						new SFgAudioFrame();
+					frame->bitsPerSample =
+						sm->m_mediaInfo.bytes_per_frame;
+					frame->channels =
+						sm->m_mediaInfo.speakers;
+					frame->pts = header_info.pts;
+					frame->sampleRate =
+						sm->m_mediaInfo.samples_per_sec;
+					frame->dataLen = req_size;
+					frame->data = temp_buf;
+					sm->outputAudio(frame);
+					delete frame;
+				}
+			} else {
 				uint8_t *all = NULL;
 				size_t all_len = 0;
-				sm->parseNalus(temp_buf, req_size, &all, &all_len);
-				if (all_len)
-				{
-					int res = sm->m_decoder.docode(all, all_len, false, header_info.pts);
+				sm->parseNalus(temp_buf, req_size, &all,
+					       &all_len);
+				if (all_len) {
+					int res = sm->m_decoder.docode(
+						all, all_len, false,
+						header_info.pts);
 					if (res == 1)
-						sm->outputVideo(&sm->m_decoder.m_sVideoFrameOri);
+						sm->outputVideo(
+							&sm->m_decoder
+								 .m_sVideoFrameOri);
 				}
+				free(all);
 			}
 
 			free(temp_buf);
@@ -157,7 +181,8 @@ void ScreenMirrorServer::quitUsbMirror()
 	os_process_pipe_destroy(process);
 }
 
-void ScreenMirrorServer::parseNalus(uint8_t *data, size_t size, uint8_t **out, size_t *out_len)
+void ScreenMirrorServer::parseNalus(uint8_t *data, size_t size, uint8_t **out,
+				    size_t *out_len)
 {
 	int total_size = 0;
 	uint8_t *slice = data;
@@ -167,19 +192,18 @@ void ScreenMirrorServer::parseNalus(uint8_t *data, size_t size, uint8_t **out, s
 		slice += length + 4;
 	}
 
-	if (total_size)
-	{
+	if (total_size) {
 		*out = (uint8_t *)calloc(1, total_size);
 		uint8_t *ptr = *out;
 		*out_len = total_size;
 		slice = data;
 		size_t copy_index = 0;
 		while (slice < data + size) {
-			memcpy(ptr+copy_index, start_code, 4);
-			copy_index+=4;
+			memcpy(ptr + copy_index, start_code, 4);
+			copy_index += 4;
 			size_t length = byteutils_get_int_be(slice, 0);
 			total_size += length + 4;
-			memcpy(ptr+copy_index, slice+4, length);
+			memcpy(ptr + copy_index, slice + 4, length);
 			copy_index += length;
 			slice += length + 4;
 		}
@@ -192,7 +216,6 @@ void ScreenMirrorServer::doWithNalu(uint8_t *data, size_t size)
 	fwrite(start_code, 1, 4, m_videoFile);
 	fwrite(data, 1, size, m_videoFile);
 #endif // DUMPFILE
-
 }
 
 bool ScreenMirrorServer::initPipe()

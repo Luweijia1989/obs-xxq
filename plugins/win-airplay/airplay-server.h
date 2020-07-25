@@ -7,6 +7,7 @@
 #include <ipc-util/pipe.h>
 #include <util/circlebuf.h>
 #include "VideoDecoder.h"
+#include "common-define.h"
 extern "C" {
 #include <util/pipe.h>
 }
@@ -44,6 +45,8 @@ private:
 	os_process_pipe_t *process;
 	circlebuf m_avBuffer;
 	VideoDecoder m_decoder;
+	struct media_info m_mediaInfo;
+	bool m_infoReceived =false;
 
 #ifdef DUMPFILE
 	FILE *m_auioFile;
