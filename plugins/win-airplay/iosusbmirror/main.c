@@ -25,6 +25,8 @@
 #include <fcntl.h>
 #include <io.h>
 
+//#define STANDALONE
+
 struct MessageProcessor {
 	struct CMClock clock;
 	struct CMClock localAudioClock;
@@ -152,12 +154,14 @@ static void handle_sync_packet(unsigned char *buf, uint32_t length)
 	case AFMT: {
 		usbmuxd_log(LL_INFO, "AFMT");
 		struct SyncAfmtPacket afmtPacket = {0};
-		if (NewSyncAfmtPacketFromBytes(buf, length, &afmtPacket) == 0)
-		{
-			app_device.m_info.samples_per_sec = (uint32_t)afmtPacket.AudioStreamInfo.SampleRate;
+		if (NewSyncAfmtPacketFromBytes(buf, length, &afmtPacket) == 0) {
+			app_device.m_info.samples_per_sec =
+				(uint32_t)afmtPacket.AudioStreamInfo.SampleRate;
 			app_device.m_info.format = AUDIO_FORMAT_16BIT;
-			app_device.m_info.speakers = afmtPacket.AudioStreamInfo.ChannelsPerFrame;
-			app_device.m_info.bytes_per_frame = afmtPacket.AudioStreamInfo.BytesPerFrame;
+			app_device.m_info.speakers =
+				afmtPacket.AudioStreamInfo.ChannelsPerFrame;
+			app_device.m_info.bytes_per_frame =
+				afmtPacket.AudioStreamInfo.BytesPerFrame;
 		}
 
 		uint8_t *afmt;
@@ -562,34 +566,49 @@ void exit_app()
 
 void pipeConsume(struct CMSampleBuffer *buf, void *c)
 {
-	if (buf->HasFormatDescription)
-	{
-		memcpy(app_device.m_info.pps, buf->FormatDescription.PPS, buf->FormatDescription.PPS_len);
-		memcpy(app_device.m_info.sps, buf->FormatDescription.SPS, buf->FormatDescription.SPS_len);
+	if (buf->HasFormatDescription) {
+		memcpy(app_device.m_info.pps, buf->FormatDescription.PPS,
+		       buf->FormatDescription.PPS_len);
+		memcpy(app_device.m_info.sps, buf->FormatDescription.SPS,
+		       buf->FormatDescription.SPS_len);
 		app_device.m_info.pps_len = buf->FormatDescription.PPS_len;
 		app_device.m_info.sps_len = buf->FormatDescription.SPS_len;
-		struct av_packet_info pack_info = { 0 };
+		struct av_packet_info pack_info = {0};
 		pack_info.size = sizeof(struct media_info);
 		pack_info.type = FFM_MEDIA_INFO;
-		ipc_pipe_client_write(&ipc_client, &pack_info, sizeof(struct av_packet_info));
-		ipc_pipe_client_write(&ipc_client, &app_device.m_info, sizeof(struct media_info));
+#ifndef STANDALONE
+		ipc_pipe_client_write(&ipc_client, &pack_info,
+				      sizeof(struct av_packet_info));
+		ipc_pipe_client_write(&ipc_client, &app_device.m_info,
+				      sizeof(struct media_info));
+#endif
 	}
+
+	if (buf->SampleData_len <= 0)
+		return;
 
 	struct av_packet_info pack_info = {0};
 	pack_info.size = buf->SampleData_len;
 	pack_info.type = buf->MediaType == MediaTypeSound ? FFM_PACKET_AUDIO
-							   : FFM_PACKET_VIDEO;
+							  : FFM_PACKET_VIDEO;
 	if (buf->OutputPresentationTimestamp.CMTimeValue > 17446044073700192000)
 		buf->OutputPresentationTimestamp.CMTimeValue = 0;
 
 	if (pack_info.type == FFM_PACKET_AUDIO) {
-		pack_info.pts = buf->OutputPresentationTimestamp.CMTimeValue;
+		pack_info.pts = buf->OutputPresentationTimestamp.CMTimeValue *
+				1000.0 /
+				buf->OutputPresentationTimestamp.CMTimeScale;
+	} else {
+		pack_info.pts = buf->OutputPresentationTimestamp.CMTimeValue *
+				1000.0 /
+				buf->OutputPresentationTimestamp.CMTimeScale;
 	}
-	else {
-		pack_info.pts = buf->OutputPresentationTimestamp.CMTimeValue;
-	}
-	ipc_pipe_client_write(&ipc_client, &pack_info, sizeof(struct av_packet_info));
-	ipc_pipe_client_write(&ipc_client, buf->SampleData, buf->SampleData_len);
+#ifndef STANDALONE
+	ipc_pipe_client_write(&ipc_client, &pack_info,
+			      sizeof(struct av_packet_info));
+	ipc_pipe_client_write(&ipc_client, buf->SampleData,
+			      buf->SampleData_len);
+#endif
 }
 
 struct Consumer PipeWriter()
@@ -670,12 +689,14 @@ int main(void)
 
 	create_stdin_thread();
 
+#ifndef STANDALONE
 	freopen("/dev/null", "w", stderr);
 	memset(&ipc_client, 0, sizeof(ipc_pipe_client_t));
 	if (!ipc_pipe_client_open(&ipc_client, PIPE_NAME)) {
 		usbmuxd_log(LL_ERROR, "ipc pipe create failed!");
 		return -1;
 	}
+#endif
 	lock_down_event = CreateEvent(NULL, FALSE, FALSE, NULL);
 
 	client_init();

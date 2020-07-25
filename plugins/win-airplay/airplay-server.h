@@ -12,7 +12,7 @@ extern "C" {
 #include <util/pipe.h>
 }
 
-#define DUMPFILE
+//#define DUMPFILE
 
 class ScreenMirrorServer {
 public:
