@@ -66,6 +66,9 @@ struct usb_device_info {
 	struct MessageProcessor mp;
 	bool first_ping_packet;
 	struct media_info m_info;
+	bool has_video_received;
+	uint64_t audio_offset;
+	uint64_t last_audio_ts;
 
 	HANDLE stop_signal;
 };
@@ -599,14 +602,23 @@ void pipeConsume(struct CMSampleBuffer *buf, void *c)
 		buf->OutputPresentationTimestamp.CMTimeValue = 0;
 
 	if (pack_info.type == FFM_PACKET_AUDIO) {
-		pack_info.pts = buf->OutputPresentationTimestamp.CMTimeValue *
+		app_device.last_audio_ts = buf->OutputPresentationTimestamp.CMTimeValue *
 				1000.0 /
 				buf->OutputPresentationTimestamp.CMTimeScale;
+		pack_info.pts = app_device.last_audio_ts - app_device.audio_offset;
 	} else {
+		if (!app_device.has_video_received)
+		{
+			app_device.audio_offset = app_device.last_audio_ts;
+			app_device.has_video_received = true;
+		}
 		pack_info.pts = buf->OutputPresentationTimestamp.CMTimeValue *
 				1000.0 /
 				buf->OutputPresentationTimestamp.CMTimeScale;
 	}
+
+	if (pack_info.type == FFM_PACKET_AUDIO && !app_device.has_video_received)
+		return;
 #ifndef STANDALONE
 	ipc_pipe_client_write(&ipc_client, &pack_info,
 			      sizeof(struct av_packet_info));
