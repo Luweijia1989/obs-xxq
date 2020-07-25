@@ -547,8 +547,12 @@ void closeSession()
 		usbmuxd_log(LL_INFO, "OK. Ready to release USB Device.");
 	}
 
+	usb_release_interface(app_device.device_handle, app_device.interface_fa);
+	usb_release_interface(app_device.device_handle, app_device.interface);
+
 	usb_control_msg(app_device.device_handle, 0x40, 0x52, 0x00, 0x00, NULL,
 			0, 1000 /* LIBUSB_DEFAULT_TIMEOUT */);
+	usb_set_configuration(app_device.device_handle, 4);
 }
 
 void exit_app()
