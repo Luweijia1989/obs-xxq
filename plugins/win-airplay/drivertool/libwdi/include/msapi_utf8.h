@@ -29,7 +29,7 @@
 #pragma once
 #if defined(_MSC_VER)
 // disable VS2012 Code Analysis warnings that are intentional
-#pragma warning(disable: 6387)	// Don't care about bad params
+#pragma warning(disable : 6387) // Don't care about bad params
 #endif
 
 #ifdef __cplusplus
@@ -43,36 +43,52 @@ extern "C" {
 	WideCharToMultiByte(CP_UTF8, 0, wsrc, -1, dest, dest_size, NULL, NULL)
 #define utf8_to_wchar_no_alloc(src, wdest, wdest_size) \
 	MultiByteToWideChar(CP_UTF8, 0, src, -1, wdest, wdest_size)
-#define Edit_ReplaceSelU(hCtrl, str) ((void)SendMessageLU(hCtrl, EM_REPLACESEL, (WPARAM)FALSE, str))
-#define ComboBox_AddStringU(hCtrl, str) ((int)(DWORD)SendMessageLU(hCtrl, CB_ADDSTRING, (WPARAM)FALSE, str))
-#define ComboBox_InsertStringU(hCtrl, index, str) ((int)(DWORD)SendMessageLU(hCtrl, CB_INSERTSTRING, (WPARAM)index, str))
-#define ComboBox_GetTextU(hCtrl, str, max_str) GetWindowTextU(hCtrl, str, max_str)
+#define Edit_ReplaceSelU(hCtrl, str) \
+	((void)SendMessageLU(hCtrl, EM_REPLACESEL, (WPARAM)FALSE, str))
+#define ComboBox_AddStringU(hCtrl, str) \
+	((int)(DWORD)SendMessageLU(hCtrl, CB_ADDSTRING, (WPARAM)FALSE, str))
+#define ComboBox_InsertStringU(hCtrl, index, str) \
+	((int)(DWORD)SendMessageLU(hCtrl, CB_INSERTSTRING, (WPARAM)index, str))
+#define ComboBox_GetTextU(hCtrl, str, max_str) \
+	GetWindowTextU(hCtrl, str, max_str)
 #define GetSaveFileNameU(p) GetOpenSaveFileNameU(p, TRUE)
 #define GetOpenFileNameU(p) GetOpenSaveFileNameU(p, FALSE)
-#define ListView_SetItemTextU(hwndLV,i,iSubItem_,pszText_) { LVITEMW _ms_wlvi; _ms_wlvi.iSubItem = iSubItem_; \
-	_ms_wlvi.pszText = utf8_to_wchar(pszText_); \
-	SNDMSG((hwndLV),LVM_SETITEMTEXTW,(WPARAM)(i),(LPARAM)&_ms_wlvi); sfree(_ms_wlvi.pszText);}
+#define ListView_SetItemTextU(hwndLV, i, iSubItem_, pszText_)   \
+	{                                                       \
+		LVITEMW _ms_wlvi;                               \
+		_ms_wlvi.iSubItem = iSubItem_;                  \
+		_ms_wlvi.pszText = utf8_to_wchar(pszText_);     \
+		SNDMSG((hwndLV), LVM_SETITEMTEXTW, (WPARAM)(i), \
+		       (LPARAM)&_ms_wlvi);                      \
+		sfree(_ms_wlvi.pszText);                        \
+	}
 
-#define sfree(p) do {if (p != NULL) {free((void*)(p)); p = NULL;}} while(0)
-#define wconvert(p)     wchar_t* w ## p = utf8_to_wchar(p)
-#define walloc(p, size) wchar_t* w ## p = (wchar_t*)calloc(size, sizeof(wchar_t))
-#define wfree(p) sfree(w ## p)
+#define sfree(p)                           \
+	do {                               \
+		if (p != NULL) {           \
+			free((void *)(p)); \
+			p = NULL;          \
+		}                          \
+	} while (0)
+#define wconvert(p) wchar_t *w##p = utf8_to_wchar(p)
+#define walloc(p, size) wchar_t *w##p = (wchar_t *)calloc(size, sizeof(wchar_t))
+#define wfree(p) sfree(w##p)
 
 /*
  * Converts an UTF-16 string to UTF8 (allocate returned string)
  * Returns NULL on error
  */
-static __inline char* wchar_to_utf8(const wchar_t* wstr)
+static __inline char *wchar_to_utf8(const wchar_t *wstr)
 {
 	int size = 0;
-	char* str = NULL;
+	char *str = NULL;
 
 	// Find out the size we need to allocate for our converted string
 	size = WideCharToMultiByte(CP_UTF8, 0, wstr, -1, NULL, 0, NULL, NULL);
-	if (size <= 1)	// An empty string would be size 1
+	if (size <= 1) // An empty string would be size 1
 		return NULL;
 
-	if ((str = (char*)calloc(size, 1)) == NULL)
+	if ((str = (char *)calloc(size, 1)) == NULL)
 		return NULL;
 
 	if (wchar_to_utf8_no_alloc(wstr, str, size) != size) {
@@ -87,17 +103,17 @@ static __inline char* wchar_to_utf8(const wchar_t* wstr)
  * Converts an UTF8 string to UTF-16 (allocate returned string)
  * Returns NULL on error
  */
-static __inline wchar_t* utf8_to_wchar(const char* str)
+static __inline wchar_t *utf8_to_wchar(const char *str)
 {
 	int size = 0;
-	wchar_t* wstr = NULL;
+	wchar_t *wstr = NULL;
 
 	// Find out the size we need to allocate for our converted string
 	size = MultiByteToWideChar(CP_UTF8, 0, str, -1, NULL, 0);
-	if (size <= 1)	// An empty string would be size 1
+	if (size <= 1) // An empty string would be size 1
 		return NULL;
 
-	if ((wstr = (wchar_t*)calloc(size, sizeof(wchar_t))) == NULL)
+	if ((wstr = (wchar_t *)calloc(size, sizeof(wchar_t))) == NULL)
 		return NULL;
 
 	if (utf8_to_wchar_no_alloc(str, wstr, size) != size) {
@@ -107,15 +123,19 @@ static __inline wchar_t* utf8_to_wchar(const char* str)
 	return wstr;
 }
 
-static __inline DWORD FormatMessageU(DWORD dwFlags, LPCVOID lpSource, DWORD dwMessageId,
-									 DWORD dwLanguageId, char* lpBuffer, DWORD nSize, va_list *Arguments)
+static __inline DWORD FormatMessageU(DWORD dwFlags, LPCVOID lpSource,
+				     DWORD dwMessageId, DWORD dwLanguageId,
+				     char *lpBuffer, DWORD nSize,
+				     va_list *Arguments)
 {
 	DWORD ret = 0, err = ERROR_INVALID_DATA;
 	// coverity[returned_null]
 	walloc(lpBuffer, nSize);
-	ret = FormatMessageW(dwFlags, lpSource, dwMessageId, dwLanguageId, wlpBuffer, nSize, Arguments);
+	ret = FormatMessageW(dwFlags, lpSource, dwMessageId, dwLanguageId,
+			     wlpBuffer, nSize, Arguments);
 	err = GetLastError();
-	if ((ret != 0) && ((ret = wchar_to_utf8_no_alloc(wlpBuffer, lpBuffer, nSize)) == 0)) {
+	if ((ret != 0) &&
+	    ((ret = wchar_to_utf8_no_alloc(wlpBuffer, lpBuffer, nSize)) == 0)) {
 		err = GetLastError();
 		ret = 0;
 	}
@@ -125,7 +145,8 @@ static __inline DWORD FormatMessageU(DWORD dwFlags, LPCVOID lpSource, DWORD dwMe
 }
 
 // SendMessage, with LPARAM as UTF-8 string
-static __inline LRESULT SendMessageLU(HWND hWnd, UINT Msg, WPARAM wParam, const char* lParam)
+static __inline LRESULT SendMessageLU(HWND hWnd, UINT Msg, WPARAM wParam,
+				      const char *lParam)
 {
 	LRESULT ret = FALSE;
 	DWORD err = ERROR_INVALID_DATA;
@@ -137,7 +158,9 @@ static __inline LRESULT SendMessageLU(HWND hWnd, UINT Msg, WPARAM wParam, const 
 	return ret;
 }
 
-static __inline int DrawTextExU(HDC hDC, LPCSTR lpchText, int nCount, LPRECT lpRect, UINT uFormat, LPDRAWTEXTPARAMS lpDTParams)
+static __inline int DrawTextExU(HDC hDC, LPCSTR lpchText, int nCount,
+				LPRECT lpRect, UINT uFormat,
+				LPDRAWTEXTPARAMS lpDTParams)
 {
 	int ret;
 	DWORD err = ERROR_INVALID_DATA;
@@ -149,7 +172,7 @@ static __inline int DrawTextExU(HDC hDC, LPCSTR lpchText, int nCount, LPRECT lpR
 	return ret;
 }
 
-static __inline BOOL SHGetPathFromIDListU(LPCITEMIDLIST pidl, char* pszPath)
+static __inline BOOL SHGetPathFromIDListU(LPCITEMIDLIST pidl, char *pszPath)
 {
 	BOOL ret = FALSE;
 	DWORD err = ERROR_INVALID_DATA;
@@ -157,7 +180,8 @@ static __inline BOOL SHGetPathFromIDListU(LPCITEMIDLIST pidl, char* pszPath)
 	walloc(pszPath, MAX_PATH);
 	ret = SHGetPathFromIDListW(pidl, wpszPath);
 	err = GetLastError();
-	if ((ret) && (wchar_to_utf8_no_alloc(wpszPath, pszPath, MAX_PATH) == 0)) {
+	if ((ret) &&
+	    (wchar_to_utf8_no_alloc(wpszPath, pszPath, MAX_PATH) == 0)) {
 		err = GetLastError();
 		ret = FALSE;
 	}
@@ -166,15 +190,17 @@ static __inline BOOL SHGetPathFromIDListU(LPCITEMIDLIST pidl, char* pszPath)
 	return ret;
 }
 
-static __inline HWND CreateWindowU(char* lpClassName, char* lpWindowName,
-	DWORD dwStyle, int x, int y, int nWidth, int nHeight, HWND hWndParent,
-	HMENU hMenu, HINSTANCE hInstance, LPVOID lpParam)
+static __inline HWND CreateWindowU(char *lpClassName, char *lpWindowName,
+				   DWORD dwStyle, int x, int y, int nWidth,
+				   int nHeight, HWND hWndParent, HMENU hMenu,
+				   HINSTANCE hInstance, LPVOID lpParam)
 {
 	HWND ret = NULL;
 	DWORD err = ERROR_INVALID_DATA;
 	wconvert(lpClassName);
 	wconvert(lpWindowName);
-	ret = CreateWindowW(wlpClassName, wlpWindowName, dwStyle, x, y, nWidth, nHeight, hWndParent, hMenu, hInstance, lpParam);
+	ret = CreateWindowW(wlpClassName, wlpWindowName, dwStyle, x, y, nWidth,
+			    nHeight, hWndParent, hMenu, hInstance, lpParam);
 	err = GetLastError();
 	wfree(lpClassName);
 	wfree(lpWindowName);
@@ -182,7 +208,8 @@ static __inline HWND CreateWindowU(char* lpClassName, char* lpWindowName,
 	return ret;
 }
 
-static __inline int MessageBoxU(HWND hWnd, LPCSTR lpText, LPCSTR lpCaption, UINT uType)
+static __inline int MessageBoxU(HWND hWnd, LPCSTR lpText, LPCSTR lpCaption,
+				UINT uType)
 {
 	int ret;
 	DWORD err = ERROR_INVALID_DATA;
@@ -196,7 +223,7 @@ static __inline int MessageBoxU(HWND hWnd, LPCSTR lpText, LPCSTR lpCaption, UINT
 	return ret;
 }
 
-static __inline int GetWindowTextU(HWND hWnd, char* lpString, int nMaxCount)
+static __inline int GetWindowTextU(HWND hWnd, char *lpString, int nMaxCount)
 {
 	int ret = 0;
 	DWORD err = ERROR_INVALID_DATA;
@@ -204,7 +231,8 @@ static __inline int GetWindowTextU(HWND hWnd, char* lpString, int nMaxCount)
 	walloc(lpString, nMaxCount);
 	ret = GetWindowTextW(hWnd, wlpString, nMaxCount);
 	err = GetLastError();
-	if ( (ret != 0) && ((ret = wchar_to_utf8_no_alloc(wlpString, lpString, nMaxCount)) == 0) ) {
+	if ((ret != 0) && ((ret = wchar_to_utf8_no_alloc(wlpString, lpString,
+							 nMaxCount)) == 0)) {
 		err = GetLastError();
 	}
 	wfree(lpString);
@@ -212,7 +240,7 @@ static __inline int GetWindowTextU(HWND hWnd, char* lpString, int nMaxCount)
 	return ret;
 }
 
-static __inline BOOL SetWindowTextU(HWND hWnd, const char* lpString)
+static __inline BOOL SetWindowTextU(HWND hWnd, const char *lpString)
 {
 	BOOL ret = FALSE;
 	DWORD err = ERROR_INVALID_DATA;
@@ -228,26 +256,32 @@ static __inline int GetWindowTextLengthU(HWND hWnd)
 {
 	int ret = 0;
 	DWORD err = ERROR_INVALID_DATA;
-	wchar_t* wbuf = NULL;
-	char* buf = NULL;
+	wchar_t *wbuf = NULL;
+	char *buf = NULL;
 
 	ret = GetWindowTextLengthW(hWnd);
 	err = GetLastError();
-	if (ret == 0) goto out;
-	wbuf = calloc(ret, sizeof(wchar_t));
+	if (ret == 0)
+		goto out;
+	wbuf = (wchar_t *)calloc(ret, sizeof(wchar_t));
 	err = GetLastError();
 	if (wbuf == NULL) {
-		err = ERROR_OUTOFMEMORY; ret = 0; goto out;
+		err = ERROR_OUTOFMEMORY;
+		ret = 0;
+		goto out;
 	}
 	ret = GetWindowTextW(hWnd, wbuf, ret);
 	err = GetLastError();
-	if (ret == 0) goto out;
+	if (ret == 0)
+		goto out;
 	buf = wchar_to_utf8(wbuf);
 	err = GetLastError();
 	if (buf == NULL) {
-		err = ERROR_OUTOFMEMORY; ret = 0; goto out;
+		err = ERROR_OUTOFMEMORY;
+		ret = 0;
+		goto out;
 	}
-	ret = (int)strlen(buf) + 2;	// GetDlgItemText seems to add a character
+	ret = (int)strlen(buf) + 2; // GetDlgItemText seems to add a character
 	err = GetLastError();
 out:
 	sfree(wbuf);
@@ -256,7 +290,8 @@ out:
 	return ret;
 }
 
-static __inline UINT GetDlgItemTextU(HWND hDlg, int nIDDlgItem, char* lpString, int nMaxCount)
+static __inline UINT GetDlgItemTextU(HWND hDlg, int nIDDlgItem, char *lpString,
+				     int nMaxCount)
 {
 	UINT ret = 0;
 	DWORD err = ERROR_INVALID_DATA;
@@ -264,7 +299,8 @@ static __inline UINT GetDlgItemTextU(HWND hDlg, int nIDDlgItem, char* lpString, 
 	walloc(lpString, nMaxCount);
 	ret = GetDlgItemTextW(hDlg, nIDDlgItem, wlpString, nMaxCount);
 	err = GetLastError();
-	if ((ret != 0) && ((ret = wchar_to_utf8_no_alloc(wlpString, lpString, nMaxCount)) == 0)) {
+	if ((ret != 0) && ((ret = wchar_to_utf8_no_alloc(wlpString, lpString,
+							 nMaxCount)) == 0)) {
 		err = GetLastError();
 	}
 	wfree(lpString);
@@ -272,7 +308,8 @@ static __inline UINT GetDlgItemTextU(HWND hDlg, int nIDDlgItem, char* lpString, 
 	return ret;
 }
 
-static __inline BOOL SetDlgItemTextU(HWND hDlg, int nIDDlgItem, const char* lpString)
+static __inline BOOL SetDlgItemTextU(HWND hDlg, int nIDDlgItem,
+				     const char *lpString)
 {
 	BOOL ret = FALSE;
 	DWORD err = ERROR_INVALID_DATA;
@@ -284,42 +321,48 @@ static __inline BOOL SetDlgItemTextU(HWND hDlg, int nIDDlgItem, const char* lpSt
 	return ret;
 }
 
-static __inline int ComboBox_GetLBTextU(HWND hCtrl, int index, char* lpString)
+static __inline int ComboBox_GetLBTextU(HWND hCtrl, int index, char *lpString)
 {
 	int size;
 	DWORD err = ERROR_INVALID_DATA;
-	wchar_t* wlpString;
+	wchar_t *wlpString;
 	if (lpString == NULL)
 		return CB_ERR;
-	size = (int)SendMessageW(hCtrl, CB_GETLBTEXTLEN, (WPARAM)index, (LPARAM)0);
+	size = (int)SendMessageW(hCtrl, CB_GETLBTEXTLEN, (WPARAM)index,
+				 (LPARAM)0);
 	if (size < 0)
 		return size;
-	wlpString = (wchar_t*)calloc(size+1, sizeof(wchar_t));
-	size = (int)SendMessageW(hCtrl, CB_GETLBTEXT, (WPARAM)index, (LPARAM)wlpString);
+	wlpString = (wchar_t *)calloc(size + 1, sizeof(wchar_t));
+	size = (int)SendMessageW(hCtrl, CB_GETLBTEXT, (WPARAM)index,
+				 (LPARAM)wlpString);
 	err = GetLastError();
 	if (size > 0)
-		wchar_to_utf8_no_alloc(wlpString, lpString, size+1);
+		wchar_to_utf8_no_alloc(wlpString, lpString, size + 1);
 	wfree(lpString);
 	SetLastError(err);
 	return size;
 }
 
-static __inline HANDLE CreateFileU(const char* lpFileName, DWORD dwDesiredAccess, DWORD dwShareMode,
-								   LPSECURITY_ATTRIBUTES lpSecurityAttributes, DWORD dwCreationDisposition,
-								   DWORD dwFlagsAndAttributes,  HANDLE hTemplateFile)
+static __inline HANDLE CreateFileU(const char *lpFileName,
+				   DWORD dwDesiredAccess, DWORD dwShareMode,
+				   LPSECURITY_ATTRIBUTES lpSecurityAttributes,
+				   DWORD dwCreationDisposition,
+				   DWORD dwFlagsAndAttributes,
+				   HANDLE hTemplateFile)
 {
 	HANDLE ret = INVALID_HANDLE_VALUE;
 	DWORD err = ERROR_INVALID_DATA;
 	wconvert(lpFileName);
-	ret = CreateFileW(wlpFileName, dwDesiredAccess, dwShareMode, lpSecurityAttributes,
-		dwCreationDisposition, dwFlagsAndAttributes, hTemplateFile);
+	ret = CreateFileW(wlpFileName, dwDesiredAccess, dwShareMode,
+			  lpSecurityAttributes, dwCreationDisposition,
+			  dwFlagsAndAttributes, hTemplateFile);
 	err = GetLastError();
 	wfree(lpFileName);
 	SetLastError(err);
 	return ret;
 }
 
-static __inline BOOL DeleteFileU(const char* lpFileName)
+static __inline BOOL DeleteFileU(const char *lpFileName)
 {
 	BOOL ret = FALSE;
 	DWORD err = ERROR_INVALID_DATA;
@@ -332,28 +375,32 @@ static __inline BOOL DeleteFileU(const char* lpFileName)
 }
 
 // This function differs from regular GetTextExtentPoint in that it uses a zero terminated string
-static __inline BOOL GetTextExtentPointU(HDC hdc, const char* lpString, LPSIZE lpSize)
+static __inline BOOL GetTextExtentPointU(HDC hdc, const char *lpString,
+					 LPSIZE lpSize)
 {
 	BOOL ret = FALSE;
 	DWORD err = ERROR_INVALID_DATA;
 	wconvert(lpString);
 	if (wlpString == NULL)
 		return FALSE;
-	ret = GetTextExtentPoint32W(hdc, wlpString, (int)wcslen(wlpString), lpSize);
+	ret = GetTextExtentPoint32W(hdc, wlpString, (int)wcslen(wlpString),
+				    lpSize);
 	err = GetLastError();
 	wfree(lpString);
 	SetLastError(err);
 	return ret;
 }
 
-static __inline DWORD GetCurrentDirectoryU(DWORD nBufferLength, char* lpBuffer)
+static __inline DWORD GetCurrentDirectoryU(DWORD nBufferLength, char *lpBuffer)
 {
 	DWORD ret = 0, err = ERROR_INVALID_DATA;
 	// coverity[returned_null]
 	walloc(lpBuffer, nBufferLength);
 	ret = GetCurrentDirectoryW(nBufferLength, wlpBuffer);
 	err = GetLastError();
-	if ((ret != 0) && ((ret = wchar_to_utf8_no_alloc(wlpBuffer, lpBuffer, nBufferLength)) == 0)) {
+	if ((ret != 0) &&
+	    ((ret = wchar_to_utf8_no_alloc(wlpBuffer, lpBuffer,
+					   nBufferLength)) == 0)) {
 		err = GetLastError();
 	}
 	wfree(lpBuffer);
@@ -361,14 +408,17 @@ static __inline DWORD GetCurrentDirectoryU(DWORD nBufferLength, char* lpBuffer)
 	return ret;
 }
 
-static __inline DWORD GetModuleFileNameU(HMODULE hModule, char* lpFilename, DWORD nSize)
+static __inline DWORD GetModuleFileNameU(HMODULE hModule, char *lpFilename,
+					 DWORD nSize)
 {
 	DWORD ret = 0, err = ERROR_INVALID_DATA;
 	// coverity[returned_null]
 	walloc(lpFilename, nSize);
 	ret = GetModuleFileNameW(hModule, wlpFilename, nSize);
 	err = GetLastError();
-	if ((ret != 0) && ((ret = wchar_to_utf8_no_alloc(wlpFilename, lpFilename, nSize)) == 0)) {
+	if ((ret != 0) &&
+	    ((ret = wchar_to_utf8_no_alloc(wlpFilename, lpFilename, nSize)) ==
+	     0)) {
 		err = GetLastError();
 	}
 	wfree(lpFilename);
@@ -376,20 +426,26 @@ static __inline DWORD GetModuleFileNameU(HMODULE hModule, char* lpFilename, DWOR
 	return ret;
 }
 
-static __inline DWORD GetFullPathNameU(const char* lpFileName, DWORD nBufferLength, char* lpBuffer, char** lpFilePart)
+static __inline DWORD GetFullPathNameU(const char *lpFileName,
+				       DWORD nBufferLength, char *lpBuffer,
+				       char **lpFilePart)
 {
 	DWORD ret = 0, err = ERROR_INVALID_DATA;
-	wchar_t* wlpFilePart;
+	wchar_t *wlpFilePart;
 	wconvert(lpFileName);
 	// coverity[returned_null]
 	walloc(lpBuffer, nBufferLength);
 
 	// lpFilePart is not supported
-	if (lpFilePart != NULL) goto out;
+	if (lpFilePart != NULL)
+		goto out;
 
-	ret = GetFullPathNameW(wlpFileName, nBufferLength, wlpBuffer, &wlpFilePart);
+	ret = GetFullPathNameW(wlpFileName, nBufferLength, wlpBuffer,
+			       &wlpFilePart);
 	err = GetLastError();
-	if ((ret != 0) && ((ret = wchar_to_utf8_no_alloc(wlpBuffer, lpBuffer, nBufferLength)) == 0)) {
+	if ((ret != 0) &&
+	    ((ret = wchar_to_utf8_no_alloc(wlpBuffer, lpBuffer,
+					   nBufferLength)) == 0)) {
 		err = GetLastError();
 	}
 
@@ -400,12 +456,13 @@ out:
 	return ret;
 }
 
-static __inline DWORD GetFileAttributesU(const char* lpFileName)
+static __inline DWORD GetFileAttributesU(const char *lpFileName)
 {
 	DWORD ret = 0xFFFFFFFF, err = ERROR_INVALID_DATA;
 	wconvert(lpFileName);
 	// Unlike Microsoft's version, ours doesn't fail if the string is quoted
-	if ((wlpFileName[0] == L'"') && (wlpFileName[wcslen(wlpFileName) - 1] == L'"')) {
+	if ((wlpFileName[0] == L'"') &&
+	    (wlpFileName[wcslen(wlpFileName) - 1] == L'"')) {
 		wlpFileName[wcslen(wlpFileName) - 1] = 0;
 		ret = GetFileAttributesW(&wlpFileName[1]);
 	} else {
@@ -417,7 +474,8 @@ static __inline DWORD GetFileAttributesU(const char* lpFileName)
 	return ret;
 }
 
-static __inline int SHCreateDirectoryExU(HWND hwnd, const char* pszPath, SECURITY_ATTRIBUTES *psa)
+static __inline int SHCreateDirectoryExU(HWND hwnd, const char *pszPath,
+					 SECURITY_ATTRIBUTES *psa)
 {
 	int ret = ERROR_INVALID_DATA;
 	DWORD err = ERROR_INVALID_DATA;
@@ -429,7 +487,7 @@ static __inline int SHCreateDirectoryExU(HWND hwnd, const char* pszPath, SECURIT
 	return ret;
 }
 
-static __inline BOOL ShellExecuteExU(SHELLEXECUTEINFOA* lpExecInfo)
+static __inline BOOL ShellExecuteExU(SHELLEXECUTEINFOA *lpExecInfo)
 {
 	BOOL ret = FALSE;
 	DWORD err = ERROR_INVALID_DATA;
@@ -437,7 +495,8 @@ static __inline BOOL ShellExecuteExU(SHELLEXECUTEINFOA* lpExecInfo)
 
 	// Because we're lazy, we'll assume that the A and W structs inherently have the same size
 	if (lpExecInfo->cbSize != sizeof(SHELLEXECUTEINFOW)) {
-		SetLastError(ERROR_BAD_LENGTH); return FALSE;
+		SetLastError(ERROR_BAD_LENGTH);
+		return FALSE;
 	}
 	memcpy(&wExecInfo, lpExecInfo, lpExecInfo->cbSize);
 	wExecInfo.lpVerb = utf8_to_wchar(lpExecInfo->lpVerb);
@@ -464,10 +523,13 @@ static __inline BOOL ShellExecuteExU(SHELLEXECUTEINFOA* lpExecInfo)
 }
 
 // Doesn't support LPSTARTUPINFOEX struct
-static __inline BOOL CreateProcessU(const char* lpApplicationName, const char* lpCommandLine, LPSECURITY_ATTRIBUTES lpProcessAttributes,
-									LPSECURITY_ATTRIBUTES lpThreadAttributes, BOOL bInheritHandles, DWORD dwCreationFlags,
-									LPVOID lpEnvironment, const char* lpCurrentDirectory, LPSTARTUPINFOA lpStartupInfo,
-									LPPROCESS_INFORMATION lpProcessInformation)
+static __inline BOOL
+CreateProcessU(const char *lpApplicationName, const char *lpCommandLine,
+	       LPSECURITY_ATTRIBUTES lpProcessAttributes,
+	       LPSECURITY_ATTRIBUTES lpThreadAttributes, BOOL bInheritHandles,
+	       DWORD dwCreationFlags, LPVOID lpEnvironment,
+	       const char *lpCurrentDirectory, LPSTARTUPINFOA lpStartupInfo,
+	       LPPROCESS_INFORMATION lpProcessInformation)
 {
 	BOOL ret = FALSE;
 	DWORD err = ERROR_INVALID_DATA;
@@ -479,13 +541,17 @@ static __inline BOOL CreateProcessU(const char* lpApplicationName, const char* l
 	// Because we're lazy, we'll assume that the A and W structs inherently have the same size
 	// Also prevents the use of STARTUPINFOEX
 	if (lpStartupInfo->cb != sizeof(STARTUPINFOW)) {
-		err = ERROR_BAD_LENGTH; goto out;
+		err = ERROR_BAD_LENGTH;
+		goto out;
 	}
 	memcpy(&wStartupInfo, lpStartupInfo, lpStartupInfo->cb);
 	wStartupInfo.lpDesktop = utf8_to_wchar(lpStartupInfo->lpDesktop);
 	wStartupInfo.lpTitle = utf8_to_wchar(lpStartupInfo->lpTitle);
-	ret = CreateProcessW(wlpApplicationName, wlpCommandLine, lpProcessAttributes, lpThreadAttributes, bInheritHandles,
-		dwCreationFlags, lpEnvironment, wlpCurrentDirectory, &wStartupInfo, lpProcessInformation);
+	ret = CreateProcessW(wlpApplicationName, wlpCommandLine,
+			     lpProcessAttributes, lpThreadAttributes,
+			     bInheritHandles, dwCreationFlags, lpEnvironment,
+			     wlpCurrentDirectory, &wStartupInfo,
+			     lpProcessInformation);
 	err = GetLastError();
 	sfree(wStartupInfo.lpDesktop);
 	sfree(wStartupInfo.lpTitle);
@@ -499,7 +565,8 @@ out:
 
 // NOTE: when used, nFileOffset & nFileExtension MUST be provided
 // in number of Unicode characters, NOT number of UTF-8 bytes
-static __inline BOOL WINAPI GetOpenSaveFileNameU(LPOPENFILENAMEA lpofn, BOOL save)
+static __inline BOOL WINAPI GetOpenSaveFileNameU(LPOPENFILENAMEA lpofn,
+						 BOOL save)
 {
 	BOOL ret = FALSE;
 	DWORD err = ERROR_INVALID_DATA;
@@ -511,32 +578,34 @@ static __inline BOOL WINAPI GetOpenSaveFileNameU(LPOPENFILENAMEA lpofn, BOOL sav
 	wofn.hInstance = lpofn->hInstance;
 
 	// No support for custom filters
-	if (lpofn->lpstrCustomFilter != NULL) goto out;
+	if (lpofn->lpstrCustomFilter != NULL)
+		goto out;
 
 	// Count on Microsoft to use an moronic scheme for filters
 	// that relies on NULL separators and double NULL terminators
 	if (lpofn->lpstrFilter != NULL) {
 		// Replace the NULLs by something that can be converted
-		for (i=0; ; i++) {
+		for (i = 0;; i++) {
 			if (lpofn->lpstrFilter[i] == 0) {
-				((char*)lpofn->lpstrFilter)[i] = '\r';
-				if (lpofn->lpstrFilter[i+1] == 0) {
+				((char *)lpofn->lpstrFilter)[i] = '\r';
+				if (lpofn->lpstrFilter[i + 1] == 0) {
 					break;
 				}
 			}
 		}
 		wofn.lpstrFilter = utf8_to_wchar(lpofn->lpstrFilter);
 		// And revert
-		len = wcslen(wofn.lpstrFilter);	// don't use in the loop as it would be reevaluated
-		for (i=0; i<len; i++) {
+		len = wcslen(
+			wofn.lpstrFilter); // don't use in the loop as it would be reevaluated
+		for (i = 0; i < len; i++) {
 			if (wofn.lpstrFilter[i] == '\r') {
-				((wchar_t*)wofn.lpstrFilter)[i] = 0;
+				((wchar_t *)wofn.lpstrFilter)[i] = 0;
 			}
 		}
 		len = strlen(lpofn->lpstrFilter);
-		for (i=0; i<len; i++) {
+		for (i = 0; i < len; i++) {
 			if (lpofn->lpstrFilter[i] == '\r') {
-				((char*)lpofn->lpstrFilter)[i] = 0;
+				((char *)lpofn->lpstrFilter)[i] = 0;
 			}
 		}
 	} else {
@@ -544,11 +613,13 @@ static __inline BOOL WINAPI GetOpenSaveFileNameU(LPOPENFILENAMEA lpofn, BOOL sav
 	}
 	wofn.nMaxCustFilter = lpofn->nMaxCustFilter;
 	wofn.nFilterIndex = lpofn->nFilterIndex;
-	wofn.lpstrFile = calloc(lpofn->nMaxFile, sizeof(wchar_t));
-	utf8_to_wchar_no_alloc(lpofn->lpstrFile, wofn.lpstrFile, lpofn->nMaxFile);
+	wofn.lpstrFile = (LPWSTR)calloc(lpofn->nMaxFile, sizeof(wchar_t));
+	utf8_to_wchar_no_alloc(lpofn->lpstrFile, wofn.lpstrFile,
+			       lpofn->nMaxFile);
 	wofn.nMaxFile = lpofn->nMaxFile;
-	wofn.lpstrFileTitle = calloc(lpofn->nMaxFileTitle, sizeof(wchar_t));
-	utf8_to_wchar_no_alloc(lpofn->lpstrFileTitle, wofn.lpstrFileTitle, lpofn->nMaxFileTitle);
+	wofn.lpstrFileTitle = (LPWSTR)calloc(lpofn->nMaxFileTitle, sizeof(wchar_t));
+	utf8_to_wchar_no_alloc(lpofn->lpstrFileTitle, wofn.lpstrFileTitle,
+			       lpofn->nMaxFileTitle);
 	wofn.nMaxFileTitle = lpofn->nMaxFileTitle;
 	wofn.lpstrInitialDir = utf8_to_wchar(lpofn->lpstrInitialDir);
 	wofn.lpstrTitle = utf8_to_wchar(lpofn->lpstrTitle);
@@ -569,9 +640,11 @@ static __inline BOOL WINAPI GetOpenSaveFileNameU(LPOPENFILENAMEA lpofn, BOOL sav
 		ret = GetOpenFileNameW(&wofn);
 	}
 	err = GetLastError();
-	if ( (ret)
-	  && ( (wchar_to_utf8_no_alloc(wofn.lpstrFile, lpofn->lpstrFile, lpofn->nMaxFile) == 0)
-	    || (wchar_to_utf8_no_alloc(wofn.lpstrFileTitle, lpofn->lpstrFileTitle, lpofn->nMaxFileTitle) == 0) ) ) {
+	if ((ret) &&
+	    ((wchar_to_utf8_no_alloc(wofn.lpstrFile, lpofn->lpstrFile,
+				     lpofn->nMaxFile) == 0) ||
+	     (wchar_to_utf8_no_alloc(wofn.lpstrFileTitle, lpofn->lpstrFileTitle,
+				     lpofn->nMaxFileTitle) == 0))) {
 		err = GetLastError();
 		ret = FALSE;
 	}
@@ -587,17 +660,25 @@ out:
 	return ret;
 }
 
-extern BOOL WINAPI UpdateDriverForPlugAndPlayDevicesW(HWND hwndParent, LPCWSTR HardwareId,
-	LPCWSTR FullInfPath, DWORD InstallFlags, PBOOL bRebootRequired);
+extern BOOL WINAPI UpdateDriverForPlugAndPlayDevicesW(HWND hwndParent,
+						      LPCWSTR HardwareId,
+						      LPCWSTR FullInfPath,
+						      DWORD InstallFlags,
+						      PBOOL bRebootRequired);
 
-static __inline BOOL UpdateDriverForPlugAndPlayDevicesU(HWND hwndParent, const char* HardwareId, const char* FullInfPath,
-														DWORD InstallFlags, PBOOL bRebootRequired)
+static __inline BOOL UpdateDriverForPlugAndPlayDevicesU(HWND hwndParent,
+							const char *HardwareId,
+							const char *FullInfPath,
+							DWORD InstallFlags,
+							PBOOL bRebootRequired)
 {
 	BOOL ret = FALSE;
 	DWORD err = ERROR_INVALID_DATA;
 	wconvert(HardwareId);
 	wconvert(FullInfPath);
-	ret = UpdateDriverForPlugAndPlayDevicesW(hwndParent, wHardwareId, wFullInfPath, InstallFlags, bRebootRequired);
+	ret = UpdateDriverForPlugAndPlayDevicesW(hwndParent, wHardwareId,
+						 wFullInfPath, InstallFlags,
+						 bRebootRequired);
 	err = GetLastError();
 	wfree(HardwareId);
 	wfree(FullInfPath);
@@ -605,9 +686,13 @@ static __inline BOOL UpdateDriverForPlugAndPlayDevicesU(HWND hwndParent, const c
 	return ret;
 }
 
-static __inline BOOL SetupCopyOEMInfU(const char* SourceInfFileName, const char* OEMSourceMediaLocation, DWORD OEMSourceMediaType,
-									  DWORD CopyStyle, char* DestinationInfFileName, DWORD DestinationInfFileNameSize,
-									  PDWORD RequiredSize, PTSTR DestinationInfFileNameComponent)
+static __inline BOOL SetupCopyOEMInfU(const char *SourceInfFileName,
+				      const char *OEMSourceMediaLocation,
+				      DWORD OEMSourceMediaType, DWORD CopyStyle,
+				      char *DestinationInfFileName,
+				      DWORD DestinationInfFileNameSize,
+				      PDWORD RequiredSize,
+				      PTSTR DestinationInfFileNameComponent)
 {
 	BOOL ret = FALSE;
 	DWORD err = ERROR_INVALID_DATA;
@@ -617,12 +702,18 @@ static __inline BOOL SetupCopyOEMInfU(const char* SourceInfFileName, const char*
 	walloc(DestinationInfFileName, DestinationInfFileNameSize);
 
 	// DestinationInfFileNameComponent is not supported
-	if (DestinationInfFileNameComponent != NULL) goto out;
+	if (DestinationInfFileNameComponent != NULL)
+		goto out;
 
-	ret = SetupCopyOEMInfW(wSourceInfFileName, wOEMSourceMediaLocation, OEMSourceMediaType, CopyStyle,
-		wDestinationInfFileName, DestinationInfFileNameSize, RequiredSize, NULL);
+	ret = SetupCopyOEMInfW(wSourceInfFileName, wOEMSourceMediaLocation,
+			       OEMSourceMediaType, CopyStyle,
+			       wDestinationInfFileName,
+			       DestinationInfFileNameSize, RequiredSize, NULL);
 	err = GetLastError();
-	if ((ret != FALSE) && ((ret = wchar_to_utf8_no_alloc(wDestinationInfFileName, DestinationInfFileName, DestinationInfFileNameSize)) == 0)) {
+	if ((ret != FALSE) &&
+	    ((ret = wchar_to_utf8_no_alloc(wDestinationInfFileName,
+					   DestinationInfFileName,
+					   DestinationInfFileNameSize)) == 0)) {
 		err = GetLastError();
 	}
 out:
@@ -642,9 +733,9 @@ static __inline int _chdirU(const char *dirname)
 	return ret;
 }
 
-static __inline FILE* fopenU(const char* filename, const char* mode)
+static __inline FILE *fopenU(const char *filename, const char *mode)
 {
-	FILE* ret = NULL;
+	FILE *ret = NULL;
 	wconvert(filename);
 	wconvert(mode);
 	ret = _wfopen(wfilename, wmode);
@@ -654,14 +745,14 @@ static __inline FILE* fopenU(const char* filename, const char* mode)
 }
 
 // returned UTF-8 string must be freed
-static __inline char* getenvU(const char* varname)
+static __inline char *getenvU(const char *varname)
 {
 	wconvert(varname);
-	char* ret = NULL;
-	wchar_t* wbuf = NULL;
+	char *ret = NULL;
+	wchar_t *wbuf = NULL;
 	// _wgetenv() is *BROKEN* in MS compilers => use GetEnvironmentVariableW()
 	DWORD dwSize = GetEnvironmentVariableW(wvarname, wbuf, 0);
-	wbuf = calloc(dwSize, sizeof(wchar_t));
+	wbuf = (wchar_t *)calloc(dwSize, sizeof(wchar_t));
 	if (wbuf == NULL)
 		return NULL;
 	dwSize = GetEnvironmentVariableW(wvarname, wbuf, dwSize);
@@ -672,7 +763,7 @@ static __inline char* getenvU(const char* varname)
 	return ret;
 }
 
-static __inline int _mkdirU(const char* dirname)
+static __inline int _mkdirU(const char *dirname)
 {
 	wconvert(dirname);
 	int ret;

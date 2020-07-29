@@ -16,6 +16,12 @@ extern "C" {
 
 class ScreenMirrorServer {
 public:
+	enum MirrorBackEnd {
+		IOS_USB_CABLE,
+		IOS_AIRPLAY,
+		ANDROID_USB_CABLE,
+	};
+
 	ScreenMirrorServer(obs_source_t *source);
 	~ScreenMirrorServer();
 	void outputVideo(SFgVideoFrame *data);
@@ -23,14 +29,15 @@ public:
 
 	void ipcSetup();
 	void ipcDestroy();
+	void mirrorServerSetup();
+	void mirrorServerDestroy();
 
 	static void pipeCallback(void *param, uint8_t *data, size_t size);
 
 private:
 	bool initPipe();
-	void checkAndOpenUsbMirror();
-	void quitUsbMirror();
-	void parseNalus(uint8_t *data, size_t size, uint8_t **out, size_t *out_len);
+	void parseNalus(uint8_t *data, size_t size, uint8_t **out,
+			size_t *out_len);
 	void doWithNalu(uint8_t *data, size_t size);
 
 private:
@@ -46,7 +53,8 @@ private:
 	circlebuf m_avBuffer;
 	VideoDecoder m_decoder;
 	struct media_info m_mediaInfo;
-	bool m_infoReceived =false;
+	bool m_infoReceived = false;
+	MirrorBackEnd m_backend = IOS_USB_CABLE;
 
 #ifdef DUMPFILE
 	FILE *m_auioFile;

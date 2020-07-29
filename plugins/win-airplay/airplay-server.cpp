@@ -4,7 +4,7 @@
 #include <util/dstr.h>
 #include <util/platform.h>
 
-#define IOS_USB_EXE "ios-usb-mirror.exe"
+#define DRIVER_EXE "driver-tool.exe"
 uint8_t start_code[4] = {00, 00, 00, 01};
 
 static uint32_t byteutils_get_int(unsigned char *b, int offset)
@@ -148,38 +148,44 @@ void ScreenMirrorServer::pipeCallback(void *param, uint8_t *data, size_t size)
 	}
 }
 
-void ScreenMirrorServer::quitUsbMirror()
-{
-	uint8_t data[1] = {1};
-	os_process_pipe_write(process, data, 1);
-	os_process_pipe_destroy(process);
-	process = NULL;
-}
-
 void ScreenMirrorServer::ipcSetup()
 {
-	if (!initPipe())
+	if (!initPipe()) {
 		blog(LOG_ERROR, "fail to create pipe");
-	else {
-		checkAndOpenUsbMirror();
+		return;
 	}
+
+	mirrorServerSetup();
 }
 
 void ScreenMirrorServer::ipcDestroy()
 {
-	quitUsbMirror();
+	mirrorServerDestroy();
 	ipc_pipe_server_free(&pipe);
 }
 
-void ScreenMirrorServer::checkAndOpenUsbMirror()
+void ScreenMirrorServer::mirrorServerSetup()
 {
-	os_kill_process(IOS_USB_EXE);
-	struct dstr cmd;
-	dstr_init_move_array(&cmd, os_get_executable_path_ptr(IOS_USB_EXE));
-	dstr_insert_ch(&cmd, 0, '\"');
-	dstr_cat(&cmd, "\" \"");
-	process = os_process_pipe_create(cmd.array, "w");
-	dstr_free(&cmd);
+	if (m_backend == IOS_USB_CABLE) {
+		os_kill_process(DRIVER_EXE);
+		struct dstr cmd;
+		dstr_init_move_array(&cmd,
+				     os_get_executable_path_ptr(DRIVER_EXE));
+		dstr_insert_ch(&cmd, 0, '\"');
+		dstr_cat(&cmd, "\" \"");
+		process = os_process_pipe_create(cmd.array, "w");
+		dstr_free(&cmd);
+	}
+}
+
+void ScreenMirrorServer::mirrorServerDestroy()
+{
+	if (m_backend == IOS_USB_CABLE) {
+		uint8_t data[1] = {1};
+		os_process_pipe_write(process, data, 1);
+		os_process_pipe_destroy(process);
+		process = NULL;
+	}
 }
 
 void ScreenMirrorServer::parseNalus(uint8_t *data, size_t size, uint8_t **out,
@@ -274,7 +280,7 @@ void ScreenMirrorServer::outputVideo(SFgVideoFrame *data)
 
 void ScreenMirrorServer::outputAudio(SFgAudioFrame *data)
 {
-//	blog(LOG_INFO, "=================%lld", data->pts - lastPts);
+	//	blog(LOG_INFO, "=================%lld", data->pts - lastPts);
 	m_audioFrame.format = AUDIO_FORMAT_16BIT;
 	m_audioFrame.samples_per_sec = data->sampleRate;
 	m_audioFrame.speakers = data->channels == 2 ? SPEAKERS_STEREO

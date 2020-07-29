@@ -15,6 +15,7 @@ add_executable(driver-tool
 	${drivertool_HEADER})
 
 target_link_libraries(driver-tool
+	libobs
 	Qt5::Widgets
 	debug ${PROJECT_SOURCE_DIR}/libwdi/lib/libwdid.lib
 	optimized ${PROJECT_SOURCE_DIR}/libwdi/lib/libwdi.lib
