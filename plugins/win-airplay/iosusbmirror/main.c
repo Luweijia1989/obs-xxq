@@ -25,7 +25,7 @@
 #include <fcntl.h>
 #include <io.h>
 
-//#define STANDALONE
+#define STANDALONE
 
 struct MessageProcessor {
 	struct CMClock clock;

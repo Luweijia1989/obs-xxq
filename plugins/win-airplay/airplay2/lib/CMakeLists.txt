@@ -24,19 +24,21 @@ file(GLOB_RECURSE fdkaac_HEADER ${PROJECT_SOURCE_DIR}/fdk-aac *.hpp *.h)
 add_library( airplay
         STATIC
         ${DIR_SRCS}
-		${fdkaac_HEADER}
-		${fdkaac_SRC}
+	${fdkaac_HEADER}
+	${fdkaac_SRC}
         )
 
 
 target_link_libraries( airplay
-		${CMAKE_CURRENT_SOURCE_DIR}/plist/libplist.a
-		${CMAKE_CURRENT_SOURCE_DIR}/openssl/lib/libcryptoMTd.lib
-		${CMAKE_CURRENT_SOURCE_DIR}/openssl/lib/libsslMTd.lib
-		Crypt32
+	debug ${PROJECT_SOURCE_DIR}/plist/libplist.a
+	debug ${PROJECT_SOURCE_DIR}/openssl/lib/libcryptoMTd.lib
+	debug ${PROJECT_SOURCE_DIR}/openssl/lib/libsslMTd.lib
+	optimized ${PROJECT_SOURCE_DIR}/openssl/lib/libcryptoMT.lib
+	optimized ${PROJECT_SOURCE_DIR}/openssl/lib/libsslMT.lib
+	Crypt32
         Ws2_32	    
-		legacy_stdio_definitions 
-		curve25519
+	legacy_stdio_definitions 
+	curve25519
         ed25519
         playfair)
 		
