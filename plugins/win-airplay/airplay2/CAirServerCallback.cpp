@@ -2,7 +2,7 @@
 #include <stdio.h>
 #include "FgUtf8Utils.h"
 #include <locale.h>
-#include "airplay-server.h"
+#include "CAirServer.h"
 
 #define min(a, b) (((a) < (b)) ? (a) : (b))
 
@@ -13,7 +13,7 @@ CAirServerCallback::CAirServerCallback()
 
 CAirServerCallback::~CAirServerCallback() {}
 
-void CAirServerCallback::setAirplayServer(ScreenMirrorServer *s)
+void CAirServerCallback::setAirplayServer(CAirServer *s)
 {
 	m_airplayServer = s;
 }
@@ -36,8 +36,8 @@ void CAirServerCallback::disconnected(const char *remoteName,
 	memset(m_chRemoteDeviceId, 0, 128);
 }
 
-void CAirServerCallback::outputAudio(SFgAudioFrame *data,
-				     const char *remoteName,
+void CAirServerCallback::outputAudio(uint8_t *data, size_t data_len,
+				     uint64_t pts, const char *remoteName,
 				     const char *remoteDeviceId)
 {
 	if (m_airplayServer) {
@@ -47,12 +47,13 @@ void CAirServerCallback::outputAudio(SFgAudioFrame *data,
 		if (0 != strcmp(m_chRemoteDeviceId, remoteDeviceId)) {
 			return;
 		}
-		m_airplayServer->outputAudio(data);
+		m_airplayServer->outputAudio(data, data_len, pts, remoteName,
+					     remoteDeviceId);
 	}
 }
 
-void CAirServerCallback::outputVideo(SFgVideoFrame *data,
-				     const char *remoteName,
+void CAirServerCallback::outputVideo(uint8_t *data, size_t data_len,
+				     uint64_t pts, const char *remoteName,
 				     const char *remoteDeviceId)
 {
 	if (m_airplayServer) {
@@ -62,9 +63,12 @@ void CAirServerCallback::outputVideo(SFgVideoFrame *data,
 		if (0 != strcmp(m_chRemoteDeviceId, remoteDeviceId)) {
 			return;
 		}
-		m_airplayServer->outputVideo(data);
+		m_airplayServer->outputVideo(data, data_len, pts, remoteName,
+					     remoteDeviceId);
 	}
 }
+
+void CAirServerCallback::outputMediaInfo(media_info *info) {}
 
 void CAirServerCallback::videoPlay(char *url, double volume, double startPos)
 {

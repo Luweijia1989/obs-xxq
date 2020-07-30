@@ -6,38 +6,19 @@ find_package(FFmpeg REQUIRED
 	COMPONENTS avcodec avfilter avdevice avutil swscale avformat swresample)
 include_directories(${FFMPEG_INCLUDE_DIRS})
 
-include_directories(
-		${PROJECT_SOURCE_DIR}/airplay2/lib
-        )
-
 set(win-airplay_SOURCES
 	airplay-server.cpp
-	Airplay2Export.cpp
-	CAutoLock.cpp
-	FgAirplayServer.cpp
-	FgAirplayChannel.cpp
-	CAirServer.cpp
-	CAirServerCallback.cpp
-	FgUtf8Utils.cpp
 	VideoDecoder.cpp
 )
 			 
 set(win-airplay_HEADERS
 	airplay-server.h
 	Airplay2Def.h
-	Airplay2Head.h
-	CAutoLock.h
-	FgAirplayChannel.h
-	FgAirplayServer.h
-	airplay-server.h
-	CAirServer.h
-	CAirServerCallback.h
-	FgUtf8Utils.h
 	common-define.h
 	VideoDecoder.h
 )
 
-add_subdirectory(${PROJECT_SOURCE_DIR}/airplay2/lib)
+add_subdirectory(${PROJECT_SOURCE_DIR}/airplay2)
 add_subdirectory(${PROJECT_SOURCE_DIR}/iosusbmirror)
 add_subdirectory(${PROJECT_SOURCE_DIR}/drivertool)
 
@@ -46,10 +27,8 @@ add_library(win-airplay MODULE
 	${win-airplay_HEADERS})
 target_link_libraries(win-airplay
 	Ws2_32
-	Winmm
-	airplay
 	libobs
 	ipc-util
 	${FFMPEG_LIBRARIES})
 
-install_obs_plugin(win-airplay)
+install_obs_plugin(win-airplay) 

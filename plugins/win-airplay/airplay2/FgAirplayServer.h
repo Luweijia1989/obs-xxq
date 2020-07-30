@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 #include "Airplay2Head.h"
 #include "stream.h"
 #include <map>
@@ -19,7 +19,6 @@ public:
 		  unsigned int raopPort, unsigned int airplayPort,
 		  IAirServerCallback *callback);
 	void stop();
-	float setScale(float fRatio);
 
 protected:
 	void clearChannels();

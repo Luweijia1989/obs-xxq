@@ -1,4 +1,4 @@
-﻿#include "FgAirplayServer.h"
+#include "FgAirplayServer.h"
 #include "Airplay2Head.h"
 #include <thread>
 #include "CAutoLock.h"
@@ -114,17 +114,6 @@ void FgAirplayServer::stop()
 	m_pCallback = NULL;
 }
 
-float FgAirplayServer::setScale(float fRatio)
-{
-	m_fScaleRatio = min(10, max(0.1, fRatio));
-
-	FgAirplayChannelMap::iterator it;
-	for (it = m_mapChannel.begin(); it != m_mapChannel.end(); ++it) {
-		it->second->setScale(m_fScaleRatio);
-	}
-	return m_fScaleRatio;
-}
-
 void FgAirplayServer::clearChannels()
 {
 	CAutoLock oLock(m_mutexMap, "clearChannels");
@@ -222,20 +211,20 @@ void FgAirplayServer::audio_process(void *cls, raop_ntp_t *ntp,
 		return;
 	}
 
-	if (pServer->m_pCallback != NULL) {
-		SFgAudioFrame *frame = new SFgAudioFrame();
-		frame->bitsPerSample = data->bits_per_sample;
-		frame->channels = data->channels;
-		frame->pts = data->pts;
-		frame->sampleRate = data->sample_rate;
-		frame->dataLen = data->data_len;
-		frame->data = new uint8_t[frame->dataLen];
-		memcpy(frame->data, data->data, frame->dataLen);
+	if (data->data_len < 0)
+		return;
 
-		pServer->m_pCallback->outputAudio(frame, remoteName,
-						  remoteDeviceId);
-		delete[] frame->data;
-		delete frame;
+	FgAirplayChannel *pChannel = NULL;
+	{
+		CAutoLock oLock(pServer->m_mutexMap, "video_process");
+		pChannel = pServer->getChannel(remoteDeviceId);
+		if (pChannel) {
+			pChannel->addRef();
+		}
+	}
+	if (pChannel) {
+		pChannel->outputAudio(data, remoteName, remoteDeviceId);
+		pChannel->release();
 	}
 }
 
@@ -265,21 +254,6 @@ void FgAirplayServer::video_process(void *cls, raop_ntp_t *ntp,
 		return;
 	}
 
-	SFgH264Data *pData = new SFgH264Data();
-	memset(pData, 0, sizeof(SFgH264Data));
-
-	if (h264data->frame_type == 0) {
-		pData->size = h264data->data_len;
-		pData->data = new uint8_t[pData->size];
-		pData->is_key = 1;
-		memcpy(pData->data, h264data->data, h264data->data_len);
-	} else if (h264data->frame_type == 1) {
-		pData->size = h264data->data_len;
-		pData->data = new uint8_t[pData->size];
-		memcpy(pData->data, h264data->data, h264data->data_len);
-	}
-	pData->pts = h264data->pts;
-
 	FgAirplayChannel *pChannel = NULL;
 	{
 		CAutoLock oLock(pServer->m_mutexMap, "video_process");
@@ -289,11 +263,9 @@ void FgAirplayServer::video_process(void *cls, raop_ntp_t *ntp,
 		}
 	}
 	if (pChannel) {
-		pChannel->decodeH264Data(pData, remoteName, remoteDeviceId);
+		pChannel->outputVideo(h264data, remoteName, remoteDeviceId);
 		pChannel->release();
 	}
-	delete[] pData->data;
-	delete pData;
 }
 
 void FgAirplayServer::ap_video_play(void *cls, char *url, double volume,

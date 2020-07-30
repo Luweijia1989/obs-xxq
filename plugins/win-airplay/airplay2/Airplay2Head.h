@@ -1,6 +1,8 @@
-﻿#pragma once
+#pragma once
 
-#include "Airplay2Def.h"
+#include "../common-define.h"
+
+#define AIRPLAY_NAME_LEN 128
 
 class IAirServerCallback {
 public:
@@ -8,10 +10,13 @@ public:
 			       const char *remoteDeviceId) = 0;
 	virtual void disconnected(const char *remoteName,
 				  const char *remoteDeviceId) = 0;
-	virtual void outputAudio(SFgAudioFrame *data, const char *remoteName,
+	virtual void outputAudio(uint8_t *data, size_t data_len, uint64_t pts,
+				 const char *remoteName,
 				 const char *remoteDeviceId) = 0;
-	virtual void outputVideo(SFgVideoFrame *data, const char *remoteName,
+	virtual void outputVideo(uint8_t *data, size_t data_len, uint64_t pts,
+				 const char *remoteName,
 				 const char *remoteDeviceId) = 0;
+	virtual void outputMediaInfo(media_info *info) = 0;
 
 	virtual void videoPlay(char *url, double volume, double startPos) = 0;
 	virtual void videoGetPlayInfo(double *duration, double *position,

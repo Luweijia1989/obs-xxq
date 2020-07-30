@@ -5,6 +5,7 @@
 #include <util/platform.h>
 
 #define DRIVER_EXE "driver-tool.exe"
+#define AIRPLAY_EXE "airplay-server.exe"
 uint8_t start_code[4] = {00, 00, 00, 01};
 
 static uint32_t byteutils_get_int(unsigned char *b, int offset)
@@ -29,8 +30,6 @@ ScreenMirrorServer::ScreenMirrorServer(obs_source_t *source) : m_source(source)
 				    m_videoFrame.color_range_min,
 				    m_videoFrame.color_range_max);
 
-	//bool success = m_server.start(this); //返回失败可以搞一个默认图片显示
-
 #ifdef DUMPFILE
 	m_auioFile = fopen("audio.pcm", "wb");
 	m_videoFile = fopen("video.x264", "wb");
@@ -44,7 +43,6 @@ ScreenMirrorServer::~ScreenMirrorServer()
 {
 	ipcDestroy();
 	circlebuf_free(&m_avBuffer);
-	//m_server.stop();
 #ifdef DUMPFILE
 	fclose(m_auioFile);
 	fclose(m_videoFile);
@@ -57,93 +55,18 @@ void ScreenMirrorServer::pipeCallback(void *param, uint8_t *data, size_t size)
 	circlebuf_push_back(&sm->m_avBuffer, data, size);
 
 	while (true) {
-		size_t header_size = sizeof(struct av_packet_info);
-		if (sm->m_avBuffer.size < header_size)
-			break;
-
-		struct av_packet_info header_info = {0};
-		circlebuf_peek_front(&sm->m_avBuffer, &header_info,
-				     header_size);
-
-		size_t req_size = header_info.size;
-		if (sm->m_avBuffer.size < req_size + header_size)
-			break;
-
-		circlebuf_pop_front(&sm->m_avBuffer, &header_info,
-				    header_size); // remove it
-
-		if (header_info.type == FFM_MEDIA_INFO) {
-			struct media_info info;
-			memset(&info, 0, req_size);
-			circlebuf_pop_front(&sm->m_avBuffer, &info, req_size);
-
-			blog(LOG_INFO,
-			     "recv media info, pps_len: %d, sps_len: %d",
-			     info.pps_len, info.sps_len);
-
-			if (info.sps_len == 0 || info.pps_len == 0)
+		if (sm->m_backend == IOS_USB_CABLE) {
+			bool b = sm->handleUSBData(data, size);
+			if (b)
 				continue;
-
-			sm->m_mediaInfo = info;
-			if (!sm->m_infoReceived)
-				sm->m_infoReceived = true;
-#ifdef DUMPFILE
-			sm->doWithNalu(info.pps, info.pps_len);
-			sm->doWithNalu(info.sps, info.sps_len);
-#endif // DUMPFILE
-			uint8_t *temp_buff = (uint8_t *)calloc(
-				1, info.sps_len + info.pps_len + 8);
-			memcpy(temp_buff, start_code, 4);
-			memcpy(temp_buff + 4, info.pps, info.pps_len);
-			memcpy(temp_buff + 4 + info.pps_len, start_code, 4);
-			memcpy(temp_buff + 4 + info.pps_len + 4, info.sps,
-			       info.sps_len);
-			sm->m_decoder.docode(temp_buff,
-					     info.sps_len + info.pps_len + 8,
-					     true, 0);
-			free(temp_buff);
-		} else {
-			uint8_t *temp_buf = (uint8_t *)calloc(1, req_size);
-			circlebuf_pop_front(&sm->m_avBuffer, temp_buf,
-					    req_size);
-
-			if (header_info.type == FFM_PACKET_AUDIO) {
-#ifdef DUMPFILE
-				fwrite(temp_buf, 1, req_size, sm->m_auioFile);
-#endif // DUMPFILE
-				if (sm->m_infoReceived) {
-					SFgAudioFrame *frame =
-						new SFgAudioFrame();
-					frame->bitsPerSample =
-						sm->m_mediaInfo.bytes_per_frame;
-					frame->channels =
-						sm->m_mediaInfo.speakers;
-					frame->pts = header_info.pts;
-					frame->sampleRate =
-						sm->m_mediaInfo.samples_per_sec;
-					frame->dataLen = req_size;
-					frame->data = temp_buf;
-					sm->outputAudio(frame);
-					delete frame;
-				}
-			} else {
-				uint8_t *all = NULL;
-				size_t all_len = 0;
-				sm->parseNalus(temp_buf, req_size, &all,
-					       &all_len);
-				if (all_len) {
-					int res = sm->m_decoder.docode(
-						all, all_len, false,
-						header_info.pts);
-					if (res == 1)
-						sm->outputVideo(
-							&sm->m_decoder
-								 .m_sVideoFrameOri);
-				}
-				free(all);
-			}
-
-			free(temp_buf);
+			else
+				break;
+		} else if (sm->m_backend == IOS_AIRPLAY) {
+			bool b = sm->handleAirplayData(data, size);
+			if (b)
+				continue;
+			else
+				break;
 		}
 	}
 }
@@ -166,21 +89,25 @@ void ScreenMirrorServer::ipcDestroy()
 
 void ScreenMirrorServer::mirrorServerSetup()
 {
+	const char *processName = nullptr;
 	if (m_backend == IOS_USB_CABLE) {
-		os_kill_process(DRIVER_EXE);
-		struct dstr cmd;
-		dstr_init_move_array(&cmd,
-				     os_get_executable_path_ptr(DRIVER_EXE));
-		dstr_insert_ch(&cmd, 0, '\"');
-		dstr_cat(&cmd, "\" \"");
-		process = os_process_pipe_create(cmd.array, "w");
-		dstr_free(&cmd);
+		processName = DRIVER_EXE;
+	} else if (m_backend == IOS_AIRPLAY) {
+		processName = AIRPLAY_EXE;
 	}
+
+	os_kill_process(processName);
+	struct dstr cmd;
+	dstr_init_move_array(&cmd, os_get_executable_path_ptr(processName));
+	dstr_insert_ch(&cmd, 0, '\"');
+	dstr_cat(&cmd, "\" \"");
+	process = os_process_pipe_create(cmd.array, "w");
+	dstr_free(&cmd);
 }
 
 void ScreenMirrorServer::mirrorServerDestroy()
 {
-	if (m_backend == IOS_USB_CABLE) {
+	if (m_backend == IOS_USB_CABLE || m_backend == IOS_AIRPLAY) {
 		uint8_t data[1] = {1};
 		os_process_pipe_write(process, data, 1);
 		os_process_pipe_destroy(process);
@@ -223,6 +150,156 @@ void ScreenMirrorServer::doWithNalu(uint8_t *data, size_t size)
 	fwrite(start_code, 1, 4, m_videoFile);
 	fwrite(data, 1, size, m_videoFile);
 #endif // DUMPFILE
+}
+
+bool ScreenMirrorServer::handleAirplayData(uint8_t *data, size_t size)
+{
+	size_t header_size = sizeof(struct av_packet_info);
+	if (m_avBuffer.size < header_size)
+		return false;
+
+	struct av_packet_info header_info = {0};
+	circlebuf_peek_front(&m_avBuffer, &header_info, header_size);
+
+	size_t req_size = header_info.size;
+	if (m_avBuffer.size < req_size + header_size)
+		return false;
+
+	circlebuf_pop_front(&m_avBuffer, &header_info,
+			    header_size); // remove it
+
+	if (header_info.type == FFM_MEDIA_INFO) {
+		struct media_info info;
+		memset(&info, 0, req_size);
+		circlebuf_pop_front(&m_avBuffer, &info, req_size);
+
+		blog(LOG_INFO, "recv media info, pps_len: %d, sps_len: %d",
+		     info.pps_len, info.sps_len);
+
+		if (info.sps_len == 0 || info.pps_len == 0)
+			return true;
+
+		m_mediaInfo = info;
+		if (!m_infoReceived)
+			m_infoReceived = true;
+#ifdef DUMPFILE
+		sm->doWithNalu(info.pps, info.pps_len);
+		sm->doWithNalu(info.sps, info.sps_len);
+#endif // DUMPFILE
+		m_decoder.docode(info.pps, info.pps_len, true, 0);
+	} else {
+		uint8_t *temp_buf = (uint8_t *)calloc(1, req_size);
+		circlebuf_pop_front(&m_avBuffer, temp_buf, req_size);
+
+		if (header_info.type == FFM_PACKET_AUDIO) {
+#ifdef DUMPFILE
+			fwrite(temp_buf, 1, req_size, sm->m_auioFile);
+#endif // DUMPFILE
+			if (m_infoReceived) {
+				SFgAudioFrame *frame = new SFgAudioFrame();
+				frame->bitsPerSample =
+					m_mediaInfo.bytes_per_frame;
+				frame->channels = m_mediaInfo.speakers;
+				frame->pts = header_info.pts;
+				frame->sampleRate = m_mediaInfo.samples_per_sec;
+				frame->dataLen = req_size;
+				frame->data = temp_buf;
+				outputAudio(frame);
+				delete frame;
+			}
+		} else {
+			int res = m_decoder.docode(temp_buf, req_size, false,
+						   header_info.pts);
+			if (res == 1)
+				outputVideo(&m_decoder.m_sVideoFrameOri);
+		}
+
+		free(temp_buf);
+	}
+	return true;
+}
+
+bool ScreenMirrorServer::handleUSBData(uint8_t *data, size_t size)
+{
+	size_t header_size = sizeof(struct av_packet_info);
+	if (m_avBuffer.size < header_size)
+		return false;
+
+	struct av_packet_info header_info = {0};
+	circlebuf_peek_front(&m_avBuffer, &header_info, header_size);
+
+	size_t req_size = header_info.size;
+	if (m_avBuffer.size < req_size + header_size)
+		return false;
+
+	circlebuf_pop_front(&m_avBuffer, &header_info,
+			    header_size); // remove it
+
+	if (header_info.type == FFM_MEDIA_INFO) {
+		struct media_info info;
+		memset(&info, 0, req_size);
+		circlebuf_pop_front(&m_avBuffer, &info, req_size);
+
+		blog(LOG_INFO, "recv media info, pps_len: %d, sps_len: %d",
+		     info.pps_len, info.sps_len);
+
+		if (info.sps_len == 0 || info.pps_len == 0)
+			return true;
+
+		m_mediaInfo = info;
+		if (!m_infoReceived)
+			m_infoReceived = true;
+#ifdef DUMPFILE
+		sm->doWithNalu(info.pps, info.pps_len);
+		sm->doWithNalu(info.sps, info.sps_len);
+#endif // DUMPFILE
+		uint8_t *temp_buff =
+			(uint8_t *)calloc(1, info.sps_len + info.pps_len + 8);
+		memcpy(temp_buff, start_code, 4);
+		memcpy(temp_buff + 4, info.pps, info.pps_len);
+		memcpy(temp_buff + 4 + info.pps_len, start_code, 4);
+		memcpy(temp_buff + 4 + info.pps_len + 4, info.sps,
+		       info.sps_len);
+		m_decoder.docode(temp_buff, info.sps_len + info.pps_len + 8,
+				 true, 0);
+		free(temp_buff);
+	} else {
+		uint8_t *temp_buf = (uint8_t *)calloc(1, req_size);
+		circlebuf_pop_front(&m_avBuffer, temp_buf, req_size);
+
+		if (header_info.type == FFM_PACKET_AUDIO) {
+#ifdef DUMPFILE
+			fwrite(temp_buf, 1, req_size, sm->m_auioFile);
+#endif // DUMPFILE
+			if (m_infoReceived) {
+				SFgAudioFrame *frame = new SFgAudioFrame();
+				frame->bitsPerSample =
+					m_mediaInfo.bytes_per_frame;
+				frame->channels = m_mediaInfo.speakers;
+				frame->pts = header_info.pts;
+				frame->sampleRate = m_mediaInfo.samples_per_sec;
+				frame->dataLen = req_size;
+				frame->data = temp_buf;
+				outputAudio(frame);
+				delete frame;
+			}
+		} else {
+			uint8_t *all = NULL;
+			size_t all_len = 0;
+			parseNalus(temp_buf, req_size, &all, &all_len);
+			if (all_len) {
+				int res = m_decoder.docode(all, all_len, false,
+							   header_info.pts);
+				if (res == 1)
+					outputVideo(
+						&m_decoder.m_sVideoFrameOri);
+			}
+			free(all);
+		}
+
+		free(temp_buf);
+	}
+	return true;
 }
 
 bool ScreenMirrorServer::initPipe()

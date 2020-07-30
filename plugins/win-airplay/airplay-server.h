@@ -2,7 +2,6 @@
 
 #include <obs-module.h>
 #include <obs.hpp>
-#include "CAirServer.h"
 #include "Airplay2Def.h"
 #include <ipc-util/pipe.h>
 #include <util/circlebuf.h>
@@ -39,11 +38,12 @@ private:
 	void parseNalus(uint8_t *data, size_t size, uint8_t **out,
 			size_t *out_len);
 	void doWithNalu(uint8_t *data, size_t size);
+	bool handleAirplayData(uint8_t *data, size_t size);
+	bool handleUSBData(uint8_t *data, size_t size);
 
 private:
 	obs_source_t *m_source = nullptr;
 	obs_source_t *m_cropFilter = nullptr;
-	CAirServer m_server;
 	obs_source_audio m_audioFrame;
 	obs_source_frame2 m_videoFrame;
 	long long lastPts = 0;

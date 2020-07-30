@@ -7,8 +7,8 @@ find_package(Qt5Widgets REQUIRED)
 set(CMAKE_AUTOMOC TRUE)
 
 include_directories(
-		${PROJECT_SOURCE_DIR}/libwdi/include
-        )
+	${PROJECT_SOURCE_DIR}/libwdi/include
+)
 
 add_executable(driver-tool
 	${drivertool_SRC}

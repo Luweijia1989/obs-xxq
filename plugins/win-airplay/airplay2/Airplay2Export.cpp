@@ -1,4 +1,4 @@
-﻿#include "Airplay2Head.h"
+#include "Airplay2Head.h"
 #include "FgAirplayServer.h"
 
 void *fgServerStart(const char serverName[AIRPLAY_NAME_LEN],
@@ -23,14 +23,4 @@ void fgServerStop(void *handle)
 		delete pServer;
 		pServer = NULL;
 	}
-}
-
-float fgServerScale(void *handle, float fRatio)
-{
-	if (handle != NULL) {
-		FgAirplayServer *pServer = (FgAirplayServer *)handle;
-		return pServer->setScale(fRatio);
-	}
-
-	return 1.0f;
 }
