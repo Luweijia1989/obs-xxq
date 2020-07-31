@@ -10,6 +10,10 @@ else()
 	set(_bit_suffix "32bit/")
 endif()
 
+include_directories(
+	${PROJECT_SOURCE_DIR}/third-party/include
+)
+
 file(GLOB_RECURSE iosusbmirror_SRC ${PROJECT_SOURCE_DIR} *.c)
 file(GLOB_RECURSE iosusbmirror_HEADER ${PROJECT_SOURCE_DIR} *.h)
 
@@ -23,9 +27,9 @@ target_link_libraries(ios-usb-mirror
 	debug ${PROJECT_SOURCE_DIR}/third-party/lib/debug/plist.lib
 	debug ${PROJECT_SOURCE_DIR}/third-party/lib/debug/libimobiledevice.lib
 	debug ${PROJECT_SOURCE_DIR}/third-party/lib/debug/libusb0.lib
-	optimized ${PROJECT_SOURCE_DIR}/third-party/lib/release/plist.lib
-	optimized ${PROJECT_SOURCE_DIR}/third-party/lib/release/libimobiledevice.lib
-	optimized ${PROJECT_SOURCE_DIR}/third-party/lib/release/libusb0.lib
+	optimized ${PROJECT_SOURCE_DIR}/third-party/lib/relwithdebinfo/plist.lib
+	optimized ${PROJECT_SOURCE_DIR}/third-party/lib/relwithdebinfo/libimobiledevice.lib
+	optimized ${PROJECT_SOURCE_DIR}/third-party/lib/relwithdebinfo/libusb0.lib
 	Ws2_32
 	ipc-util
 	w32-pthreads)

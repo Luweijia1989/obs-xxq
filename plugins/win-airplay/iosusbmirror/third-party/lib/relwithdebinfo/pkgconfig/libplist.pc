@@ -1,0 +1,10 @@
+prefix=
+exec_prefix=
+libdir=
+includedir=
+
+Name: 
+Description: A library to handle Apple Property Lists whereas they are binary or XML
+Version: 
+Libs: -L${libdir} -lplist
+Cflags: -I${includedir}
