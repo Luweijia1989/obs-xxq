@@ -715,7 +715,7 @@ int main(void)
 	create_stdin_thread();
 
 #ifndef STANDALONE
-	freopen("/dev/null", "w", stderr);
+	freopen("NUL", "w", stderr);
 	memset(&ipc_client, 0, sizeof(ipc_pipe_client_t));
 	if (!ipc_pipe_client_open(&ipc_client, PIPE_NAME)) {
 		usbmuxd_log(LL_ERROR, "ipc pipe create failed!");
