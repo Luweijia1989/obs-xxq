@@ -21,6 +21,7 @@ set(win-airplay_HEADERS
 add_subdirectory(${PROJECT_SOURCE_DIR}/airplay2)
 add_subdirectory(${PROJECT_SOURCE_DIR}/iosusbmirror)
 add_subdirectory(${PROJECT_SOURCE_DIR}/drivertool)
+add_subdirectory(${PROJECT_SOURCE_DIR}/androidusbmirror)
 
 add_library(win-airplay MODULE
 	${win-airplay_SOURCES}
