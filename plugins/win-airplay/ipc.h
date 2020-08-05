@@ -4,14 +4,20 @@
 #include <memory.h>
 #include <stdio.h>
 #include <stdbool.h>
+#include <stdint.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
 // Definitions
 #define IPC_BLOCK_COUNT 512
 #define IPC_BLOCK_SIZE 4096
 
 #define IPC_MAX_ADDR 256
 
-#define IPC_MEMORY_NAME "Global\\MirrorMappingMemory"
+#define IPC_MEMORY_NAME "MirrorMappingMemory"
+
+typedef void (*read_cb)(void *param, uint8_t *data, size_t size);
 
 struct Block {
 	// Variables
@@ -50,6 +56,10 @@ struct IPCServer {
 	HANDLE m_hSignal;  // Event used to signal when data exists
 	HANDLE m_hAvail; // Event used to signal when some blocks become available
 	struct MemBuff *m_pBuf; // Buffer that points to the shared memory
+	BOOL m_exit;
+	HANDLE m_readThread;
+	read_cb cb;
+	void *m_cbParam;
 };
 
 struct IPCClient {
@@ -60,14 +70,14 @@ struct IPCClient {
 	struct MemBuff *m_pBuf; // Buffer that points to the shared memory
 };
 
-void ipc_server_create(struct IPCServer **input);
+void ipc_server_create(struct IPCServer **input, read_cb cb, void *param);
 void ipc_server_destroy(struct IPCServer **input);
 DWORD ipc_server_read(struct IPCServer *server, void *pBuff, DWORD buffSize,
 		      DWORD timeout);
 struct Block *ipc_server_get_block(struct IPCServer *server, DWORD dwTimeout);
 void ipc_server_ret_block(struct IPCServer *server, struct Block *pBlock);
 
-void ipc_client_create(struct IPCClient **input, char *connectAddr);
+void ipc_client_create(struct IPCClient **input);
 void ipc_client_destroy(struct IPCClient **input);
 DWORD ipc_client_write(struct IPCClient *client, void *pBuff, DWORD amount,
 		       DWORD dwTimeout);
@@ -75,3 +85,7 @@ bool ipc_client_wait_available(struct IPCClient *client, DWORD dwTimeout);
 struct Block *ipc_client_get_block(struct IPCClient *client, DWORD dwTimeout);
 void ipc_client_post_block(struct IPCClient *client, struct Block *pBlock);
 bool ipc_client_is_ok(struct IPCClient *client);
+
+#ifdef __cplusplus
+}
+#endif

@@ -31,7 +31,6 @@ add_library(win-airplay MODULE
 target_link_libraries(win-airplay
 	Ws2_32
 	libobs
-	ipc-util
 	${FFMPEG_LIBRARIES})
 
 install_obs_plugin(win-airplay) 

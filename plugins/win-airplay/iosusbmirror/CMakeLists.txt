@@ -13,13 +13,26 @@ endif()
 include_directories(
 	${PROJECT_SOURCE_DIR}/third-party/include
 )
+include_directories(
+	${PROJECT_SOURCE_DIR}/../
+)
 
 file(GLOB_RECURSE iosusbmirror_SRC ${PROJECT_SOURCE_DIR} *.c)
 file(GLOB_RECURSE iosusbmirror_HEADER ${PROJECT_SOURCE_DIR} *.h)
 
+set(iosusbmirror_extra_SOURCES
+	../ipc.c
+)
+			 
+set(iosusbmirror_extra_HEADERS
+	../ipc.h
+)
+
 add_definitions( -D_USE_32BIT_TIME_T -DHAVE_LIBIMOBILEDEVICE )
 
 add_executable(ios-usb-mirror
+	${iosusbmirror_extra_SOURCES}
+	${iosusbmirror_extra_HEADERS}
 	${iosusbmirror_SRC}
 	${iosusbmirror_HEADER})
 
@@ -31,7 +44,6 @@ target_link_libraries(ios-usb-mirror
 	optimized ${PROJECT_SOURCE_DIR}/third-party/lib/relwithdebinfo/libimobiledevice.lib
 	optimized ${PROJECT_SOURCE_DIR}/third-party/lib/relwithdebinfo/libusb0.lib
 	Ws2_32
-	ipc-util
 	w32-pthreads)
 
 install_obs_core(ios-usb-mirror)

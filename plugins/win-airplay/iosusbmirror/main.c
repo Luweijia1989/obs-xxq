@@ -20,7 +20,7 @@
 #include "cmsamplebuf.h"
 #include "asyn_feed.h"
 #include "consumer.h"
-#include <ipc-util/pipe.h>
+#include "ipc.h"
 #include "../common-define.h"
 #include <fcntl.h>
 #include <io.h>
@@ -76,7 +76,7 @@ struct usb_device_info {
 struct usb_device_info app_device = {0};
 bool should_exit = false;
 bool in_progress = false;
-ipc_pipe_client_t ipc_client;
+struct IPCClient *ipc_client = NULL;
 pthread_mutex_t exit_mutex;
 HANDLE lock_down_event = INVALID_HANDLE_VALUE;
 
@@ -588,10 +588,10 @@ void pipeConsume(struct CMSampleBuffer *buf, void *c)
 		pack_info.size = sizeof(struct media_info);
 		pack_info.type = FFM_MEDIA_INFO;
 #ifndef STANDALONE
-		ipc_pipe_client_write(&ipc_client, &pack_info,
-				      sizeof(struct av_packet_info));
-		ipc_pipe_client_write(&ipc_client, &app_device.m_info,
-				      sizeof(struct media_info));
+		ipc_client_write(ipc_client, &pack_info,
+				 sizeof(struct av_packet_info), INFINITE);
+		ipc_client_write(ipc_client, &app_device.m_info,
+				 sizeof(struct media_info), INFINITE);
 #endif
 	}
 
@@ -625,10 +625,10 @@ void pipeConsume(struct CMSampleBuffer *buf, void *c)
 	    !app_device.has_video_received)
 		return;
 #ifndef STANDALONE
-	ipc_pipe_client_write(&ipc_client, &pack_info,
-			      sizeof(struct av_packet_info));
-	ipc_pipe_client_write(&ipc_client, buf->SampleData,
-			      buf->SampleData_len);
+	ipc_client_write(ipc_client, &pack_info, sizeof(struct av_packet_info),
+			 INFINITE);
+	ipc_client_write(ipc_client, buf->SampleData, buf->SampleData_len,
+			 INFINITE);
 #endif
 }
 
@@ -716,11 +716,7 @@ int main(void)
 
 #ifndef STANDALONE
 	freopen("NUL", "w", stderr);
-	memset(&ipc_client, 0, sizeof(ipc_pipe_client_t));
-	if (!ipc_pipe_client_open(&ipc_client, PIPE_NAME)) {
-		usbmuxd_log(LL_ERROR, "ipc pipe create failed!");
-		return -1;
-	}
+	ipc_client_create(&ipc_client);
 #endif
 	lock_down_event = CreateEvent(NULL, FALSE, FALSE, NULL);
 
@@ -921,7 +917,7 @@ int main(void)
 	device_shutdown();
 	client_shutdown();
 	CloseHandle(lock_down_event);
-	ipc_pipe_client_free(&ipc_client);
+	ipc_client_destroy(&ipc_client);
 	usbmuxd_log(LL_NOTICE, "Shutdown complete");
 
 	return 0;

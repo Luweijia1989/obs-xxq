@@ -56,13 +56,13 @@ void ScreenMirrorServer::pipeCallback(void *param, uint8_t *data, size_t size)
 
 	while (true) {
 		if (sm->m_backend == IOS_USB_CABLE) {
-			bool b = sm->handleUSBData(data, size);
+			bool b = sm->handleUSBData();
 			if (b)
 				continue;
 			else
 				break;
 		} else if (sm->m_backend == IOS_AIRPLAY) {
-			bool b = sm->handleAirplayData(data, size);
+			bool b = sm->handleAirplayData();
 			if (b)
 				continue;
 			else
@@ -84,7 +84,7 @@ void ScreenMirrorServer::ipcSetup()
 void ScreenMirrorServer::ipcDestroy()
 {
 	mirrorServerDestroy();
-	ipc_pipe_server_free(&pipe);
+	ipc_server_destroy(&m_ipcServer);
 }
 
 void ScreenMirrorServer::mirrorServerSetup()
@@ -152,7 +152,7 @@ void ScreenMirrorServer::doWithNalu(uint8_t *data, size_t size)
 #endif // DUMPFILE
 }
 
-bool ScreenMirrorServer::handleAirplayData(uint8_t *data, size_t size)
+bool ScreenMirrorServer::handleAirplayData()
 {
 	size_t header_size = sizeof(struct av_packet_info);
 	if (m_avBuffer.size < header_size)
@@ -219,7 +219,7 @@ bool ScreenMirrorServer::handleAirplayData(uint8_t *data, size_t size)
 	return true;
 }
 
-bool ScreenMirrorServer::handleUSBData(uint8_t *data, size_t size)
+bool ScreenMirrorServer::handleUSBData()
 {
 	size_t header_size = sizeof(struct av_packet_info);
 	if (m_avBuffer.size < header_size)
@@ -304,14 +304,7 @@ bool ScreenMirrorServer::handleUSBData(uint8_t *data, size_t size)
 
 bool ScreenMirrorServer::initPipe()
 {
-	char name[64];
-	sprintf(name, "%s", PIPE_NAME);
-	memset(&pipe, 0, sizeof(ipc_pipe_server_t));
-	if (!ipc_pipe_server_start(&pipe, name, pipeCallback, this)) {
-		blog(LOG_WARNING, "init_pipe: failed to start pipe");
-		return false;
-	}
-
+	ipc_server_create(&m_ipcServer, ScreenMirrorServer::pipeCallback, this);
 	return true;
 }
 

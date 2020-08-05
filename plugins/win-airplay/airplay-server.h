@@ -3,10 +3,10 @@
 #include <obs-module.h>
 #include <obs.hpp>
 #include "Airplay2Def.h"
-#include <ipc-util/pipe.h>
 #include <util/circlebuf.h>
 #include "VideoDecoder.h"
 #include "common-define.h"
+#include "ipc.h"
 extern "C" {
 #include <util/pipe.h>
 }
@@ -38,8 +38,8 @@ private:
 	void parseNalus(uint8_t *data, size_t size, uint8_t **out,
 			size_t *out_len);
 	void doWithNalu(uint8_t *data, size_t size);
-	bool handleAirplayData(uint8_t *data, size_t size);
-	bool handleUSBData(uint8_t *data, size_t size);
+	bool handleAirplayData();
+	bool handleUSBData();
 
 private:
 	obs_source_t *m_source = nullptr;
@@ -48,7 +48,7 @@ private:
 	obs_source_frame2 m_videoFrame;
 	long long lastPts = 0;
 
-	ipc_pipe_server_t pipe;
+	struct IPCServer *m_ipcServer = nullptr;
 	os_process_pipe_t *process;
 	circlebuf m_avBuffer;
 	VideoDecoder m_decoder;

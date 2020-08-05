@@ -1,11 +1,31 @@
 #include "ipc.h"
 
-void ipc_server_create(struct IPCServer **input)
+static DWORD CALLBACK read_thread(LPVOID param)
+{
+	struct IPCServer *server = param;
+	if (!server->cb)
+		return 0;
+
+	while (!server->m_exit) {
+		struct Block *block = ipc_server_get_block(server, INFINITE);
+		if (block && block->Amount > 0) {
+			server->cb(server->m_cbParam, block->Data,
+				   block->Amount);
+		}
+		if (block)
+			ipc_server_ret_block(server, block);
+	}
+	return 0;
+}
+
+void ipc_server_create(struct IPCServer **input, read_cb cb, void *param)
 {
 	*input = (struct IPCServer *)calloc(1, sizeof(struct IPCServer));
 	struct IPCServer *server = *input;
 
 	server->m_sAddr = IPC_MEMORY_NAME;
+	server->cb = cb;
+	server->m_cbParam = param;
 
 	char *m_sEvtAvail = (char *)malloc(IPC_MAX_ADDR);
 	if (!m_sEvtAvail) {
@@ -95,11 +115,19 @@ void ipc_server_create(struct IPCServer **input)
 	free(m_sEvtAvail);
 	free(m_sEvtFilled);
 	free(m_sMemName);
+
+	// Create read thread
+	server->m_readThread =
+		CreateThread(NULL, 0, read_thread, server, 0, NULL);
 }
 
 void ipc_server_destroy(struct IPCServer **input)
 {
 	struct IPCServer *server = *input;
+	server->m_exit = true;
+	SetEvent(server->m_hSignal);
+	WaitForSingleObject(server->m_readThread, INFINITE);
+
 	// Close the event
 	if (server->m_hSignal) {
 		HANDLE handle = server->m_hSignal;
@@ -162,7 +190,8 @@ struct Block *ipc_server_get_block(struct IPCServer *server, DWORD dwTimeout)
 			// No room is available, wait for room to become available
 			if (WaitForSingleObject(server->m_hSignal, dwTimeout) ==
 			    WAIT_OBJECT_0)
-				continue;
+				if (!server->m_exit)
+					continue;
 
 			// Timeout
 			return NULL;
@@ -176,7 +205,8 @@ struct Block *ipc_server_get_block(struct IPCServer *server, DWORD dwTimeout)
 
 		// The operation was interrupted by another thread.
 		// The other thread has already stolen this block, try again
-		continue;
+		if (!server->m_exit)
+			continue;
 	}
 }
 
@@ -206,12 +236,12 @@ void ipc_server_ret_block(struct IPCServer *server, struct Block *pBlock)
 	}
 }
 
-void ipc_client_create(struct IPCClient **input, char *connectAddr)
+void ipc_client_create(struct IPCClient **input)
 {
 	*input = (struct IPCClient *)calloc(1, sizeof(struct IPCClient));
 	struct IPCClient *client = *input;
 
-	client->m_sAddr = connectAddr;
+	client->m_sAddr = IPC_MEMORY_NAME;
 
 	char *m_sEvtAvail = (char *)malloc(IPC_MAX_ADDR);
 	if (!m_sEvtAvail)
@@ -305,18 +335,25 @@ void ipc_client_destroy(struct IPCClient **input)
 DWORD ipc_client_write(struct IPCClient *client, void *pBuff, DWORD amount,
 		       DWORD dwTimeout)
 {
-	// Grab a block
-	struct Block *pBlock = ipc_client_get_block(client, dwTimeout);
-	if (!pBlock)
-		return 0;
+	DWORD remainBytes = amount;
+	DWORD index = 0;
+	while (remainBytes > 0) {
+		// Grab a block
+		struct Block *pBlock = ipc_client_get_block(client, dwTimeout);
+		if (!pBlock)
+			return 0;
 
-	// Copy the data
-	DWORD dwAmount = min(amount, IPC_BLOCK_SIZE);
-	memcpy(pBlock->Data, pBuff, dwAmount);
-	pBlock->Amount = dwAmount;
+		// Copy the data
+		DWORD dwAmount = min(remainBytes, IPC_BLOCK_SIZE);
+		memcpy(pBlock->Data, (uint8_t *)pBuff + index, dwAmount);
+		pBlock->Amount = dwAmount;
 
-	// Post the block
-	ipc_client_post_block(client, pBlock);
+		// Post the block
+		ipc_client_post_block(client, pBlock);
+
+		index += dwAmount;
+		remainBytes -= dwAmount;
+	}
 
 	// Fail
 	return 0;
