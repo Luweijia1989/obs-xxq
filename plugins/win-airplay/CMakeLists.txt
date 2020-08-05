@@ -9,6 +9,7 @@ include_directories(${FFMPEG_INCLUDE_DIRS})
 set(win-airplay_SOURCES
 	airplay-server.cpp
 	VideoDecoder.cpp
+	ipc.c
 )
 			 
 set(win-airplay_HEADERS
@@ -16,6 +17,7 @@ set(win-airplay_HEADERS
 	Airplay2Def.h
 	common-define.h
 	VideoDecoder.h
+	ipc.h
 )
 
 add_subdirectory(${PROJECT_SOURCE_DIR}/airplay2)
