@@ -58,7 +58,7 @@ add_custom_command(TARGET ios-usb-mirror POST_BUILD
 			"$<TARGET_FILE_DIR:ios-usb-mirror>/${target}.dll"
 		VERBATIM)
 endfunction()
-
+ 
 install_dependency("getopt") 
 install_dependency("libimobiledevice")
 install_dependency("libusb0")
