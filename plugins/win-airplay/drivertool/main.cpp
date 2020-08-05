@@ -127,6 +127,7 @@ signals:
 	void updateDevices();
 	void installStatusChanged(bool b);
 	void startMirror();
+	void stopMirror();
 
 public slots:
 	void onInstall()
@@ -175,6 +176,7 @@ public slots:
 		wdi_options_create_list option = {true, true, false};
 		wdi_create_list(&m_list, &option);
 
+		bool foundApple = false;
 		for (wdi_device_info *dev = m_list; dev != NULL;
 		     dev = dev->next) {
 			if (dev->vid == APPLE_VID && dev->pid == APPLE_PID) {
@@ -192,10 +194,15 @@ public slots:
 						emit installDriver();
 					} else
 						emit startMirror();
+
+					foundApple = true;
 					break;
 				}
 			}
 		}
+
+		if (!foundApple)
+			emit stopMirror();
 	}
 
 private:
@@ -248,10 +255,12 @@ public:
 			[=](bool b) { setVisible(b); });
 		connect(helper, &InstallHelper::startMirror, this,
 			&ProgressBar::onStartMirror);
+		connect(helper, &InstallHelper::stopMirror, this,
+			&ProgressBar::onStopMirror);
 	}
 
-private:
-	void stopMirror()
+public slots:
+	void onStopMirror()
 	{
 		if (!m_mirrorProcess)
 			return;
@@ -262,10 +271,9 @@ private:
 		m_mirrorProcess = NULL;
 	}
 
-public slots:
 	void onStop()
 	{
-		stopMirror();
+		onStopMirror();
 		if (in_installing)
 			os_kill_process(DRIVER_EXE);
 		else
