@@ -6,14 +6,17 @@
 #include <stdint.h>
 #include <pthread.h>
 
+#ifdef __cplusplus
 extern "C" {
+#endif
+
 #include "config.h"
 #include "command.h"
 #include "common.h"
 #include "util/log.h"
 #include "util/net.h"
 #include "util/str_util.h"
-}
+#include "ipc.h"
 
 struct server {
 	char *serial;
@@ -27,6 +30,7 @@ struct server {
 	uint16_t local_port; // selected from port_range
 	bool tunnel_enabled;
 	bool tunnel_forward; // use "adb forward" instead of "adb reverse"
+	struct IPCClient *ipc_client;
 };
 
 struct server_params {
@@ -60,5 +64,9 @@ void server_stop(struct server *server);
 
 // close and release sockets
 void server_destroy(struct server *server);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif

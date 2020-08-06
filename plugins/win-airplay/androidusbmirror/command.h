@@ -53,6 +53,8 @@ bool cmd_terminate(process_t pid);
 
 bool cmd_simple_wait(process_t pid, exit_code_t *exit_code);
 
+void adb_devices(int *count, char ***devices);
+
 process_t adb_execute(const char *serial, const char *const adb_cmd[],
 		      size_t len);
 

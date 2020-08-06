@@ -10,6 +10,7 @@
 #include "common.h"
 #include "util/log.h"
 #include "util/str_util.h"
+#include "util/pipe.h"
 
 static const char *adb_command;
 
@@ -312,6 +313,49 @@ bool cmd_simple_wait(process_t handle, exit_code_t *exit_code)
 		*exit_code = code;
 	}
 	return !code;
+}
+
+void adb_devices(int *count, char ***devices)
+{
+	*count = 0;
+	char **ret = NULL;
+	os_process_pipe_t *process = os_process_pipe_create("adb devices", "r");
+	if (process) {
+		uint8_t data[10240] = {0};
+		size_t len = os_process_pipe_read(process, data, 10240);
+		if (len > 0) {
+			bool filtered = false;
+			char *token = strtok(data, "\r\n");
+			int index = 0;
+			while (token != NULL) {
+				if (!filtered) {
+					filtered = true;
+				} else {
+					*count = *count + 1;
+					if (ret == NULL)
+						ret = calloc(1, sizeof(char *));
+					else
+						ret = realloc(ret,
+							      sizeof(char *) *
+								      *count);
+
+					char *device =
+						calloc(1, strlen(token) + 1);
+					int i = 0;
+					for (; i < strlen(token); i++) {
+						if (token[i] == '\t')
+							break;
+						else
+							device[i] = token[i];
+					}
+					ret[index++] = device;
+				}
+				token = strtok(NULL, "\r\n");
+			}
+		}
+		os_process_pipe_destroy(process);
+	}
+	*devices = ret;
 }
 
 char *get_executable_path(void)

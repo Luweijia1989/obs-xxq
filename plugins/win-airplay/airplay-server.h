@@ -54,7 +54,7 @@ private:
 	VideoDecoder m_decoder;
 	struct media_info m_mediaInfo;
 	bool m_infoReceived = false;
-	MirrorBackEnd m_backend = IOS_USB_CABLE;
+	MirrorBackEnd m_backend = ANDROID_USB_CABLE;
 
 #ifdef DUMPFILE
 	FILE *m_auioFile;

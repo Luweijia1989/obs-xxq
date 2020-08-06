@@ -335,6 +335,8 @@ void ipc_client_destroy(struct IPCClient **input)
 DWORD ipc_client_write(struct IPCClient *client, void *pBuff, DWORD amount,
 		       DWORD dwTimeout)
 {
+	if (!client->m_pBuf)
+		return 0;
 	DWORD remainBytes = amount;
 	DWORD index = 0;
 	while (remainBytes > 0) {

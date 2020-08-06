@@ -316,6 +316,7 @@ void server_init(struct server *server)
 	server->port_range.last = 0;
 	server->local_port = 0, server->tunnel_enabled = false;
 	server->tunnel_forward = false;
+	ipc_client_create(&server->ipc_client);
 }
 
 static void *run_wait_server(void *data)
@@ -390,6 +391,7 @@ error2:
 	disable_tunnel(server);
 error1:
 	free(server->serial);
+	server->serial = NULL;
 	return false;
 }
 
@@ -464,5 +466,7 @@ void server_stop(struct server *server)
 
 void server_destroy(struct server *server)
 {
-	free(server->serial);
+	ipc_client_destroy(&server->ipc_client);
+	if (server->serial)
+		free(server->serial);
 }

@@ -6,6 +6,7 @@
 
 #define DRIVER_EXE "driver-tool.exe"
 #define AIRPLAY_EXE "airplay-server.exe"
+#define ANDROID_USB_EXE "android-usb-mirror.exe"
 uint8_t start_code[4] = {00, 00, 00, 01};
 
 static uint32_t byteutils_get_int(unsigned char *b, int offset)
@@ -61,7 +62,8 @@ void ScreenMirrorServer::pipeCallback(void *param, uint8_t *data, size_t size)
 				continue;
 			else
 				break;
-		} else if (sm->m_backend == IOS_AIRPLAY) {
+		} else if (sm->m_backend == IOS_AIRPLAY ||
+			   sm->m_backend == ANDROID_USB_CABLE) {
 			bool b = sm->handleAirplayData();
 			if (b)
 				continue;
@@ -94,7 +96,8 @@ void ScreenMirrorServer::mirrorServerSetup()
 		processName = DRIVER_EXE;
 	} else if (m_backend == IOS_AIRPLAY) {
 		processName = AIRPLAY_EXE;
-	}
+	} else if (m_backend = ANDROID_USB_CABLE)
+		processName = ANDROID_USB_EXE;
 
 	os_kill_process(processName);
 	struct dstr cmd;
@@ -107,7 +110,8 @@ void ScreenMirrorServer::mirrorServerSetup()
 
 void ScreenMirrorServer::mirrorServerDestroy()
 {
-	if (m_backend == IOS_USB_CABLE || m_backend == IOS_AIRPLAY) {
+	if (m_backend == IOS_USB_CABLE || m_backend == IOS_AIRPLAY ||
+	    m_backend == ANDROID_USB_CABLE) {
 		uint8_t data[1] = {1};
 		os_process_pipe_write(process, data, 1);
 		os_process_pipe_destroy(process);
@@ -176,7 +180,7 @@ bool ScreenMirrorServer::handleAirplayData()
 		blog(LOG_INFO, "recv media info, pps_len: %d, sps_len: %d",
 		     info.pps_len, info.sps_len);
 
-		if (info.sps_len == 0 || info.pps_len == 0)
+		if (info.sps_len == 0 && info.pps_len == 0)
 			return true;
 
 		m_mediaInfo = info;
