@@ -107,7 +107,7 @@ static void show_adb_err_msg(enum process_result err, const char *const argv[])
 process_t adb_execute(const char *serial, const char *const adb_cmd[],
 		      size_t len)
 {
-	char *cmd = (char *)malloc(len + 4);
+	char **cmd = malloc((len + 4) * sizeof(char *));
 	int i;
 	process_t process;
 	cmd[0] = get_adb_command();

@@ -103,6 +103,11 @@ class InstallHelper : public QObject {
 public:
 	InstallHelper()
 	{
+		m_terminateTimer.setSingleShot(true);
+		m_terminateTimer.setInterval(1000);
+		connect(&m_terminateTimer, &QTimer::timeout, this,
+			&InstallHelper::stopMirror);
+
 		temp_dir = QStandardPaths::writableLocation(
 				   QStandardPaths::TempLocation) +
 			   "/yuerlive";
@@ -153,7 +158,7 @@ public slots:
 						 inf_name, &id_options);
 			if (res == WDI_SUCCESS) {
 				qDebug() << "Successfully install the driver";
-				emit startMirror();
+				requestStart();
 			}
 		}
 
@@ -193,7 +198,7 @@ public slots:
 						m_device = dev;
 						emit installDriver();
 					} else
-						emit startMirror();
+						requestStart();
 
 					foundApple = true;
 					break;
@@ -202,7 +207,16 @@ public slots:
 		}
 
 		if (!foundApple)
-			emit stopMirror();
+			m_terminateTimer.start();
+	}
+
+private:
+	void requestStart()
+	{
+		if (m_terminateTimer.isActive())
+			m_terminateTimer.stop();
+
+		emit startMirror();
 	}
 
 private:
@@ -213,6 +227,7 @@ private:
 	wdi_options_install_driver id_options = {0};
 	wdi_device_info *m_device = nullptr;
 	wdi_device_info *m_list = nullptr;
+	QTimer m_terminateTimer;
 };
 
 class NativeEventFilter : public QAbstractNativeEventFilter {

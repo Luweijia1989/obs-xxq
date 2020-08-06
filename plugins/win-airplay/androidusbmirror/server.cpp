@@ -5,6 +5,7 @@
 #include <inttypes.h>
 #include <stdio.h>
 #include <memory.h>
+#include <util/platform.h>
 
 #define SOCKET_NAME "scrcpy"
 #define SERVER_FILENAME "scrcpy-server"
@@ -14,49 +15,15 @@
 
 static char *get_server_path(void)
 {
-#ifndef PORTABLE
-	LOGD("Using server: " DEFAULT_SERVER_PATH);
-	char *server_path = strdup(DEFAULT_SERVER_PATH);
+	char *path = os_get_executable_path_ptr(SERVER_FILENAME);
+	LOGD("Using server: " path);
+	char *server_path = strdup(path);
 	if (!server_path) {
 		LOGE("Could not allocate memory");
 		return NULL;
 	}
 	// the absolute path is hardcoded
 	return server_path;
-#else
-
-	// use scrcpy-server in the same directory as the executable
-	char *executable_path = get_executable_path();
-	if (!executable_path) {
-		LOGE("Could not get executable path, "
-		     "using " SERVER_FILENAME " from current directory");
-		// not found, use current directory
-		return SERVER_FILENAME;
-	}
-	char *dir = dirname(executable_path);
-	size_t dirlen = strlen(dir);
-
-	// sizeof(SERVER_FILENAME) gives statically the size including the null byte
-	size_t len = dirlen + 1 + sizeof(SERVER_FILENAME);
-	char *server_path = SDL_malloc(len);
-	if (!server_path) {
-		LOGE("Could not alloc server path string, "
-		     "using " SERVER_FILENAME " from current directory");
-		free(executable_path);
-		return SERVER_FILENAME;
-	}
-
-	memcpy(server_path, dir, dirlen);
-	server_path[dirlen] = PATH_SEPARATOR;
-	memcpy(&server_path[dirlen + 1], SERVER_FILENAME,
-	       sizeof(SERVER_FILENAME));
-	// the final null byte has been copied with SERVER_FILENAME
-
-	free(executable_path);
-
-	LOGD("Using server (portable): %s", server_path);
-	return server_path;
-#endif
 }
 
 static bool push_server(const char *serial)

@@ -8,6 +8,7 @@ add_executable(android-usb-mirror
 	${androidusbmirror_HEADER})
 
 target_link_libraries(android-usb-mirror
+	libobs
 	Ws2_32 
 	w32-pthreads)
 	 
