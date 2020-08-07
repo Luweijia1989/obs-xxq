@@ -3,6 +3,7 @@
 #include "stream.h"
 #include <fcntl.h>
 #include <io.h>
+#include "../common-define.h"
 
 struct server g_s;
 struct stream g_stream;
@@ -41,15 +42,16 @@ static void server_clear()
 	memset(&g_s, 0, sizeof(struct server));
 }
 
-static void server_init(char *device)
+static bool server_init(char *device)
 {
 	server_init(&g_s);
 	struct server_params p;
 	memset(&p, 0, sizeof(struct server_params));
-	p.bit_rate = 10000000;
+	p.bit_rate = 8000000;
 	p.port_range.first = 2543;
 	p.port_range.last = 2599;
 	p.max_fps = 60;
+	p.lock_video_orientation = 1;
 
 	if (!server_start(&g_s, device, &p))
 		goto err;
@@ -67,9 +69,10 @@ static void server_init(char *device)
 	if (!stream_start(&g_stream))
 		goto err;
 
-	return;
+	return true;
 err:
 	server_clear();
+	return false;
 }
 
 void *stdin_read_thread(void *data)
@@ -105,6 +108,8 @@ int main(int argv, char *argc[])
 	_setmode(_fileno(stdin), O_BINARY);
 	freopen("NUL", "w", stderr);
 
+	struct IPCClient *client = NULL;
+	ipc_client_create(&client);
 	pthread_t stdin_th = create_stdin_thread();
 
 	net_init();
@@ -112,17 +117,22 @@ int main(int argv, char *argc[])
 		Sleep(1000);
 		char *device = android_device();
 		if (device) {
-			if (!is_server_running())
+			if (!is_server_running()) {
+				send_status(client, MIRROR_START);
+				g_s.ipc_client = client;
 				server_init(device);
+			}
 
 			free(device);
 		} else {
 			if (is_server_running()) {
+				send_status(client, MIRROR_STOP);
 				server_clear();
 			}
 		}
 	}
 	pthread_join(stdin_th, NULL);
 	net_cleanup();
+	ipc_client_destroy(&client);
 	return 0;
 }

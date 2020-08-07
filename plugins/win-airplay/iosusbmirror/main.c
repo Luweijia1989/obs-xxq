@@ -81,11 +81,6 @@ pthread_mutex_t exit_mutex;
 HANDLE lock_down_event = INVALID_HANDLE_VALUE;
 
 //////////////////////////////////////////////////////////////////////////////
-usb_dev_handle *open_dev(struct usb_device **device);
-
-static int transfer_bulk_async(usb_dev_handle *dev, int ep, char *bytes,
-			       int size, int timeout);
-
 usb_dev_handle *open_dev(struct usb_device **device)
 {
 	struct usb_bus *bus;
@@ -731,6 +726,7 @@ int main(void)
 		if (!usb_device_discover())
 			continue;
 		else {
+			send_status(ipc_client, MIRROR_START);
 			usb_get_string_simple(
 				app_device.device_handle,
 				app_device.device->descriptor.iSerialNumber,
@@ -907,9 +903,8 @@ int main(void)
 			}
 		}
 	}
-
+	send_status(ipc_client, MIRROR_STOP);
 	pthread_mutex_destroy(&exit_mutex);
-
 	pthread_join(socket_t, NULL);
 
 	usbmuxd_log(LL_NOTICE, "usbmuxd shutting down");

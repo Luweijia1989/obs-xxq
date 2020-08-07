@@ -43,6 +43,13 @@ enum obs_balance_type {
 	OBS_BALANCE_TYPE_LINEAR,
 };
 
+enum obs_source_mirror_status {
+	OBS_SOURCE_MIRROR_DEVICE_CONNECTED,
+	OBS_SOURCE_MIRROR_DEVICE_LOST,
+	OBS_SOURCE_MIRROR_START,
+	OBS_SOURCE_MIRROR_STOP,
+};
+
 /**
  * @name Source output flags
  *

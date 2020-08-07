@@ -8,12 +8,11 @@ static DWORD CALLBACK read_thread(LPVOID param)
 
 	while (!server->m_exit) {
 		struct Block *block = ipc_server_get_block(server, INFINITE);
-		if (block && block->Amount > 0) {
+		if (block) {
 			server->cb(server->m_cbParam, block->Data,
 				   block->Amount);
-		}
-		if (block)
 			ipc_server_ret_block(server, block);
+		}
 	}
 	return 0;
 }
@@ -108,8 +107,8 @@ void ipc_server_create(struct IPCServer **input, read_cb cb, void *param)
 	// Initialize the pointers
 	server->m_pBuf->m_ReadEnd = 0;
 	server->m_pBuf->m_ReadStart = 0;
-	server->m_pBuf->m_WriteEnd = 1;
-	server->m_pBuf->m_WriteStart = 1;
+	server->m_pBuf->m_WriteEnd = 0;
+	server->m_pBuf->m_WriteStart = 0;
 
 	// Release memory
 	free(m_sEvtAvail);
@@ -185,9 +184,7 @@ struct Block *ipc_server_get_block(struct IPCServer *server, DWORD dwTimeout)
 	for (;;) {
 		// Check if there is room to expand the read start cursor
 		LONG blockIndex = server->m_pBuf->m_ReadStart;
-		struct Block *pBlock = server->m_pBuf->m_Blocks + blockIndex;
-		if (pBlock->Next == server->m_pBuf->m_WriteEnd) {
-			// No room is available, wait for room to become available
+		if (blockIndex == server->m_pBuf->m_WriteEnd) {
 			if (WaitForSingleObject(server->m_hSignal, dwTimeout) ==
 			    WAIT_OBJECT_0)
 				if (!server->m_exit)
@@ -196,6 +193,8 @@ struct Block *ipc_server_get_block(struct IPCServer *server, DWORD dwTimeout)
 			// Timeout
 			return NULL;
 		}
+
+		struct Block *pBlock = server->m_pBuf->m_Blocks + blockIndex;
 
 		// Make sure the operation is atomic
 		if (InterlockedCompareExchange(&server->m_pBuf->m_ReadStart,

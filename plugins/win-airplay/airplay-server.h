@@ -38,6 +38,7 @@ private:
 	void parseNalus(uint8_t *data, size_t size, uint8_t **out,
 			size_t *out_len);
 	void doWithNalu(uint8_t *data, size_t size);
+	void handleMirrorStatus();
 	bool handleAirplayData();
 	bool handleUSBData();
 

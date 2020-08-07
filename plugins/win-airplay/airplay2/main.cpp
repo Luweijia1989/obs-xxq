@@ -7,7 +7,7 @@ int main(int argv, char *argc[])
 {
 	SetErrorMode(SEM_FAILCRITICALERRORS);
 	_setmode(_fileno(stdin), O_BINARY);
-	freopen("/dev/null", "w", stderr);
+	freopen("NUL", "w", stderr);
 
 	CAirServer server;
 	if (!server.start())

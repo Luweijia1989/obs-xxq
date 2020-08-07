@@ -156,6 +156,15 @@ void ScreenMirrorServer::doWithNalu(uint8_t *data, size_t size)
 #endif // DUMPFILE
 }
 
+void ScreenMirrorServer::handleMirrorStatus()
+{
+	int status = -1;
+	circlebuf_pop_front(&m_avBuffer, &status, sizeof(int));
+	if (status == OBS_SOURCE_MIRROR_START) {
+	} else if (status == OBS_SOURCE_MIRROR_STOP) {
+	}
+}
+
 bool ScreenMirrorServer::handleAirplayData()
 {
 	size_t header_size = sizeof(struct av_packet_info);
@@ -172,7 +181,9 @@ bool ScreenMirrorServer::handleAirplayData()
 	circlebuf_pop_front(&m_avBuffer, &header_info,
 			    header_size); // remove it
 
-	if (header_info.type == FFM_MEDIA_INFO) {
+	if (header_info.type == FFM_MIRROR_STATUS)
+		handleMirrorStatus();
+	else if (header_info.type == FFM_MEDIA_INFO) {
 		struct media_info info;
 		memset(&info, 0, req_size);
 		circlebuf_pop_front(&m_avBuffer, &info, req_size);
@@ -239,7 +250,9 @@ bool ScreenMirrorServer::handleUSBData()
 	circlebuf_pop_front(&m_avBuffer, &header_info,
 			    header_size); // remove it
 
-	if (header_info.type == FFM_MEDIA_INFO) {
+	if (header_info.type == FFM_MIRROR_STATUS)
+		handleMirrorStatus();
+	else if (header_info.type == FFM_MEDIA_INFO) {
 		struct media_info info;
 		memset(&info, 0, req_size);
 		circlebuf_pop_front(&m_avBuffer, &info, req_size);

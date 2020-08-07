@@ -103,9 +103,10 @@ class InstallHelper : public QObject {
 public:
 	InstallHelper()
 	{
-		m_terminateTimer.setSingleShot(true);
-		m_terminateTimer.setInterval(1000);
-		connect(&m_terminateTimer, &QTimer::timeout, this,
+		m_terminateTimer = new QTimer(this);
+		m_terminateTimer->setSingleShot(true);
+		m_terminateTimer->setInterval(1000);
+		connect(m_terminateTimer, &QTimer::timeout, this,
 			&InstallHelper::stopMirror);
 
 		temp_dir = QStandardPaths::writableLocation(
@@ -207,14 +208,14 @@ public slots:
 		}
 
 		if (!foundApple)
-			m_terminateTimer.start();
+			m_terminateTimer->start();
 	}
 
 private:
 	void requestStart()
 	{
-		if (m_terminateTimer.isActive())
-			m_terminateTimer.stop();
+		if (m_terminateTimer->isActive())
+			m_terminateTimer->stop();
 
 		emit startMirror();
 	}
@@ -227,7 +228,7 @@ private:
 	wdi_options_install_driver id_options = {0};
 	wdi_device_info *m_device = nullptr;
 	wdi_device_info *m_list = nullptr;
-	QTimer m_terminateTimer;
+	QTimer *m_terminateTimer;
 };
 
 class NativeEventFilter : public QAbstractNativeEventFilter {
@@ -353,6 +354,7 @@ int main(int argc, char *argv[])
 
 	InstallHelper helper;
 	QThread thread;
+	thread.start();
 	NativeEventFilter filter(&helper);
 	a.installNativeEventFilter(&filter);
 
@@ -371,7 +373,6 @@ int main(int argc, char *argv[])
 
 	bar.show();
 	bar.hide();
-	thread.start();
 	stdinThread.start();
 
 	return a.exec();
