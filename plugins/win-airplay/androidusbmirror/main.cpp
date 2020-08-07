@@ -51,7 +51,7 @@ static bool server_init(char *device)
 	p.port_range.first = 2543;
 	p.port_range.last = 2599;
 	p.max_fps = 60;
-	p.lock_video_orientation = 1;
+	p.lock_video_orientation = -1;
 
 	if (!server_start(&g_s, device, &p))
 		goto err;
