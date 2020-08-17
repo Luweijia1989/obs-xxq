@@ -19,7 +19,8 @@ extern "C" {
 
 static bool in_installing = false;
 #define APPLE_VID 0x05AC
-#define APPLE_PID 0x12A8
+#define PID_RANGE_LOW 0x1290
+#define PID_RANGE_MAX 0x12af
 #define safe_free(p)                     \
 	do {                             \
 		if ((void *)p != NULL) { \
@@ -185,7 +186,7 @@ public slots:
 		bool foundApple = false;
 		for (wdi_device_info *dev = m_list; dev != NULL;
 		     dev = dev->next) {
-			if (dev->vid == APPLE_VID && dev->pid == APPLE_PID) {
+			if (dev->vid == APPLE_VID && (dev->pid > PID_RANGE_LOW && dev->pid < PID_RANGE_MAX)) {
 				if (!dev->is_composite) {
 					QString driverName(dev->driver);
 					bool needInstall = true;

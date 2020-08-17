@@ -37,6 +37,7 @@ struct MessageProcessor {
 	size_t audioSamplesReceived;
 	size_t videoSamplesReceived;
 	bool firstAudioTimeTaken;
+	double sampleRate;
 
 	struct CMTime startTimeDeviceAudioClock;
 	struct CMTime startTimeLocalAudioClock;
@@ -175,6 +176,27 @@ static void handle_sync_packet(unsigned char *buf, uint32_t length)
 		usbmuxd_log(LL_INFO, "CVRP");
 		struct SyncCvrpPacket cvrp_packet = {0};
 		NewSyncCvrpPacketFromBytes(buf, length, &cvrp_packet);
+
+		if (cvrp_packet.Payload) {
+			list_node_t *node;
+			list_iterator_t *it = list_iterator_new(
+				cvrp_packet.Payload, LIST_HEAD);
+			while ((node = list_iterator_next(it))) {
+				struct StringKeyEntry *entry = node->val;
+				if (entry->typeMagic == FormatDescriptorMagic) {
+					struct FormatDescriptor *fd = entry->children;
+					app_device.mp.sampleRate =
+						fd->AudioDescription.SampleRate;
+					break;
+				}
+			}
+			list_iterator_destroy(it);
+		}
+
+		const double EPS = 1e-6; 
+		if (fabs(app_device.mp.sampleRate - 0.f) > EPS)
+			app_device.mp.sampleRate = 48000.0f;
+
 		app_device.mp.needClockRef = cvrp_packet.DeviceClockRef;
 		AsynNeedPacketBytes(app_device.mp.needClockRef,
 				    &app_device.mp.needMessage,
@@ -246,7 +268,7 @@ static void handle_sync_packet(unsigned char *buf, uint32_t length)
 
 		uint8_t *send_data;
 		size_t send_data_len;
-		SyncSkewPacketNewReply(&skew_packet, skewValue, &send_data,
+		SyncSkewPacketNewReply(&skew_packet, app_device.mp.sampleRate, &send_data,
 				       &send_data_len);
 		usb_bulk_write(app_device.device_handle, app_device.ep_out_fa,
 			       send_data, send_data_len, 1000);
