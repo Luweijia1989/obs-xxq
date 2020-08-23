@@ -28,12 +28,17 @@ void CAirServerCallback::connected(const char *remoteName,
 	setlocale(LC_CTYPE, "");
 	std::wstring name = CFgUtf8Utils::UTF8_To_UTF16(remoteName);
 	wprintf(L"Client Name: %s\n", name.c_str());
+
+	if (m_airplayServer)
+		m_airplayServer->outputStatus(true, remoteName, remoteDeviceId);
 }
 
 void CAirServerCallback::disconnected(const char *remoteName,
 				      const char *remoteDeviceId)
 {
 	memset(m_chRemoteDeviceId, 0, 128);
+	if (m_airplayServer)
+		m_airplayServer->outputStatus(false, remoteName, remoteDeviceId);
 }
 
 void CAirServerCallback::outputAudio(uint8_t *data, size_t data_len,

@@ -1,4 +1,4 @@
-﻿/**
+/**
  *  Copyright (C) 2011-2012  Juho Vähä-Herttua
  *
  *  This library is free software; you can redistribute it and/or
@@ -187,6 +187,12 @@ raop_rtp_t *raop_rtp_init(logger_t *logger, raop_callbacks_t *callbacks,
 	raop_rtp->running = 0;
 	raop_rtp->joined = 1;
 	raop_rtp->flush = NO_FLUSH;
+
+	if (raop_rtp->callbacks.connected) {
+		raop_rtp->callbacks.connected(raop_rtp->callbacks.cls,
+						 raop_rtp->remoteName,
+						 raop_rtp->remoteDeviceId);
+	}
 
 	MUTEX_CREATE(raop_rtp->run_mutex);
 	return raop_rtp;
@@ -766,6 +772,12 @@ void raop_rtp_flush(raop_rtp_t *raop_rtp, int next_seq)
 void raop_rtp_stop(raop_rtp_t *raop_rtp)
 {
 	assert(raop_rtp);
+
+	if (raop_rtp->callbacks.disconnected) {
+		raop_rtp->callbacks.disconnected(raop_rtp->callbacks.cls,
+						     raop_rtp->remoteName,
+						     raop_rtp->remoteDeviceId);
+	}
 
 	/* Check that we are running and thread is not
      * joined (should never be while still running) */

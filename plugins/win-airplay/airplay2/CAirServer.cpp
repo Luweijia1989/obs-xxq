@@ -1,5 +1,6 @@
 #include "CAirServer.h"
 #include <cstdio>
+#include "../common-define.h"
 
 CAirServer::CAirServer() : m_pCallback(NULL), m_pServer(NULL)
 {
@@ -12,6 +13,12 @@ CAirServer::~CAirServer()
 	ipc_client_destroy(&client);
 	delete m_pCallback;
 	stop();
+}
+
+void CAirServer::outputStatus(bool isConnected, const char *remoteName,
+			      const char *remoteDeviceId)
+{
+	send_status(client, isConnected ? MIRROR_START : MIRROR_STOP);
 }
 
 void CAirServer::outputAudio(uint8_t *data, size_t data_len, uint64_t pts,

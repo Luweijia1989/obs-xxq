@@ -144,10 +144,10 @@ void FgAirplayServer::connected(void *cls, const char *remoteName,
 		return;
 	}
 	CAutoLock oLock(pServer->m_mutexMap, "connected");
-	pServer->getChannel(remoteDeviceId);
+	FgAirplayChannel *pChannel = pServer->getChannel(remoteDeviceId);
 
 	if (pServer->m_pCallback != NULL) {
-		pServer->m_pCallback->connected(remoteName, remoteDeviceId);
+		pChannel->connected(remoteName, remoteDeviceId);
 	}
 }
 
@@ -158,15 +158,13 @@ void FgAirplayServer::disconnected(void *cls, const char *remoteName,
 	if (!pServer) {
 		return;
 	}
-	if (pServer->m_pCallback != NULL) {
-		pServer->m_pCallback->disconnected(remoteName, remoteDeviceId);
-	}
 
 	CAutoLock oLock(pServer->m_mutexMap, "disconnected");
 	std::string deviceId(remoteDeviceId);
 	FgAirplayChannel *pChannel =
 		pServer->m_mapChannel[std::string(remoteDeviceId)];
 	if (pChannel) {
+		pChannel->disconnected(remoteName, remoteDeviceId);
 		pServer->m_mapChannel.erase(deviceId);
 		pChannel->release();
 	}

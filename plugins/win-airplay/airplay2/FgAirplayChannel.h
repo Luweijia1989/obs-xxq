@@ -8,6 +8,9 @@ class FgAirplayChannel {
 public:
 	FgAirplayChannel(IAirServerCallback *pCallback);
 	~FgAirplayChannel();
+	void connected(const char *remoteName,
+			 const char *remoteDeviceId);
+	void disconnected(const char *remoteName, const char *remoteDeviceId);
 	void outputVideo(h264_decode_struct *data, const char *remoteName,
 			 const char *remoteDeviceId);
 	void outputAudio(pcm_data_struct *data, const char *remoteName,

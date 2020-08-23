@@ -1,5 +1,6 @@
 #include "FgAirplayChannel.h"
 #include "CAutoLock.h"
+#include "../common-define.h"
 
 FgAirplayChannel::FgAirplayChannel(IAirServerCallback *pCallback)
 	: m_nRef(1), m_pCallback(pCallback)
@@ -14,6 +15,24 @@ FgAirplayChannel::FgAirplayChannel(IAirServerCallback *pCallback)
 FgAirplayChannel::~FgAirplayChannel()
 {
 	
+}
+
+void FgAirplayChannel::connected(const char *remoteName,
+	const char *remoteDeviceId)
+{
+	m_sendMutex.lock();
+	if (m_pCallback)
+		m_pCallback->connected(remoteName, remoteDeviceId);
+	m_sendMutex.unlock();
+}
+
+void FgAirplayChannel::disconnected(const char *remoteName,
+				 const char *remoteDeviceId)
+{
+	m_sendMutex.lock();
+	if (m_pCallback)
+		m_pCallback->disconnected(remoteName, remoteDeviceId);
+	m_sendMutex.unlock();
 }
 
 void FgAirplayChannel::outputVideo(h264_decode_struct *data,
