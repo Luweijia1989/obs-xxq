@@ -68,7 +68,13 @@ void CAirServerCallback::outputVideo(uint8_t *data, size_t data_len,
 	}
 }
 
-void CAirServerCallback::outputMediaInfo(media_info *info) {}
+void CAirServerCallback::outputMediaInfo(media_info *info,
+					 const char *remoteName,
+					 const char *remoteDeviceId)
+{
+	m_airplayServer->outputMediaInfo(info, remoteName,
+				     remoteDeviceId);
+}
 
 void CAirServerCallback::videoPlay(char *url, double volume, double startPos)
 {

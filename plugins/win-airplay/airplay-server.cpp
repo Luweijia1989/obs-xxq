@@ -198,8 +198,7 @@ bool ScreenMirrorServer::handleAirplayData()
 		if (!m_infoReceived)
 			m_infoReceived = true;
 #ifdef DUMPFILE
-		sm->doWithNalu(info.pps, info.pps_len);
-		sm->doWithNalu(info.sps, info.sps_len);
+		fwrite(info.pps, info.pps_len, 1, m_videoFile);
 #endif // DUMPFILE
 		m_decoder.docode(info.pps, info.pps_len, true, 0);
 	} else {
@@ -208,7 +207,7 @@ bool ScreenMirrorServer::handleAirplayData()
 
 		if (header_info.type == FFM_PACKET_AUDIO) {
 #ifdef DUMPFILE
-			fwrite(temp_buf, 1, req_size, sm->m_auioFile);
+			fwrite(temp_buf, 1, req_size, m_auioFile);
 #endif // DUMPFILE
 			if (m_infoReceived) {
 				SFgAudioFrame *frame = new SFgAudioFrame();
@@ -267,8 +266,8 @@ bool ScreenMirrorServer::handleUSBData()
 		if (!m_infoReceived)
 			m_infoReceived = true;
 #ifdef DUMPFILE
-		sm->doWithNalu(info.pps, info.pps_len);
-		sm->doWithNalu(info.sps, info.sps_len);
+		doWithNalu(info.pps, info.pps_len);
+		doWithNalu(info.sps, info.sps_len);
 #endif // DUMPFILE
 		uint8_t *temp_buff =
 			(uint8_t *)calloc(1, info.sps_len + info.pps_len + 8);
@@ -286,7 +285,7 @@ bool ScreenMirrorServer::handleUSBData()
 
 		if (header_info.type == FFM_PACKET_AUDIO) {
 #ifdef DUMPFILE
-			fwrite(temp_buf, 1, req_size, sm->m_auioFile);
+			fwrite(temp_buf, 1, req_size, m_auioFile);
 #endif // DUMPFILE
 			if (m_infoReceived) {
 				SFgAudioFrame *frame = new SFgAudioFrame();
@@ -367,7 +366,7 @@ void ScreenMirrorServer::outputVideo(SFgVideoFrame *data)
 
 void ScreenMirrorServer::outputAudio(SFgAudioFrame *data)
 {
-	//	blog(LOG_INFO, "=================%lld", data->pts - lastPts);
+		blog(LOG_INFO, "=================%lld", data->pts - lastPts);
 	m_audioFrame.format = AUDIO_FORMAT_16BIT;
 	m_audioFrame.samples_per_sec = data->sampleRate;
 	m_audioFrame.speakers = data->channels == 2 ? SPEAKERS_STEREO

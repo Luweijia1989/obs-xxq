@@ -22,11 +22,21 @@ set(DIR_SRCS ${play_src})
 file(GLOB_RECURSE fdkaac_SRC ${PROJECT_SOURCE_DIR}/lib/fdk-aac *.cpp *.c)
 file(GLOB_RECURSE fdkaac_HEADER ${PROJECT_SOURCE_DIR}/lib/fdk-aac *.hpp *.h)
 
+set(iosairplay_extra_SOURCES
+	../ipc.c
+)
+			 
+set(iosairplay_extra_HEADERS
+	../ipc.h
+)
+
 add_executable( airplay-server
 	main.cpp
 	${DIR_SRCS}
 	${fdkaac_HEADER}
-	${fdkaac_SRC})
+	${fdkaac_SRC}
+	${iosairplay_extra_HEADERS}
+	${iosairplay_extra_SOURCES})
 
 target_link_libraries( airplay-server
 	${PROJECT_SOURCE_DIR}/lib/plist/libplist.a

@@ -2,6 +2,7 @@
 #include <queue>
 #include "Airplay2Head.h"
 #include "stream.h"
+#include <mutex>
 
 class FgAirplayChannel {
 public:
@@ -19,7 +20,7 @@ public:
 protected:
 	long m_nRef;
 	IAirServerCallback *m_pCallback;
-	bool m_receiveAudioInfo = false;
-	bool m_receiveVideoInfo = false;
+	bool m_videoSent = false;
 	media_info m_mediaInfo;
+	std::mutex m_sendMutex;
 };

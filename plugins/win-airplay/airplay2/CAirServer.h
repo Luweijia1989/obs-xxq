@@ -1,6 +1,6 @@
 #pragma once
 
-#include <ipc-util/pipe.h>
+#include "../common-define.h"
 #include "CAirServerCallback.h"
 
 class CAirServer {
@@ -12,7 +12,8 @@ public:
 			 const char *remoteName, const char *remoteDeviceId);
 	void outputVideo(uint8_t *data, size_t data_len, uint64_t pts,
 			 const char *remoteName, const char *remoteDeviceId);
-	void outputMediaInfo(media_info *info);
+	void outputMediaInfo(media_info *info, const char *remoteName,
+			     const char *remoteDeviceId);
 
 public:
 	bool start();
@@ -21,5 +22,5 @@ public:
 private:
 	CAirServerCallback *m_pCallback;
 	void *m_pServer;
-	ipc_pipe_client_t ipc_client;
+	struct IPCClient *client = nullptr;
 };
