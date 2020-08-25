@@ -1,4 +1,4 @@
-/******************************************************************************
+﻿/******************************************************************************
     Copyright (C) 2013-2014 by Hugh Bailey <obs.jim@gmail.com>
 
     This program is free software: you can redistribute it and/or modify
@@ -81,6 +81,7 @@ static const char *source_signals[] = {
 	"void transition_video_stop(ptr source)",
 	"void transition_stop(ptr source)",
 	"void mirror_status_changed(ptr source, int status)",
+	"void settings_update(ptr source)",
 	NULL,
 };
 
@@ -837,6 +838,8 @@ static void obs_source_deferred_update(obs_source_t *source)
 		source->info.update(source->context.data,
 				    source->context.settings);
 
+	obs_source_dosignal(source, NULL, "settings_update");
+
 	source->defer_update = false;
 }
 
@@ -853,6 +856,8 @@ void obs_source_update(obs_source_t *source, obs_data_t *settings)
 	} else if (source->context.data && source->info.update) {
 		source->info.update(source->context.data,
 				    source->context.settings);
+
+		obs_source_dosignal(source, NULL, "settings_update");
 	}
 }
 
