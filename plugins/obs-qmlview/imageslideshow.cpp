@@ -2,7 +2,6 @@
 #include "renderer.h"
 #include "qmlhelper.h"
 
-
 static const char *file_filter =
 	"Image files (*.bmp *.tga *.png *.jpeg *.jpg *.gif)";
 
@@ -105,13 +104,18 @@ static obs_properties_t *quickview_source_properties(void *data)
 	ImageSlideShow *s = (ImageSlideShow *)data;
 	obs_properties_t *props = s->baseProperties();
 
-	obs_property_t *p = obs_properties_add_list(
-			props, "direction", u8"轮播动画", OBS_COMBO_TYPE_LIST,
-			OBS_COMBO_FORMAT_INT);
-	obs_property_list_add_int(p, u8"自下向上推进", ImageSlideShow::BottomToTop);
-	obs_property_list_add_int(p, u8"自上向下推进", ImageSlideShow::TopToBottom);
-	obs_property_list_add_int(p, u8"自右向左推进", ImageSlideShow::RightToLeft);
-	obs_property_list_add_int(p, u8"自左向右推进", ImageSlideShow::LeftToRight);
+	obs_property_t *p = obs_properties_add_list(props, "direction",
+						    u8"轮播动画",
+						    OBS_COMBO_TYPE_LIST,
+						    OBS_COMBO_FORMAT_INT);
+	obs_property_list_add_int(p, u8"自下向上推进",
+				  ImageSlideShow::BottomToTop);
+	obs_property_list_add_int(p, u8"自上向下推进",
+				  ImageSlideShow::TopToBottom);
+	obs_property_list_add_int(p, u8"自右向左推进",
+				  ImageSlideShow::RightToLeft);
+	obs_property_list_add_int(p, u8"自左向右推进",
+				  ImageSlideShow::LeftToRight);
 
 	p = obs_properties_add_list(props, "speed", u8"轮播速度",
 				    OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_INT);
@@ -138,7 +142,8 @@ static obs_properties_t *quickview_source_properties(void *data)
 	if (s) {
 		s->m_mutex.lock();
 		if (s->imageFiles().size()) {
-			QFileInfo info(QUrl(s->imageFiles().last()).toLocalFile());
+			QFileInfo info(
+				QUrl(s->imageFiles().last()).toLocalFile());
 			last_path = info.absolutePath();
 		}
 		s->m_mutex.unlock();
@@ -188,8 +193,7 @@ static struct obs_source_info quickimageslideshow_source_info = {
 	nullptr,
 	nullptr,
 	nullptr,
-	nullptr
-};
+	nullptr};
 
 OBS_DECLARE_MODULE()
 OBS_MODULE_USE_DEFAULT_LOCALE("qml-source", "en-US")
@@ -199,6 +203,7 @@ extern struct obs_source_info quickrank_source_info;
 extern struct obs_source_info quickleave_source_info;
 extern struct obs_source_info quickprivate_source_info;
 extern struct obs_source_info quickaudiowave_source_info;
+extern struct obs_source_info vote_source_info;
 
 bool obs_module_load(void)
 {
@@ -208,5 +213,6 @@ bool obs_module_load(void)
 	obs_register_source(&quickleave_source_info);
 	obs_register_source(&quickprivate_source_info);
 	obs_register_source(&quickaudiowave_source_info);
+	obs_register_source(&vote_source_info);
 	return true;
 }
