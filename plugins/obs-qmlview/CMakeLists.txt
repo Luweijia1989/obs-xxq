@@ -1,4 +1,4 @@
-﻿project(obs-qmlview)
+project(obs-qmlview)
 
 set(CMAKE_INCLUDE_CURRENT_DIR TRUE)
 set(CMAKE_AUTOMOC TRUE)
@@ -43,6 +43,7 @@ set(qmlview_SOURCES
     leave.cpp
     private.cpp
     audiowave.cpp
+    vote.cpp
 )
 
 set( qmlview_HEADERS
@@ -56,7 +57,8 @@ set( qmlview_HEADERS
     leave.h
     private.h
     defines.h
-	audiowave.h
+    audiowave.h
+    vote.h
 )
 
 set(qmlview_QRC qmlview.qrc)

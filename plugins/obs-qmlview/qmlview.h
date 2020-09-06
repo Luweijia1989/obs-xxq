@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include <QtQuick>
 #include <QtWidgets/QtWidgets>
@@ -73,7 +73,7 @@ signals:
 	void frameRendered();
 	void qmlWarnings(QStringList warnings);
 
-private slots:
+public slots:
 	void doLoad();
 	void doUnload();
 	void doResize(quint32 w, quint32 h);
