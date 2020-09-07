@@ -16,6 +16,8 @@ int VideoDecoder::docode(uint8_t *data, size_t data_len, bool is_key,
 {
 	int canOutput = -1;
 	if (is_key) {
+		if (m_pCodecCtx && data_len == m_pCodecCtx->extradata_size && memcmp(data, m_pCodecCtx->extradata, data_len) == 0)
+			return canOutput;
 		uninitFFMPEG();
 
 		if (initFFMPEG(data, data_len) != 0)
