@@ -10,5 +10,6 @@
         <file>vote.qml</file>
         <file>icon_ticket_display.png</file>
         <file>icon_ticket_display@2x.png</file>
+        <file>pic_bullet_chat.png</file>
     </qresource>
 </RCC>

@@ -70,7 +70,7 @@ void VoteModel::initModelData(const QJsonArray &array)
 		QJsonObject obj = array.at(i).toObject();
 		VoteOption vo;
 		vo.optionContent = obj["optionContent"].toString();
-		vo.voteCount = obj["voteCount"].toInt();
+		vo.voteCount = 0;
 
 		QJsonObject fontInfo = obj["fontInfo"].toObject();
 		vo.backgroundColor =
@@ -85,6 +85,33 @@ void VoteModel::initModelData(const QJsonArray &array)
 		voteOptionInfos.append(vo);
 	}
 	endResetModel();
+}
+
+void VoteModel::updateVoteCount(const QJsonObject &data)
+{
+	if (data.isEmpty()) {
+		for (int i = 0; i < voteOptionInfos.count(); i++) {
+			VoteOption &vo = voteOptionInfos[i];
+			vo.voteCount = 0;
+		}
+		auto begin = createIndex(0, 0, nullptr);
+		auto end = createIndex(voteOptionInfos.count() - 1, 0, nullptr);
+		QVector<int> changedRoles;
+		changedRoles.append(RoleVoteCount);
+		emit dataChanged(begin, end, changedRoles);
+	} else {
+		int row = data["index"].toInt();
+		if (row >= voteOptionInfos.count())
+			return;
+
+		VoteOption &vo = voteOptionInfos[row];
+		vo.voteCount = data["count"].toInt();
+
+		auto ii = createIndex(row, 0, nullptr);
+		QVector<int> changedRoles;
+		changedRoles.append(RoleVoteCount);
+		emit dataChanged(ii, ii, changedRoles);
+	}
 }
 
 Vote::Vote(obs_data_t *s, QObject *parent /* = nullptr */)
@@ -106,10 +133,10 @@ void Vote::resetModel(const QJsonArray &array)
 				  Q_ARG(QJsonArray, array));
 }
 
-void Vote::stop()
+void Vote::updateVoteCount(const QJsonObject &data)
 {
-	obs_data_set_int(m_s, "progress", 2);
-	setprogress(2);
+	QMetaObject::invokeMethod(voteModel, "updateVoteCount",
+				  Q_ARG(QJsonObject, data));
 }
 
 static const char *vote_source_get_name(void *unused)
@@ -123,62 +150,94 @@ static void vote_source_update(void *data, obs_data_t *settings)
 	Vote *s = (Vote *)data;
 
 	{
-		const char *rule = obs_data_get_string(settings, "rule");
-		QJsonDocument jd = QJsonDocument::fromJson(rule);
-		if (!jd.isNull()) {
-			QJsonObject ruleObj = jd.object();
-			s->setruleVisible(ruleObj["visible"].toBool());
-			QJsonObject fontInfo = ruleObj["fontInfo"].toObject();
-			s->setruleBackgroundColor(
-				QColor(fontInfo["backgroundColor"].toString()));
-			s->setruleColor(QColor(fontInfo["color"].toString()));
-			s->setruleFontFamily(fontInfo["fontFamily"].toString());
-			s->setruleFontSize(fontInfo["fontSize"].toInt());
-			s->setruleBold(fontInfo["bold"].toBool());
-			s->setruleItalic(fontInfo["italic"].toBool());
-			s->setruleUnderline(fontInfo["underline"].toBool());
-			s->setruleStrikeout(fontInfo["strikeout"].toBool());
+		QString rule = obs_data_get_string(settings, "rule");
+		if (rule != s->m_lastRuleString) {
+			s->m_lastRuleString = rule;
+			QJsonDocument jd =
+				QJsonDocument::fromJson(rule.toUtf8());
+			if (!jd.isNull()) {
+				QJsonObject ruleObj = jd.object();
+				s->setruleVisible(ruleObj["visible"].toBool());
+				QJsonObject fontInfo =
+					ruleObj["fontInfo"].toObject();
+				s->setruleBackgroundColor(QColor(
+					fontInfo["backgroundColor"].toString()));
+				s->setruleColor(
+					QColor(fontInfo["color"].toString()));
+				s->setruleFontFamily(
+					fontInfo["fontFamily"].toString());
+				s->setruleFontSize(
+					fontInfo["fontSize"].toInt());
+				s->setruleBold(fontInfo["bold"].toBool());
+				s->setruleItalic(fontInfo["italic"].toBool());
+				s->setruleUnderline(
+					fontInfo["underline"].toBool());
+				s->setruleStrikeout(
+					fontInfo["strikeout"].toBool());
+			}
 		}
 	}
 
 	{
-		const char *subject = obs_data_get_string(settings, "subject");
-		QJsonDocument jd = QJsonDocument::fromJson(subject);
-		if (!jd.isNull()) {
-			QJsonObject subjectObj = jd.object();
-			s->setvoteSubject(subjectObj["subject"].toString());
-			QJsonObject fontInfo =
-				subjectObj["fontInfo"].toObject();
-			s->setbackgroundColor(
-				QColor(fontInfo["backgroundColor"].toString()));
-			s->setcolor(QColor(fontInfo["color"].toString()));
-			s->setfontFamily(fontInfo["fontFamily"].toString());
-			s->setfontSize(fontInfo["fontSize"].toInt());
-			s->setbold(fontInfo["bold"].toBool());
-			s->setitalic(fontInfo["italic"].toBool());
-			s->setunderline(fontInfo["underline"].toBool());
-			s->setstrikeout(fontInfo["strikeout"].toBool());
+		QString subject = obs_data_get_string(settings, "subject");
+		if (s->m_lastSubjectString != subject) {
+			s->m_lastSubjectString = subject;
+			QJsonDocument jd =
+				QJsonDocument::fromJson(subject.toUtf8());
+			if (!jd.isNull()) {
+				QJsonObject subjectObj = jd.object();
+				s->setvoteSubject(
+					subjectObj["subject"].toString());
+				QJsonObject fontInfo =
+					subjectObj["fontInfo"].toObject();
+				s->setbackgroundColor(QColor(
+					fontInfo["backgroundColor"].toString()));
+				s->setcolor(
+					QColor(fontInfo["color"].toString()));
+				s->setfontFamily(
+					fontInfo["fontFamily"].toString());
+				s->setfontSize(fontInfo["fontSize"].toInt());
+				s->setbold(fontInfo["bold"].toBool());
+				s->setitalic(fontInfo["italic"].toBool());
+				s->setunderline(fontInfo["underline"].toBool());
+				s->setstrikeout(fontInfo["strikeout"].toBool());
+			}
 		}
 	}
 
-	int itemCount = 0;
 	{
-		const char *option = obs_data_get_string(settings, "option");
-		QJsonDocument jd = QJsonDocument::fromJson(option);
-		auto array = jd.array();
-		itemCount = array.size();
-		s->resetModel(array);
-	}
+		QString option = obs_data_get_string(settings, "option");
+		if (s->m_lastOptionString != option) {
+			s->m_lastOptionString = option;
+			QJsonDocument jd =
+				QJsonDocument::fromJson(option.toUtf8());
+			auto array = jd.array();
+			int itemCount = array.size();
+			s->resetModel(array);
 
-	int optionHeight = itemCount == 0 ? 0 : itemCount * 20 * 2 - 20;
-	int h = s->ruleVisible() ? 226 + optionHeight : 226 + optionHeight - 68;
-	obs_data_set_int(settings, "height", h);
+			int optionHeight =
+				itemCount == 0 ? 0 : itemCount * 20 * 2 - 20;
+			int h = s->ruleVisible() ? 236 + optionHeight
+						 : 236 + optionHeight - 68;
+			obs_data_set_int(settings, "height", h);
+		}
+	}
 
 	int duration = obs_data_get_int(settings, "duration");
 	s->setduration(duration);
 
+	s->setuseDuration(obs_data_get_bool(settings, "useDuration"));
+
 	s->setbackgroundImage(obs_data_get_string(settings, "backgroundImage"));
+	s->setimageWidth(obs_data_get_int(settings, "imgWidth"));
+	s->setimageHeight(obs_data_get_int(settings, "imgHeight"));
 	s->setprogress(obs_data_get_int(settings, "progress"));
+
+	{
+		QString voteCount = obs_data_get_string(settings, "voteCount");
+		QJsonDocument jd = QJsonDocument::fromJson(voteCount.toUtf8());
+		s->updateVoteCount(jd.object());
+	}
 
 	s->baseUpdate(settings);
 }
@@ -216,7 +275,16 @@ static void vote_source_defaults(obs_data_t *settings)
 		settings, "option",
 		u8R"([{"optionContent":"","voteCount":0,"fontInfo":{"fontFamily":"阿里巴巴普惠体 R","fontSize":14,"color":"#D4D4D5","backgroundColor":"transparent","bold":false,"italic":false,"underline":false,"strikeout":false}}])");
 	obs_data_set_default_int(settings, "duration", 120);
+	obs_data_set_default_int(settings, "cusDuration", 30);
+	obs_data_set_default_bool(settings, "useDuration", true);
 	obs_data_set_default_int(settings, "progress", 0);
+	obs_data_set_default_int(settings, "startShortCut", -1);
+	obs_data_set_default_int(settings, "stopShortCut", -1);
+	obs_data_set_default_int(settings, "imgWidth", 400);
+	obs_data_set_default_int(settings, "imgHeight", 396);
+	obs_data_set_default_string(settings, "backgroundImage",
+				    "qrc:/qmlfiles/pic_bullet_chat.png");
+	obs_data_set_default_string(settings, "voteCount", "");
 	Vote::default(settings);
 }
 
@@ -230,12 +298,17 @@ static obs_properties_t *vote_source_properties(void *data)
 				OBS_TEXT_DEFAULT);
 	obs_properties_add_text(props, "option", u8"投票选项",
 				OBS_TEXT_DEFAULT);
+	obs_properties_add_text(props, "voteCount", u8"投票数更新",
+				OBS_TEXT_DEFAULT);
 	obs_properties_add_int(props, "duration", u8"投票时长", -1, 99999, 1);
+	obs_properties_add_int(props, "cusDuration", u8"投票时长", -1, 99999,
+			       1);
+	obs_properties_add_bool(props, "useDuration", u8"使用投票时长");
 	obs_properties_add_text(props, "rule", u8"投票规则", OBS_TEXT_DEFAULT);
 	obs_properties_add_text(props, "backgroundImage", u8"投票背景",
 				OBS_TEXT_DEFAULT);
-	obs_properties_add_int(props, "imgWidth", u8"背景图宽", 1, 1920, 1);
-	obs_properties_add_int(props, "imgHeight", u8"背景图高", 1, 1080, 1);
+	obs_properties_add_int(props, "imgWidth", u8"背景图宽", 1, 9999, 1);
+	obs_properties_add_int(props, "imgHeight", u8"背景图高", 1, 9999, 1);
 	obs_properties_add_int(props, "startShortCut", u8"启动快捷键", INT_MIN,
 			       INT_MAX, 1);
 	obs_properties_add_int(props, "stopShortCut", u8"结束快捷键", INT_MIN,

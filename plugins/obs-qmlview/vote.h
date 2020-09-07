@@ -41,6 +41,7 @@ public:
 	QHash<int, QByteArray> roleNames() const override;
 
 	Q_INVOKABLE void initModelData(const QJsonArray &array);
+	Q_INVOKABLE void updateVoteCount(const QJsonObject &data);
 
 private:
 	QVector<VoteOption> voteOptionInfos;
@@ -59,6 +60,7 @@ public:
 	DEFINE_PROPERTY(QString, fontFamily)
 	DEFINE_PROPERTY(int, fontSize)
 	DEFINE_PROPERTY(int, duration)
+	DEFINE_PROPERTY(bool, useDuration)
 	DEFINE_PROPERTY(bool, ruleVisible)
 	DEFINE_PROPERTY(QColor, ruleBackgroundColor)
 	DEFINE_PROPERTY(QColor, ruleColor)
@@ -77,10 +79,12 @@ public:
 	Vote(obs_data_t *s, QObject *parent = nullptr);
 	static void default(obs_data_t *settings);
 	void resetModel(const QJsonArray &array);
-
-	Q_INVOKABLE void stop();
+	void updateVoteCount(const QJsonObject &data);
 
 public:
 	VoteModel *voteModel;
 	obs_data_t *m_s;
+	QString m_lastRuleString;
+	QString m_lastOptionString;
+	QString m_lastSubjectString;
 };

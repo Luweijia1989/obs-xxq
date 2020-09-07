@@ -19,15 +19,24 @@ Item {
 		return (voteProperties.progress !== 0 && optionContent === "") ? "投给选项"+(index+1) : optionContent
 	}
 	
+	function getCountintText() {
+		if (voteProperties.progress === 2)
+			return "已结束"
+		else if (voteProperties.progress === 0)
+			return "倒计时:--"
+		else 
+			return voteProperties.useDuration ? "倒计时:"+durationCache+"S" : "倒计时:--"
+	}
+	
 	Timer {
 		interval: 1000
-		running: voteProperties.progress === 1
+		running: voteProperties.progress === 1 && voteProperties.useDuration
 		repeat: true
         onTriggered: {
 			durationCache--
 			
-			if (durationCache === 0)
-				voteProperties.stop()
+			if (durationCache < 0)
+				durationCache = 0
 		}
 		
 		onRunningChanged: {
@@ -51,18 +60,19 @@ Item {
         }
     }
 
-    Rectangle {
+    Item {
         z: -1
         anchors.left: parent.left
         anchors.right: parent.right
         anchors.bottom: parent.bottom
         anchors.top: titleRec.verticalCenter
         anchors.topMargin: -2
-        color: "#292A2F"
         Image {
             id: backgroundImage
-            anchors.fill: parent
+            anchors.centerIn: parent
             source: voteProperties.backgroundImage
+			width: Math.min(voteProperties.imageWidth, parent.width)
+			height: Math.min(voteProperties.imageHeight, parent.height)
         }
 
         Text {
@@ -70,7 +80,7 @@ Item {
             anchors.horizontalCenter: parent.horizontalCenter
             anchors.top: parent.top
             anchors.topMargin: 32
-            text: voteProperties.progress === 0 ?  "倒计时:--" : (voteProperties.progress === 1 ? "倒计时:"+durationCache+"S" : "已结束")
+            text: getCountintText()
             font.pixelSize: 14
             color: voteProperties.progress !== 2 ? "#A2A3A5" : "#F35542"
         }
@@ -200,6 +210,7 @@ Item {
 				Layout.preferredWidth: childrenRect.width
                 Layout.preferredHeight: childrenRect.height
 				color: voteProperties.ruleBackgroundColor
+				visible: voteProperties.ruleVisible
 				Text {
 					id: ruleText
 					width: root.width-48
