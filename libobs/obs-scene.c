@@ -1720,18 +1720,62 @@ obs_sceneitem_t *obs_scene_add(obs_scene_t *scene, obs_source_t *source)
 	obs_sceneitem_t *item = obs_scene_add_internal(scene, source, NULL);
 	struct calldata params;
 	uint8_t stack[128];
+	obs_scene_t *target = NULL;
+	obs_source_t *iter;
 
 	calldata_init_fixed(&params, stack, sizeof(stack));
 	calldata_set_ptr(&params, "scene", scene);
 	calldata_set_ptr(&params, "item", item);
 	signal_handler_signal(scene->source->context.signals, "item_add",
 			      &params);
+
+	calldata_set_ptr(&params, "source", source);
+	if (scene->is_group) {
+		iter = obs->data.first_source;
+		while (iter) {
+			obs_source_t *next_source =
+				(obs_source_t *)iter->context.next;
+
+			if (iter->info.id == scene_info.id) {
+				obs_scene_t *s = iter->context.data;
+				obs_sceneitem_t *next_item = s->first_item;
+				while (next_item) {
+					if (next_item->source->context.data ==
+					    scene) {
+						target = s;
+						break;
+					}
+					next_item = next_item->next;
+				}
+				if (target)
+					break;
+			}
+
+			iter = next_source;
+		}
+
+		if (target) {
+			calldata_set_ptr(&params, "scene", target);
+		}
+	} else
+		calldata_set_ptr(&params, "scene", scene);
+
+	signal_handler_signal(obs->signals, "source_sceneitem_add", &params);
+
 	return item;
 }
 
 static void obs_sceneitem_destroy(obs_sceneitem_t *item)
 {
+	struct calldata params;
+	uint8_t stack[128];
+
 	if (item) {
+		calldata_init_fixed(&params, stack, sizeof(stack));
+		calldata_set_ptr(&params, "source", item->source);
+		signal_handler_signal(obs->signals, "source_sceneitem_remove",
+				      &params);
+
 		if (item->item_render) {
 			obs_enter_graphics();
 			gs_texrender_destroy(item->item_render);

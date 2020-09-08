@@ -576,6 +576,8 @@ private:
 	static void SourceAudioActivated(void *data, calldata_t *params);
 	static void SourceAudioDeactivated(void *data, calldata_t *params);
 	static void SourceRenamed(void *data, calldata_t *params);
+	static void SourceSceneItemAdd(void *data, calldata_t *params);
+	static void SourceSceneItemRemove(void *data, calldata_t *params);
 	static void RenderMain(void *data, uint32_t cx, uint32_t cy);
 
 	void ResizePreview(uint32_t cx, uint32_t cy);

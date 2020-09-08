@@ -1,4 +1,4 @@
-﻿/******************************************************************************
+/******************************************************************************
     Copyright (C) 2013-2014 by Hugh Bailey <obs.jim@gmail.com>
 
     This program is free software: you can redistribute it and/or modify
@@ -719,6 +719,9 @@ static const char *obs_signals[] = {
 
 	"void channel_change(int channel, in out ptr source, ptr prev_source)",
 	"void master_volume(in out float volume)",
+
+	"void source_sceneitem_add(ptr scene, ptr source)",
+	"void source_sceneitem_remove(ptr source)",
 
 	"void hotkey_layout_change()",
 	"void hotkey_register(ptr hotkey)",

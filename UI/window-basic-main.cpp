@@ -1,4 +1,4 @@
-﻿/******************************************************************************
+/******************************************************************************
     Copyright (C) 2013-2015 by Hugh Bailey <obs.jim@gmail.com>
                                Zachary Lund <admin@computerquip.com>
                                Philippe Groarke <philippe.groarke@gmail.com>
@@ -1424,6 +1424,12 @@ void OBSBasic::InitOBSCallbacks()
 				    OBSBasic::SourceAudioDeactivated, this);
 	signalHandlers.emplace_back(obs_get_signal_handler(), "source_rename",
 				    OBSBasic::SourceRenamed, this);
+	signalHandlers.emplace_back(obs_get_signal_handler(),
+				    "source_sceneitem_add",
+				    OBSBasic::SourceSceneItemAdd, this);
+	signalHandlers.emplace_back(obs_get_signal_handler(),
+				    "source_sceneitem_remove",
+				    OBSBasic::SourceSceneItemRemove, this);
 }
 
 void OBSBasic::InitPrimitives()
@@ -3326,6 +3332,18 @@ void OBSBasic::SourceRenamed(void *data, calldata_t *params)
 				  Q_ARG(QString, QT_UTF8(prevName)));
 
 	blog(LOG_INFO, "Source '%s' renamed to '%s'", prevName, newName);
+}
+
+void OBSBasic::SourceSceneItemAdd(void *data, calldata_t *params)
+{
+	obs_source_t *source = (obs_source_t *)calldata_ptr(params, "source");
+	obs_scene_t *scene = (obs_scene_t *)calldata_ptr(params, "scene");
+}
+
+void OBSBasic::SourceSceneItemRemove(void *data, calldata_t *params)
+{
+	obs_source_t *source = (obs_source_t *)calldata_ptr(params, "source");
+	int dd = 0;
 }
 
 void OBSBasic::DrawBackdrop(float cx, float cy)
