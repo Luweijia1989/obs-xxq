@@ -7,6 +7,8 @@
 #include "VideoDecoder.h"
 #include "common-define.h"
 #include "ipc.h"
+#include "util/threading.h"
+#include <graphics/image-file.h>
 extern "C" {
 #include <util/pipe.h>
 }
@@ -16,6 +18,7 @@ extern "C" {
 class ScreenMirrorServer {
 public:
 	enum MirrorBackEnd {
+		None = -1,
 		IOS_USB_CABLE,
 		IOS_AIRPLAY,
 		ANDROID_USB_CABLE,
@@ -31,7 +34,18 @@ public:
 	void mirrorServerSetup();
 	void mirrorServerDestroy();
 
+	void setBackendType(int type);
+	int backendType();
+	void loadImage(const char *path);
+	void renderImage(gs_effect_t *effect);
+
 	static void pipeCallback(void *param, uint8_t *data, size_t size);
+	int m_width = 0;
+	int m_height = 0;
+	obs_source_t *m_source = nullptr;
+	pthread_mutex_t m_typeChangeMutex;
+	obs_source_mirror_status mirror_status = OBS_SOURCE_MIRROR_STOP;
+	gs_image_file2_t *if2 = nullptr;
 
 private:
 	bool initPipe();
@@ -41,21 +55,21 @@ private:
 	void handleMirrorStatus();
 	bool handleAirplayData();
 	bool handleUSBData();
+	const char *killProc();
 
 private:
-	obs_source_t *m_source = nullptr;
 	obs_source_t *m_cropFilter = nullptr;
 	obs_source_audio m_audioFrame;
 	obs_source_frame2 m_videoFrame;
 	long long lastPts = 0;
 
 	struct IPCServer *m_ipcServer = nullptr;
-	os_process_pipe_t *process;
+	os_process_pipe_t *process = nullptr;
 	circlebuf m_avBuffer;
 	VideoDecoder m_decoder;
 	struct media_info m_mediaInfo;
 	bool m_infoReceived = false;
-	MirrorBackEnd m_backend = IOS_AIRPLAY;
+	MirrorBackEnd m_backend = None;
 
 #ifdef DUMPFILE
 	FILE *m_auioFile;

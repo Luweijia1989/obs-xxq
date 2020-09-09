@@ -1,4 +1,4 @@
-﻿/******************************************************************************
+/******************************************************************************
     Copyright (C) 2013-2014 by Hugh Bailey <jim@obsproject.com>
 
     This program is free software: you can redistribute it and/or modify
@@ -1190,6 +1190,10 @@ EXPORT void obs_source_output_video(obs_source_t *source,
 EXPORT void obs_source_output_video2(obs_source_t *source,
 				     const struct obs_source_frame2 *frame);
 
+EXPORT void obs_source_set_videoframe(obs_source_t *source,
+				      const struct obs_source_frame2 *frame);
+
+EXPORT void obs_source_draw_videoframe(obs_source_t *source);
 /**
  * Preloads asynchronous video data to allow instantaneous playback
  *

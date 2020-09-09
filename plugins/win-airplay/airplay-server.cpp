@@ -19,8 +19,11 @@ static uint32_t byteutils_get_int_be(unsigned char *b, int offset)
 	return ntohl(byteutils_get_int(b, offset));
 }
 
-ScreenMirrorServer::ScreenMirrorServer(obs_source_t *source) : m_source(source)
+ScreenMirrorServer::ScreenMirrorServer(obs_source_t *source)
+	: m_source(source),
+	  if2((gs_image_file2_t *)bzalloc(sizeof(gs_image_file2_t)))
 {
+	pthread_mutex_init(&m_typeChangeMutex, nullptr);
 	memset(m_videoFrame.data, 0, sizeof(m_videoFrame.data));
 	memset(&m_audioFrame, 0, sizeof(&m_audioFrame));
 	memset(&m_videoFrame, 0, sizeof(&m_videoFrame));
@@ -38,12 +41,20 @@ ScreenMirrorServer::ScreenMirrorServer(obs_source_t *source) : m_source(source)
 
 	circlebuf_init(&m_avBuffer);
 	ipcSetup();
+
+	loadImage("E:\\test1.jpg");
 }
 
 ScreenMirrorServer::~ScreenMirrorServer()
 {
+	obs_enter_graphics();
+	gs_image_file2_free(if2);
+	obs_leave_graphics();
+	bfree(if2);
+
 	ipcDestroy();
 	circlebuf_free(&m_avBuffer);
+	pthread_mutex_destroy(&m_typeChangeMutex);
 #ifdef DUMPFILE
 	fclose(m_auioFile);
 	fclose(m_videoFile);
@@ -53,6 +64,7 @@ ScreenMirrorServer::~ScreenMirrorServer()
 void ScreenMirrorServer::pipeCallback(void *param, uint8_t *data, size_t size)
 {
 	ScreenMirrorServer *sm = (ScreenMirrorServer *)param;
+	pthread_mutex_lock(&sm->m_typeChangeMutex);
 	circlebuf_push_back(&sm->m_avBuffer, data, size);
 
 	while (true) {
@@ -71,6 +83,7 @@ void ScreenMirrorServer::pipeCallback(void *param, uint8_t *data, size_t size)
 				break;
 		}
 	}
+	pthread_mutex_unlock(&sm->m_typeChangeMutex);
 }
 
 void ScreenMirrorServer::ipcSetup()
@@ -79,8 +92,6 @@ void ScreenMirrorServer::ipcSetup()
 		blog(LOG_ERROR, "fail to create pipe");
 		return;
 	}
-
-	mirrorServerSetup();
 }
 
 void ScreenMirrorServer::ipcDestroy()
@@ -91,15 +102,10 @@ void ScreenMirrorServer::ipcDestroy()
 
 void ScreenMirrorServer::mirrorServerSetup()
 {
-	const char *processName = nullptr;
-	if (m_backend == IOS_USB_CABLE) {
-		processName = DRIVER_EXE;
-	} else if (m_backend == IOS_AIRPLAY) {
-		processName = AIRPLAY_EXE;
-	} else if (m_backend = ANDROID_USB_CABLE)
-		processName = ANDROID_USB_EXE;
+	if (process)
+		return;
 
-	os_kill_process(processName);
+	const char *processName = killProc();
 	struct dstr cmd;
 	dstr_init_move_array(&cmd, os_get_executable_path_ptr(processName));
 	dstr_insert_ch(&cmd, 0, '\"');
@@ -110,13 +116,54 @@ void ScreenMirrorServer::mirrorServerSetup()
 
 void ScreenMirrorServer::mirrorServerDestroy()
 {
-	if (m_backend == IOS_USB_CABLE || m_backend == IOS_AIRPLAY ||
-	    m_backend == ANDROID_USB_CABLE) {
+	killProc();
+	if (process) {
 		uint8_t data[1] = {1};
 		os_process_pipe_write(process, data, 1);
 		os_process_pipe_destroy(process);
 		process = NULL;
 	}
+
+	circlebuf_free(&m_avBuffer);
+	circlebuf_init(&m_avBuffer);
+}
+
+void ScreenMirrorServer::setBackendType(int type)
+{
+	m_backend = (MirrorBackEnd)type;
+}
+
+int ScreenMirrorServer::backendType()
+{
+	return m_backend;
+}
+
+void ScreenMirrorServer::loadImage(const char *path)
+{
+	obs_enter_graphics();
+	gs_image_file2_free(if2);
+	obs_leave_graphics();
+
+	if (path) {
+		gs_image_file2_init(if2, path);
+
+		obs_enter_graphics();
+		gs_image_file2_init_texture(if2);
+		obs_leave_graphics();
+
+		if (!if2->image.loaded)
+			blog(LOG_ERROR, "failed to load texture '%s'", path);
+	}
+}
+
+void ScreenMirrorServer::renderImage(gs_effect_t *effect)
+{
+	if (!if2->image.texture)
+		return;
+
+	gs_effect_set_texture(gs_effect_get_param_by_name(effect, "image"),
+			      if2->image.texture);
+	gs_draw_sprite(if2->image.texture, 0, if2->image.cx, if2->image.cy);
 }
 
 void ScreenMirrorServer::parseNalus(uint8_t *data, size_t size, uint8_t **out,
@@ -160,9 +207,7 @@ void ScreenMirrorServer::handleMirrorStatus()
 {
 	int status = -1;
 	circlebuf_pop_front(&m_avBuffer, &status, sizeof(int));
-	if (status == OBS_SOURCE_MIRROR_START) {
-	} else if (status == OBS_SOURCE_MIRROR_STOP) {
-	}
+	mirror_status = (obs_source_mirror_status)status;
 }
 
 bool ScreenMirrorServer::handleAirplayData()
@@ -318,6 +363,20 @@ bool ScreenMirrorServer::handleUSBData()
 	return true;
 }
 
+const char *ScreenMirrorServer::killProc()
+{
+	const char *processName = nullptr;
+	if (m_backend == IOS_USB_CABLE) {
+		processName = DRIVER_EXE;
+	} else if (m_backend == IOS_AIRPLAY) {
+		processName = AIRPLAY_EXE;
+	} else if (m_backend = ANDROID_USB_CABLE)
+		processName = ANDROID_USB_EXE;
+
+	os_kill_process(processName);
+	return processName;
+}
+
 bool ScreenMirrorServer::initPipe()
 {
 	ipc_server_create(&m_ipcServer, ScreenMirrorServer::pipeCallback, this);
@@ -329,7 +388,6 @@ void ScreenMirrorServer::outputVideo(SFgVideoFrame *data)
 	lastPts = data->pts;
 	if (data->pitch[0] != m_videoFrame.width ||
 	    data->height != m_videoFrame.height) {
-
 		m_cropFilter =
 			obs_source_filter_get_by_name(m_source, "cropFilter");
 		if (!m_cropFilter) {
@@ -361,12 +419,18 @@ void ScreenMirrorServer::outputVideo(SFgVideoFrame *data)
 	m_videoFrame.linesize[0] = data->pitch[0];
 	m_videoFrame.linesize[1] = data->pitch[1];
 	m_videoFrame.linesize[2] = data->pitch[2];
-	obs_source_output_video2(m_source, &m_videoFrame);
+	m_width = m_videoFrame.width;
+	m_height = m_videoFrame.height;
+	if (mirror_status != OBS_SOURCE_MIRROR_OUTPUT)
+		mirror_status = OBS_SOURCE_MIRROR_OUTPUT;
+	blog(LOG_INFO, "********************* %d", m_width);
+	obs_source_set_videoframe(m_source, &m_videoFrame);
+	//obs_source_output_video2(m_source, &m_videoFrame);
 }
 
 void ScreenMirrorServer::outputAudio(SFgAudioFrame *data)
 {
-		blog(LOG_INFO, "=================%lld", data->pts - lastPts);
+	blog(LOG_INFO, "=================%lld", data->pts - lastPts);
 	m_audioFrame.format = AUDIO_FORMAT_16BIT;
 	m_audioFrame.samples_per_sec = data->sampleRate;
 	m_audioFrame.speakers = data->channels == 2 ? SPEAKERS_STEREO
@@ -391,9 +455,41 @@ static const char *GetWinAirplayName(void *type_data)
 	return obs_module_text("WindowsAirplay");
 }
 
+static void UpdateWinAirplaySource(void *obj, obs_data_t *settings)
+{
+	ScreenMirrorServer *s = (ScreenMirrorServer *)obj;
+	int type = obs_data_get_int(settings, "type");
+	if (type == s->backendType())
+		return;
+
+	pthread_mutex_lock(&s->m_typeChangeMutex);
+	s->mirrorServerDestroy();
+	s->setBackendType(type);
+	s->mirrorServerSetup();
+	pthread_mutex_unlock(&s->m_typeChangeMutex);
+}
+
+static void GetWinAirplayDefaultsOutput(obs_data_t *settings)
+{
+	obs_data_set_default_int(settings, "type",
+				 ScreenMirrorServer::IOS_USB_CABLE);
+}
+
+static obs_properties_t *GetWinAirplayPropertiesOutput(void *data)
+{
+	if (!data)
+		return nullptr;
+	ScreenMirrorServer *s = (ScreenMirrorServer *)data;
+	obs_properties_t *props = obs_properties_create();
+	obs_properties_add_int(props, "type", u8"投屏类型", 0, 2, 1);
+	return props;
+}
+
 static void *CreateWinAirplay(obs_data_t *settings, obs_source_t *source)
 {
 	ScreenMirrorServer *server = new ScreenMirrorServer(source);
+	obs_source_set_async_decoupled(source, true);
+	UpdateWinAirplaySource(server, settings);
 	return server;
 }
 
@@ -402,34 +498,52 @@ static void DestroyWinAirplay(void *obj)
 	delete reinterpret_cast<ScreenMirrorServer *>(obj);
 }
 
-static void UpdateWinAirplaySource(void *obj, obs_data_t *settings) {}
-
-static void GetWinAirplayDefaultsOutput(obs_data_t *settings) {}
-
-static obs_properties_t *GetWinAirplayPropertiesOutput(void *)
-{
-	return nullptr;
-}
-
 static void HideWinAirplay(void *data) {}
 
 static void ShowWinAirplay(void *data) {}
-
+static void WinAirplayRender(void *data, gs_effect_t *effect)
+{
+	ScreenMirrorServer *s = (ScreenMirrorServer *)data;
+	if (s->mirror_status == OBS_SOURCE_MIRROR_STOP) {
+		s->renderImage(effect);
+	} else
+		obs_source_draw_videoframe(s->m_source);
+}
+static uint32_t WinAirplayWidth(void *data)
+{
+	ScreenMirrorServer *s = (ScreenMirrorServer *)data;
+	int width = s->mirror_status == OBS_SOURCE_MIRROR_OUTPUT
+			    ? s->m_width
+			    : s->if2->image.cx;
+	blog(LOG_INFO, "=================== %d", width);
+	return width;
+}
+static uint32_t WinAirplayHeight(void *data)
+{
+	ScreenMirrorServer *s = (ScreenMirrorServer *)data;
+	int height = s->mirror_status == OBS_SOURCE_MIRROR_OUTPUT
+			     ? s->m_height
+			     : s->if2->image.cy;
+	return height;
+}
 bool obs_module_load(void)
 {
 	obs_source_info info = {};
 	info.id = "win_airplay";
 	info.type = OBS_SOURCE_TYPE_INPUT;
 	info.output_flags = OBS_SOURCE_VIDEO | OBS_SOURCE_AUDIO |
-			    OBS_SOURCE_ASYNC | OBS_SOURCE_DO_NOT_DUPLICATE;
+			    OBS_SOURCE_DO_NOT_DUPLICATE;
 	info.show = ShowWinAirplay;
 	info.hide = HideWinAirplay;
 	info.get_name = GetWinAirplayName;
 	info.create = CreateWinAirplay;
 	info.destroy = DestroyWinAirplay;
 	info.update = UpdateWinAirplaySource;
+	info.video_render = WinAirplayRender;
 	info.get_defaults = GetWinAirplayDefaultsOutput;
 	info.get_properties = GetWinAirplayPropertiesOutput;
+	info.get_width = WinAirplayWidth;
+	info.get_height = WinAirplayHeight;
 	obs_register_source(&info);
 
 	return true;

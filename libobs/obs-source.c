@@ -1,4 +1,4 @@
-﻿/******************************************************************************
+/******************************************************************************
     Copyright (C) 2013-2014 by Hugh Bailey <obs.jim@gmail.com>
 
     This program is free software: you can redistribute it and/or modify
@@ -4743,4 +4743,49 @@ uint32_t obs_source_get_last_obs_version(const obs_source_t *source)
 	return obs_source_valid(source, "obs_source_get_last_obs_version")
 		       ? source->last_obs_ver
 		       : 0;
+}
+
+void obs_source_set_videoframe(obs_source_t *source,
+			       const struct obs_source_frame2 *frame)
+{
+	if (!frame) {
+		return;
+	}
+
+	struct obs_source_frame new_frame;
+	enum video_range_type range =
+		resolve_video_range(frame->format, frame->range);
+
+	for (size_t i = 0; i < MAX_AV_PLANES; i++) {
+		new_frame.data[i] = frame->data[i];
+		new_frame.linesize[i] = frame->linesize[i];
+	}
+
+	new_frame.width = frame->width;
+	new_frame.height = frame->height;
+	new_frame.timestamp = frame->timestamp;
+	new_frame.format = frame->format;
+	new_frame.full_range = range == VIDEO_RANGE_FULL;
+	new_frame.flip = frame->flip;
+	new_frame.flip_h = frame->flip_h;
+
+	memcpy(&new_frame.color_matrix, &frame->color_matrix,
+	       sizeof(frame->color_matrix));
+	memcpy(&new_frame.color_range_min, &frame->color_range_min,
+	       sizeof(frame->color_range_min));
+	memcpy(&new_frame.color_range_max, &frame->color_range_max,
+	       sizeof(frame->color_range_max));
+
+	set_async_texture_size(source, &new_frame);
+	gs_enter_context(obs->video.graphics);
+	update_async_textures(source, &new_frame, source->async_textures,
+			      source->async_texrender);
+	gs_leave_context();
+}
+
+void obs_source_draw_videoframe(obs_source_t *source)
+{
+	if (source->async_texrender &&
+	    gs_texrender_get_texture(source->async_texrender))
+		obs_source_draw_async_texture(source);
 }
