@@ -423,7 +423,6 @@ void ScreenMirrorServer::outputVideo(SFgVideoFrame *data)
 	m_height = m_videoFrame.height;
 	if (mirror_status != OBS_SOURCE_MIRROR_OUTPUT)
 		mirror_status = OBS_SOURCE_MIRROR_OUTPUT;
-	blog(LOG_INFO, "********************* %d", m_width);
 	obs_source_set_videoframe(m_source, &m_videoFrame);
 	//obs_source_output_video2(m_source, &m_videoFrame);
 }
@@ -479,7 +478,6 @@ static obs_properties_t *GetWinAirplayPropertiesOutput(void *data)
 {
 	if (!data)
 		return nullptr;
-	ScreenMirrorServer *s = (ScreenMirrorServer *)data;
 	obs_properties_t *props = obs_properties_create();
 	obs_properties_add_int(props, "type", u8"投屏类型", 0, 2, 1);
 	return props;
@@ -506,8 +504,9 @@ static void WinAirplayRender(void *data, gs_effect_t *effect)
 	ScreenMirrorServer *s = (ScreenMirrorServer *)data;
 	if (s->mirror_status == OBS_SOURCE_MIRROR_STOP) {
 		s->renderImage(effect);
-	} else
+	} else {
 		obs_source_draw_videoframe(s->m_source);
+	}
 }
 static uint32_t WinAirplayWidth(void *data)
 {
@@ -515,7 +514,6 @@ static uint32_t WinAirplayWidth(void *data)
 	int width = s->mirror_status == OBS_SOURCE_MIRROR_OUTPUT
 			    ? s->m_width
 			    : s->if2->image.cx;
-	blog(LOG_INFO, "=================== %d", width);
 	return width;
 }
 static uint32_t WinAirplayHeight(void *data)
