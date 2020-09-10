@@ -171,8 +171,10 @@ static void on_audio_playback(void *param, obs_source_t *source,
 
 	bool decouple_audio = source->async_unbuffered &&
 			      source->async_decoupled;
+	bool is_sceenmirror =
+		strcmp("win_airplay", obs_source_get_id(source)) == 0;
 
-	if (monitor->source_has_video && !decouple_audio) {
+	if (monitor->source_has_video && !decouple_audio && !is_sceenmirror) {
 		uint64_t ts = audio_data->timestamp - ts_offset;
 
 		if (!process_audio_delay(monitor, (float **)(&resample_data[0]),

@@ -385,6 +385,7 @@ bool ScreenMirrorServer::initPipe()
 
 void ScreenMirrorServer::outputVideo(SFgVideoFrame *data)
 {
+	//blog(LOG_INFO, "*****%lld", data->pts);
 	lastPts = data->pts;
 	if (data->pitch[0] != m_videoFrame.width ||
 	    data->height != m_videoFrame.height) {
@@ -423,13 +424,12 @@ void ScreenMirrorServer::outputVideo(SFgVideoFrame *data)
 	m_height = m_videoFrame.height;
 	if (mirror_status != OBS_SOURCE_MIRROR_OUTPUT)
 		mirror_status = OBS_SOURCE_MIRROR_OUTPUT;
-	obs_source_set_videoframe(m_source, &m_videoFrame);
-	//obs_source_output_video2(m_source, &m_videoFrame);
+	obs_source_output_video2(m_source, &m_videoFrame);
 }
 
 void ScreenMirrorServer::outputAudio(SFgAudioFrame *data)
 {
-	blog(LOG_INFO, "=================%lld", data->pts - lastPts);
+	blog(LOG_INFO, "=====%lld", data->pts-lastPts);
 	m_audioFrame.format = AUDIO_FORMAT_16BIT;
 	m_audioFrame.samples_per_sec = data->sampleRate;
 	m_audioFrame.speakers = data->channels == 2 ? SPEAKERS_STEREO
@@ -486,7 +486,6 @@ static obs_properties_t *GetWinAirplayPropertiesOutput(void *data)
 static void *CreateWinAirplay(obs_data_t *settings, obs_source_t *source)
 {
 	ScreenMirrorServer *server = new ScreenMirrorServer(source);
-	obs_source_set_async_decoupled(source, true);
 	UpdateWinAirplaySource(server, settings);
 	return server;
 }
@@ -499,49 +498,22 @@ static void DestroyWinAirplay(void *obj)
 static void HideWinAirplay(void *data) {}
 
 static void ShowWinAirplay(void *data) {}
-static void WinAirplayRender(void *data, gs_effect_t *effect)
-{
-	ScreenMirrorServer *s = (ScreenMirrorServer *)data;
-	if (s->mirror_status == OBS_SOURCE_MIRROR_STOP) {
-		s->renderImage(effect);
-	} else {
-		obs_source_draw_videoframe(s->m_source);
-	}
-}
-static uint32_t WinAirplayWidth(void *data)
-{
-	ScreenMirrorServer *s = (ScreenMirrorServer *)data;
-	int width = s->mirror_status == OBS_SOURCE_MIRROR_OUTPUT
-			    ? s->m_width
-			    : s->if2->image.cx;
-	return width;
-}
-static uint32_t WinAirplayHeight(void *data)
-{
-	ScreenMirrorServer *s = (ScreenMirrorServer *)data;
-	int height = s->mirror_status == OBS_SOURCE_MIRROR_OUTPUT
-			     ? s->m_height
-			     : s->if2->image.cy;
-	return height;
-}
+
 bool obs_module_load(void)
 {
 	obs_source_info info = {};
 	info.id = "win_airplay";
 	info.type = OBS_SOURCE_TYPE_INPUT;
-	info.output_flags = OBS_SOURCE_VIDEO | OBS_SOURCE_AUDIO |
-			    OBS_SOURCE_DO_NOT_DUPLICATE;
+	info.output_flags = OBS_SOURCE_VIDEO | OBS_SOURCE_ASYNC |
+			    OBS_SOURCE_AUDIO | OBS_SOURCE_DO_NOT_DUPLICATE;
 	info.show = ShowWinAirplay;
 	info.hide = HideWinAirplay;
 	info.get_name = GetWinAirplayName;
 	info.create = CreateWinAirplay;
 	info.destroy = DestroyWinAirplay;
 	info.update = UpdateWinAirplaySource;
-	info.video_render = WinAirplayRender;
 	info.get_defaults = GetWinAirplayDefaultsOutput;
 	info.get_properties = GetWinAirplayPropertiesOutput;
-	info.get_width = WinAirplayWidth;
-	info.get_height = WinAirplayHeight;
 	obs_register_source(&info);
 
 	return true;

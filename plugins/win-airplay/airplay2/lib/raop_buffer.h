@@ -1,4 +1,4 @@
-﻿/**
+/**
  *  Copyright (C) 2011-2012  Juho Vähä-Herttua
  *
  *  This library is free software; you can redistribute it and/or
@@ -28,7 +28,7 @@ raop_buffer_t *raop_buffer_init(logger_t *logger, const unsigned char *aeskey,
 				const unsigned char *ecdh_secret);
 int raop_buffer_enqueue(raop_buffer_t *raop_buffer, unsigned char *data,
 			unsigned short datalen, uint64_t timestamp,
-			int use_seqnum);
+			int use_seqnum, uint64_t offset);
 void *raop_buffer_dequeue(raop_buffer_t *raop_buffer, unsigned int *length,
 			  uint64_t *timestamp, int no_resend,
 			  uint32_t *sample_rate, uint16_t *channels,

@@ -184,7 +184,8 @@ static void handle_sync_packet(unsigned char *buf, uint32_t length)
 			while ((node = list_iterator_next(it))) {
 				struct StringKeyEntry *entry = node->val;
 				if (entry->typeMagic == FormatDescriptorMagic) {
-					struct FormatDescriptor *fd = entry->children;
+					struct FormatDescriptor *fd =
+						entry->children;
 					app_device.mp.sampleRate =
 						fd->AudioDescription.SampleRate;
 					break;
@@ -193,7 +194,7 @@ static void handle_sync_packet(unsigned char *buf, uint32_t length)
 			list_iterator_destroy(it);
 		}
 
-		const double EPS = 1e-6; 
+		const double EPS = 1e-6;
 		if (fabs(app_device.mp.sampleRate - 0.f) > EPS)
 			app_device.mp.sampleRate = 48000.0f;
 
@@ -268,8 +269,8 @@ static void handle_sync_packet(unsigned char *buf, uint32_t length)
 
 		uint8_t *send_data;
 		size_t send_data_len;
-		SyncSkewPacketNewReply(&skew_packet, app_device.mp.sampleRate, &send_data,
-				       &send_data_len);
+		SyncSkewPacketNewReply(&skew_packet, app_device.mp.sampleRate,
+				       &send_data, &send_data_len);
 		usb_bulk_write(app_device.device_handle, app_device.ep_out_fa,
 			       send_data, send_data_len, 1000);
 		free(send_data);
@@ -629,18 +630,21 @@ void pipeConsume(struct CMSampleBuffer *buf, void *c)
 		pack_info.pts =
 			app_device.last_audio_ts - app_device.audio_offset;
 	} else {
-		if (!app_device.has_video_received) {
-			app_device.audio_offset = app_device.last_audio_ts;
-			app_device.has_video_received = true;
-		}
 		pack_info.pts = buf->OutputPresentationTimestamp.CMTimeValue *
 				1000.0 /
 				buf->OutputPresentationTimestamp.CMTimeScale;
+		if (!app_device.has_video_received) {
+			app_device.audio_offset =
+				app_device.last_audio_ts - pack_info.pts;
+			app_device.has_video_received = true;
+		}
 	}
 
 	if (pack_info.type == FFM_PACKET_AUDIO &&
 	    !app_device.has_video_received)
 		return;
+
+	pack_info.pts = pack_info.pts * 1000000;
 #ifndef STANDALONE
 	ipc_client_write(ipc_client, &pack_info, sizeof(struct av_packet_info),
 			 INFINITE);

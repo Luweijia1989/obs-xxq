@@ -1,4 +1,4 @@
-﻿/*
+/*
  * Copyright (c) 2019 dsafa22, All Rights Reserved.
  *
  * This library is free software; you can redistribute it and/or
@@ -453,7 +453,7 @@ static THREAD_RETVAL raop_rtp_mirror_thread(void *arg)
 				h264_data.data_len = payload_size;
 				h264_data.data = payload_decrypted;
 				h264_data.frame_type = 1;
-				h264_data.pts = ntp_timestamp;
+				h264_data.pts = ntp_timestamp*1000;
 
 				raop_rtp_mirror->callbacks.video_process(
 					raop_rtp_mirror->callbacks.cls,
