@@ -45,7 +45,6 @@ ScreenMirrorServer::ScreenMirrorServer(obs_source_t *source)
 	pthread_mutex_init(&m_typeChangeMutex, nullptr);
 	pthread_mutex_init(&m_dataMutex, nullptr);
 	memset(m_videoFrame.data, 0, sizeof(m_videoFrame.data));
-	memset(&m_audioFrame, 0, sizeof(&m_audioFrame));
 	memset(&m_videoFrame, 0, sizeof(&m_videoFrame));
 
 	m_videoFrame.range = VIDEO_RANGE_PARTIAL;
@@ -139,7 +138,6 @@ void ScreenMirrorServer::mirrorServerSetup()
 
 void ScreenMirrorServer::mirrorServerDestroy()
 {
-	resetState();
 	killProc();
 	if (process) {
 		uint8_t data[1] = {1};
@@ -150,6 +148,22 @@ void ScreenMirrorServer::mirrorServerDestroy()
 
 	circlebuf_free(&m_avBuffer);
 	circlebuf_init(&m_avBuffer);
+
+	resetState();
+}
+
+const char *ScreenMirrorServer::killProc()
+{
+	const char *processName = nullptr;
+	if (m_backend == IOS_USB_CABLE) {
+		processName = DRIVER_EXE;
+	} else if (m_backend == IOS_AIRPLAY) {
+		processName = AIRPLAY_EXE;
+	} else if (m_backend == ANDROID_USB_CABLE)
+		processName = ANDROID_USB_EXE;
+
+	os_kill_process(processName);
+	return processName;
 }
 
 void ScreenMirrorServer::setBackendType(int type)
@@ -223,14 +237,6 @@ void ScreenMirrorServer::parseNalus(uint8_t *data, size_t size, uint8_t **out,
 	}
 }
 
-void ScreenMirrorServer::doWithNalu(uint8_t *data, size_t size)
-{
-#ifdef DUMPFILE
-	fwrite(start_code, 1, 4, m_videoFile);
-	fwrite(data, 1, size, m_videoFile);
-#endif // DUMPFILE
-}
-
 void ScreenMirrorServer::handleMirrorStatus()
 {
 	int status = -1;
@@ -289,17 +295,7 @@ bool ScreenMirrorServer::handleAirplayData()
 			fwrite(temp_buf, 1, req_size, m_auioFile);
 #endif // DUMPFILE
 			if (m_infoReceived) {
-				onAudioData(temp_buf, req_size);
-				/*SFgAudioFrame *frame = new SFgAudioFrame();
-				frame->bitsPerSample =
-					m_mediaInfo.bytes_per_frame;
-				frame->channels = m_mediaInfo.speakers;
-				frame->pts = header_info.pts;
-				frame->sampleRate = m_mediaInfo.samples_per_sec;
-				frame->dataLen = req_size;
-				frame->data = temp_buf;
-				outputAudio(frame);
-				delete frame;*/
+				outputAudio(temp_buf, req_size, header_info.pts);
 			}
 		} else {
 			AVFrame *frame = m_decoder.docode(temp_buf, req_size, false,
@@ -369,17 +365,7 @@ bool ScreenMirrorServer::handleUSBData()
 			fwrite(temp_buf, 1, req_size, m_auioFile);
 #endif // DUMPFILE
 			if (m_infoReceived) {
-				onAudioData(temp_buf, req_size);
-				//SFgAudioFrame *frame = new SFgAudioFrame();
-				//frame->bitsPerSample =
-				//	m_mediaInfo.bytes_per_frame;
-				//frame->channels = m_mediaInfo.speakers;
-				//frame->pts = header_info.pts;
-				//frame->sampleRate = m_mediaInfo.samples_per_sec;
-				//frame->dataLen = req_size;
-				//frame->data = temp_buf;
-				//outputAudio(frame);
-				//delete frame;
+				outputAudio(temp_buf, req_size, header_info.pts);
 			}
 		} else {
 			uint8_t *all = NULL;
@@ -399,31 +385,23 @@ bool ScreenMirrorServer::handleUSBData()
 	return true;
 }
 
-const char *ScreenMirrorServer::killProc()
-{
-	const char *processName = nullptr;
-	if (m_backend == IOS_USB_CABLE) {
-		processName = DRIVER_EXE;
-	} else if (m_backend == IOS_AIRPLAY) {
-		processName = AIRPLAY_EXE;
-	} else if (m_backend == ANDROID_USB_CABLE)
-		processName = ANDROID_USB_EXE;
-
-	os_kill_process(processName);
-	return processName;
-}
-
 void ScreenMirrorServer::resetState()
 {
-	play_back_started = false;
 	pthread_mutex_lock(&m_dataMutex);
 	m_offset = LLONG_MAX;
+	m_audioOffset = LLONG_MAX;
 	for (auto iter = m_videoFrames.begin(); iter != m_videoFrames.end();
 	     iter++) {
 		AVFrame *f = *iter;
 		av_frame_free(&f);
 	}
 	m_videoFrames.clear();
+	for (auto iter = m_audioFrames.begin(); iter != m_audioFrames.end();
+	     iter++) {
+		AudioFrame *f = *iter;
+		free(f->data);
+	}
+	m_audioFrames.clear();
 	pthread_mutex_unlock(&m_dataMutex);
 }
 
@@ -503,6 +481,12 @@ bool ScreenMirrorServer::initAudioRenderer()
 		goto fail;
 	}
 
+	hr = client->Start();
+	if (FAILED(hr)) {
+		blog(LOG_WARNING, "%s: Failed to start audio: %08lX", __FUNCTION__, hr);
+		goto fail;
+	}
+
 	success = true;
 
 fail:
@@ -525,60 +509,6 @@ void ScreenMirrorServer::destroyAudioRenderer()
 		render->Release();
 
 	audio_resampler_destroy(resampler);
-}
-
-void ScreenMirrorServer::onAudioData(uint8_t *data, size_t size)
-{
-	uint8_t *resample_data[MAX_AV_PLANES];
-	uint8_t *input[MAX_AV_PLANES] = {data};
-	uint32_t resample_frames;
-	uint64_t ts_offset;
-	bool success;
-	BYTE *output;
-
-	success = audio_resampler_resample(
-		resampler, resample_data, &resample_frames, &ts_offset,
-		(const uint8_t *const *)input,
-		(uint32_t)(get_audio_frames(from.format, from.speakers, size)));
-	if (!success) {
-		return;
-	}
-
-	HRESULT hr =
-		render->GetBuffer(resample_frames, &output);
-	if (FAILED(hr)) {
-		return;
-	}
-
-	bool muted = false;
-	if (!muted) {
-		/* apply volume */
-		//if (!close_float(vol, 1.0f, EPSILON)) {
-		//	register float *cur = (float *)resample_data[0];
-		//	register float *end =
-		//		cur + resample_frames * monitor->channels;
-
-		//	while (cur < end)
-		//		*(cur++) *= vol;
-		//}
-		memcpy(output, resample_data[0],
-		       resample_frames * channels * sizeof(float));
-	}
-
-	render->ReleaseBuffer(resample_frames,
-				      muted ? AUDCLNT_BUFFERFLAGS_SILENT : 0);
-
-	if (!play_back_started)
-	{
-		UINT32 pad = 0;
-		client->GetCurrentPadding(&pad);
-		uint64_t buf_time =
-			audio_frames_to_ns(sample_rate, pad) / 1000000;
-		if (buf_time > 100) {
-			client->Start();
-			play_back_started = true;
-		}
-	}
 }
 
 void ScreenMirrorServer::resetResampler(enum speaker_layout speakers,
@@ -606,11 +536,45 @@ bool ScreenMirrorServer::initPipe()
 	return true;
 }
 
-void ScreenMirrorServer::outputVideo(AVFrame *frame)
+void ScreenMirrorServer::outputAudioFrame(uint8_t *data, size_t size)
 {
-	pthread_mutex_lock(&m_dataMutex);
-	m_videoFrames.push_back(frame);
-	pthread_mutex_unlock(&m_dataMutex);
+	uint8_t *resample_data[MAX_AV_PLANES];
+	uint8_t *input[MAX_AV_PLANES] = {data};
+	uint32_t resample_frames;
+	uint64_t ts_offset;
+	bool success;
+	BYTE *output;
+
+	success = audio_resampler_resample(
+		resampler, resample_data, &resample_frames, &ts_offset,
+		(const uint8_t *const *)input,
+		(uint32_t)(get_audio_frames(from.format, from.speakers, size)));
+	if (!success) {
+		return;
+	}
+
+	HRESULT hr = render->GetBuffer(resample_frames, &output);
+	if (FAILED(hr)) {
+		return;
+	}
+
+	bool muted = false;
+	if (!muted) {
+		/* apply volume */
+		//if (!close_float(vol, 1.0f, EPSILON)) {
+		//	register float *cur = (float *)resample_data[0];
+		//	register float *end =
+		//		cur + resample_frames * monitor->channels;
+
+		//	while (cur < end)
+		//		*(cur++) *= vol;
+		//}
+		memcpy(output, resample_data[0],
+		       resample_frames * channels * sizeof(float));
+	}
+
+	render->ReleaseBuffer(resample_frames,
+			      muted ? AUDCLNT_BUFFERFLAGS_SILENT : 0);
 }
 
 void ScreenMirrorServer::outputVideoFrame(AVFrame *frame)
@@ -655,17 +619,23 @@ void ScreenMirrorServer::outputVideoFrame(AVFrame *frame)
 	obs_source_set_videoframe(m_source, &m_videoFrame);
 }
 
-void ScreenMirrorServer::outputAudio(SFgAudioFrame *data)
+void ScreenMirrorServer::outputAudio(uint8_t *data, size_t data_len, uint64_t pts)
 {
-	blog(LOG_INFO, "=====%lld", data->pts-lastPts);
-	m_audioFrame.format = AUDIO_FORMAT_16BIT;
-	m_audioFrame.samples_per_sec = data->sampleRate;
-	m_audioFrame.speakers = data->channels == 2 ? SPEAKERS_STEREO
-						    : SPEAKERS_MONO;
-	m_audioFrame.data[0] = data->data;
-	m_audioFrame.frames = data->dataLen / (data->channels * 2);
-	m_audioFrame.timestamp = data->pts;
-	obs_source_output_audio(m_source, &m_audioFrame);
+	pthread_mutex_lock(&m_dataMutex);
+	auto frame = new AudioFrame;
+	frame->data = (uint8_t *)malloc(data_len);
+	memcpy(frame->data, data, data_len);
+	frame->data_len = data_len;
+	frame->pts = pts;
+	m_audioFrames.push_back(frame);
+	pthread_mutex_unlock(&m_dataMutex);
+}
+
+void ScreenMirrorServer::outputVideo(AVFrame *frame)
+{
+	pthread_mutex_lock(&m_dataMutex);
+	m_videoFrames.push_back(frame);
+	pthread_mutex_unlock(&m_dataMutex);
 }
 
 OBS_DECLARE_MODULE()
@@ -765,8 +735,17 @@ void  ScreenMirrorServer::WinAirplayVideoTick(void *data, float seconds)
 
 			av_frame_free(&frame);
 		}
-		else
-		{
+	}
+
+	if (s->m_audioFrames.size() > 0) {
+		AudioFrame *frame = s->m_audioFrames.front();
+		if (s->m_audioOffset == LLONG_MAX)
+			s->m_audioOffset = os_gettime_ns() - frame->pts + s->m_extraDelay;
+
+		if (s->m_audioOffset + frame->pts <= os_gettime_ns()) {
+			s->outputAudioFrame(frame->data, frame->data_len);
+			s->m_videoFrames.pop_front();
+			free(frame->data);
 		}
 	}
 	pthread_mutex_unlock(&s->m_dataMutex);
