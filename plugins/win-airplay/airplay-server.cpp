@@ -744,7 +744,7 @@ void  ScreenMirrorServer::WinAirplayVideoTick(void *data, float seconds)
 
 		if (s->m_audioOffset + frame->pts <= os_gettime_ns()) {
 			s->outputAudioFrame(frame->data, frame->data_len);
-			s->m_videoFrames.pop_front();
+			s->m_audioFrames.pop_front();
 			free(frame->data);
 		}
 	}
