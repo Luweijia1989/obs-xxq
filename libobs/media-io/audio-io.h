@@ -193,6 +193,16 @@ static inline size_t get_audio_size(enum audio_format format,
 	       get_audio_bytes_per_channel(format) * frames;
 }
 
+static inline size_t get_audio_frames(enum audio_format format,
+				    enum speaker_layout speakers,
+				    uint32_t data)
+{
+	bool planar = is_audio_planar(format);
+
+	return data/((planar ? 1 : get_audio_channels(speakers)) *
+	       get_audio_bytes_per_channel(format));
+}
+
 static inline uint64_t audio_frames_to_ns(size_t sample_rate, uint64_t frames)
 {
 	util_uint128_t val;

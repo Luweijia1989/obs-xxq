@@ -9,6 +9,8 @@
 #include "ipc.h"
 #include "util/threading.h"
 #include <graphics/image-file.h>
+#include "audio-monitoring/win32/wasapi-output.h"
+#include "media-io/audio-resampler.h"
 extern "C" {
 #include <util/pipe.h>
 }
@@ -48,6 +50,10 @@ public:
 	gs_image_file2_t *if2 = nullptr;
 
 private:
+	bool initAudioRenderer();
+	void destroyAudioRenderer();
+	void onAudioData(uint8_t *data, size_t size);
+	void resetResampler(enum speaker_layout speakers, enum audio_format format, uint32_t samples_per_sec);
 	bool initPipe();
 	void parseNalus(uint8_t *data, size_t size, uint8_t **out,
 			size_t *out_len);
@@ -58,6 +64,16 @@ private:
 	const char *killProc();
 
 private:
+	IMMDevice *device;
+	IAudioClient *client;
+	IAudioRenderClient *render;
+	audio_resampler_t *resampler = nullptr;
+	uint32_t sample_rate;
+	uint32_t channels;
+	struct resample_info to;
+	struct resample_info from;
+	bool play_back_started = false;
+
 	obs_source_t *m_cropFilter = nullptr;
 	obs_source_audio m_audioFrame;
 	obs_source_frame2 m_videoFrame;

@@ -19,10 +19,30 @@ static uint32_t byteutils_get_int_be(unsigned char *b, int offset)
 	return ntohl(byteutils_get_int(b, offset));
 }
 
+static enum speaker_layout convert_speaker_layout(DWORD layout, WORD channels)
+{
+	switch (layout) {
+	case KSAUDIO_SPEAKER_2POINT1:
+		return SPEAKERS_2POINT1;
+	case KSAUDIO_SPEAKER_SURROUND:
+		return SPEAKERS_4POINT0;
+	case KSAUDIO_SPEAKER_4POINT1:
+		return SPEAKERS_4POINT1;
+	case KSAUDIO_SPEAKER_5POINT1:
+		return SPEAKERS_5POINT1;
+	case KSAUDIO_SPEAKER_7POINT1:
+		return SPEAKERS_7POINT1;
+	}
+
+	return (enum speaker_layout)channels;
+}
+
 ScreenMirrorServer::ScreenMirrorServer(obs_source_t *source)
 	: m_source(source),
 	  if2((gs_image_file2_t *)bzalloc(sizeof(gs_image_file2_t)))
 {
+	initAudioRenderer();
+
 	pthread_mutex_init(&m_typeChangeMutex, nullptr);
 	memset(m_videoFrame.data, 0, sizeof(m_videoFrame.data));
 	memset(&m_audioFrame, 0, sizeof(&m_audioFrame));
@@ -55,6 +75,8 @@ ScreenMirrorServer::~ScreenMirrorServer()
 	ipcDestroy();
 	circlebuf_free(&m_avBuffer);
 	pthread_mutex_destroy(&m_typeChangeMutex);
+
+	destroyAudioRenderer();
 #ifdef DUMPFILE
 	fclose(m_auioFile);
 	fclose(m_videoFile);
@@ -208,6 +230,11 @@ void ScreenMirrorServer::handleMirrorStatus()
 	int status = -1;
 	circlebuf_pop_front(&m_avBuffer, &status, sizeof(int));
 	mirror_status = (obs_source_mirror_status)status;
+	if (mirror_status == OBS_SOURCE_MIRROR_STOP)
+	{
+		client->Stop();
+		play_back_started = false;
+	}
 }
 
 bool ScreenMirrorServer::handleAirplayData()
@@ -240,6 +267,7 @@ bool ScreenMirrorServer::handleAirplayData()
 			return true;
 
 		m_mediaInfo = info;
+		resetResampler(info.speakers, info.format, info.samples_per_sec);
 		if (!m_infoReceived)
 			m_infoReceived = true;
 #ifdef DUMPFILE
@@ -255,7 +283,8 @@ bool ScreenMirrorServer::handleAirplayData()
 			fwrite(temp_buf, 1, req_size, m_auioFile);
 #endif // DUMPFILE
 			if (m_infoReceived) {
-				SFgAudioFrame *frame = new SFgAudioFrame();
+				onAudioData(temp_buf, req_size);
+				/*SFgAudioFrame *frame = new SFgAudioFrame();
 				frame->bitsPerSample =
 					m_mediaInfo.bytes_per_frame;
 				frame->channels = m_mediaInfo.speakers;
@@ -264,7 +293,7 @@ bool ScreenMirrorServer::handleAirplayData()
 				frame->dataLen = req_size;
 				frame->data = temp_buf;
 				outputAudio(frame);
-				delete frame;
+				delete frame;*/
 			}
 		} else {
 			int res = m_decoder.docode(temp_buf, req_size, false,
@@ -308,6 +337,7 @@ bool ScreenMirrorServer::handleUSBData()
 			return true;
 
 		m_mediaInfo = info;
+		resetResampler(info.speakers, info.format, info.samples_per_sec);
 		if (!m_infoReceived)
 			m_infoReceived = true;
 #ifdef DUMPFILE
@@ -333,16 +363,17 @@ bool ScreenMirrorServer::handleUSBData()
 			fwrite(temp_buf, 1, req_size, m_auioFile);
 #endif // DUMPFILE
 			if (m_infoReceived) {
-				SFgAudioFrame *frame = new SFgAudioFrame();
-				frame->bitsPerSample =
-					m_mediaInfo.bytes_per_frame;
-				frame->channels = m_mediaInfo.speakers;
-				frame->pts = header_info.pts;
-				frame->sampleRate = m_mediaInfo.samples_per_sec;
-				frame->dataLen = req_size;
-				frame->data = temp_buf;
-				outputAudio(frame);
-				delete frame;
+				onAudioData(temp_buf, req_size);
+				//SFgAudioFrame *frame = new SFgAudioFrame();
+				//frame->bitsPerSample =
+				//	m_mediaInfo.bytes_per_frame;
+				//frame->channels = m_mediaInfo.speakers;
+				//frame->pts = header_info.pts;
+				//frame->sampleRate = m_mediaInfo.samples_per_sec;
+				//frame->dataLen = req_size;
+				//frame->data = temp_buf;
+				//outputAudio(frame);
+				//delete frame;
 			}
 		} else {
 			uint8_t *all = NULL;
@@ -375,6 +406,179 @@ const char *ScreenMirrorServer::killProc()
 
 	os_kill_process(processName);
 	return processName;
+}
+
+bool ScreenMirrorServer::initAudioRenderer()
+{
+	memset(&from, 0, sizeof(struct resample_info));
+	IMMDeviceEnumerator *immde = NULL;
+	WAVEFORMATEX *wfex = NULL;
+	bool success = false;
+	UINT32 frames;
+	HRESULT hr;
+
+	/* ------------------------------------------ *
+	 * Init device                                */
+
+	hr = CoCreateInstance(__uuidof(MMDeviceEnumerator), NULL, CLSCTX_ALL,
+		__uuidof(IMMDeviceEnumerator), (void **)&immde);
+	if (FAILED(hr)) {
+		blog(LOG_WARNING, "%s: Failed to create IMMDeviceEnumerator: %08lX",
+			__FUNCTION__, hr);
+		return false;
+	}
+
+	hr = immde->GetDefaultAudioEndpoint(eRender, eConsole, &device);
+
+	if (FAILED(hr)) {
+		blog(LOG_WARNING, "%s: Failed to get device: %08lX", __FUNCTION__, hr);
+		goto fail;
+	}
+
+	/* ------------------------------------------ *
+	 * Init client                                */
+
+	hr = device->Activate(__uuidof(IAudioClient), CLSCTX_ALL,
+		NULL, (void **)&client);
+	if (FAILED(hr)) {
+		blog(LOG_WARNING, "%s: Failed to activate device: %08lX", __FUNCTION__, hr);
+		goto fail;
+	}
+
+	hr = client->GetMixFormat(&wfex);
+	if (FAILED(hr)) {
+		blog(LOG_WARNING, "%s: Failed to get mix format: %08lX", __FUNCTION__, hr);
+		goto fail;
+	}
+
+	hr = client->Initialize(AUDCLNT_SHAREMODE_SHARED, 0, 10000000, 0, wfex, NULL);
+	if (FAILED(hr)) {
+		blog(LOG_WARNING, "%s: Failed to initialize: %08lX", __FUNCTION__, hr);
+		goto fail;
+	}
+
+	/* ------------------------------------------ *
+	 * Init resampler                             */
+	WAVEFORMATEXTENSIBLE *ext = (WAVEFORMATEXTENSIBLE *)wfex;
+
+	to.samples_per_sec = (uint32_t)wfex->nSamplesPerSec;
+	to.speakers =
+		convert_speaker_layout(ext->dwChannelMask, wfex->nChannels);
+	to.format = AUDIO_FORMAT_FLOAT;
+	channels = wfex->nChannels;
+	sample_rate = wfex->nSamplesPerSec;
+
+	/* ------------------------------------------ *
+	 * Init client                                */
+
+	hr = client->GetBufferSize(&frames);
+	if (FAILED(hr)) {
+		blog(LOG_WARNING, "%s: Failed to get buffer size: %08lX", __FUNCTION__, hr);
+		goto fail;
+	}
+
+	hr = client->GetService(__uuidof(IAudioRenderClient), (void **)&render);
+	if (FAILED(hr)) {
+		blog(LOG_WARNING, "%s: Failed to get IAudioRenderClient: %08lX",
+			__FUNCTION__, hr);
+		goto fail;
+	}
+
+	success = true;
+
+fail:
+	immde->Release();
+	if (wfex)
+		CoTaskMemFree(wfex);
+	return success;
+}
+
+void ScreenMirrorServer::destroyAudioRenderer()
+{
+	if (client)
+		client->Stop();
+
+	if (device)
+		device->Release();
+	if (client)
+		client->Release();
+	if (render)
+		render->Release();
+
+	audio_resampler_destroy(resampler);
+}
+
+void ScreenMirrorServer::onAudioData(uint8_t *data, size_t size)
+{
+	uint8_t *resample_data[MAX_AV_PLANES];
+	uint8_t *input[MAX_AV_PLANES] = {data};
+	uint32_t resample_frames;
+	uint64_t ts_offset;
+	bool success;
+	BYTE *output;
+
+	success = audio_resampler_resample(
+		resampler, resample_data, &resample_frames, &ts_offset,
+		(const uint8_t *const *)input,
+		(uint32_t)(get_audio_frames(from.format, from.speakers, size)));
+	if (!success) {
+		return;
+	}
+
+	HRESULT hr =
+		render->GetBuffer(resample_frames, &output);
+	if (FAILED(hr)) {
+		return;
+	}
+
+	bool muted = false;
+	if (!muted) {
+		/* apply volume */
+		//if (!close_float(vol, 1.0f, EPSILON)) {
+		//	register float *cur = (float *)resample_data[0];
+		//	register float *end =
+		//		cur + resample_frames * monitor->channels;
+
+		//	while (cur < end)
+		//		*(cur++) *= vol;
+		//}
+		memcpy(output, resample_data[0],
+		       resample_frames * channels * sizeof(float));
+	}
+
+	render->ReleaseBuffer(resample_frames,
+				      muted ? AUDCLNT_BUFFERFLAGS_SILENT : 0);
+
+	if (!play_back_started)
+	{
+		UINT32 pad = 0;
+		client->GetCurrentPadding(&pad);
+		uint64_t buf_time =
+			audio_frames_to_ns(sample_rate, pad) / 1000000;
+		if (buf_time > 100) {
+			client->Start();
+			play_back_started = true;
+		}
+	}
+}
+
+void ScreenMirrorServer::resetResampler(enum speaker_layout speakers,
+					enum audio_format format,
+					uint32_t samples_per_sec)
+{
+	if (from.format == format && from.speakers == speakers && from.samples_per_sec == samples_per_sec && resampler)
+		return;
+
+	if (resampler)
+	{
+		audio_resampler_destroy(resampler);
+		resampler = nullptr;
+	}
+
+	from.samples_per_sec = samples_per_sec;
+	from.speakers = speakers;
+	from.format = format;
+	resampler = audio_resampler_create(&to, &from);
 }
 
 bool ScreenMirrorServer::initPipe()
@@ -424,7 +628,8 @@ void ScreenMirrorServer::outputVideo(SFgVideoFrame *data)
 	m_height = m_videoFrame.height;
 	if (mirror_status != OBS_SOURCE_MIRROR_OUTPUT)
 		mirror_status = OBS_SOURCE_MIRROR_OUTPUT;
-	obs_source_output_video2(m_source, &m_videoFrame);
+	//obs_source_output_video2(m_source, &m_videoFrame);
+	obs_source_set_videoframe(m_source, &m_videoFrame);
 }
 
 void ScreenMirrorServer::outputAudio(SFgAudioFrame *data)
@@ -498,14 +703,42 @@ static void DestroyWinAirplay(void *obj)
 static void HideWinAirplay(void *data) {}
 
 static void ShowWinAirplay(void *data) {}
-
+static void WinAirplayRender(void *data, gs_effect_t *effect)
+{
+	ScreenMirrorServer *s = (ScreenMirrorServer *)data;
+	if (s->mirror_status == OBS_SOURCE_MIRROR_STOP) {
+		s->renderImage(effect);
+	} else
+		obs_source_draw_videoframe(s->m_source);
+}
+static uint32_t WinAirplayWidth(void *data)
+{
+	ScreenMirrorServer *s = (ScreenMirrorServer *)data;
+	int width = s->mirror_status == OBS_SOURCE_MIRROR_OUTPUT
+			    ? s->m_width
+			    : s->if2->image.cx;
+	return width;
+}
+static uint32_t WinAirplayHeight(void *data)
+{
+	ScreenMirrorServer *s = (ScreenMirrorServer *)data;
+	int height = s->mirror_status == OBS_SOURCE_MIRROR_OUTPUT
+			     ? s->m_height
+			     : s->if2->image.cy;
+	return height;
+}
+static void WinAirplayVideoTick(void *data, float seconds)
+{
+	ScreenMirrorServer *s = (ScreenMirrorServer *)data;
+	blog(LOG_INFO, "%f", seconds);
+}
 bool obs_module_load(void)
 {
 	obs_source_info info = {};
 	info.id = "win_airplay";
 	info.type = OBS_SOURCE_TYPE_INPUT;
-	info.output_flags = OBS_SOURCE_VIDEO | OBS_SOURCE_ASYNC |
-			    OBS_SOURCE_AUDIO | OBS_SOURCE_DO_NOT_DUPLICATE;
+	info.output_flags = OBS_SOURCE_VIDEO 
+			     | OBS_SOURCE_DO_NOT_DUPLICATE;
 	info.show = ShowWinAirplay;
 	info.hide = HideWinAirplay;
 	info.get_name = GetWinAirplayName;
@@ -514,6 +747,10 @@ bool obs_module_load(void)
 	info.update = UpdateWinAirplaySource;
 	info.get_defaults = GetWinAirplayDefaultsOutput;
 	info.get_properties = GetWinAirplayPropertiesOutput;
+	info.video_render = WinAirplayRender;
+	info.get_width = WinAirplayWidth;
+	info.get_height = WinAirplayHeight;
+	info.video_tick = WinAirplayVideoTick;
 	obs_register_source(&info);
 
 	return true;

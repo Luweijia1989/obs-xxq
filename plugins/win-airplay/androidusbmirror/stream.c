@@ -64,7 +64,7 @@ static bool stream_recv_packet(struct stream *stream)
 		struct av_packet_info pack_info = {0};
 		pack_info.size = len;
 		pack_info.type = FFM_PACKET_VIDEO;
-		pack_info.pts = packet_pts*1000;
+		pack_info.pts = packet_pts;
 		ipc_client_write(stream->ipc_client, &pack_info,
 				 sizeof(struct av_packet_info), INFINITE);
 		ipc_client_write(stream->ipc_client, buffer, len, INFINITE);
