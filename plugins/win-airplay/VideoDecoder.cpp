@@ -3,7 +3,6 @@
 
 VideoDecoder::VideoDecoder()
 {
-	memset(&m_sVideoFrameOri, 0, sizeof(SFgVideoFrame));
 }
 
 VideoDecoder::~VideoDecoder()
@@ -11,17 +10,19 @@ VideoDecoder::~VideoDecoder()
 	uninitFFMPEG();
 }
 
-int VideoDecoder::docode(uint8_t *data, size_t data_len, bool is_key,
+AVFrame *VideoDecoder::docode(uint8_t *data, size_t data_len, bool is_key,
 			 uint64_t ts)
 {
 	int canOutput = -1;
 	if (is_key) {
 		if (m_pCodecCtx && data_len == m_pCodecCtx->extradata_size && memcmp(data, m_pCodecCtx->extradata, data_len) == 0)
-			return canOutput;
+			return nullptr;
 		uninitFFMPEG();
 
 		if (initFFMPEG(data, data_len) != 0)
 			blog(LOG_ERROR, "decoder init fail!!!!!");
+
+		return nullptr;
 	} else {
 		if (m_bCodecOpened) {
 			AVPacket pkt1, *packet = &pkt1;
@@ -42,52 +43,13 @@ int VideoDecoder::docode(uint8_t *data, size_t data_len, bool is_key,
 
 			// Did we get a video frame?
 			if (frameFinished == 0) {
-				if (m_sVideoFrameOri.width != pFrame->width ||
-				    m_sVideoFrameOri.height != pFrame->height) {
-					if (m_sVideoFrameOri.data) {
-						delete[] m_sVideoFrameOri.data;
-						m_sVideoFrameOri.data = NULL;
-					}
-				}
-
-				m_sVideoFrameOri.width = pFrame->width;
-				m_sVideoFrameOri.height = pFrame->height;
-				m_sVideoFrameOri.pts = ts;
-				m_sVideoFrameOri.isKey = pFrame->key_frame;
-				int ySize =
-					pFrame->linesize[0] * pFrame->height;
-				int uSize =
-					pFrame->linesize[1] * pFrame->height >>
-					1;
-				int vSize =
-					pFrame->linesize[2] * pFrame->height >>
-					1;
-				m_sVideoFrameOri.dataTotalLen =
-					ySize + uSize + vSize;
-				m_sVideoFrameOri.dataLen[0] = ySize;
-				m_sVideoFrameOri.dataLen[1] = uSize;
-				m_sVideoFrameOri.dataLen[2] = vSize;
-				if (!m_sVideoFrameOri.data) {
-					m_sVideoFrameOri.data = new uint8_t
-						[m_sVideoFrameOri.dataTotalLen];
-				}
-				memcpy(m_sVideoFrameOri.data, pFrame->data[0],
-				       ySize);
-				memcpy(m_sVideoFrameOri.data + ySize,
-				       pFrame->data[1], uSize);
-				memcpy(m_sVideoFrameOri.data + ySize + uSize,
-				       pFrame->data[2], vSize);
-				m_sVideoFrameOri.pitch[0] = pFrame->linesize[0];
-				m_sVideoFrameOri.pitch[1] = pFrame->linesize[1];
-				m_sVideoFrameOri.pitch[2] = pFrame->linesize[2];
-
-				canOutput = 1;
+				pFrame->pts = ts;
+				return pFrame;
 			}
 			av_frame_free(&pFrame);
 		}
+		return nullptr;
 	}
-
-	return canOutput;
 }
 
 int VideoDecoder::initFFMPEG(const void *privatedata, int privatedatalen)

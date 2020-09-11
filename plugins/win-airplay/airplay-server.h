@@ -2,12 +2,15 @@
 
 #include <obs-module.h>
 #include <obs.hpp>
+#include <list>
+#include <limits>
 #include "Airplay2Def.h"
 #include <util/circlebuf.h>
 #include "VideoDecoder.h"
 #include "common-define.h"
 #include "ipc.h"
-#include "util/threading.h"
+#include <util/threading.h>
+#include <util/platform.h>
 #include <graphics/image-file.h>
 #include "audio-monitoring/win32/wasapi-output.h"
 #include "media-io/audio-resampler.h"
@@ -28,7 +31,8 @@ public:
 
 	ScreenMirrorServer(obs_source_t *source);
 	~ScreenMirrorServer();
-	void outputVideo(SFgVideoFrame *data);
+	void outputVideo(AVFrame *frame);
+	void outputVideoFrame(AVFrame *frame);
 	void outputAudio(SFgAudioFrame *data);
 
 	void ipcSetup();
@@ -42,6 +46,7 @@ public:
 	void renderImage(gs_effect_t *effect);
 
 	static void pipeCallback(void *param, uint8_t *data, size_t size);
+	static void WinAirplayVideoTick(void *data, float seconds);
 	int m_width = 0;
 	int m_height = 0;
 	obs_source_t *m_source = nullptr;
@@ -50,6 +55,7 @@ public:
 	gs_image_file2_t *if2 = nullptr;
 
 private:
+	void resetState();
 	bool initAudioRenderer();
 	void destroyAudioRenderer();
 	void onAudioData(uint8_t *data, size_t size);
@@ -73,6 +79,11 @@ private:
 	struct resample_info to;
 	struct resample_info from;
 	bool play_back_started = false;
+
+	std::list<AVFrame*> m_videoFrames;
+	pthread_mutex_t m_dataMutex;
+	int64_t m_offset = LLONG_MAX;
+	int64_t m_extraDelay = 0;
 
 	obs_source_t *m_cropFilter = nullptr;
 	obs_source_audio m_audioFrame;

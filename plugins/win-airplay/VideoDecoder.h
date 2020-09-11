@@ -19,8 +19,7 @@ public:
 	VideoDecoder();
 	~VideoDecoder();
 
-	int docode(uint8_t *data, size_t data_len, bool is_key, uint64_t ts);
-	SFgVideoFrame m_sVideoFrameOri;
+	AVFrame *docode(uint8_t *data, size_t data_len, bool is_key, uint64_t ts);
 
 private:
 	int initFFMPEG(const void *privatedata, int privatedatalen);
