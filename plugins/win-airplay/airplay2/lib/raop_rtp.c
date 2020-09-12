@@ -580,7 +580,7 @@ static THREAD_RETVAL raop_rtp_thread_udp(void *arg)
 
 				int result = raop_buffer_enqueue(
 					raop_rtp->buffer, packet, packetlen,
-					ntp_timestamp, 1, raop_rtp->rtp_sync_offset);
+					ntp_now, 1, raop_rtp->rtp_sync_offset);
 				assert(result >= 0);
 
 				// Render continuous buffer entries

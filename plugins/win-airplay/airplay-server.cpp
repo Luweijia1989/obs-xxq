@@ -18,24 +18,6 @@ static uint32_t byteutils_get_int_be(unsigned char *b, int offset)
 	return ntohl(byteutils_get_int(b, offset));
 }
 
-static enum speaker_layout convert_speaker_layout(DWORD layout, WORD channels)
-{
-	switch (layout) {
-	case KSAUDIO_SPEAKER_2POINT1:
-		return SPEAKERS_2POINT1;
-	case KSAUDIO_SPEAKER_SURROUND:
-		return SPEAKERS_4POINT0;
-	case KSAUDIO_SPEAKER_4POINT1:
-		return SPEAKERS_4POINT1;
-	case KSAUDIO_SPEAKER_5POINT1:
-		return SPEAKERS_5POINT1;
-	case KSAUDIO_SPEAKER_7POINT1:
-		return SPEAKERS_7POINT1;
-	}
-
-	return (enum speaker_layout)channels;
-}
-
 ScreenMirrorServer::ScreenMirrorServer(obs_source_t *source)
 	: m_source(source),
 	  if2((gs_image_file2_t *)bzalloc(sizeof(gs_image_file2_t)))
@@ -244,7 +226,6 @@ void ScreenMirrorServer::handleMirrorStatus()
 	mirror_status = (obs_source_mirror_status)status;
 	if (mirror_status == OBS_SOURCE_MIRROR_STOP)
 	{
-		client->Stop();
 		resetState();
 	}
 }
@@ -390,7 +371,6 @@ void ScreenMirrorServer::resetState()
 	pthread_mutex_lock(&m_dataMutex);
 	m_offset = LLONG_MAX;
 	m_audioOffset = LLONG_MAX;
-	m_audioStarted = false;
 	for (auto iter = m_videoFrames.begin(); iter != m_videoFrames.end();
 	     iter++) {
 		AVFrame *f = *iter;
@@ -409,105 +389,35 @@ void ScreenMirrorServer::resetState()
 bool ScreenMirrorServer::initAudioRenderer()
 {
 	memset(&from, 0, sizeof(struct resample_info));
-	IMMDeviceEnumerator *immde = NULL;
-	WAVEFORMATEX *wfex = NULL;
-	bool success = false;
-	UINT32 frames;
-	HRESULT hr;
+	PaError err = Pa_Initialize();
+	if (err != paNoError) goto error;	
 
-	/* ------------------------------------------ *
-	 * Init device                                */
+	err = Pa_OpenDefaultStream(&pa_stream_, 0, 2, paInt16, 48000, 2048, nullptr, nullptr);
+	if (err != paNoError) goto error;
 
-	hr = CoCreateInstance(__uuidof(MMDeviceEnumerator), NULL, CLSCTX_ALL,
-		__uuidof(IMMDeviceEnumerator), (void **)&immde);
-	if (FAILED(hr)) {
-		blog(LOG_WARNING, "%s: Failed to create IMMDeviceEnumerator: %08lX",
-			__FUNCTION__, hr);
-		return false;
-	}
+	err = Pa_StartStream(pa_stream_);
+	if (err != paNoError) goto error;
 
-	hr = immde->GetDefaultAudioEndpoint(eRender, eConsole, &device);
+	to.samples_per_sec = sample_rate = 48000;
+	to.format = AUDIO_FORMAT_16BIT;
+	to.speakers = SPEAKERS_STEREO;
+	channels = 2;
 
-	if (FAILED(hr)) {
-		blog(LOG_WARNING, "%s: Failed to get device: %08lX", __FUNCTION__, hr);
-		goto fail;
-	}
+	return err;
+error:
+	Pa_Terminate();
+	return err;
 
-	/* ------------------------------------------ *
-	 * Init client                                */
-
-	hr = device->Activate(__uuidof(IAudioClient), CLSCTX_ALL,
-		NULL, (void **)&client);
-	if (FAILED(hr)) {
-		blog(LOG_WARNING, "%s: Failed to activate device: %08lX", __FUNCTION__, hr);
-		goto fail;
-	}
-
-	hr = client->GetMixFormat(&wfex);
-	if (FAILED(hr)) {
-		blog(LOG_WARNING, "%s: Failed to get mix format: %08lX", __FUNCTION__, hr);
-		goto fail;
-	}
-
-	hr = client->Initialize(AUDCLNT_SHAREMODE_SHARED, 0, 10000000, 0, wfex, NULL);
-	if (FAILED(hr)) {
-		blog(LOG_WARNING, "%s: Failed to initialize: %08lX", __FUNCTION__, hr);
-		goto fail;
-	}
-
-	/* ------------------------------------------ *
-	 * Init resampler                             */
-	WAVEFORMATEXTENSIBLE *ext = (WAVEFORMATEXTENSIBLE *)wfex;
-
-	to.samples_per_sec = (uint32_t)wfex->nSamplesPerSec;
-	to.speakers =
-		convert_speaker_layout(ext->dwChannelMask, wfex->nChannels);
-	to.format = AUDIO_FORMAT_FLOAT;
-	channels = wfex->nChannels;
-	sample_rate = wfex->nSamplesPerSec;
-
-	/* ------------------------------------------ *
-	 * Init client                                */
-
-	hr = client->GetBufferSize(&frames);
-	if (FAILED(hr)) {
-		blog(LOG_WARNING, "%s: Failed to get buffer size: %08lX", __FUNCTION__, hr);
-		goto fail;
-	}
-
-	hr = client->GetService(__uuidof(IAudioRenderClient), (void **)&render);
-	if (FAILED(hr)) {
-		blog(LOG_WARNING, "%s: Failed to get IAudioRenderClient: %08lX",
-			__FUNCTION__, hr);
-		goto fail;
-	}
-
-	hr = client->Start();
-	if (FAILED(hr)) {
-		blog(LOG_WARNING, "%s: Failed to start audio: %08lX", __FUNCTION__, hr);
-		goto fail;
-	}
-
-	success = true;
-
-fail:
-	immde->Release();
-	if (wfex)
-		CoTaskMemFree(wfex);
-	return success;
 }
 
 void ScreenMirrorServer::destroyAudioRenderer()
 {
-	if (client)
-		client->Stop();
-
-	if (device)
-		device->Release();
-	if (client)
-		client->Release();
-	if (render)
-		render->Release();
+	if (pa_stream_)
+	{
+		Pa_StopStream(pa_stream_);
+		Pa_CloseStream(pa_stream_);
+		Pa_Terminate();
+	}
 
 	audio_resampler_destroy(resampler);
 }
@@ -554,10 +464,10 @@ void ScreenMirrorServer::outputAudioFrame(uint8_t *data, size_t size)
 		return;
 	}
 
-	HRESULT hr = render->GetBuffer(resample_frames, &output);
-	if (FAILED(hr)) {
+	auto writeableFrames = Pa_GetStreamWriteAvailable(pa_stream_);
+
+	if (resample_frames > writeableFrames)
 		return;
-	}
 
 	bool muted = false;
 	if (!muted) {
@@ -570,12 +480,8 @@ void ScreenMirrorServer::outputAudioFrame(uint8_t *data, size_t size)
 		//	while (cur < end)
 		//		*(cur++) *= vol;
 		//}
-		memcpy(output, resample_data[0],
-		       resample_frames * channels * sizeof(float));
+		Pa_WriteStream(pa_stream_, resample_data[0], resample_frames);
 	}
-
-	render->ReleaseBuffer(resample_frames,
-			      muted ? AUDCLNT_BUFFERFLAGS_SILENT : 0);
 }
 
 void ScreenMirrorServer::outputVideoFrame(AVFrame *frame)
@@ -750,26 +656,13 @@ void  ScreenMirrorServer::WinAirplayVideoTick(void *data, float seconds)
 	while (s->m_audioFrames.size() > 0) {
 		AudioFrame *frame = s->m_audioFrames.front();
 		int64_t now = (int64_t)os_gettime_ns();
-		if (s->m_audioOffset == LLONG_MAX || (s->m_audioStarted && now - s->m_audioCounting > 100000000))
-		{
-			s->m_audioStarted = false;
+		if (s->m_audioOffset == LLONG_MAX )
 			s->m_audioOffset = now - frame->pts + s->m_extraDelay;
-		}
-		/*blog(LOG_INFO, "offset:%lld,pts:%lld,extradelay:%lld, cur:%lld, minus:%lld, dd: %d ",
-			frame->pts-dddd,
-			frame->pts,
-			s->m_extraDelay,
-			now,
-			s->m_audioOffset + frame->pts - now,
-			s->m_audioOffset + frame->pts <= now);
-		dddd = frame->pts;*/
 
 		if (s->m_audioOffset + frame->pts <= now) {
 			s->outputAudioFrame(frame->data, frame->data_len);
 			s->m_audioFrames.pop_front();
 			free(frame->data);
-			s->m_audioCounting = now;
-			s->m_audioStarted = true;
 		}
 		else
 			break;
