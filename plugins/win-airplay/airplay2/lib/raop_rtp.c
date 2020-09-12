@@ -773,12 +773,6 @@ void raop_rtp_stop(raop_rtp_t *raop_rtp)
 {
 	assert(raop_rtp);
 
-	if (raop_rtp->callbacks.disconnected) {
-		raop_rtp->callbacks.disconnected(raop_rtp->callbacks.cls,
-						     raop_rtp->remoteName,
-						     raop_rtp->remoteDeviceId);
-	}
-
 	/* Check that we are running and thread is not
      * joined (should never be while still running) */
 	MUTEX_LOCK(raop_rtp->run_mutex);

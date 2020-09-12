@@ -648,6 +648,10 @@ void raop_rtp_mirror_stop(raop_rtp_mirror_t *raop_rtp_mirror)
 	MUTEX_LOCK(raop_rtp_mirror->run_mutex);
 	raop_rtp_mirror->joined = 1;
 	MUTEX_UNLOCK(raop_rtp_mirror->run_mutex);
+	if (raop_rtp_mirror->callbacks.disconnected)
+		raop_rtp_mirror->callbacks.disconnected(raop_rtp_mirror->callbacks.cls,
+			raop_rtp_mirror->remoteName,
+			raop_rtp_mirror->remoteDeviceId);
 }
 
 void raop_rtp_mirror_destroy(raop_rtp_mirror_t *raop_rtp_mirror)

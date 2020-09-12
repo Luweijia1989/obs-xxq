@@ -390,6 +390,7 @@ void ScreenMirrorServer::resetState()
 	pthread_mutex_lock(&m_dataMutex);
 	m_offset = LLONG_MAX;
 	m_audioOffset = LLONG_MAX;
+	m_audioStarted = false;
 	for (auto iter = m_videoFrames.begin(); iter != m_videoFrames.end();
 	     iter++) {
 		AVFrame *f = *iter;
@@ -619,6 +620,7 @@ void ScreenMirrorServer::outputVideoFrame(AVFrame *frame)
 	obs_source_set_videoframe(m_source, &m_videoFrame);
 }
 
+//static int64_t dddd = 0;
 void ScreenMirrorServer::outputAudio(uint8_t *data, size_t data_len, uint64_t pts)
 {
 	pthread_mutex_lock(&m_dataMutex);
@@ -629,6 +631,8 @@ void ScreenMirrorServer::outputAudio(uint8_t *data, size_t data_len, uint64_t pt
 	frame->pts = pts;
 	m_audioFrames.push_back(frame);
 	pthread_mutex_unlock(&m_dataMutex);
+	//blog(LOG_INFO,"%lld", (frame->pts-dddd)/1000000);
+	//dddd = frame->pts;
 }
 
 void ScreenMirrorServer::outputVideo(AVFrame *frame)
@@ -720,33 +724,55 @@ static uint32_t WinAirplayHeight(void *data)
 			     : s->if2->image.cy;
 	return height;
 }
+
 void  ScreenMirrorServer::WinAirplayVideoTick(void *data, float seconds)
 {
 	ScreenMirrorServer *s = (ScreenMirrorServer *)data;
 	pthread_mutex_lock(&s->m_dataMutex);
-	if (s->m_videoFrames.size() > 0) {
+	while (s->m_videoFrames.size() > 0) {
 		AVFrame *frame = s->m_videoFrames.front();
+		int64_t now = (int64_t)os_gettime_ns();
 		if (s->m_offset == LLONG_MAX)
-			s->m_offset = os_gettime_ns() - frame->pts+s->m_extraDelay;
+			s->m_offset = now - frame->pts+s->m_extraDelay;
 
-		if (s->m_offset + frame->pts <= os_gettime_ns()) {
+		if (s->m_offset + frame->pts <= now) {
 			s->outputVideoFrame(frame);
 			s->m_videoFrames.pop_front();
 
 			av_frame_free(&frame);
 		}
+		else
+		{
+			break;
+		}
 	}
 
-	if (s->m_audioFrames.size() > 0) {
+	while (s->m_audioFrames.size() > 0) {
 		AudioFrame *frame = s->m_audioFrames.front();
-		if (s->m_audioOffset == LLONG_MAX)
-			s->m_audioOffset = os_gettime_ns() - frame->pts + s->m_extraDelay;
+		int64_t now = (int64_t)os_gettime_ns();
+		if (s->m_audioOffset == LLONG_MAX || (s->m_audioStarted && now - s->m_audioCounting > 100000000))
+		{
+			s->m_audioStarted = false;
+			s->m_audioOffset = now - frame->pts + s->m_extraDelay;
+		}
+		/*blog(LOG_INFO, "offset:%lld,pts:%lld,extradelay:%lld, cur:%lld, minus:%lld, dd: %d ",
+			frame->pts-dddd,
+			frame->pts,
+			s->m_extraDelay,
+			now,
+			s->m_audioOffset + frame->pts - now,
+			s->m_audioOffset + frame->pts <= now);
+		dddd = frame->pts;*/
 
-		if (s->m_audioOffset + frame->pts <= os_gettime_ns()) {
+		if (s->m_audioOffset + frame->pts <= now) {
 			s->outputAudioFrame(frame->data, frame->data_len);
 			s->m_audioFrames.pop_front();
 			free(frame->data);
+			s->m_audioCounting = now;
+			s->m_audioStarted = true;
 		}
+		else
+			break;
 	}
 	pthread_mutex_unlock(&s->m_dataMutex);
 	

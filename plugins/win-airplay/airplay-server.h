@@ -14,6 +14,7 @@
 #include <graphics/image-file.h>
 #include "audio-monitoring/win32/wasapi-output.h"
 #include "media-io/audio-resampler.h"
+#include <portaudio.h>
 extern "C" {
 #include <util/pipe.h>
 }
@@ -23,7 +24,7 @@ extern "C" {
 struct AudioFrame {
 	uint8_t *data;
 	size_t data_len;
-	uint64_t pts;
+	int64_t pts;
 };
 
 class ScreenMirrorServer {
@@ -90,6 +91,8 @@ private:
 	int64_t m_offset = LLONG_MAX;
 	int64_t m_audioOffset = LLONG_MAX;
 	int64_t m_extraDelay = 0;
+	uint64_t m_audioCounting = 0;
+	bool m_audioStarted = false;
 
 	obs_source_t *m_cropFilter = nullptr;
 	obs_source_frame2 m_videoFrame;
