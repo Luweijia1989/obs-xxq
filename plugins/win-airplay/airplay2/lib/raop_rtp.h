@@ -1,4 +1,4 @@
-﻿/**
+/**
  *  Copyright (C) 2011-2012  Juho Vähä-Herttua
  *
  *  This library is free software; you can redistribute it and/or
@@ -50,5 +50,6 @@ void raop_rtp_flush(raop_rtp_t *raop_rtp, int next_seq);
 void raop_rtp_stop(raop_rtp_t *raop_rtp);
 int raop_rtp_is_running(raop_rtp_t *raop_rtp);
 void raop_rtp_destroy(raop_rtp_t *raop_rtp);
+void raop_rtp_sync_clear(raop_rtp_t *raop_rtp);
 
 #endif

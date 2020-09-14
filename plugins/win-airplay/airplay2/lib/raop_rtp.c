@@ -154,13 +154,7 @@ raop_rtp_t *raop_rtp_init(logger_t *logger, raop_callbacks_t *callbacks,
 	raop_rtp->logger = logger;
 	raop_rtp->ntp = ntp;
 
-	raop_rtp->rtp_sync_offset = 0;
-	raop_rtp->rtp_sync_scale = RAOP_RTP_SAMPLE_RATE;
-	raop_rtp->sync_data_index = 0;
-	for (int i = 0; i < RAOP_RTP_SYNC_DATA_COUNT; ++i) {
-		raop_rtp->sync_data[i].ntp_time = 0;
-		raop_rtp->sync_data[i].rtp_time = 0;
-	}
+	raop_rtp_sync_clear(raop_rtp);
 
 	memcpy(&raop_rtp->callbacks, callbacks, sizeof(raop_callbacks_t));
 	raop_rtp->buffer = raop_buffer_init(logger, aeskey, aesiv, ecdh_secret);
@@ -209,6 +203,17 @@ void raop_rtp_destroy(raop_rtp_t *raop_rtp)
 		free(raop_rtp->dacp_id);
 		free(raop_rtp->active_remote_header);
 		free(raop_rtp);
+	}
+}
+
+void raop_rtp_sync_clear(raop_rtp_t *raop_rtp)
+{
+	raop_rtp->rtp_sync_offset = 0;
+	raop_rtp->rtp_sync_scale = RAOP_RTP_SAMPLE_RATE;
+	raop_rtp->sync_data_index = 0;
+	for (int i = 0; i < RAOP_RTP_SYNC_DATA_COUNT; ++i) {
+		raop_rtp->sync_data[i].ntp_time = 0;
+		raop_rtp->sync_data[i].rtp_time = 0;
 	}
 }
 
@@ -647,6 +652,8 @@ void raop_rtp_start_audio(raop_rtp_t *raop_rtp, int use_udp,
 		return;
 	}
 
+	raop_rtp_sync_clear(raop_rtp);
+
 	/* Initialize ports and sockets */
 	raop_rtp->control_rport = control_rport;
 	if (raop_rtp->remote_saddr.ss_family == AF_INET6) {
@@ -797,14 +804,6 @@ void raop_rtp_stop(raop_rtp_t *raop_rtp)
 	MUTEX_LOCK(raop_rtp->run_mutex);
 	raop_rtp->joined = 1;
 	MUTEX_UNLOCK(raop_rtp->run_mutex);
-
-	raop_rtp->rtp_sync_offset = 0;
-	raop_rtp->rtp_sync_scale = RAOP_RTP_SAMPLE_RATE;
-	raop_rtp->sync_data_index = 0;
-	for (int i = 0; i < RAOP_RTP_SYNC_DATA_COUNT; ++i) {
-		raop_rtp->sync_data[i].ntp_time = 0;
-		raop_rtp->sync_data[i].rtp_time = 0;
-	}
 }
 
 int raop_rtp_is_running(raop_rtp_t *raop_rtp)

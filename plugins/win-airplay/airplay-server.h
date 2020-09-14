@@ -49,8 +49,6 @@ public:
 
 	void setBackendType(int type);
 	int backendType();
-	void loadImage(const char *path);
-	void renderImage(gs_effect_t *effect);
 
 	static void pipeCallback(void *param, uint8_t *data, size_t size);
 	static void WinAirplayVideoTick(void *data, float seconds);
@@ -58,14 +56,16 @@ public:
 	int m_height = 0;
 	obs_source_t *m_source = nullptr;
 	pthread_mutex_t m_typeChangeMutex;
-	obs_source_mirror_status mirror_status = OBS_SOURCE_MIRROR_STOP;
+	obs_source_mirror_status mirror_status = OBS_SOURCE_MIRROR_START;
 	gs_image_file2_t *if2 = nullptr;
+	uint64_t last_time = 0;
 
 private:
 	void resetState();
 	bool initAudioRenderer();
 	void destroyAudioRenderer();
-	void resetResampler(enum speaker_layout speakers, enum audio_format format, uint32_t samples_per_sec);
+	void resetResampler(enum speaker_layout speakers,
+			    enum audio_format format, uint32_t samples_per_sec);
 	bool initPipe();
 	void parseNalus(uint8_t *data, size_t size, uint8_t **out,
 			size_t *out_len);
@@ -73,6 +73,10 @@ private:
 	bool handleAirplayData();
 	bool handleUSBData();
 	const char *killProc();
+	void updateStatusImage();
+	void updateImageTexture();
+	void updateCropFilter(int lineSize, int frameWidth);
+	void loadImage(const char *path);
 
 private:
 	PaStreamParameters open_param_;
@@ -83,7 +87,7 @@ private:
 	struct resample_info to;
 	struct resample_info from;
 
-	std::list<AVFrame*> m_videoFrames;
+	std::list<AVFrame *> m_videoFrames;
 	std::list<AudioFrame *> m_audioFrames;
 	pthread_mutex_t m_dataMutex;
 	int64_t m_offset = LLONG_MAX;
@@ -92,6 +96,8 @@ private:
 
 	obs_source_t *m_cropFilter = nullptr;
 	obs_source_frame2 m_videoFrame;
+	obs_source_frame2 m_imageFrame;
+	obs_source_frame2 m_v;
 
 	struct IPCServer *m_ipcServer = nullptr;
 	os_process_pipe_t *process = nullptr;
