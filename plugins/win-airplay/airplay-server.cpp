@@ -574,7 +574,6 @@ void ScreenMirrorServer::outputVideoFrame(AVFrame *frame)
 	obs_source_set_videoframe(m_source, &m_videoFrame);
 }
 
-//static int64_t dddd = 0;
 void ScreenMirrorServer::outputAudio(uint8_t *data, size_t data_len, uint64_t pts)
 {
 	pthread_mutex_lock(&m_dataMutex);
@@ -585,8 +584,6 @@ void ScreenMirrorServer::outputAudio(uint8_t *data, size_t data_len, uint64_t pt
 	frame->pts = pts;
 	m_audioFrames.push_back(frame);
 	pthread_mutex_unlock(&m_dataMutex);
-	//blog(LOG_INFO,"%lld", (frame->pts-dddd)/1000000);
-	//dddd = frame->pts;
 }
 
 void ScreenMirrorServer::outputVideo(AVFrame *frame)
