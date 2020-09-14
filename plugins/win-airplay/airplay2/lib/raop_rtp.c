@@ -412,7 +412,6 @@ void raop_rtp_sync_clock(raop_rtp_t *raop_rtp, uint32_t rtp_time,
 		(raop_rtp->sync_data_index + 1) % RAOP_RTP_SYNC_DATA_COUNT;
 	raop_rtp->sync_data[raop_rtp->sync_data_index].rtp_time = rtp_time;
 	raop_rtp->sync_data[raop_rtp->sync_data_index].ntp_time = ntp_time;
-
 	uint32_t valid_data_count = 0;
 	valid_data_count = 0;
 	int64_t total_offsets = 0;
@@ -798,6 +797,14 @@ void raop_rtp_stop(raop_rtp_t *raop_rtp)
 	MUTEX_LOCK(raop_rtp->run_mutex);
 	raop_rtp->joined = 1;
 	MUTEX_UNLOCK(raop_rtp->run_mutex);
+
+	raop_rtp->rtp_sync_offset = 0;
+	raop_rtp->rtp_sync_scale = RAOP_RTP_SAMPLE_RATE;
+	raop_rtp->sync_data_index = 0;
+	for (int i = 0; i < RAOP_RTP_SYNC_DATA_COUNT; ++i) {
+		raop_rtp->sync_data[i].ntp_time = 0;
+		raop_rtp->sync_data[i].rtp_time = 0;
+	}
 }
 
 int raop_rtp_is_running(raop_rtp_t *raop_rtp)
