@@ -1730,6 +1730,7 @@ obs_sceneitem_t *obs_scene_add(obs_scene_t *scene, obs_source_t *source)
 			      &params);
 
 	calldata_set_ptr(&params, "source", source);
+	calldata_set_ptr(&params, "item", item);
 	if (scene->is_group) {
 		iter = obs->data.first_source;
 		while (iter) {
