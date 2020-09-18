@@ -1,4 +1,4 @@
-/******************************************************************************
+﻿/******************************************************************************
     Copyright (C) 2013-2014 by Hugh Bailey <obs.jim@gmail.com>
 
     This program is free software: you can redistribute it and/or modify
@@ -82,6 +82,7 @@ static const char *source_signals[] = {
 	"void transition_stop(ptr source)",
 	"void mirror_status_changed(ptr source, int status)",
 	"void settings_update(ptr source)",
+	"void settings_need_reload(ptr source)",
 	NULL,
 };
 
