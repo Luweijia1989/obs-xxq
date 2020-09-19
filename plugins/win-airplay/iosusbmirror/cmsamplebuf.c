@@ -57,9 +57,11 @@ bool NewCMSampleBufferFromBytes(uint8_t *data, size_t data_len, uint32_t media_t
 			if (ParseLengthAndMagic(next_data_pointer, data_len - (next_data_pointer - data), sdat, &next_data_pointer, &length) < 0)
 				return false;
 
-			sb_buffer->SampleData_len = length - 8;
+			size_t data_len = length - 8;
+			sb_buffer->SampleData_len = data_len + 4;
 			sb_buffer->SampleData = calloc(1, sb_buffer->SampleData_len);
-			memcpy(sb_buffer->SampleData, next_data_pointer, sb_buffer->SampleData_len);
+			memcpy(sb_buffer->SampleData, start_code, 4);
+			memcpy(sb_buffer->SampleData+4, next_data_pointer, data_len);
 			next_data_pointer += length - 8;
 		}
 		break;

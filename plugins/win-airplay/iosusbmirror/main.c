@@ -598,8 +598,6 @@ void pipeConsume(struct CMSampleBuffer *buf, void *c)
 	if (buf->HasFormatDescription) {
 		memcpy(app_device.m_info.pps, buf->FormatDescription.PPS,
 		       buf->FormatDescription.PPS_len);
-		memcpy(app_device.m_info.sps, buf->FormatDescription.SPS,
-		       buf->FormatDescription.SPS_len);
 		app_device.m_info.pps_len = buf->FormatDescription.PPS_len;
 		app_device.m_info.sps_len = buf->FormatDescription.SPS_len;
 		struct av_packet_info pack_info = {0};

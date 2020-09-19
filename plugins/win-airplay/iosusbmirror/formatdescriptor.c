@@ -142,10 +142,14 @@ int extractPPS(list_t *extensions, uint8_t *pps, size_t *pps_len, uint8_t *sps, 
 		return -1;
 
 	uint8_t *data = PPSEntry->serialized_data+8;
-	*pps_len = data[7];
-	memcpy(pps, data+8, *pps_len);
-	*sps_len = data[10+*pps_len];
-	memcpy(sps, data+11+*pps_len, *sps_len);
+	size_t p_len = data[7];
+	size_t s_len = data[10 + p_len];
+	*pps_len = p_len + s_len + 8;
+	memcpy(pps, start_code, 4);
+	memcpy(pps+4, data+8, p_len);
+	memcpy(pps+4+p_len, start_code, 4);
+	memcpy(pps+4+p_len+4, data + 11 + p_len, s_len);
+	*sps_len = 0;
 
 	return 0; 
 }

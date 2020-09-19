@@ -50,7 +50,8 @@ ScreenMirrorServer::ScreenMirrorServer(obs_source_t *source)
 	m_videoFile = fopen("video.x264", "wb");
 #endif
 
-	pthread_create(&m_audioTh, NULL, ScreenMirrorServer::audio_tick_thread, this);
+	pthread_create(&m_audioTh, NULL, ScreenMirrorServer::audio_tick_thread,
+		       this);
 
 	circlebuf_init(&m_avBuffer);
 	ipcSetup();
@@ -88,20 +89,11 @@ void ScreenMirrorServer::pipeCallback(void *param, uint8_t *data, size_t size)
 	circlebuf_push_back(&sm->m_avBuffer, data, size);
 
 	while (true) {
-		if (sm->m_backend == IOS_USB_CABLE) {
-			bool b = sm->handleUSBData();
-			if (b)
-				continue;
-			else
-				break;
-		} else if (sm->m_backend == IOS_AIRPLAY ||
-			   sm->m_backend == ANDROID_USB_CABLE) {
-			bool b = sm->handleAirplayData();
-			if (b)
-				continue;
-			else
-				break;
-		}
+		bool b = sm->handleAirplayData();
+		if (b)
+			continue;
+		else
+			break;
 	}
 	pthread_mutex_unlock(&sm->m_typeChangeMutex);
 }
@@ -180,8 +172,7 @@ void ScreenMirrorServer::updateStatusImage()
 {
 	updateCropFilter(0, 0);
 	const char *path = nullptr;
-	switch (mirror_status)
-	{
+	switch (mirror_status) {
 	case OBS_SOURCE_MIRROR_START:
 		path = "E:\\test.gif";
 		break;
@@ -202,18 +193,25 @@ void ScreenMirrorServer::updateStatusImage()
 void ScreenMirrorServer::updateImageTexture()
 {
 	m_imageFrame.timestamp = 0;
-	m_imageFrame.width = if2->image.is_animated_gif ? if2->image.gif.width : if2->image.cx;
-	m_imageFrame.height = if2->image.is_animated_gif ? if2->image.gif.height : if2->image.cy;
+	m_imageFrame.width = if2->image.is_animated_gif ? if2->image.gif.width
+							: if2->image.cx;
+	m_imageFrame.height = if2->image.is_animated_gif ? if2->image.gif.height
+							 : if2->image.cy;
 	m_imageFrame.format = gs_format_to_video_format(if2->image.format);
 	m_imageFrame.flip = false;
 	m_imageFrame.flip_h = false;
 
-	m_imageFrame.data[0] = if2->image.is_animated_gif ? if2->image.animation_frame_cache[if2->image.cur_frame] : if2->image.texture_data;
+	m_imageFrame.data[0] =
+		if2->image.is_animated_gif
+			? if2->image.animation_frame_cache[if2->image.cur_frame]
+			: if2->image.texture_data;
 	m_imageFrame.data[1] = NULL;
 
 	m_imageFrame.data[2] = NULL;
 
-	m_imageFrame.linesize[0] = if2->image.is_animated_gif ? if2->image.gif.width*4 : if2->image.cx * 4;
+	m_imageFrame.linesize[0] = if2->image.is_animated_gif
+					   ? if2->image.gif.width * 4
+					   : if2->image.cx * 4;
 	m_imageFrame.linesize[1] = 0;
 	m_imageFrame.linesize[2] = 0;
 	m_width = m_imageFrame.width;
@@ -226,8 +224,7 @@ void ScreenMirrorServer::updateCropFilter(int lineSize, int frameWidth)
 	if (!m_cropFilter)
 		return;
 	obs_data_t *setting = obs_source_get_settings(m_cropFilter);
-	obs_data_set_int(setting, "right",
-			 labs(lineSize - frameWidth));
+	obs_data_set_int(setting, "right", labs(lineSize - frameWidth));
 	obs_source_update(m_cropFilter, setting);
 	obs_data_release(setting);
 }
@@ -291,12 +288,9 @@ void ScreenMirrorServer::handleMirrorStatus()
 	int status = -1;
 	circlebuf_pop_front(&m_avBuffer, &status, sizeof(int));
 	mirror_status = (obs_source_mirror_status)status;
-	if (mirror_status == OBS_SOURCE_MIRROR_STOP)
-	{
+	if (mirror_status == OBS_SOURCE_MIRROR_STOP) {
 		resetState();
-	}
-	else if (mirror_status == OBS_SOURCE_MIRROR_ERROR)
-	{
+	} else if (mirror_status == OBS_SOURCE_MIRROR_ERROR) {
 		obs_data_t *event = obs_data_create();
 		obs_data_set_string(event, "eventType", "mirrorError");
 		auto handler = obs_source_get_signal_handler(m_source);
@@ -344,7 +338,8 @@ bool ScreenMirrorServer::handleAirplayData()
 			return true;
 
 		m_mediaInfo = info;
-		resetResampler(info.speakers, info.format, info.samples_per_sec);
+		resetResampler(info.speakers, info.format,
+			       info.samples_per_sec);
 		if (!m_infoReceived)
 			m_infoReceived = true;
 #ifdef DUMPFILE
@@ -360,11 +355,12 @@ bool ScreenMirrorServer::handleAirplayData()
 			fwrite(temp_buf, 1, req_size, m_auioFile);
 #endif // DUMPFILE
 			if (m_infoReceived) {
-				outputAudio(temp_buf, req_size, header_info.pts);
+				outputAudio(temp_buf, req_size,
+					    header_info.pts);
 			}
 		} else {
-			AVFrame *frame = m_decoder.docode(temp_buf, req_size, false,
-						   header_info.pts);
+			AVFrame *frame = m_decoder.docode(
+				temp_buf, req_size, false, header_info.pts);
 			if (frame)
 				outputVideo(frame);
 		}
@@ -404,7 +400,8 @@ bool ScreenMirrorServer::handleUSBData()
 			return true;
 
 		m_mediaInfo = info;
-		resetResampler(info.speakers, info.format, info.samples_per_sec);
+		resetResampler(info.speakers, info.format,
+			       info.samples_per_sec);
 		if (!m_infoReceived)
 			m_infoReceived = true;
 #ifdef DUMPFILE
@@ -430,15 +427,16 @@ bool ScreenMirrorServer::handleUSBData()
 			fwrite(temp_buf, 1, req_size, m_auioFile);
 #endif // DUMPFILE
 			if (m_infoReceived) {
-				outputAudio(temp_buf, req_size, header_info.pts);
+				outputAudio(temp_buf, req_size,
+					    header_info.pts);
 			}
 		} else {
 			uint8_t *all = NULL;
 			size_t all_len = 0;
 			parseNalus(temp_buf, req_size, &all, &all_len);
 			if (all_len) {
-				AVFrame *frame = m_decoder.docode(all, all_len, false,
-							   header_info.pts);
+				AVFrame *frame = m_decoder.docode(
+					all, all_len, false, header_info.pts);
 				if (frame)
 					outputVideo(frame);
 			}
@@ -477,13 +475,17 @@ bool ScreenMirrorServer::initAudioRenderer()
 {
 	memset(&from, 0, sizeof(struct resample_info));
 	PaError err = Pa_Initialize();
-	if (err != paNoError) goto error;	
+	if (err != paNoError)
+		goto error;
 
-	err = Pa_OpenDefaultStream(&pa_stream_, 0, 2, paInt16, 48000, 2048, nullptr, nullptr);
-	if (err != paNoError) goto error;
+	err = Pa_OpenDefaultStream(&pa_stream_, 0, 2, paInt16, 48000, 2048,
+				   nullptr, nullptr);
+	if (err != paNoError)
+		goto error;
 
 	err = Pa_StartStream(pa_stream_);
-	if (err != paNoError) goto error;
+	if (err != paNoError)
+		goto error;
 
 	to.samples_per_sec = sample_rate = 48000;
 	to.format = AUDIO_FORMAT_16BIT;
@@ -494,13 +496,11 @@ bool ScreenMirrorServer::initAudioRenderer()
 error:
 	Pa_Terminate();
 	return err;
-
 }
 
 void ScreenMirrorServer::destroyAudioRenderer()
 {
-	if (pa_stream_)
-	{
+	if (pa_stream_) {
 		Pa_StopStream(pa_stream_);
 		Pa_CloseStream(pa_stream_);
 		Pa_Terminate();
@@ -513,11 +513,11 @@ void ScreenMirrorServer::resetResampler(enum speaker_layout speakers,
 					enum audio_format format,
 					uint32_t samples_per_sec)
 {
-	if (from.format == format && from.speakers == speakers && from.samples_per_sec == samples_per_sec && resampler)
+	if (from.format == format && from.speakers == speakers &&
+	    from.samples_per_sec == samples_per_sec && resampler)
 		return;
 
-	if (resampler)
-	{
+	if (resampler) {
 		audio_resampler_destroy(resampler);
 		resampler = nullptr;
 	}
@@ -588,8 +588,8 @@ void ScreenMirrorServer::outputVideoFrame(AVFrame *frame)
 	m_videoFrame.flip_h = false;
 
 	m_videoFrame.data[0] = frame->data[0];
-	m_videoFrame.data[1] =	frame->data[1];
-		
+	m_videoFrame.data[1] = frame->data[1];
+
 	m_videoFrame.data[2] = frame->data[2];
 
 	m_videoFrame.linesize[0] = frame->linesize[0];
@@ -600,7 +600,8 @@ void ScreenMirrorServer::outputVideoFrame(AVFrame *frame)
 	obs_source_set_videoframe(m_source, &m_videoFrame);
 }
 
-void ScreenMirrorServer::outputAudio(uint8_t *data, size_t data_len, uint64_t pts)
+void ScreenMirrorServer::outputAudio(uint8_t *data, size_t data_len,
+				     uint64_t pts)
 {
 	pthread_mutex_lock(&m_audioDataMutex);
 	auto frame = new AudioFrame;
@@ -719,12 +720,11 @@ void *ScreenMirrorServer::audio_tick_thread(void *data)
 	return NULL;
 }
 
-void  ScreenMirrorServer::WinAirplayVideoTick(void *data, float seconds)
+void ScreenMirrorServer::WinAirplayVideoTick(void *data, float seconds)
 {
 	ScreenMirrorServer *s = (ScreenMirrorServer *)data;
 
-	if (s->mirror_status != OBS_SOURCE_MIRROR_OUTPUT)
-	{
+	if (s->mirror_status != OBS_SOURCE_MIRROR_OUTPUT) {
 		uint64_t frame_time = obs_get_video_frame_time();
 		if (s->last_time && s->if2->image.is_animated_gif) {
 			uint64_t elapsed = frame_time - s->last_time;
@@ -742,27 +742,24 @@ void  ScreenMirrorServer::WinAirplayVideoTick(void *data, float seconds)
 		AVFrame *frame = s->m_videoFrames.front();
 		int64_t now = (int64_t)os_gettime_ns();
 		if (s->m_offset == LLONG_MAX)
-			s->m_offset = now - frame->pts+s->m_extraDelay;
+			s->m_offset = now - frame->pts + s->m_extraDelay;
 
 		if (s->m_offset + frame->pts <= now) {
 			s->outputVideoFrame(frame);
 			s->m_videoFrames.pop_front();
 
 			av_frame_free(&frame);
-		}
-		else
+		} else
 			break;
 	}
 	pthread_mutex_unlock(&s->m_videoDataMutex);
-	
 }
 
 static void WinAirplayCustomCommand(void *data, obs_data_t *cmd)
 {
 	ScreenMirrorServer *s = (ScreenMirrorServer *)data;
-	const char * cmdType = obs_data_get_string(cmd, "type");
-	if (strcmp("airplayRestart", cmdType) == 0)
-	{
+	const char *cmdType = obs_data_get_string(cmd, "type");
+	if (strcmp("airplayRestart", cmdType) == 0) {
 		s->mirrorServerDestroy();
 		s->mirrorServerSetup();
 	}
