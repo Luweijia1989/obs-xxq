@@ -184,8 +184,8 @@ raop_rtp_t *raop_rtp_init(logger_t *logger, raop_callbacks_t *callbacks,
 
 	if (raop_rtp->callbacks.connected) {
 		raop_rtp->callbacks.connected(raop_rtp->callbacks.cls,
-						 raop_rtp->remoteName,
-						 raop_rtp->remoteDeviceId);
+					      raop_rtp->remoteName,
+					      raop_rtp->remoteDeviceId);
 	}
 
 	MUTEX_CREATE(raop_rtp->run_mutex);
@@ -519,7 +519,8 @@ static THREAD_RETVAL raop_rtp_thread_udp(void *arg)
 					rtp_timestamp);
 				int result = raop_buffer_enqueue(
 					raop_rtp->buffer, packet + 4,
-					packetlen - 4, ntp_timestamp, 1, raop_rtp->rtp_sync_offset);
+					packetlen - 4, ntp_timestamp, 1,
+					raop_rtp->rtp_sync_offset);
 				assert(result >= 0);
 			} else if (type_c == 0x54 && packetlen >= 20) {
 				// The unit for the rtp clock is 1 / sample rate = 1 / 44100
@@ -584,7 +585,8 @@ static THREAD_RETVAL raop_rtp_thread_udp(void *arg)
 
 				int result = raop_buffer_enqueue(
 					raop_rtp->buffer, packet, packetlen,
-					ntp_now, 1, raop_rtp->rtp_sync_offset);
+					ntp_timestamp, 1,
+					raop_rtp->rtp_sync_offset);
 				assert(result >= 0);
 
 				// Render continuous buffer entries
@@ -602,7 +604,7 @@ static THREAD_RETVAL raop_rtp_thread_udp(void *arg)
 					pcm_data_struct pcm_data;
 					pcm_data.data_len = audiobuf_size;
 					pcm_data.data = audiobuf;
-					pcm_data.pts = timestamp*1000;
+					pcm_data.pts = timestamp * 1000;
 					pcm_data.sample_rate = sample_rate;
 					pcm_data.channels = channels;
 					pcm_data.bits_per_sample =

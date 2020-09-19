@@ -33,7 +33,8 @@ ScreenMirrorServer::ScreenMirrorServer(obs_source_t *source)
 	initAudioRenderer();
 
 	pthread_mutex_init(&m_typeChangeMutex, nullptr);
-	pthread_mutex_init(&m_dataMutex, nullptr);
+	pthread_mutex_init(&m_videoDataMutex, nullptr);
+	pthread_mutex_init(&m_audioDataMutex, nullptr);
 	memset(m_videoFrame.data, 0, sizeof(m_videoFrame.data));
 	memset(&m_videoFrame, 0, sizeof(&m_videoFrame));
 
@@ -49,6 +50,8 @@ ScreenMirrorServer::ScreenMirrorServer(obs_source_t *source)
 	m_videoFile = fopen("video.x264", "wb");
 #endif
 
+	pthread_create(&m_audioTh, NULL, ScreenMirrorServer::audio_tick_thread, this);
+
 	circlebuf_init(&m_avBuffer);
 	ipcSetup();
 
@@ -57,6 +60,9 @@ ScreenMirrorServer::ScreenMirrorServer(obs_source_t *source)
 
 ScreenMirrorServer::~ScreenMirrorServer()
 {
+	m_running = false;
+	pthread_join(m_audioTh, NULL);
+
 	obs_enter_graphics();
 	gs_image_file2_free(if2);
 	obs_leave_graphics();
@@ -65,7 +71,8 @@ ScreenMirrorServer::~ScreenMirrorServer()
 	ipcDestroy();
 	circlebuf_free(&m_avBuffer);
 	pthread_mutex_destroy(&m_typeChangeMutex);
-	pthread_mutex_destroy(&m_dataMutex);
+	pthread_mutex_destroy(&m_videoDataMutex);
+	pthread_mutex_destroy(&m_audioDataMutex);
 
 	destroyAudioRenderer();
 #ifdef DUMPFILE
@@ -445,7 +452,7 @@ bool ScreenMirrorServer::handleUSBData()
 
 void ScreenMirrorServer::resetState()
 {
-	pthread_mutex_lock(&m_dataMutex);
+	pthread_mutex_lock(&m_videoDataMutex);
 	m_offset = LLONG_MAX;
 	m_audioOffset = LLONG_MAX;
 	for (auto iter = m_videoFrames.begin(); iter != m_videoFrames.end();
@@ -454,13 +461,16 @@ void ScreenMirrorServer::resetState()
 		av_frame_free(&f);
 	}
 	m_videoFrames.clear();
+	pthread_mutex_unlock(&m_videoDataMutex);
+
+	pthread_mutex_lock(&m_audioDataMutex);
 	for (auto iter = m_audioFrames.begin(); iter != m_audioFrames.end();
 	     iter++) {
 		AudioFrame *f = *iter;
 		free(f->data);
 	}
 	m_audioFrames.clear();
-	pthread_mutex_unlock(&m_dataMutex);
+	pthread_mutex_unlock(&m_audioDataMutex);
 }
 
 bool ScreenMirrorServer::initAudioRenderer()
@@ -592,21 +602,21 @@ void ScreenMirrorServer::outputVideoFrame(AVFrame *frame)
 
 void ScreenMirrorServer::outputAudio(uint8_t *data, size_t data_len, uint64_t pts)
 {
-	pthread_mutex_lock(&m_dataMutex);
+	pthread_mutex_lock(&m_audioDataMutex);
 	auto frame = new AudioFrame;
 	frame->data = (uint8_t *)malloc(data_len);
 	memcpy(frame->data, data, data_len);
 	frame->data_len = data_len;
 	frame->pts = pts;
 	m_audioFrames.push_back(frame);
-	pthread_mutex_unlock(&m_dataMutex);
+	pthread_mutex_unlock(&m_audioDataMutex);
 }
 
 void ScreenMirrorServer::outputVideo(AVFrame *frame)
 {
-	pthread_mutex_lock(&m_dataMutex);
+	pthread_mutex_lock(&m_videoDataMutex);
 	m_videoFrames.push_back(frame);
-	pthread_mutex_unlock(&m_dataMutex);
+	pthread_mutex_unlock(&m_videoDataMutex);
 }
 
 OBS_DECLARE_MODULE()
@@ -683,6 +693,32 @@ static uint32_t WinAirplayHeight(void *data)
 	return s->m_height;
 }
 
+void *ScreenMirrorServer::audio_tick_thread(void *data)
+{
+	ScreenMirrorServer *s = (ScreenMirrorServer *)data;
+	while (s->m_running) {
+		pthread_mutex_lock(&s->m_audioDataMutex);
+		while (s->m_audioFrames.size() > 0) {
+			AudioFrame *frame = s->m_audioFrames.front();
+			int64_t now = (int64_t)os_gettime_ns();
+			if (s->m_audioOffset == LLONG_MAX)
+				s->m_audioOffset =
+					now - frame->pts + s->m_extraDelay;
+
+			if (s->m_audioOffset + frame->pts <= now) {
+				s->outputAudioFrame(frame->data,
+						    frame->data_len);
+				s->m_audioFrames.pop_front();
+				free(frame->data);
+			} else
+				break;
+		}
+		pthread_mutex_unlock(&s->m_audioDataMutex);
+		os_sleep_ms(10);
+	}
+	return NULL;
+}
+
 void  ScreenMirrorServer::WinAirplayVideoTick(void *data, float seconds)
 {
 	ScreenMirrorServer *s = (ScreenMirrorServer *)data;
@@ -701,7 +737,7 @@ void  ScreenMirrorServer::WinAirplayVideoTick(void *data, float seconds)
 		s->last_time = frame_time;
 	}
 
-	pthread_mutex_lock(&s->m_dataMutex);
+	pthread_mutex_lock(&s->m_videoDataMutex);
 	while (s->m_videoFrames.size() > 0) {
 		AVFrame *frame = s->m_videoFrames.front();
 		int64_t now = (int64_t)os_gettime_ns();
@@ -717,22 +753,7 @@ void  ScreenMirrorServer::WinAirplayVideoTick(void *data, float seconds)
 		else
 			break;
 	}
-
-	while (s->m_audioFrames.size() > 0) {
-		AudioFrame *frame = s->m_audioFrames.front();
-		int64_t now = (int64_t)os_gettime_ns();
-		if (s->m_audioOffset == LLONG_MAX )
-			s->m_audioOffset = now - frame->pts + s->m_extraDelay;
-
-		if (s->m_audioOffset + frame->pts <= now) {
-			s->outputAudioFrame(frame->data, frame->data_len);
-			s->m_audioFrames.pop_front();
-			free(frame->data);
-		}
-		else
-			break;
-	}
-	pthread_mutex_unlock(&s->m_dataMutex);
+	pthread_mutex_unlock(&s->m_videoDataMutex);
 	
 }
 

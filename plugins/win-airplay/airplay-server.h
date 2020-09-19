@@ -52,6 +52,7 @@ public:
 
 	static void pipeCallback(void *param, uint8_t *data, size_t size);
 	static void WinAirplayVideoTick(void *data, float seconds);
+	static void *audio_tick_thread(void *data);
 	int m_width = 0;
 	int m_height = 0;
 	obs_source_t *m_source = nullptr;
@@ -89,7 +90,10 @@ private:
 
 	std::list<AVFrame *> m_videoFrames;
 	std::list<AudioFrame *> m_audioFrames;
-	pthread_mutex_t m_dataMutex;
+	pthread_mutex_t m_videoDataMutex;
+	pthread_mutex_t m_audioDataMutex;
+	pthread_t m_audioTh;
+	bool m_running = true;
 	int64_t m_offset = LLONG_MAX;
 	int64_t m_audioOffset = LLONG_MAX;
 	int64_t m_extraDelay = 0;
