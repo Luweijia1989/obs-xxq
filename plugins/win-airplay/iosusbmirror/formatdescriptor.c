@@ -5,6 +5,8 @@
 #include "audio_stream_basic_description.h"
 #include <memory.h>
 
+static uint8_t start_code[] = { 0x00, 0x00, 0x00, 0x01 };
+
 #define MediaTypeMagic                   0x6D646961 
 #define VideoDimensionMagic              0x7664696D
 #define CodecMagic                       0x636F6463 

@@ -71,12 +71,10 @@ private:
 	void parseNalus(uint8_t *data, size_t size, uint8_t **out,
 			size_t *out_len);
 	void handleMirrorStatus();
-	bool handleAirplayData();
-	bool handleUSBData();
+	bool handleMediaData();
 	const char *killProc();
 	void updateStatusImage();
 	void updateImageTexture();
-	void updateCropFilter(int lineSize, int frameWidth);
 	void loadImage(const char *path);
 
 private:
@@ -98,7 +96,6 @@ private:
 	int64_t m_audioOffset = LLONG_MAX;
 	int64_t m_extraDelay = 0;
 
-	obs_source_t *m_cropFilter = nullptr;
 	obs_source_frame2 m_videoFrame;
 	obs_source_frame2 m_imageFrame;
 	obs_source_frame2 m_v;

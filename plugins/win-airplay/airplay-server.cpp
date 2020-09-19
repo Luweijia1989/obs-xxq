@@ -22,14 +22,6 @@ ScreenMirrorServer::ScreenMirrorServer(obs_source_t *source)
 	: m_source(source),
 	  if2((gs_image_file2_t *)bzalloc(sizeof(gs_image_file2_t)))
 {
-	m_cropFilter = obs_source_filter_get_by_name(m_source, "cropFilter");
-	if (!m_cropFilter) {
-		m_cropFilter = obs_source_create("crop_filter", "cropFilter",
-						 nullptr, nullptr);
-		obs_source_filter_add(m_source, m_cropFilter);
-		obs_source_release(m_cropFilter);
-	}
-
 	initAudioRenderer();
 
 	pthread_mutex_init(&m_typeChangeMutex, nullptr);
@@ -89,7 +81,7 @@ void ScreenMirrorServer::pipeCallback(void *param, uint8_t *data, size_t size)
 	circlebuf_push_back(&sm->m_avBuffer, data, size);
 
 	while (true) {
-		bool b = sm->handleAirplayData();
+		bool b = sm->handleMediaData();
 		if (b)
 			continue;
 		else
@@ -170,7 +162,6 @@ static video_format gs_format_to_video_format(gs_color_format format)
 
 void ScreenMirrorServer::updateStatusImage()
 {
-	updateCropFilter(0, 0);
 	const char *path = nullptr;
 	switch (mirror_status) {
 	case OBS_SOURCE_MIRROR_START:
@@ -217,16 +208,6 @@ void ScreenMirrorServer::updateImageTexture()
 	m_width = m_imageFrame.width;
 	m_height = m_imageFrame.height;
 	obs_source_set_videoframe(m_source, &m_imageFrame);
-}
-
-void ScreenMirrorServer::updateCropFilter(int lineSize, int frameWidth)
-{
-	if (!m_cropFilter)
-		return;
-	obs_data_t *setting = obs_source_get_settings(m_cropFilter);
-	obs_data_set_int(setting, "right", labs(lineSize - frameWidth));
-	obs_source_update(m_cropFilter, setting);
-	obs_data_release(setting);
 }
 
 void ScreenMirrorServer::setBackendType(int type)
@@ -288,27 +269,27 @@ void ScreenMirrorServer::handleMirrorStatus()
 	int status = -1;
 	circlebuf_pop_front(&m_avBuffer, &status, sizeof(int));
 	mirror_status = (obs_source_mirror_status)status;
+
+	obs_data_t *event = obs_data_create();
+	obs_data_set_string(event, "eventType", "MirrorStatus");
+	obs_data_set_int(event, "value", mirror_status);
+	auto handler = obs_source_get_signal_handler(m_source);
+	struct calldata cd;
+	uint8_t stack[128];
+	calldata_init_fixed(&cd, stack, sizeof(stack));
+	calldata_set_ptr(&cd, "source", m_source);
+	calldata_set_ptr(&cd, "event", event);
+	signal_handler_signal(handler, "signal_event", &cd);
+	obs_data_release(event);
+
 	if (mirror_status == OBS_SOURCE_MIRROR_STOP) {
 		resetState();
-	} else if (mirror_status == OBS_SOURCE_MIRROR_ERROR) {
-		obs_data_t *event = obs_data_create();
-		obs_data_set_string(event, "eventType", "mirrorError");
-		auto handler = obs_source_get_signal_handler(m_source);
-
-		struct calldata cd;
-		uint8_t stack[128];
-
-		calldata_init_fixed(&cd, stack, sizeof(stack));
-		calldata_set_ptr(&cd, "source", m_source);
-		calldata_set_ptr(&cd, "event", event);
-
-		signal_handler_signal(handler, "signal_event", &cd);
-		obs_data_release(event);
-	}
+	} 
+	
 	updateStatusImage();
 }
 
-bool ScreenMirrorServer::handleAirplayData()
+bool ScreenMirrorServer::handleMediaData()
 {
 	size_t header_size = sizeof(struct av_packet_info);
 	if (m_avBuffer.size < header_size)
@@ -359,88 +340,23 @@ bool ScreenMirrorServer::handleAirplayData()
 					    header_info.pts);
 			}
 		} else {
-			AVFrame *frame = m_decoder.docode(
-				temp_buf, req_size, false, header_info.pts);
+			AVFrame *frame = nullptr;
+			if (memcmp(temp_buf, start_code, 4) == 0)
+			{
+				frame = m_decoder.docode( temp_buf, req_size, false, header_info.pts);
+			}
+			else
+			{
+				uint8_t *all = NULL;
+				size_t all_len = 0;
+				parseNalus(temp_buf, req_size, &all, &all_len);
+				if (all_len) {
+					frame = m_decoder.docode(all, all_len, false, header_info.pts);
+				}
+				free(all);
+			}
 			if (frame)
 				outputVideo(frame);
-		}
-
-		free(temp_buf);
-	}
-	return true;
-}
-
-bool ScreenMirrorServer::handleUSBData()
-{
-	size_t header_size = sizeof(struct av_packet_info);
-	if (m_avBuffer.size < header_size)
-		return false;
-
-	struct av_packet_info header_info = {0};
-	circlebuf_peek_front(&m_avBuffer, &header_info, header_size);
-
-	size_t req_size = header_info.size;
-	if (m_avBuffer.size < req_size + header_size)
-		return false;
-
-	circlebuf_pop_front(&m_avBuffer, &header_info,
-			    header_size); // remove it
-
-	if (header_info.type == FFM_MIRROR_STATUS)
-		handleMirrorStatus();
-	else if (header_info.type == FFM_MEDIA_INFO) {
-		struct media_info info;
-		memset(&info, 0, req_size);
-		circlebuf_pop_front(&m_avBuffer, &info, req_size);
-
-		blog(LOG_INFO, "recv media info, pps_len: %d, sps_len: %d",
-		     info.pps_len, info.sps_len);
-
-		if (info.sps_len == 0 || info.pps_len == 0)
-			return true;
-
-		m_mediaInfo = info;
-		resetResampler(info.speakers, info.format,
-			       info.samples_per_sec);
-		if (!m_infoReceived)
-			m_infoReceived = true;
-#ifdef DUMPFILE
-		doWithNalu(info.pps, info.pps_len);
-		doWithNalu(info.sps, info.sps_len);
-#endif // DUMPFILE
-		uint8_t *temp_buff =
-			(uint8_t *)calloc(1, info.sps_len + info.pps_len + 8);
-		memcpy(temp_buff, start_code, 4);
-		memcpy(temp_buff + 4, info.pps, info.pps_len);
-		memcpy(temp_buff + 4 + info.pps_len, start_code, 4);
-		memcpy(temp_buff + 4 + info.pps_len + 4, info.sps,
-		       info.sps_len);
-		m_decoder.docode(temp_buff, info.sps_len + info.pps_len + 8,
-				 true, 0);
-		free(temp_buff);
-	} else {
-		uint8_t *temp_buf = (uint8_t *)calloc(1, req_size);
-		circlebuf_pop_front(&m_avBuffer, temp_buf, req_size);
-
-		if (header_info.type == FFM_PACKET_AUDIO) {
-#ifdef DUMPFILE
-			fwrite(temp_buf, 1, req_size, m_auioFile);
-#endif // DUMPFILE
-			if (m_infoReceived) {
-				outputAudio(temp_buf, req_size,
-					    header_info.pts);
-			}
-		} else {
-			uint8_t *all = NULL;
-			size_t all_len = 0;
-			parseNalus(temp_buf, req_size, &all, &all_len);
-			if (all_len) {
-				AVFrame *frame = m_decoder.docode(
-					all, all_len, false, header_info.pts);
-				if (frame)
-					outputVideo(frame);
-			}
-			free(all);
 		}
 
 		free(temp_buf);
@@ -576,12 +492,8 @@ void ScreenMirrorServer::outputVideoFrame(AVFrame *frame)
 	if (mirror_status != OBS_SOURCE_MIRROR_OUTPUT)
 		mirror_status = OBS_SOURCE_MIRROR_OUTPUT;
 
-	if (frame->linesize[0] != m_videoFrame.width ||
-	    frame->height != m_videoFrame.height) {
-		updateCropFilter(frame->linesize[0], frame->width);
-	}
 	m_videoFrame.timestamp = frame->pts;
-	m_videoFrame.width = frame->linesize[0];
+	m_videoFrame.width = frame->width;
 	m_videoFrame.height = frame->height;
 	m_videoFrame.format = VIDEO_FORMAT_I420;
 	m_videoFrame.flip = false;
@@ -603,9 +515,6 @@ void ScreenMirrorServer::outputVideoFrame(AVFrame *frame)
 void ScreenMirrorServer::outputAudio(uint8_t *data, size_t data_len,
 				     uint64_t pts)
 {
-	outputAudioFrame(data, data_len);
-	return;
-
 	pthread_mutex_lock(&m_audioDataMutex);
 	auto frame = new AudioFrame;
 	frame->data = (uint8_t *)malloc(data_len);
@@ -618,8 +527,6 @@ void ScreenMirrorServer::outputAudio(uint8_t *data, size_t data_len,
 
 void ScreenMirrorServer::outputVideo(AVFrame *frame)
 {
-	outputVideoFrame(frame);
-		return;
 	pthread_mutex_lock(&m_videoDataMutex);
 	m_videoFrames.push_back(frame);
 	pthread_mutex_unlock(&m_videoDataMutex);

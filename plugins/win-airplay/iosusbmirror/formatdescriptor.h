@@ -9,8 +9,6 @@
 #define MediaTypeVideo                   0x76696465 
 #define MediaTypeSound                   0x736F756E
 
-static uint8_t start_code[] = { 0x00, 0x00, 0x00, 0x01 };
-
 struct FormatDescriptor {
 	uint32_t MediaType;
 	uint32_t VideoDimensionWidth;
