@@ -24,10 +24,12 @@ file(GLOB_RECURSE fdkaac_HEADER ${PROJECT_SOURCE_DIR}/lib/fdk-aac *.hpp *.h)
 
 set(iosairplay_extra_SOURCES
 	../ipc.c
+	airplay-server.rc
 )
 			 
 set(iosairplay_extra_HEADERS
 	../ipc.h
+	resource.h
 )
 
 add_executable( airplay-server
@@ -46,7 +48,8 @@ target_link_libraries( airplay-server
 	optimized ${PROJECT_SOURCE_DIR}/lib/openssl/lib/libsslMT.lib
 	ipc-util
 	Crypt32
-	Ws2_32	    
+	Ws2_32
+	Shlwapi
 	legacy_stdio_definitions 
 	curve25519
 	ed25519
