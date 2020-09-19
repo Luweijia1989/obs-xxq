@@ -3,6 +3,34 @@
 #include "byteutils.h"
 #include <memory.h>
 
+void parseNalus(uint8_t *data, size_t size, uint8_t **out, size_t *out_len)
+{
+	int total_size = 0;
+	uint8_t *slice = data;
+	while (slice < data + size) {
+		size_t length = byteutils_get_int_be(slice, 0);
+		total_size += length + 4;
+		slice += length + 4;
+	}
+
+	if (total_size) {
+		*out = (uint8_t *)calloc(1, total_size);
+		uint8_t *ptr = *out;
+		*out_len = total_size;
+		slice = data;
+		size_t copy_index = 0;
+		while (slice < data + size) {
+			memcpy(ptr + copy_index, start_code, 4);
+			copy_index += 4;
+			size_t length = byteutils_get_int_be(slice, 0);
+			total_size += length + 4;
+			memcpy(ptr + copy_index, slice + 4, length);
+			copy_index += length;
+			slice += length + 4;
+		}
+	}
+}
+
 bool NewCMSampleBufferFromBytesAudio(uint8_t *data, size_t data_len, struct CMSampleBuffer *sb_buffer)
 {
 	return NewCMSampleBufferFromBytes(data, data_len, MediaTypeSound, sb_buffer);
@@ -57,11 +85,7 @@ bool NewCMSampleBufferFromBytes(uint8_t *data, size_t data_len, uint32_t media_t
 			if (ParseLengthAndMagic(next_data_pointer, data_len - (next_data_pointer - data), sdat, &next_data_pointer, &length) < 0)
 				return false;
 
-			size_t data_len = length - 8;
-			sb_buffer->SampleData_len = data_len + 4;
-			sb_buffer->SampleData = calloc(1, sb_buffer->SampleData_len);
-			memcpy(sb_buffer->SampleData, start_code, 4);
-			memcpy(sb_buffer->SampleData+4, next_data_pointer, data_len);
+			parseNalus(next_data_pointer, length-8, &sb_buffer->SampleData, &sb_buffer->SampleData_len);
 			next_data_pointer += length - 8;
 		}
 		break;

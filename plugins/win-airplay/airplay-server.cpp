@@ -603,6 +603,9 @@ void ScreenMirrorServer::outputVideoFrame(AVFrame *frame)
 void ScreenMirrorServer::outputAudio(uint8_t *data, size_t data_len,
 				     uint64_t pts)
 {
+	outputAudioFrame(data, data_len);
+	return;
+
 	pthread_mutex_lock(&m_audioDataMutex);
 	auto frame = new AudioFrame;
 	frame->data = (uint8_t *)malloc(data_len);
@@ -615,6 +618,8 @@ void ScreenMirrorServer::outputAudio(uint8_t *data, size_t data_len,
 
 void ScreenMirrorServer::outputVideo(AVFrame *frame)
 {
+	outputVideoFrame(frame);
+		return;
 	pthread_mutex_lock(&m_videoDataMutex);
 	m_videoFrames.push_back(frame);
 	pthread_mutex_unlock(&m_videoDataMutex);
