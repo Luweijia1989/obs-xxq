@@ -18,7 +18,13 @@ CAirServer::~CAirServer()
 void CAirServer::outputStatus(bool isConnected, const char *remoteName,
 			      const char *remoteDeviceId)
 {
-	send_status(client, isConnected ? MIRROR_START : MIRROR_STOP);
+	outputStatus(isConnected ? MIRROR_START : MIRROR_STOP, remoteName, remoteDeviceId);
+}
+
+void CAirServer::outputStatus(mirror_status s, const char *remoteName,
+			      const char *remoteDeviceId)
+{
+	send_status(client, s);
 }
 
 void CAirServer::outputAudio(uint8_t *data, size_t data_len, uint64_t pts,

@@ -12,10 +12,12 @@ enum av_packet_type {
 };
 
 enum mirror_status { // same as obs_source_mirror_status
+	MIRROR_ERROR,
 	MIRROR_DEVICE_CONNECTED,
 	MIRROR_DEVICE_LOST,
 	MIRROR_START,
 	MIRROR_STOP,
+	MIRROR_OUTPUT,
 };
 
 #define FFM_SUCCESS 0

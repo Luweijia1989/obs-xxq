@@ -44,6 +44,7 @@ enum obs_balance_type {
 };
 
 enum obs_source_mirror_status {
+	OBS_SOURCE_MIRROR_ERROR,
 	OBS_SOURCE_MIRROR_DEVICE_CONNECTED,
 	OBS_SOURCE_MIRROR_DEVICE_LOST,
 	OBS_SOURCE_MIRROR_START,
@@ -479,6 +480,11 @@ struct obs_source_info {
 	bool (*audio_mix)(void *data, uint64_t *ts_out,
 			  struct audio_output_data *audio_output,
 			  size_t channels, size_t sample_rate);
+
+	/**
+	* transfer custom command to source
+	*/
+	void (*make_command)(void *data, obs_data_t *command);
 };
 
 EXPORT void obs_register_source_s(const struct obs_source_info *info,

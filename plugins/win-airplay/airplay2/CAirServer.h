@@ -8,8 +8,10 @@ public:
 	CAirServer();
 	~CAirServer();
 
-	void outputStatus(bool isConnected, const char *remoteName,
-			  const char *remoteDeviceId);
+	void outputStatus(bool isConnected, const char *remoteName="",
+			  const char *remoteDeviceId="");
+	void outputStatus(mirror_status s, const char *remoteName ="",
+			  const char *remoteDeviceId="");
 	void outputAudio(uint8_t *data, size_t data_len, uint64_t pts,
 			 const char *remoteName, const char *remoteDeviceId);
 	void outputVideo(uint8_t *data, size_t data_len, uint64_t pts,

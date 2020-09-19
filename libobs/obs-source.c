@@ -1,4 +1,4 @@
-﻿/******************************************************************************
+/******************************************************************************
     Copyright (C) 2013-2014 by Hugh Bailey <obs.jim@gmail.com>
 
     This program is free software: you can redistribute it and/or modify
@@ -83,6 +83,7 @@ static const char *source_signals[] = {
 	"void mirror_status_changed(ptr source, int status)",
 	"void settings_update(ptr source)",
 	"void settings_need_reload(ptr source)",
+	"void signal_event(ptr source, ptr event)",
 	NULL,
 };
 
@@ -4744,6 +4745,16 @@ uint32_t obs_source_get_last_obs_version(const obs_source_t *source)
 	return obs_source_valid(source, "obs_source_get_last_obs_version")
 		       ? source->last_obs_ver
 		       : 0;
+}
+
+void obs_source_do_custom_command(const obs_source_t *source,
+				  obs_data_t *command)
+{
+	if (!obs_source_valid(source, "obs_source_do_custom_command"))
+		return;
+
+	if (source->info.make_command)
+		source->info.make_command(source->context.data, command);
 }
 
 void obs_source_set_videoframe(obs_source_t *source,

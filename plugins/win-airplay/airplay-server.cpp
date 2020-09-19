@@ -288,6 +288,22 @@ void ScreenMirrorServer::handleMirrorStatus()
 	{
 		resetState();
 	}
+	else if (mirror_status == OBS_SOURCE_MIRROR_ERROR)
+	{
+		obs_data_t *event = obs_data_create();
+		obs_data_set_string(event, "eventType", "mirrorError");
+		auto handler = obs_source_get_signal_handler(m_source);
+
+		struct calldata cd;
+		uint8_t stack[128];
+
+		calldata_init_fixed(&cd, stack, sizeof(stack));
+		calldata_set_ptr(&cd, "source", m_source);
+		calldata_set_ptr(&cd, "event", event);
+
+		signal_handler_signal(handler, "signal_event", &cd);
+		obs_data_release(event);
+	}
 	updateStatusImage();
 }
 
@@ -624,7 +640,7 @@ static void UpdateWinAirplaySource(void *obj, obs_data_t *settings)
 static void GetWinAirplayDefaultsOutput(obs_data_t *settings)
 {
 	obs_data_set_default_int(settings, "type",
-				 ScreenMirrorServer::IOS_USB_CABLE);
+				 ScreenMirrorServer::IOS_AIRPLAY);
 }
 
 static obs_properties_t *GetWinAirplayPropertiesOutput(void *data)
@@ -720,6 +736,17 @@ void  ScreenMirrorServer::WinAirplayVideoTick(void *data, float seconds)
 	
 }
 
+static void WinAirplayCustomCommand(void *data, obs_data_t *cmd)
+{
+	ScreenMirrorServer *s = (ScreenMirrorServer *)data;
+	const char * cmdType = obs_data_get_string(cmd, "type");
+	if (strcmp("airplayRestart", cmdType) == 0)
+	{
+		s->mirrorServerDestroy();
+		s->mirrorServerSetup();
+	}
+}
+
 bool obs_module_load(void)
 {
 	obs_source_info info = {};
@@ -738,6 +765,7 @@ bool obs_module_load(void)
 	info.get_width = WinAirplayWidth;
 	info.get_height = WinAirplayHeight;
 	info.video_tick = ScreenMirrorServer::WinAirplayVideoTick;
+	info.make_command = WinAirplayCustomCommand;
 	obs_register_source(&info);
 
 	return true;
