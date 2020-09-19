@@ -12,7 +12,7 @@ int main(int argv, char *argc[])
 	CAirServer server;
 	if (!server.start()) {
 		server.outputStatus(MIRROR_ERROR);
-			return -1;
+		return -1;
 	}
 
 	uint8_t buf[1024] = {0};
