@@ -298,8 +298,8 @@ int raop_buffer_enqueue(raop_buffer_t *raop_buffer, unsigned char *data,
 {
 	assert(raop_buffer);
 
-	if (offset <= 0)
-		return 0;
+	/*if (offset <= 0)
+		return 0;*/
 
 	/* Check packet data length is valid */
 	if (datalen < 12 || datalen > RAOP_PACKET_LEN) {

@@ -27,7 +27,7 @@ void CAirServer::outputStatus(mirror_status s, const char *remoteName,
 	send_status(client, s);
 }
 
-void CAirServer::outputAudio(uint8_t *data, size_t data_len, uint64_t pts,
+void CAirServer::outputAudio(uint8_t *data, size_t data_len, uint64_t pts, int serial,
 			     const char *remoteName, const char *remoteDeviceId)
 {
 	if (data_len <= 0)
@@ -37,6 +37,7 @@ void CAirServer::outputAudio(uint8_t *data, size_t data_len, uint64_t pts,
 	pack_info.size = data_len;
 	pack_info.type = FFM_PACKET_AUDIO;
 	pack_info.pts = pts;
+	pack_info.serial = serial;
 
 	ipc_client_write(client, &pack_info, sizeof(struct av_packet_info),
 			 INFINITE);

@@ -49,6 +49,7 @@ struct raop_rtp_s {
 	int64_t rtp_sync_offset;
 	raop_rtp_sync_data_t sync_data[RAOP_RTP_SYNC_DATA_COUNT];
 	int sync_data_index;
+	int audio_packet_serial;
 
 	// Transmission Stats, could be used if a playout buffer is needed
 	// float interarrival_jitter; // As defined by RTP RFC 3550, Section 6.4.1
@@ -575,13 +576,13 @@ static THREAD_RETVAL raop_rtp_thread_udp(void *arg)
 						raop_rtp, rtp_timestamp);
 				uint64_t ntp_now =
 					raop_ntp_get_local_time(raop_rtp->ntp);
-				logger_log(
+				/*logger_log(
 					raop_rtp->logger, LOGGER_DEBUG,
 					"raop_rtp audio: ntp = %llu, now = %llu, latency=%lld, rtp=%u",
 					ntp_timestamp, ntp_now,
 					((int64_t)ntp_now) -
 						((int64_t)ntp_timestamp),
-					rtp_timestamp);
+					rtp_timestamp);*/
 
 				int result = raop_buffer_enqueue(
 					raop_rtp->buffer, packet, packetlen,
@@ -607,8 +608,8 @@ static THREAD_RETVAL raop_rtp_thread_udp(void *arg)
 					pcm_data.pts = timestamp * 1000;
 					pcm_data.sample_rate = sample_rate;
 					pcm_data.channels = channels;
-					pcm_data.bits_per_sample =
-						bits_per_sample;
+					pcm_data.bits_per_sample = bits_per_sample;
+					pcm_data.serial = raop_rtp->audio_packet_serial;
 					raop_rtp->callbacks.audio_process(
 						raop_rtp->callbacks.cls,
 						raop_rtp->ntp, &pcm_data,
@@ -675,6 +676,8 @@ void raop_rtp_start_audio(raop_rtp_t *raop_rtp, int use_udp,
 	/* Create the thread and initialize running values */
 	raop_rtp->running = 1;
 	raop_rtp->joined = 0;
+
+	raop_rtp->audio_packet_serial++;
 
 	THREAD_CREATE(raop_rtp->thread, raop_rtp_thread_udp, raop_rtp);
 	MUTEX_UNLOCK(raop_rtp->run_mutex);

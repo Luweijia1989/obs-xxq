@@ -56,7 +56,7 @@ void FgAirplayChannel::outputAudio(pcm_data_struct *data,
 {
 	if (m_videoSent) {
 		m_pCallback->outputAudio((uint8_t *)data->data, data->data_len,
-					 data->pts, remoteName, remoteDeviceId);
+					 data->pts, data->serial, remoteName, remoteDeviceId);
 	}
 }
 

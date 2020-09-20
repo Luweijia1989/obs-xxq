@@ -42,7 +42,7 @@ void CAirServerCallback::disconnected(const char *remoteName,
 }
 
 void CAirServerCallback::outputAudio(uint8_t *data, size_t data_len,
-				     uint64_t pts, const char *remoteName,
+				     uint64_t pts, int serial, const char *remoteName,
 				     const char *remoteDeviceId)
 {
 	if (m_airplayServer) {
@@ -52,7 +52,7 @@ void CAirServerCallback::outputAudio(uint8_t *data, size_t data_len,
 		if (0 != strcmp(m_chRemoteDeviceId, remoteDeviceId)) {
 			return;
 		}
-		m_airplayServer->outputAudio(data, data_len, pts, remoteName,
+		m_airplayServer->outputAudio(data, data_len, pts, serial, remoteName,
 					     remoteDeviceId);
 	}
 }

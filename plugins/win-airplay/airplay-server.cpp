@@ -336,8 +336,7 @@ bool ScreenMirrorServer::handleMediaData()
 			fwrite(temp_buf, 1, req_size, m_auioFile);
 #endif // DUMPFILE
 			if (m_infoReceived) {
-				outputAudio(temp_buf, req_size,
-					    header_info.pts);
+				outputAudio(temp_buf, req_size, header_info.pts, header_info.serial);
 			}
 		} else {
 			AVFrame *frame = nullptr;
@@ -369,6 +368,8 @@ void ScreenMirrorServer::resetState()
 	pthread_mutex_lock(&m_videoDataMutex);
 	m_offset = LLONG_MAX;
 	m_audioOffset = LLONG_MAX;
+	m_lastAudioPts = LLONG_MAX;
+	m_audioPacketSerial = -1;
 	for (auto iter = m_videoFrames.begin(); iter != m_videoFrames.end();
 	     iter++) {
 		AVFrame *f = *iter;
@@ -512,11 +513,11 @@ void ScreenMirrorServer::outputVideoFrame(AVFrame *frame)
 	obs_source_set_videoframe(m_source, &m_videoFrame);
 }
 
-void ScreenMirrorServer::outputAudio(uint8_t *data, size_t data_len,
-				     uint64_t pts)
+void ScreenMirrorServer::outputAudio(uint8_t *data, size_t data_len, uint64_t pts, int serial)
 {
 	pthread_mutex_lock(&m_audioDataMutex);
 	auto frame = new AudioFrame;
+	frame->serial = serial;
 	frame->data = (uint8_t *)malloc(data_len);
 	memcpy(frame->data, data, data_len);
 	frame->data_len = data_len;
@@ -614,20 +615,31 @@ void *ScreenMirrorServer::audio_tick_thread(void *data)
 		while (s->m_audioFrames.size() > 0) {
 			AudioFrame *frame = s->m_audioFrames.front();
 			int64_t now = (int64_t)os_gettime_ns();
+
+			if (s->m_audioPacketSerial != frame->serial)
+			{
+				s->m_audioOffset = LLONG_MAX;
+				s->m_lastAudioPts = LLONG_MAX;
+				s->m_audioPacketSerial = frame->serial;
+			}
+
 			if (s->m_audioOffset == LLONG_MAX)
-				s->m_audioOffset =
-					now - frame->pts + s->m_extraDelay;
+				s->m_audioOffset = now - frame->pts + s->m_extraDelay;
+
+			if (s->m_lastAudioPts != LLONG_MAX && frame->pts - s->m_lastAudioPts > 1000000000000000000)
+				s->m_audioOffset += frame->pts - s->m_lastAudioPts;
 
 			if (s->m_audioOffset + frame->pts <= now) {
 				s->outputAudioFrame(frame->data,
 						    frame->data_len);
 				s->m_audioFrames.pop_front();
+				s->m_lastAudioPts = frame->pts;
 				free(frame->data);
 			} else
 				break;
 		}
 		pthread_mutex_unlock(&s->m_audioDataMutex);
-		os_sleep_ms(10);
+		os_sleep_ms(1);
 	}
 	return NULL;
 }

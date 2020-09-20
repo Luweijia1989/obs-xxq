@@ -17,7 +17,7 @@ public:
 			       const char *remoteDeviceId);
 	virtual void disconnected(const char *remoteName,
 				  const char *remoteDeviceId);
-	virtual void outputAudio(uint8_t *data, size_t data_len, uint64_t pts,
+	virtual void outputAudio(uint8_t *data, size_t data_len, uint64_t pts, int serial,
 				 const char *remoteName,
 				 const char *remoteDeviceId);
 	virtual void outputVideo(uint8_t *data, size_t data_len, uint64_t pts,

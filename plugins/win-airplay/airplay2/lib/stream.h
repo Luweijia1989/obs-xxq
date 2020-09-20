@@ -1,4 +1,4 @@
-﻿/*
+/*
  * Copyright (c) 2019 dsafa22, All Rights Reserved.
  *
  * This library is free software; you can redistribute it and/or
@@ -40,6 +40,7 @@ typedef struct {
 	uint32_t sample_rate;
 	uint16_t channels;
 	uint16_t bits_per_sample;
+	int serial;
 } pcm_data_struct;
 
 #endif //AIRPLAYSERVER_STREAM_H

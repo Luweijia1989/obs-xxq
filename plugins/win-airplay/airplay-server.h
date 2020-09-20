@@ -24,6 +24,7 @@ struct AudioFrame {
 	uint8_t *data;
 	size_t data_len;
 	int64_t pts;
+	int serial;
 };
 
 class ScreenMirrorServer {
@@ -39,7 +40,7 @@ public:
 	~ScreenMirrorServer();
 	void outputVideo(AVFrame *frame);
 	void outputVideoFrame(AVFrame *frame);
-	void outputAudio(uint8_t *data, size_t data_len, uint64_t pts);
+	void outputAudio(uint8_t *data, size_t data_len, uint64_t pts, int serial);
 	void outputAudioFrame(uint8_t *data, size_t size);
 
 	void ipcSetup();
@@ -94,6 +95,8 @@ private:
 	bool m_running = true;
 	int64_t m_offset = LLONG_MAX;
 	int64_t m_audioOffset = LLONG_MAX;
+	int64_t m_lastAudioPts = LLONG_MAX;
+	int m_audioPacketSerial = -1;
 	int64_t m_extraDelay = 0;
 
 	obs_source_frame2 m_videoFrame;

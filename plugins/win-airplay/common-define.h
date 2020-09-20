@@ -27,6 +27,7 @@ enum mirror_status { // same as obs_source_mirror_status
 struct av_packet_info {
 	int64_t pts;
 	uint32_t size;
+	int serial;
 	enum av_packet_type type;
 };
 
