@@ -25,5 +25,4 @@ protected:
 	IAirServerCallback *m_pCallback;
 	bool m_videoSent = false;
 	media_info m_mediaInfo;
-	std::mutex m_sendMutex;
 };

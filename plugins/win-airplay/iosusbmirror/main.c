@@ -555,7 +555,7 @@ void closeSession()
 		free(d1);
 	}
 
-	DWORD res = WaitForSingleObject(app_device.stop_signal, 3000);
+	DWORD res = WaitForSingleObject(app_device.stop_signal, 500);
 	if (res == WAIT_TIMEOUT) {
 		usbmuxd_log(LL_INFO, "Timed out waiting for device closing");
 		return;
@@ -746,7 +746,7 @@ int main(void)
 	pthread_mutex_init(&exit_mutex, NULL);
 
 	while (!should_exit) {
-		Sleep(1000);
+		Sleep(200);
 		if (!usb_device_discover())
 			continue;
 		else {

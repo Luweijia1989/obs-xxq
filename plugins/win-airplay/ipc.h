@@ -62,12 +62,17 @@ struct IPCServer {
 	void *m_cbParam;
 };
 
-struct IPCClient {
+struct IPCClientPrivate {
 	char *m_sAddr;     // Address of this server
 	HANDLE m_hMapFile; // Handle to the mapped memory file
 	HANDLE m_hSignal;  // Event used to signal when data exists
 	HANDLE m_hAvail; // Event used to signal when some blocks become available
 	struct MemBuff *m_pBuf; // Buffer that points to the shared memory
+};
+
+struct IPCClient {
+	struct IPCClientPrivate *m_private;
+	CRITICAL_SECTION m_mutex;
 };
 
 void ipc_server_create(struct IPCServer **input, read_cb cb, void *param);
@@ -81,10 +86,6 @@ void ipc_client_create(struct IPCClient **input);
 void ipc_client_destroy(struct IPCClient **input);
 DWORD ipc_client_write(struct IPCClient *client, void *pBuff, DWORD amount,
 		       DWORD dwTimeout);
-bool ipc_client_wait_available(struct IPCClient *client, DWORD dwTimeout);
-struct Block *ipc_client_get_block(struct IPCClient *client, DWORD dwTimeout);
-void ipc_client_post_block(struct IPCClient *client, struct Block *pBlock);
-bool ipc_client_is_ok(struct IPCClient *client);
 
 #ifdef __cplusplus
 }

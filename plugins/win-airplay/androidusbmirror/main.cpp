@@ -114,7 +114,7 @@ int main(int argv, char *argc[])
 
 	net_init();
 	while (!g_exit) {
-		Sleep(1000);
+		Sleep(200);
 		char *device = android_device();
 		if (device) {
 			if (!is_server_running()) {
@@ -134,5 +134,7 @@ int main(int argv, char *argc[])
 	pthread_join(stdin_th, NULL);
 	net_cleanup();
 	ipc_client_destroy(&client);
+	if (is_server_running())
+		server_clear();
 	return 0;
 }

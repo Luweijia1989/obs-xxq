@@ -53,6 +53,8 @@ ScreenMirrorServer::ScreenMirrorServer(obs_source_t *source)
 
 ScreenMirrorServer::~ScreenMirrorServer()
 {
+	ipcDestroy();
+
 	m_running = false;
 	pthread_join(m_audioTh, NULL);
 
@@ -61,7 +63,6 @@ ScreenMirrorServer::~ScreenMirrorServer()
 	obs_leave_graphics();
 	bfree(if2);
 
-	ipcDestroy();
 	circlebuf_free(&m_avBuffer);
 	pthread_mutex_destroy(&m_typeChangeMutex);
 	pthread_mutex_destroy(&m_videoDataMutex);
@@ -120,7 +121,6 @@ void ScreenMirrorServer::mirrorServerSetup()
 
 void ScreenMirrorServer::mirrorServerDestroy()
 {
-	killProc();
 	if (process) {
 		uint8_t data[1] = {1};
 		os_process_pipe_write(process, data, 1);

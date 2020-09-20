@@ -20,26 +20,21 @@ FgAirplayChannel::~FgAirplayChannel()
 void FgAirplayChannel::connected(const char *remoteName,
 	const char *remoteDeviceId)
 {
-	m_sendMutex.lock();
 	if (m_pCallback)
 		m_pCallback->connected(remoteName, remoteDeviceId);
-	m_sendMutex.unlock();
 }
 
 void FgAirplayChannel::disconnected(const char *remoteName,
 				 const char *remoteDeviceId)
 {
-	m_sendMutex.lock();
 	if (m_pCallback)
 		m_pCallback->disconnected(remoteName, remoteDeviceId);
-	m_sendMutex.unlock();
 }
 
 void FgAirplayChannel::outputVideo(h264_decode_struct *data,
 				   const char *remoteName,
 				   const char *remoteDeviceId)
 {
-	m_sendMutex.lock();
 	if (data->frame_type == 0) // pps sps
 	{
 		m_mediaInfo.pps_len = data->data_len;
@@ -53,19 +48,16 @@ void FgAirplayChannel::outputVideo(h264_decode_struct *data,
 			m_videoSent = true;
 		}
 	}
-	m_sendMutex.unlock();
 }
 
 void FgAirplayChannel::outputAudio(pcm_data_struct *data,
 				   const char *remoteName,
 				   const char *remoteDeviceId)
 {
-	m_sendMutex.lock();
 	if (m_videoSent) {
 		m_pCallback->outputAudio((uint8_t *)data->data, data->data_len,
 					 data->pts, remoteName, remoteDeviceId);
 	}
-	m_sendMutex.unlock();
 }
 
 long FgAirplayChannel::addRef()

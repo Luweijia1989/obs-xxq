@@ -235,10 +235,85 @@ void ipc_server_ret_block(struct IPCServer *server, struct Block *pBlock)
 	}
 }
 
-void ipc_client_create(struct IPCClient **input)
+
+static bool ipc_client_wait_available_private(struct IPCClientPrivate *client, DWORD dwTimeout)
 {
-	*input = (struct IPCClient *)calloc(1, sizeof(struct IPCClient));
-	struct IPCClient *client = *input;
+	// Wait on the available event
+	if (WaitForSingleObject(client->m_hAvail, dwTimeout) != WAIT_OBJECT_0)
+		return false;
+
+	// Success
+	return true;
+}
+
+static struct Block *ipc_client_get_block_private(struct IPCClientPrivate *client, DWORD dwTimeout)
+{
+	// Grab another block to write too
+	// Enter a continous loop (this is to make sure the operation is atomic)
+	for (;;) {
+		// Check if there is room to expand the write start cursor
+		LONG blockIndex = client->m_pBuf->m_WriteStart;
+		struct Block *pBlock = client->m_pBuf->m_Blocks + blockIndex;
+		if (pBlock->Next == client->m_pBuf->m_ReadEnd) {
+			// No room is available, wait for room to become available
+			if (WaitForSingleObject(client->m_hAvail, dwTimeout) ==
+				WAIT_OBJECT_0)
+				continue;
+
+			// Timeout
+			return NULL;
+		}
+
+		// Make sure the operation is atomic
+		if (InterlockedCompareExchange(&client->m_pBuf->m_WriteStart,
+			pBlock->Next,
+			blockIndex) == blockIndex)
+			return pBlock;
+
+		// The operation was interrupted by another thread.
+		// The other thread has already stolen this block, try again
+		continue;
+	}
+}
+
+static void ipc_client_post_block_private(struct IPCClientPrivate *client, struct Block *pBlock)
+{
+	// Set the done flag for this block
+	pBlock->doneWrite = 1;
+
+	// Move the write pointer as far forward as we can
+	for (;;) {
+		// Try and get the right to move the poitner
+		DWORD blockIndex = client->m_pBuf->m_WriteEnd;
+		pBlock = client->m_pBuf->m_Blocks + blockIndex;
+		if (InterlockedCompareExchange(&pBlock->doneWrite, 0, 1) != 1) {
+			// If we get here then another thread has already moved the pointer
+			// for us or we have reached as far as we can possible move the pointer
+			return;
+		}
+
+		// Move the pointer one forward (interlock protected)
+		InterlockedCompareExchange(&client->m_pBuf->m_WriteEnd,
+			pBlock->Next, blockIndex);
+
+		// Signal availability of more data but only if threads are waiting
+		if (pBlock->Prev == client->m_pBuf->m_ReadStart)
+			SetEvent(client->m_hSignal);
+	}
+}
+
+static bool ipc_client_is_ok_private(struct IPCClientPrivate *client)
+{
+	if (client->m_pBuf)
+		return true;
+	else
+		return false;
+}
+
+static void ipc_client_create_private(struct IPCClientPrivate **input)
+{
+	*input = (struct IPCClientPrivate *)calloc(1, sizeof(struct IPCClientPrivate));
+	struct IPCClientPrivate *client = *input;
 
 	client->m_sAddr = IPC_MEMORY_NAME;
 
@@ -313,9 +388,10 @@ void ipc_client_create(struct IPCClient **input)
 	free(m_sMemName);
 }
 
-void ipc_client_destroy(struct IPCClient **input)
+static void ipc_client_destroy_private(struct IPCClientPrivate **input)
 {
-	struct IPCClient *client = *input;
+	struct IPCClientPrivate *client = *input;
+
 	// Close the event
 	CloseHandle(client->m_hSignal);
 
@@ -328,19 +404,24 @@ void ipc_client_destroy(struct IPCClient **input)
 	// Close the file handle
 	CloseHandle(client->m_hMapFile);
 
+	free(client);
+
 	*input = NULL;
 }
 
-DWORD ipc_client_write(struct IPCClient *client, void *pBuff, DWORD amount,
+static DWORD ipc_client_write_private(struct IPCClientPrivate *client, void *pBuff, DWORD amount,
 		       DWORD dwTimeout)
 {
+	if(!client)
+		return 0;
+
 	if (!client->m_pBuf)
 		return 0;
 	DWORD remainBytes = amount;
 	DWORD index = 0;
 	while (remainBytes > 0) {
 		// Grab a block
-		struct Block *pBlock = ipc_client_get_block(client, dwTimeout);
+		struct Block *pBlock = ipc_client_get_block_private(client, dwTimeout);
 		if (!pBlock)
 			return 0;
 
@@ -350,7 +431,7 @@ DWORD ipc_client_write(struct IPCClient *client, void *pBuff, DWORD amount,
 		pBlock->Amount = dwAmount;
 
 		// Post the block
-		ipc_client_post_block(client, pBlock);
+		ipc_client_post_block_private(client, pBlock);
 
 		index += dwAmount;
 		remainBytes -= dwAmount;
@@ -360,76 +441,32 @@ DWORD ipc_client_write(struct IPCClient *client, void *pBuff, DWORD amount,
 	return 0;
 }
 
-bool ipc_client_wait_available(struct IPCClient *client, DWORD dwTimeout)
+void ipc_client_create(struct IPCClient **input)
 {
-	// Wait on the available event
-	if (WaitForSingleObject(client->m_hAvail, dwTimeout) != WAIT_OBJECT_0)
-		return false;
+	*input = (struct IPCClient *)calloc(1, sizeof(struct IPCClient));
+	struct IPCClient *client = *input;
 
-	// Success
-	return true;
+	InitializeCriticalSection(&client->m_mutex);
+	ipc_client_create_private(&client->m_private);
 }
-
-struct Block *ipc_client_get_block(struct IPCClient *client, DWORD dwTimeout)
+void ipc_client_destroy(struct IPCClient **input)
 {
-	// Grab another block to write too
-	// Enter a continous loop (this is to make sure the operation is atomic)
-	for (;;) {
-		// Check if there is room to expand the write start cursor
-		LONG blockIndex = client->m_pBuf->m_WriteStart;
-		struct Block *pBlock = client->m_pBuf->m_Blocks + blockIndex;
-		if (pBlock->Next == client->m_pBuf->m_ReadEnd) {
-			// No room is available, wait for room to become available
-			if (WaitForSingleObject(client->m_hAvail, dwTimeout) ==
-			    WAIT_OBJECT_0)
-				continue;
+	struct IPCClient *client = *input;
+	EnterCriticalSection(&client->m_mutex);
+	ipc_client_destroy_private(&client->m_private);
+	LeaveCriticalSection(&client->m_mutex);
 
-			// Timeout
-			return NULL;
-		}
+	DeleteCriticalSection(&client->m_mutex);
+	free(client);
 
-		// Make sure the operation is atomic
-		if (InterlockedCompareExchange(&client->m_pBuf->m_WriteStart,
-					       pBlock->Next,
-					       blockIndex) == blockIndex)
-			return pBlock;
-
-		// The operation was interrupted by another thread.
-		// The other thread has already stolen this block, try again
-		continue;
-	}
+	*input = NULL;
 }
-
-void ipc_client_post_block(struct IPCClient *client, struct Block *pBlock)
+DWORD ipc_client_write(struct IPCClient *client, void *pBuff, DWORD amount,
+	DWORD dwTimeout)
 {
-	// Set the done flag for this block
-	pBlock->doneWrite = 1;
-
-	// Move the write pointer as far forward as we can
-	for (;;) {
-		// Try and get the right to move the poitner
-		DWORD blockIndex = client->m_pBuf->m_WriteEnd;
-		pBlock = client->m_pBuf->m_Blocks + blockIndex;
-		if (InterlockedCompareExchange(&pBlock->doneWrite, 0, 1) != 1) {
-			// If we get here then another thread has already moved the pointer
-			// for us or we have reached as far as we can possible move the pointer
-			return;
-		}
-
-		// Move the pointer one forward (interlock protected)
-		InterlockedCompareExchange(&client->m_pBuf->m_WriteEnd,
-					   pBlock->Next, blockIndex);
-
-		// Signal availability of more data but only if threads are waiting
-		if (pBlock->Prev == client->m_pBuf->m_ReadStart)
-			SetEvent(client->m_hSignal);
-	}
-}
-
-bool ipc_client_is_ok(struct IPCClient *client)
-{
-	if (client->m_pBuf)
-		return true;
-	else
-		return false;
+	DWORD ret = 0;
+	EnterCriticalSection(&client->m_mutex);
+	ret = ipc_client_write_private(client->m_private, pBuff, amount, dwTimeout);
+	LeaveCriticalSection(&client->m_mutex);
+	return ret;
 }

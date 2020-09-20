@@ -258,13 +258,12 @@ public:
 		: QProgressBar(parent), m_helper(helper)
 	{
 		setWindowFlags(Qt::Tool | Qt::CustomizeWindowHint |
-			       Qt::WindowTitleHint | Qt::WindowStaysOnTopHint);
+			       Qt::WindowTitleHint | Qt::WindowStaysOnTopHint | Qt::FramelessWindowHint);
 		setWindowTitle(u8"正在安装驱动");
 		setMinimum(0);
 		setMaximum(0);
 		setTextVisible(false);
 		setOrientation(Qt::Horizontal);
-		setFixedSize(280, 32);
 
 		emit m_helper->updateDevices();
 
@@ -302,7 +301,6 @@ public slots:
 		if (m_mirrorProcess)
 			return;
 
-		os_kill_process(IOS_USB_EXE);
 		struct dstr cmd;
 		dstr_init_move_array(&cmd,
 				     os_get_executable_path_ptr(IOS_USB_EXE));
@@ -346,6 +344,7 @@ signals:
 
 int main(int argc, char *argv[])
 {
+	os_kill_process(IOS_USB_EXE);
 	SetErrorMode(SEM_FAILCRITICALERRORS);
 	_setmode(_fileno(stdin), O_BINARY);
 
@@ -372,8 +371,10 @@ int main(int argc, char *argv[])
 	QObject::connect(&stdinThread, &StdInThread::stop, &bar,
 			 &ProgressBar::onStop);
 
+	bar.setFixedSize(1,1);
 	bar.show();
 	bar.hide();
+	bar.setFixedSize(280, 32);
 	stdinThread.start();
 
 	return a.exec();
