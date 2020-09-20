@@ -321,7 +321,6 @@ raop_t *raop_init(int max_clients, raop_callbacks_t *callbacks)
 void raop_destroy(raop_t *raop)
 {
 	if (raop) {
-		raop_stop(raop);
 		pairing_destroy(raop->pairing);
 		httpd_destroy(raop->httpd);
 		logger_destroy(raop->logger);
