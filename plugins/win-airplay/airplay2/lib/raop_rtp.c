@@ -110,7 +110,7 @@ struct raop_rtp_s {
 static int raop_rtp_parse_remote(raop_rtp_t *raop_rtp,
 				 const unsigned char *remote, int remotelen)
 {
-	char current[25];
+	char current[256];
 	int family;
 	int ret;
 	assert(raop_rtp);
@@ -122,8 +122,18 @@ static int raop_rtp_parse_remote(raop_rtp_t *raop_rtp,
 		return -1;
 	}
 	memset(current, 0, sizeof(current));
-	sprintf(current, "%d.%d.%d.%d", remote[0], remote[1], remote[2],
-		remote[3]);
+	if (family == AF_INET)
+		sprintf(current, "%d.%d.%d.%d", remote[0], remote[1],
+			remote[2], remote[3]);
+	else
+		sprintf(current,
+			"%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x",
+			remote[0], remote[1], remote[2],
+			remote[3], remote[4], remote[5],
+			remote[6], remote[7], remote[8],
+			remote[9], remote[10], remote[11],
+			remote[12], remote[13], remote[14],
+			remote[15]);
 	logger_log(raop_rtp->logger, LOGGER_DEBUG,
 		   "raop_rtp parse remote ip = %s", current);
 	ret = netutils_parse_address(family, current, &raop_rtp->remote_saddr,

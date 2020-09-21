@@ -135,7 +135,7 @@ raop_ntp_compare(const void* av, const void* bv)
 static int
 raop_ntp_parse_remote_address(raop_ntp_t *raop_ntp, const unsigned char *remote_addr, int remote_addr_len)
 {
-	char current[25];
+	char current[256];
 	int family;
 	int ret;
 
@@ -149,7 +149,18 @@ raop_ntp_parse_remote_address(raop_ntp_t *raop_ntp, const unsigned char *remote_
 		return -1;
 	}
 	memset(current, 0, sizeof(current));
-	sprintf(current, "%d.%d.%d.%d", remote_addr[0], remote_addr[1], remote_addr[2], remote_addr[3]);
+	if (family == AF_INET)
+		sprintf(current, "%d.%d.%d.%d", remote_addr[0], remote_addr[1], remote_addr[2], remote_addr[3]);
+	else 
+		sprintf(current,
+			"%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x",
+			remote_addr[0], remote_addr[1], remote_addr[2],
+			remote_addr[3], remote_addr[4], remote_addr[5],
+			remote_addr[6], remote_addr[7], remote_addr[8],
+			remote_addr[9], remote_addr[10], remote_addr[11],
+			remote_addr[12], remote_addr[13], remote_addr[14],
+			remote_addr[15]);
+
 	logger_log(raop_ntp->logger, LOGGER_DEBUG, "raop_ntp parse remote ip = %s", current);
 	ret = netutils_parse_address(family, current,
 		&raop_ntp->remote_saddr,
