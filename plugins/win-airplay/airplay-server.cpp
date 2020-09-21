@@ -42,8 +42,7 @@ ScreenMirrorServer::ScreenMirrorServer(obs_source_t *source)
 	m_videoFile = fopen("video.x264", "wb");
 #endif
 
-	pthread_create(&m_audioTh, NULL, ScreenMirrorServer::audio_tick_thread,
-		       this);
+	pthread_create(&m_audioTh, NULL, ScreenMirrorServer::audio_tick_thread, this);
 
 	circlebuf_init(&m_avBuffer);
 	ipcSetup();
@@ -55,6 +54,7 @@ ScreenMirrorServer::~ScreenMirrorServer()
 {
 	ipcDestroy();
 
+	destroyAudioRenderer();
 	m_running = false;
 	pthread_join(m_audioTh, NULL);
 
@@ -68,7 +68,6 @@ ScreenMirrorServer::~ScreenMirrorServer()
 	pthread_mutex_destroy(&m_videoDataMutex);
 	pthread_mutex_destroy(&m_audioDataMutex);
 
-	destroyAudioRenderer();
 #ifdef DUMPFILE
 	fclose(m_auioFile);
 	fclose(m_videoFile);
@@ -302,8 +301,7 @@ bool ScreenMirrorServer::handleMediaData()
 	if (m_avBuffer.size < req_size + header_size)
 		return false;
 
-	circlebuf_pop_front(&m_avBuffer, &header_info,
-			    header_size); // remove it
+	circlebuf_pop_front(&m_avBuffer, &header_info, header_size); // remove it
 
 	if (header_info.type == FFM_MIRROR_STATUS)
 		handleMirrorStatus();
@@ -328,17 +326,17 @@ bool ScreenMirrorServer::handleMediaData()
 #endif // DUMPFILE
 		m_decoder.docode(info.pps, info.pps_len, true, 0);
 	} else {
-		uint8_t *temp_buf = (uint8_t *)calloc(1, req_size);
-		circlebuf_pop_front(&m_avBuffer, temp_buf, req_size);
-
 		if (header_info.type == FFM_PACKET_AUDIO) {
 #ifdef DUMPFILE
 			fwrite(temp_buf, 1, req_size, m_auioFile);
 #endif // DUMPFILE
 			if (m_infoReceived) {
-				outputAudio(temp_buf, req_size, header_info.pts, header_info.serial);
+				outputAudio(req_size, header_info.pts, header_info.serial);
 			}
 		} else {
+			uint8_t *temp_buf = (uint8_t *)calloc(1, req_size);
+			circlebuf_pop_front(&m_avBuffer, temp_buf, req_size);
+
 			AVFrame *frame = nullptr;
 			if (memcmp(temp_buf, start_code, 4) == 0)
 			{
@@ -356,9 +354,9 @@ bool ScreenMirrorServer::handleMediaData()
 			}
 			if (frame)
 				outputVideo(frame);
-		}
 
-		free(temp_buf);
+			free(temp_buf);
+		}
 	}
 	return true;
 }
@@ -513,13 +511,13 @@ void ScreenMirrorServer::outputVideoFrame(AVFrame *frame)
 	obs_source_set_videoframe(m_source, &m_videoFrame);
 }
 
-void ScreenMirrorServer::outputAudio(uint8_t *data, size_t data_len, uint64_t pts, int serial)
+void ScreenMirrorServer::outputAudio(size_t data_len, uint64_t pts, int serial)
 {
 	pthread_mutex_lock(&m_audioDataMutex);
-	auto frame = new AudioFrame;
+	auto frame = (AudioFrame *)malloc(sizeof(AudioFrame));
 	frame->serial = serial;
 	frame->data = (uint8_t *)malloc(data_len);
-	memcpy(frame->data, data, data_len);
+	circlebuf_pop_front(&m_avBuffer, frame->data, data_len);
 	frame->data_len = data_len;
 	frame->pts = pts;
 	m_audioFrames.push_back(frame);
@@ -639,7 +637,7 @@ void *ScreenMirrorServer::audio_tick_thread(void *data)
 				break;
 		}
 		pthread_mutex_unlock(&s->m_audioDataMutex);
-		os_sleep_ms(1);
+		os_sleep_ms(10);
 	}
 	return NULL;
 }

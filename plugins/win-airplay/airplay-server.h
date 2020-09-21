@@ -40,7 +40,7 @@ public:
 	~ScreenMirrorServer();
 	void outputVideo(AVFrame *frame);
 	void outputVideoFrame(AVFrame *frame);
-	void outputAudio(uint8_t *data, size_t data_len, uint64_t pts, int serial);
+	void outputAudio(size_t data_len, uint64_t pts, int serial);
 	void outputAudioFrame(uint8_t *data, size_t size);
 
 	void ipcSetup();

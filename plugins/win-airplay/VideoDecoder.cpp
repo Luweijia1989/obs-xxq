@@ -10,8 +10,7 @@ VideoDecoder::~VideoDecoder()
 	uninitFFMPEG();
 }
 
-AVFrame *VideoDecoder::docode(uint8_t *data, size_t data_len, bool is_key,
-			 uint64_t ts)
+AVFrame *VideoDecoder::docode(uint8_t *data, size_t data_len, bool is_key, uint64_t ts)
 {
 	int canOutput = -1;
 	if (is_key) {
