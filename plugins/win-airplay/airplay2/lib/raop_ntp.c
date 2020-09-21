@@ -1,4 +1,4 @@
-﻿/*
+/*
  * Copyright (c) 2019 dsafa22 and 2014 Joakim Plate, modified by Florian Draschbacher,
  * All Rights Reserved.
  *
@@ -369,7 +369,6 @@ raop_ntp_start(raop_ntp_t *raop_ntp, unsigned short *timing_lport)
 	if (raop_ntp->remote_saddr.ss_family == AF_INET6) {
 		use_ipv6 = 1;
 	}
-	use_ipv6 = 0;
 	if (raop_ntp_init_socket(raop_ntp, use_ipv6) < 0) {
 		logger_log(raop_ntp->logger, LOGGER_ERR, "raop_ntp initializing timing socket failed");
 		MUTEX_UNLOCK(raop_ntp->run_mutex);

@@ -662,7 +662,6 @@ void raop_rtp_start_audio(raop_rtp_t *raop_rtp, int use_udp,
 	if (raop_rtp->remote_saddr.ss_family == AF_INET6) {
 		use_ipv6 = 1;
 	}
-	use_ipv6 = 0;
 	if (raop_rtp_init_sockets(raop_rtp, use_ipv6, use_udp) < 0) {
 		logger_log(raop_rtp->logger, LOGGER_ERR,
 			   "raop_rtp initializing sockets failed");

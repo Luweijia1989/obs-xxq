@@ -603,7 +603,6 @@ void raop_rtp_start_mirror(raop_rtp_mirror_t *raop_rtp_mirror, int use_udp,
 	if (raop_rtp_mirror->remote_saddr.ss_family == AF_INET6) {
 		use_ipv6 = 1;
 	}
-	use_ipv6 = 0;
 	if (raop_rtp_init_mirror_sockets(raop_rtp_mirror, use_ipv6) < 0) {
 		logger_log(raop_rtp_mirror->logger, LOGGER_ERR,
 			   "raop_rtp_mirror initializing sockets failed");
