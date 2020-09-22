@@ -609,7 +609,7 @@ void *ScreenMirrorServer::audio_tick_thread(void *data)
 				s->m_audioOffset = now - frame->pts + s->m_extraDelay;
 
 			if (s->m_lastAudioPts != LLONG_MAX && frame->pts - s->m_lastAudioPts > 1000000000000000000)
-				s->m_audioOffset += frame->pts - s->m_lastAudioPts;
+				s->m_audioOffset = now - frame->pts;
 
 			if (s->m_audioOffset + frame->pts <= now) {
 				s->outputAudioFrame(frame->data,
