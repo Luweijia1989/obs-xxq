@@ -43,8 +43,6 @@ public:
 	void outputAudio(size_t data_len, uint64_t pts, int serial);
 	void outputAudioFrame(uint8_t *data, size_t size);
 
-	void ipcSetup();
-	void ipcDestroy();
 	void mirrorServerSetup();
 	void mirrorServerDestroy();
 
@@ -57,7 +55,6 @@ public:
 	int m_width = 0;
 	int m_height = 0;
 	obs_source_t *m_source = nullptr;
-	pthread_mutex_t m_typeChangeMutex;
 	obs_source_mirror_status mirror_status = OBS_SOURCE_MIRROR_START;
 	gs_image_file2_t *if2 = nullptr;
 	uint64_t last_time = 0;

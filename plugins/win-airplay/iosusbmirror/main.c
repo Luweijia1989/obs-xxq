@@ -555,7 +555,7 @@ void closeSession()
 		free(d1);
 	}
 
-	DWORD res = WaitForSingleObject(app_device.stop_signal, 500);
+	DWORD res = WaitForSingleObject(app_device.stop_signal, 3000);
 	if (res == WAIT_TIMEOUT) {
 		usbmuxd_log(LL_INFO, "Timed out waiting for device closing");
 		return;

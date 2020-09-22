@@ -155,6 +155,8 @@ void ipc_server_destroy(struct IPCServer **input)
 		CloseHandle(handle);
 	}
 
+	free(server);
+
 	*input = NULL;
 }
 

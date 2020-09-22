@@ -24,7 +24,6 @@ ScreenMirrorServer::ScreenMirrorServer(obs_source_t *source)
 {
 	initAudioRenderer();
 
-	pthread_mutex_init(&m_typeChangeMutex, nullptr);
 	pthread_mutex_init(&m_videoDataMutex, nullptr);
 	pthread_mutex_init(&m_audioDataMutex, nullptr);
 	memset(m_videoFrame.data, 0, sizeof(m_videoFrame.data));
@@ -45,14 +44,13 @@ ScreenMirrorServer::ScreenMirrorServer(obs_source_t *source)
 	pthread_create(&m_audioTh, NULL, ScreenMirrorServer::audio_tick_thread, this);
 
 	circlebuf_init(&m_avBuffer);
-	ipcSetup();
 
 	updateStatusImage();
 }
 
 ScreenMirrorServer::~ScreenMirrorServer()
 {
-	ipcDestroy();
+	mirrorServerDestroy();
 
 	destroyAudioRenderer();
 	m_running = false;
@@ -64,7 +62,6 @@ ScreenMirrorServer::~ScreenMirrorServer()
 	bfree(if2);
 
 	circlebuf_free(&m_avBuffer);
-	pthread_mutex_destroy(&m_typeChangeMutex);
 	pthread_mutex_destroy(&m_videoDataMutex);
 	pthread_mutex_destroy(&m_audioDataMutex);
 
@@ -77,7 +74,6 @@ ScreenMirrorServer::~ScreenMirrorServer()
 void ScreenMirrorServer::pipeCallback(void *param, uint8_t *data, size_t size)
 {
 	ScreenMirrorServer *sm = (ScreenMirrorServer *)param;
-	pthread_mutex_lock(&sm->m_typeChangeMutex);
 	circlebuf_push_back(&sm->m_avBuffer, data, size);
 
 	while (true) {
@@ -87,21 +83,6 @@ void ScreenMirrorServer::pipeCallback(void *param, uint8_t *data, size_t size)
 		else
 			break;
 	}
-	pthread_mutex_unlock(&sm->m_typeChangeMutex);
-}
-
-void ScreenMirrorServer::ipcSetup()
-{
-	if (!initPipe()) {
-		blog(LOG_ERROR, "fail to create pipe");
-		return;
-	}
-}
-
-void ScreenMirrorServer::ipcDestroy()
-{
-	mirrorServerDestroy();
-	ipc_server_destroy(&m_ipcServer);
 }
 
 void ScreenMirrorServer::mirrorServerSetup()
@@ -110,6 +91,9 @@ void ScreenMirrorServer::mirrorServerSetup()
 		return;
 
 	const char *processName = killProc();
+
+	ipc_server_create(&m_ipcServer, ScreenMirrorServer::pipeCallback, this);
+
 	struct dstr cmd;
 	dstr_init_move_array(&cmd, os_get_executable_path_ptr(processName));
 	dstr_insert_ch(&cmd, 0, '\"');
@@ -126,6 +110,9 @@ void ScreenMirrorServer::mirrorServerDestroy()
 		os_process_pipe_destroy(process);
 		process = NULL;
 	}
+
+	if (m_ipcServer)
+		ipc_server_destroy(&m_ipcServer);
 
 	circlebuf_free(&m_avBuffer);
 	circlebuf_init(&m_avBuffer);
@@ -456,7 +443,6 @@ void ScreenMirrorServer::outputAudioFrame(uint8_t *data, size_t size)
 	uint32_t resample_frames;
 	uint64_t ts_offset;
 	bool success;
-	BYTE *output;
 
 	success = audio_resampler_resample(
 		resampler, resample_data, &resample_frames, &ts_offset,
@@ -552,11 +538,9 @@ static void UpdateWinAirplaySource(void *obj, obs_data_t *settings)
 	if (type == s->backendType())
 		return;
 
-	pthread_mutex_lock(&s->m_typeChangeMutex);
 	s->mirrorServerDestroy();
-	s->setBackendType(type);
+	s->setBackendType((int)type);
 	s->mirrorServerSetup();
-	pthread_mutex_unlock(&s->m_typeChangeMutex);
 }
 
 static void GetWinAirplayDefaultsOutput(obs_data_t *settings)
