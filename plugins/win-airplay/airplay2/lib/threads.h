@@ -1,4 +1,4 @@
-﻿/**
+/**
  *  Copyright (C) 2011-2012  Juho Vähä-Herttua
  *
  *  This library is free software; you can redistribute it and/or
@@ -34,20 +34,32 @@ typedef HANDLE thread_handle_t;
 	handle = CreateThread(NULL, 0, func, arg, 0, NULL)
 #define THREAD_JOIN(handle) do { WaitForSingleObject(handle, INFINITE); CloseHandle(handle); } while(0)
 
-typedef HANDLE mutex_handle_t;
-typedef HANDLE cond_handle_t;
+typedef CRITICAL_SECTION pthread_mutex_t;
+typedef CONDITION_VARIABLE thread_cond_t;
+typedef void pthread_mutexattr_t;
+typedef void pthread_condattr_t;
 
-#define MUTEX_CREATE(handle) handle = CreateMutex(NULL, FALSE, NULL)
-#define MUTEX_LOCK(handle) WaitForSingleObject(handle, INFINITE)
-#define MUTEX_UNLOCK(handle) ReleaseMutex(handle)
-#define MUTEX_DESTROY(handle) CloseHandle(handle)
-
-#define COND_CREATE(handle) handle = CreateEvent(NULL, FALSE, FALSE, NULL)
-#define COND_SIGNAL(handle) if (handle != NULL) { SetEvent(handle); }
-#define COND_DESTROY(handle) if (handle != NULL) { CloseHandle(handle); handle = NULL;}
+int pthread_mutex_init(pthread_mutex_t *mutex, pthread_mutexattr_t *attr);
+int pthread_mutex_destroy(pthread_mutex_t *mutex);
+int pthread_mutex_lock(pthread_mutex_t *mutex);
+int pthread_mutex_unlock(pthread_mutex_t *mutex);
 
 int gettimeofday(struct timeval* tv/*in*/, struct timezone* tz/*in*/);
-int pthread_cond_timedwait(cond_handle_t* __cond, mutex_handle_t* __mutex, const struct timespec* __timeout);
+int pthread_cond_init(thread_cond_t *cond, pthread_condattr_t *attr);
+int pthread_cond_destroy(thread_cond_t *cond);
+int pthread_cond_wait(thread_cond_t *cond, pthread_mutex_t *mutex);
+int pthread_cond_timedwait(thread_cond_t *cond, pthread_mutex_t *mutex, const struct timespec *abstime);
+int pthread_cond_signal(thread_cond_t *cond);
+int pthread_cond_broadcast(thread_cond_t *cond);
+
+#define MUTEX_CREATE(handle) pthread_mutex_init(&(handle), NULL)
+#define MUTEX_LOCK(handle) pthread_mutex_lock(&(handle))
+#define MUTEX_UNLOCK(handle) pthread_mutex_unlock(&(handle))
+#define MUTEX_DESTROY(handle) pthread_mutex_destroy(&(handle))
+
+#define COND_CREATE(handle) pthread_cond_init(&(handle), NULL)
+#define COND_SIGNAL(handle) pthread_cond_signal(&(handle))
+#define COND_DESTROY(handle) pthread_cond_destroy(&(handle))
 
 #else /* Use pthread library */
 

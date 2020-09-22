@@ -44,7 +44,7 @@ struct httpd_s {
     int running;
     int joined;
     thread_handle_t thread;
-    mutex_handle_t run_mutex;
+    pthread_mutex_t run_mutex;
 
     /* Server fds for accepting connections */
     int server_fd4;
@@ -83,6 +83,8 @@ httpd_init(logger_t *logger, httpd_callbacks_t *callbacks, int max_connections)
     httpd->running = 0;
     httpd->joined = 1;
 
+    MUTEX_CREATE(httpd->run_mutex);
+
     return httpd;
 }
 
@@ -91,6 +93,8 @@ httpd_destroy(httpd_t *httpd)
 {
     if (httpd) {
         httpd_stop(httpd);
+
+	MUTEX_DESTROY(httpd->run_mutex);
 
         free(httpd->connections);
         free(httpd);

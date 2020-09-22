@@ -50,16 +50,16 @@ struct raop_ntp_s {
 	logger_t *logger;
 
 	thread_handle_t thread;
-	mutex_handle_t run_mutex;
+	pthread_mutex_t run_mutex;
 
-	mutex_handle_t wait_mutex;
-	cond_handle_t wait_cond;
+	pthread_mutex_t wait_mutex;
+	thread_cond_t wait_cond;
 
 	raop_ntp_data_t data[RAOP_NTP_DATA_COUNT];
 	int data_index;
 
 	// The clock sync params are periodically updated to the AirPlay client's NTP clock
-	mutex_handle_t sync_params_mutex;
+	pthread_mutex_t sync_params_mutex;
 	int64_t sync_offset;
 	int64_t sync_dispersion;
 	int64_t sync_delay;

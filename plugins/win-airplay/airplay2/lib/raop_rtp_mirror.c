@@ -70,7 +70,7 @@ struct raop_rtp_mirror_s {
 
 	int flush;
 	thread_handle_t thread_mirror;
-	mutex_handle_t run_mutex;
+	pthread_mutex_t run_mutex;
 
 	/* MUTEX LOCKED VARIABLES END */
 	int mirror_data_sock;

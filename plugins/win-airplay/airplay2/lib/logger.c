@@ -21,8 +21,8 @@
 #include "compat.h"
 
 struct logger_s {
-	mutex_handle_t lvl_mutex;
-	mutex_handle_t cb_mutex;
+	pthread_mutex_t lvl_mutex;
+	pthread_mutex_t cb_mutex;
 
 	int level;
 	void *cls;

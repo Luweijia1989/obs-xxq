@@ -36,15 +36,100 @@ int gettimeofday(struct timeval* tv/*in*/, struct timezone* tz/*in*/)
 	return 0;
 }
 
-int pthread_cond_timedwait(cond_handle_t* __cond, mutex_handle_t* __mutex, const struct timespec* __timeout) {
-	if (__timeout != NULL) {
-		struct timeval now;
-		gettimeofday(&now, NULL);
-		WaitForSingleObject(*__cond, (__timeout->tv_sec - now.tv_sec) * 1000 + __timeout->tv_nsec / 1000000);
-	}
-	else {
-		WaitForSingleObject(*__cond, INFINITE);
-	}
+static DWORD timespec_to_ms(const struct timespec *abstime)
+{
+	DWORD t;
+
+	if (abstime == NULL)
+		return INFINITE;
+
+	t = ((abstime->tv_sec - time(NULL)) * 1000) + (abstime->tv_nsec / 1000000);
+	if (t < 0)
+		t = 1;
+	return t;
+}
+
+int pthread_mutex_init(pthread_mutex_t *mutex, pthread_mutexattr_t *attr)
+{
+	(void)attr;
+
+	if (mutex == NULL)
+		return 1;
+
+	InitializeCriticalSection(mutex);
+	return 0;
+}
+
+int pthread_mutex_destroy(pthread_mutex_t *mutex)
+{
+	if (mutex == NULL)
+		return 1;
+	DeleteCriticalSection(mutex);
+	return 0;
+}
+
+int pthread_mutex_lock(pthread_mutex_t *mutex)
+{
+	if (mutex == NULL)
+		return 1;
+	EnterCriticalSection(mutex);
+	return 0;
+}
+
+int pthread_mutex_unlock(pthread_mutex_t *mutex)
+{
+	if (mutex == NULL)
+		return 1;
+	LeaveCriticalSection(mutex);
+	return 0;
+}
+
+int pthread_cond_init(thread_cond_t *cond, pthread_condattr_t *attr)
+{
+	(void)attr;
+	if (cond == NULL)
+		return 1;
+	InitializeConditionVariable(cond);
+	return 0;
+}
+
+int pthread_cond_destroy(thread_cond_t *cond)
+{
+	/* Windows does not have a destroy for conditionals */
+	(void)cond;
+	return 0;
+}
+
+int pthread_cond_wait(thread_cond_t *cond, pthread_mutex_t *mutex)
+{
+	if (cond == NULL || mutex == NULL)
+		return 1;
+	return pthread_cond_timedwait(cond, mutex, NULL);
+}
+
+int pthread_cond_timedwait(thread_cond_t *cond, pthread_mutex_t *mutex,
+	const struct timespec *abstime)
+{
+	if (cond == NULL || mutex == NULL)
+		return 1;
+	if (!SleepConditionVariableCS(cond, mutex, timespec_to_ms(abstime)))
+		return 1;
+	return 0;
+}
+
+int pthread_cond_signal(thread_cond_t *cond)
+{
+	if (cond == NULL)
+		return 1;
+	WakeConditionVariable(cond);
+	return 0;
+}
+
+int pthread_cond_broadcast(thread_cond_t *cond)
+{
+	if (cond == NULL)
+		return 1;
+	WakeAllConditionVariable(cond);
 	return 0;
 }
 
