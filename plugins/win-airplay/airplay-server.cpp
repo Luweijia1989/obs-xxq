@@ -380,7 +380,7 @@ bool ScreenMirrorServer::initAudioRenderer()
 	if (err != paNoError)
 		goto error;
 
-	err = Pa_OpenDefaultStream(&pa_stream_, 0, 2, paInt16, 48000, 2048,
+	err = Pa_OpenDefaultStream(&pa_stream_, 0, 2, paInt16, 44100, 44100,
 				   nullptr, nullptr);
 	if (err != paNoError)
 		goto error;
@@ -389,7 +389,7 @@ bool ScreenMirrorServer::initAudioRenderer()
 	if (err != paNoError)
 		goto error;
 
-	to.samples_per_sec = sample_rate = 48000;
+	to.samples_per_sec = sample_rate = 44100;
 	to.format = AUDIO_FORMAT_16BIT;
 	to.speakers = SPEAKERS_STEREO;
 	channels = 2;
@@ -621,7 +621,8 @@ void *ScreenMirrorServer::audio_tick_thread(void *data)
 				break;
 		}
 		pthread_mutex_unlock(&s->m_audioDataMutex);
-		os_sleep_ms(10);
+		//blog(LOG_DEBUG, "%ld", Pa_GetStreamWriteAvailable(s->pa_stream_));
+		os_sleep_ms(2);
 	}
 	return NULL;
 }
