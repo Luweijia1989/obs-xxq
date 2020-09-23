@@ -36,13 +36,7 @@ ScreenMirrorServer::ScreenMirrorServer(obs_source_t *source)
 				    m_videoFrame.color_range_max);
 	memcpy(&m_imageFrame, &m_videoFrame, sizeof(struct obs_source_frame2));
 
-#ifdef DUMPFILE
-	m_auioFile = fopen("audio.pcm", "wb");
-	m_videoFile = fopen("video.x264", "wb");
-#endif
-
 	pthread_create(&m_audioTh, NULL, ScreenMirrorServer::audio_tick_thread, this);
-
 	circlebuf_init(&m_avBuffer);
 
 	updateStatusImage();
@@ -200,7 +194,7 @@ void ScreenMirrorServer::setBackendType(int type)
 {
 	m_backend = (MirrorBackEnd)type;
 	if (m_backend == IOS_AIRPLAY)
-		m_extraDelay = 100000000;
+		m_extraDelay = 200000000;
 	else
 		m_extraDelay = 0;
 }
@@ -275,6 +269,8 @@ void ScreenMirrorServer::handleMirrorStatus()
 	updateStatusImage();
 }
 
+
+
 bool ScreenMirrorServer::handleMediaData()
 {
 	size_t header_size = sizeof(struct av_packet_info);
@@ -296,30 +292,14 @@ bool ScreenMirrorServer::handleMediaData()
 		struct media_info info;
 		memset(&info, 0, req_size);
 		circlebuf_pop_front(&m_avBuffer, &info, req_size);
-
-		blog(LOG_INFO, "recv media info, pps_len: %d, sps_len: %d",
-		     info.pps_len, info.sps_len);
-
 		if (info.sps_len == 0 && info.pps_len == 0)
 			return true;
 
-		m_mediaInfo = info;
-		resetResampler(info.speakers, info.format,
-			       info.samples_per_sec);
-		if (!m_infoReceived)
-			m_infoReceived = true;
-#ifdef DUMPFILE
-		fwrite(info.pps, info.pps_len, 1, m_videoFile);
-#endif // DUMPFILE
+		resetResampler(info.speakers, info.format, info.samples_per_sec);
 		m_decoder.docode(info.pps, info.pps_len, true, 0);
 	} else {
 		if (header_info.type == FFM_PACKET_AUDIO) {
-#ifdef DUMPFILE
-			fwrite(temp_buf, 1, req_size, m_auioFile);
-#endif // DUMPFILE
-			if (m_infoReceived) {
-				outputAudio(req_size, header_info.pts, header_info.serial);
-			}
+			outputAudio(req_size, header_info.pts, header_info.serial);
 		} else {
 			uint8_t *temp_buf = (uint8_t *)calloc(1, req_size);
 			circlebuf_pop_front(&m_avBuffer, temp_buf, req_size);
@@ -415,6 +395,9 @@ void ScreenMirrorServer::resetResampler(enum speaker_layout speakers,
 					enum audio_format format,
 					uint32_t samples_per_sec)
 {
+	if (format == AUDIO_FORMAT_UNKNOWN || samples_per_sec == 0 || speakers == SPEAKERS_UNKNOWN)
+		return;
+
 	if (from.format == format && from.speakers == speakers &&
 	    from.samples_per_sec == samples_per_sec && resampler)
 		return;
@@ -499,6 +482,8 @@ void ScreenMirrorServer::outputVideoFrame(AVFrame *frame)
 
 void ScreenMirrorServer::outputAudio(size_t data_len, uint64_t pts, int serial)
 {
+	if (!resampler)
+		return;
 	pthread_mutex_lock(&m_audioDataMutex);
 	auto frame = (AudioFrame *)malloc(sizeof(AudioFrame));
 	frame->serial = serial;
@@ -611,17 +596,19 @@ void *ScreenMirrorServer::audio_tick_thread(void *data)
 			if (s->m_lastAudioPts != LLONG_MAX && frame->pts - s->m_lastAudioPts > 1000000000000000000)
 				s->m_audioOffset = now - frame->pts;
 
-			if (s->m_audioOffset + frame->pts <= now) {
+			auto offset = s->m_audioOffset + frame->pts - now;
+			if (offset <= 0) {
 				s->outputAudioFrame(frame->data,
 						    frame->data_len);
 				s->m_audioFrames.pop_front();
 				s->m_lastAudioPts = frame->pts;
 				free(frame->data);
 			} else
+			{
 				break;
+			}
 		}
 		pthread_mutex_unlock(&s->m_audioDataMutex);
-		//blog(LOG_DEBUG, "%ld", Pa_GetStreamWriteAvailable(s->pa_stream_));
 		os_sleep_ms(2);
 	}
 	return NULL;

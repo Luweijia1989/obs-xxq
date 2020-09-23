@@ -18,8 +18,6 @@ extern "C" {
 #include <util/pipe.h>
 }
 
-//#define DUMPFILE
-
 struct AudioFrame {
 	uint8_t *data;
 	size_t data_len;
@@ -52,6 +50,7 @@ public:
 	static void pipeCallback(void *param, uint8_t *data, size_t size);
 	static void WinAirplayVideoTick(void *data, float seconds);
 	static void *audio_tick_thread(void *data);
+	static void *video_decode_thread(void *data);
 	int m_width = 0;
 	int m_height = 0;
 	obs_source_t *m_source = nullptr;
@@ -104,12 +103,5 @@ private:
 	os_process_pipe_t *process = nullptr;
 	circlebuf m_avBuffer;
 	VideoDecoder m_decoder;
-	struct media_info m_mediaInfo;
-	bool m_infoReceived = false;
 	MirrorBackEnd m_backend = None;
-
-#ifdef DUMPFILE
-	FILE *m_auioFile;
-	FILE *m_videoFile;
-#endif
 };
