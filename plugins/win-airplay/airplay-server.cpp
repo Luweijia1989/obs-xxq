@@ -18,9 +18,46 @@ static uint32_t byteutils_get_int_be(unsigned char *b, int offset)
 	return ntohl(byteutils_get_int(b, offset));
 }
 
+static inline enum video_format
+ffmpeg_to_obs_video_format(enum AVPixelFormat format)
+{
+	switch (format) {
+	case AV_PIX_FMT_YUV444P:
+		return VIDEO_FORMAT_I444;
+	case AV_PIX_FMT_YUV420P:
+		return VIDEO_FORMAT_I420;
+	case AV_PIX_FMT_NV12:
+		return VIDEO_FORMAT_NV12;
+	case AV_PIX_FMT_YUYV422:
+		return VIDEO_FORMAT_YUY2;
+	case AV_PIX_FMT_UYVY422:
+		return VIDEO_FORMAT_UYVY;
+	case AV_PIX_FMT_RGBA:
+		return VIDEO_FORMAT_RGBA;
+	case AV_PIX_FMT_BGRA:
+		return VIDEO_FORMAT_BGRA;
+	case AV_PIX_FMT_GRAY8:
+		return VIDEO_FORMAT_Y800;
+	case AV_PIX_FMT_BGR24:
+		return VIDEO_FORMAT_BGR3;
+	case AV_PIX_FMT_YUV422P:
+		return VIDEO_FORMAT_I422;
+	case AV_PIX_FMT_YUVA420P:
+		return VIDEO_FORMAT_I40A;
+	case AV_PIX_FMT_YUVA422P:
+		return VIDEO_FORMAT_I42A;
+	case AV_PIX_FMT_YUVA444P:
+		return VIDEO_FORMAT_YUVA;
+	case AV_PIX_FMT_NONE:
+	default:
+		return VIDEO_FORMAT_NONE;
+	}
+}
+
 ScreenMirrorServer::ScreenMirrorServer(obs_source_t *source)
-	: m_source(source),
-	  if2((gs_image_file2_t *)bzalloc(sizeof(gs_image_file2_t)))
+	: m_source(source)
+	, m_decoder(this)
+	, if2((gs_image_file2_t *)bzalloc(sizeof(gs_image_file2_t)))
 {
 	initAudioRenderer();
 
@@ -304,10 +341,9 @@ bool ScreenMirrorServer::handleMediaData()
 			uint8_t *temp_buf = (uint8_t *)calloc(1, req_size);
 			circlebuf_pop_front(&m_avBuffer, temp_buf, req_size);
 
-			AVFrame *frame = nullptr;
 			if (memcmp(temp_buf, start_code, 4) == 0)
 			{
-				frame = m_decoder.docode( temp_buf, req_size, false, header_info.pts);
+				m_decoder.docode( temp_buf, req_size, false, header_info.pts);
 			}
 			else
 			{
@@ -315,12 +351,10 @@ bool ScreenMirrorServer::handleMediaData()
 				size_t all_len = 0;
 				parseNalus(temp_buf, req_size, &all, &all_len);
 				if (all_len) {
-					frame = m_decoder.docode(all, all_len, false, header_info.pts);
+					m_decoder.docode(all, all_len, false, header_info.pts);
 				}
 				free(all);
 			}
-			if (frame)
-				outputVideo(frame);
 
 			free(temp_buf);
 		}
@@ -463,7 +497,7 @@ void ScreenMirrorServer::outputVideoFrame(AVFrame *frame)
 	m_videoFrame.timestamp = frame->pts;
 	m_videoFrame.width = frame->width;
 	m_videoFrame.height = frame->height;
-	m_videoFrame.format = VIDEO_FORMAT_I420;
+	m_videoFrame.format = ffmpeg_to_obs_video_format((AVPixelFormat)frame->format);
 	m_videoFrame.flip = false;
 	m_videoFrame.flip_h = false;
 
