@@ -231,7 +231,7 @@ void ScreenMirrorServer::setBackendType(int type)
 {
 	m_backend = (MirrorBackEnd)type;
 	if (m_backend == IOS_AIRPLAY)
-		m_extraDelay = 200000000;
+		m_extraDelay = 100000000;
 	else
 		m_extraDelay = 0;
 }

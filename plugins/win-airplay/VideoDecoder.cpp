@@ -256,6 +256,7 @@ void VideoDecoder::docode(uint8_t *data, size_t data_len, bool is_key, uint64_t 
 					ret = avcodec_receive_frame(m_pCodecCtx, pFrame);
 					if (ret == 0) {
 						av_hwframe_transfer_data(sw_frame, pFrame, 0);
+						sw_frame->pts = ts;
 						m_server->outputVideo(sw_frame);
 						av_frame_free(&pFrame);
 					}
