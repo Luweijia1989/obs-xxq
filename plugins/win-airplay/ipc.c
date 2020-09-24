@@ -117,7 +117,9 @@ void ipc_server_create(struct IPCServer **input, read_cb cb, void *param)
 
 	// Create read thread
 	server->m_readThread =
-		CreateThread(NULL, 0, read_thread, server, 0, NULL);
+		CreateThread(NULL, 0, read_thread, server, CREATE_SUSPENDED, NULL);
+	SetThreadPriority(server->m_readThread, THREAD_PRIORITY_HIGHEST);
+	ResumeThread(server->m_readThread);
 }
 
 void ipc_server_destroy(struct IPCServer **input)
