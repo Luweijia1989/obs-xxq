@@ -51,6 +51,10 @@ file(GLOB FFMPEG_BIN_FILES
 	"${FFMPEG_swresample_INCLUDE_DIR}/../bin/swresample-*.dll"
 	"${FFMPEG_swresample_INCLUDE_DIR}/../bin${_bin_suffix}/swresample-*.dll"
 	"${FFMPEG_swresample_INCLUDE_DIR}/bin${_bin_suffix}/swresample-*.dll"
+	
+	"${FFMPEG_avresample_INCLUDE_DIR}/../bin/avresample-*.dll"
+	"${FFMPEG_avresample_INCLUDE_DIR}/../bin${_bin_suffix}/avresample-*.dll"
+	"${FFMPEG_avresample_INCLUDE_DIR}/bin${_bin_suffix}/avresample-*.dll"
 
 	"${FFMPEG_avcodec_INCLUDE_DIR}/../bin/libopus*.dll"
 	"${FFMPEG_avcodec_INCLUDE_DIR}/../bin/opus*.dll"

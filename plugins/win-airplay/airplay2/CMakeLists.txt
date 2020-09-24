@@ -15,7 +15,7 @@ include_directories( lib/ lib/curve25519 lib/ed25519 lib/playfair lib/openssl/in
         lib/fdk-aac/libDRCdec/include
         lib/fdk-aac/libSACdec/include
         lib/fdk-aac/libSACenc/include)
-
+ 
 aux_source_directory(. play_src)
 set(DIR_SRCS ${play_src})
 
