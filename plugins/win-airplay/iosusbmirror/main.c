@@ -620,17 +620,17 @@ void pipeConsume(struct CMSampleBuffer *buf, void *c)
 							  : FFM_PACKET_VIDEO;
 	if (buf->OutputPresentationTimestamp.CMTimeValue > 17446044073700192000)
 		buf->OutputPresentationTimestamp.CMTimeValue = 0;
-
+	pack_info.pts = 0;
 	if (pack_info.type == FFM_PACKET_AUDIO) {
 		app_device.last_audio_ts =
 			buf->OutputPresentationTimestamp.CMTimeValue * 1000.0 /
 			buf->OutputPresentationTimestamp.CMTimeScale;
-		pack_info.pts =
-			app_device.last_audio_ts - app_device.audio_offset;
+		/*pack_info.pts =
+			app_device.last_audio_ts - app_device.audio_offset;*/
 	} else {
-		pack_info.pts = buf->OutputPresentationTimestamp.CMTimeValue *
+		/*pack_info.pts = buf->OutputPresentationTimestamp.CMTimeValue *
 				1000.0 /
-				buf->OutputPresentationTimestamp.CMTimeScale;
+				buf->OutputPresentationTimestamp.CMTimeScale;*/
 		if (!app_device.has_video_received) {
 			app_device.audio_offset =
 				app_device.last_audio_ts - pack_info.pts;
