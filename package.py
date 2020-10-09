@@ -37,7 +37,7 @@ def main():
     system('conan export-pkg . obs-xxq/%s@bixin/%s -s compiler.version=15 -s arch=x86 -s build_type=Release --force' % (version,channel))
     if isOnline == "1":
        system('conan upload obs-xxq/%s@bixin/%s --all -r=pc' % (version,channel))
-       #system('git tag %s' % version)
-       #system('git push --tags')
+       system('git tag %s' % version)
+       system('git push --tags')
 if __name__ == "__main__":
     main()

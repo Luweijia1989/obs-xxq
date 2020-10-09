@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include <obs-module.h>
 #include <obs.hpp>
@@ -87,6 +87,7 @@ private:
 	std::list<AudioFrame *> m_audioFrames;
 	pthread_mutex_t m_videoDataMutex;
 	pthread_mutex_t m_audioDataMutex;
+	pthread_mutex_t m_imgMutex;
 	pthread_t m_audioTh;
 	bool m_running = true;
 	int64_t m_offset = LLONG_MAX;

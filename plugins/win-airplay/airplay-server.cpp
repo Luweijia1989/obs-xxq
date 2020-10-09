@@ -1,4 +1,4 @@
-#include <obs-module.h>
+﻿#include <obs-module.h>
 #include "airplay-server.h"
 #include <cstdio>
 #include <util/dstr.h>
@@ -55,14 +55,15 @@ ffmpeg_to_obs_video_format(enum AVPixelFormat format)
 }
 
 ScreenMirrorServer::ScreenMirrorServer(obs_source_t *source)
-	: m_source(source)
-	, m_decoder(this)
-	, if2((gs_image_file2_t *)bzalloc(sizeof(gs_image_file2_t)))
+	: m_source(source),
+	  m_decoder(this),
+	  if2((gs_image_file2_t *)bzalloc(sizeof(gs_image_file2_t)))
 {
 	initAudioRenderer();
 
 	pthread_mutex_init(&m_videoDataMutex, nullptr);
 	pthread_mutex_init(&m_audioDataMutex, nullptr);
+	pthread_mutex_init(&m_imgMutex, nullptr);
 	memset(m_videoFrame.data, 0, sizeof(m_videoFrame.data));
 	memset(&m_videoFrame, 0, sizeof(&m_videoFrame));
 
@@ -73,7 +74,8 @@ ScreenMirrorServer::ScreenMirrorServer(obs_source_t *source)
 				    m_videoFrame.color_range_max);
 	memcpy(&m_imageFrame, &m_videoFrame, sizeof(struct obs_source_frame2));
 
-	pthread_create(&m_audioTh, NULL, ScreenMirrorServer::audio_tick_thread, this);
+	pthread_create(&m_audioTh, NULL, ScreenMirrorServer::audio_tick_thread,
+		       this);
 	circlebuf_init(&m_avBuffer);
 
 	updateStatusImage();
@@ -95,6 +97,7 @@ ScreenMirrorServer::~ScreenMirrorServer()
 	circlebuf_free(&m_avBuffer);
 	pthread_mutex_destroy(&m_videoDataMutex);
 	pthread_mutex_destroy(&m_audioDataMutex);
+	pthread_mutex_destroy(&m_imgMutex);
 
 #ifdef DUMPFILE
 	fclose(m_auioFile);
@@ -283,8 +286,14 @@ void ScreenMirrorServer::parseNalus(uint8_t *data, size_t size, uint8_t **out,
 
 void ScreenMirrorServer::handleMirrorStatus()
 {
+	pthread_mutex_lock(&m_imgMutex);
 	int status = -1;
 	circlebuf_pop_front(&m_avBuffer, &status, sizeof(int));
+	if (status == mirror_status) {
+		pthread_mutex_unlock(&m_imgMutex);
+		return;
+	}
+
 	mirror_status = (obs_source_mirror_status)status;
 
 	obs_data_t *event = obs_data_create();
@@ -301,12 +310,11 @@ void ScreenMirrorServer::handleMirrorStatus()
 
 	if (mirror_status == OBS_SOURCE_MIRROR_STOP) {
 		resetState();
-	} 
-	
+	}
+
 	updateStatusImage();
+	pthread_mutex_unlock(&m_imgMutex);
 }
-
-
 
 bool ScreenMirrorServer::handleMediaData()
 {
@@ -321,7 +329,8 @@ bool ScreenMirrorServer::handleMediaData()
 	if (m_avBuffer.size < req_size + header_size)
 		return false;
 
-	circlebuf_pop_front(&m_avBuffer, &header_info, header_size); // remove it
+	circlebuf_pop_front(&m_avBuffer, &header_info,
+			    header_size); // remove it
 
 	if (header_info.type == FFM_MIRROR_STATUS)
 		handleMirrorStatus();
@@ -332,26 +341,27 @@ bool ScreenMirrorServer::handleMediaData()
 		if (info.sps_len == 0 && info.pps_len == 0)
 			return true;
 
-		resetResampler(info.speakers, info.format, info.samples_per_sec);
+		resetResampler(info.speakers, info.format,
+			       info.samples_per_sec);
 		m_decoder.docode(info.pps, info.pps_len, true, 0);
 	} else {
 		if (header_info.type == FFM_PACKET_AUDIO) {
-			outputAudio(req_size, header_info.pts, header_info.serial);
+			outputAudio(req_size, header_info.pts,
+				    header_info.serial);
 		} else {
 			uint8_t *temp_buf = (uint8_t *)calloc(1, req_size);
 			circlebuf_pop_front(&m_avBuffer, temp_buf, req_size);
 
-			if (memcmp(temp_buf, start_code, 4) == 0)
-			{
-				m_decoder.docode( temp_buf, req_size, false, header_info.pts);
-			}
-			else
-			{
+			if (memcmp(temp_buf, start_code, 4) == 0) {
+				m_decoder.docode(temp_buf, req_size, false,
+						 header_info.pts);
+			} else {
 				uint8_t *all = NULL;
 				size_t all_len = 0;
 				parseNalus(temp_buf, req_size, &all, &all_len);
 				if (all_len) {
-					m_decoder.docode(all, all_len, false, header_info.pts);
+					m_decoder.docode(all, all_len, false,
+							 header_info.pts);
 				}
 				free(all);
 			}
@@ -429,7 +439,8 @@ void ScreenMirrorServer::resetResampler(enum speaker_layout speakers,
 					enum audio_format format,
 					uint32_t samples_per_sec)
 {
-	if (format == AUDIO_FORMAT_UNKNOWN || samples_per_sec == 0 || speakers == SPEAKERS_UNKNOWN)
+	if (format == AUDIO_FORMAT_UNKNOWN || samples_per_sec == 0 ||
+	    speakers == SPEAKERS_UNKNOWN)
 		return;
 
 	if (from.format == format && from.speakers == speakers &&
@@ -497,7 +508,8 @@ void ScreenMirrorServer::outputVideoFrame(AVFrame *frame)
 	m_videoFrame.timestamp = frame->pts;
 	m_videoFrame.width = frame->width;
 	m_videoFrame.height = frame->height;
-	m_videoFrame.format = ffmpeg_to_obs_video_format((AVPixelFormat)frame->format);
+	m_videoFrame.format =
+		ffmpeg_to_obs_video_format((AVPixelFormat)frame->format);
 	m_videoFrame.flip = false;
 	m_videoFrame.flip_h = false;
 
@@ -617,17 +629,19 @@ void *ScreenMirrorServer::audio_tick_thread(void *data)
 			AudioFrame *frame = s->m_audioFrames.front();
 			int64_t now = (int64_t)os_gettime_ns();
 
-			if (s->m_audioPacketSerial != frame->serial)
-			{
+			if (s->m_audioPacketSerial != frame->serial) {
 				s->m_audioOffset = LLONG_MAX;
 				s->m_lastAudioPts = LLONG_MAX;
 				s->m_audioPacketSerial = frame->serial;
 			}
 
 			if (s->m_audioOffset == LLONG_MAX)
-				s->m_audioOffset = now - frame->pts + s->m_extraDelay;
+				s->m_audioOffset =
+					now - frame->pts + s->m_extraDelay;
 
-			if (s->m_lastAudioPts != LLONG_MAX && frame->pts - s->m_lastAudioPts > 1000000000000000000)
+			if (s->m_lastAudioPts != LLONG_MAX &&
+			    frame->pts - s->m_lastAudioPts >
+				    1000000000000000000)
 				s->m_audioOffset = now - frame->pts;
 
 			auto offset = s->m_audioOffset + frame->pts - now;
@@ -637,8 +651,7 @@ void *ScreenMirrorServer::audio_tick_thread(void *data)
 				s->m_audioFrames.pop_front();
 				s->m_lastAudioPts = frame->pts;
 				free(frame->data);
-			} else
-			{
+			} else {
 				break;
 			}
 		}
@@ -652,6 +665,7 @@ void ScreenMirrorServer::WinAirplayVideoTick(void *data, float seconds)
 {
 	ScreenMirrorServer *s = (ScreenMirrorServer *)data;
 
+	pthread_mutex_lock(&s->m_imgMutex);
 	if (s->mirror_status != OBS_SOURCE_MIRROR_OUTPUT) {
 		uint64_t frame_time = obs_get_video_frame_time();
 		if (s->last_time && s->if2->image.is_animated_gif) {
@@ -664,6 +678,7 @@ void ScreenMirrorServer::WinAirplayVideoTick(void *data, float seconds)
 		}
 		s->last_time = frame_time;
 	}
+	pthread_mutex_unlock(&s->m_imgMutex);
 
 	pthread_mutex_lock(&s->m_videoDataMutex);
 	while (s->m_videoFrames.size() > 0) {
