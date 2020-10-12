@@ -284,11 +284,9 @@ void ScreenMirrorServer::parseNalus(uint8_t *data, size_t size, uint8_t **out,
 	}
 }
 
-void ScreenMirrorServer::handleMirrorStatus()
+void ScreenMirrorServer::handleMirrorStatus(int status)
 {
 	pthread_mutex_lock(&m_imgMutex);
-	int status = -1;
-	circlebuf_pop_front(&m_avBuffer, &status, sizeof(int));
 	if (status == mirror_status) {
 		pthread_mutex_unlock(&m_imgMutex);
 		return;
@@ -310,6 +308,8 @@ void ScreenMirrorServer::handleMirrorStatus()
 
 	if (mirror_status == OBS_SOURCE_MIRROR_STOP) {
 		resetState();
+	} else if (mirror_status == OBS_SOURCE_MIRROR_START) {
+		m_startTimeElapsed = 0;
 	}
 
 	updateStatusImage();
@@ -332,9 +332,11 @@ bool ScreenMirrorServer::handleMediaData()
 	circlebuf_pop_front(&m_avBuffer, &header_info,
 			    header_size); // remove it
 
-	if (header_info.type == FFM_MIRROR_STATUS)
-		handleMirrorStatus();
-	else if (header_info.type == FFM_MEDIA_INFO) {
+	if (header_info.type == FFM_MIRROR_STATUS) {
+		int status = -1;
+		circlebuf_pop_front(&m_avBuffer, &status, sizeof(int));
+		handleMirrorStatus(status);
+	} else if (header_info.type == FFM_MEDIA_INFO) {
 		struct media_info info;
 		memset(&info, 0, req_size);
 		circlebuf_pop_front(&m_avBuffer, &info, req_size);
@@ -666,6 +668,15 @@ void ScreenMirrorServer::WinAirplayVideoTick(void *data, float seconds)
 	ScreenMirrorServer *s = (ScreenMirrorServer *)data;
 
 	pthread_mutex_lock(&s->m_imgMutex);
+	if (s->mirror_status == OBS_SOURCE_MIRROR_START) {
+		s->m_startTimeElapsed += seconds;
+		if (s->m_startTimeElapsed > 10.0) {
+			pthread_mutex_unlock(&s->m_imgMutex);
+			s->handleMirrorStatus(OBS_SOURCE_MIRROR_DEVICE_LOST);
+			pthread_mutex_lock(&s->m_imgMutex);
+		}
+	}
+
 	if (s->mirror_status != OBS_SOURCE_MIRROR_OUTPUT) {
 		uint64_t frame_time = obs_get_video_frame_time();
 		if (s->last_time && s->if2->image.is_animated_gif) {

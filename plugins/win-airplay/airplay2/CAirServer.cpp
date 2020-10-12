@@ -1,4 +1,4 @@
-#include "CAirServer.h"
+﻿#include "CAirServer.h"
 #include <cstdio>
 #include "../common-define.h"
 
@@ -18,7 +18,8 @@ CAirServer::~CAirServer()
 void CAirServer::outputStatus(bool isConnected, const char *remoteName,
 			      const char *remoteDeviceId)
 {
-	outputStatus(isConnected ? MIRROR_START : MIRROR_STOP, remoteName, remoteDeviceId);
+	outputStatus(isConnected ? MIRROR_START : MIRROR_STOP, remoteName,
+		     remoteDeviceId);
 }
 
 void CAirServer::outputStatus(mirror_status s, const char *remoteName,
@@ -27,8 +28,9 @@ void CAirServer::outputStatus(mirror_status s, const char *remoteName,
 	send_status(client, s);
 }
 
-void CAirServer::outputAudio(uint8_t *data, size_t data_len, uint64_t pts, int serial,
-			     const char *remoteName, const char *remoteDeviceId)
+void CAirServer::outputAudio(uint8_t *data, size_t data_len, uint64_t pts,
+			     int serial, const char *remoteName,
+			     const char *remoteDeviceId)
 {
 	if (data_len <= 0)
 		return;
@@ -55,20 +57,20 @@ void CAirServer::outputVideo(uint8_t *data, size_t data_len, uint64_t pts,
 	pack_info.type = FFM_PACKET_VIDEO;
 	pack_info.pts = pts;
 
-	ipc_client_write(client, &pack_info,
-			      sizeof(struct av_packet_info), INFINITE);
+	ipc_client_write(client, &pack_info, sizeof(struct av_packet_info),
+			 INFINITE);
 	ipc_client_write(client, data, data_len, INFINITE);
 }
 
-void CAirServer::outputMediaInfo(media_info *info,const char *remoteName,
+void CAirServer::outputMediaInfo(media_info *info, const char *remoteName,
 				 const char *remoteDeviceId)
 {
 	struct av_packet_info pack_info = {0};
 	pack_info.size = sizeof(struct media_info);
 	pack_info.type = FFM_MEDIA_INFO;
 
-	ipc_client_write(client, &pack_info,
-			      sizeof(struct av_packet_info), INFINITE);
+	ipc_client_write(client, &pack_info, sizeof(struct av_packet_info),
+			 INFINITE);
 	ipc_client_write(client, info, sizeof(struct media_info), INFINITE);
 }
 
@@ -99,7 +101,7 @@ bool CAirServer::start()
 	memset(hostName, 0, sizeof(hostName));
 	getHostName(hostName);
 	char serverName[1024] = {0};
-	sprintf_s(serverName, 1024, "YuerLive[%s]", hostName);
+	sprintf_s(serverName, 1024, u8"鱼耳直播[%s]", hostName);
 	m_pServer = fgServerStart(serverName, 5001, 7001, m_pCallback);
 	return m_pServer != NULL;
 }

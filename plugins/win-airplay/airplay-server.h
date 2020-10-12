@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include <obs-module.h>
 #include <obs.hpp>
@@ -54,7 +54,7 @@ public:
 	int m_width = 0;
 	int m_height = 0;
 	obs_source_t *m_source = nullptr;
-	obs_source_mirror_status mirror_status = OBS_SOURCE_MIRROR_START;
+	obs_source_mirror_status mirror_status = OBS_SOURCE_MIRROR_STOP;
 	gs_image_file2_t *if2 = nullptr;
 	uint64_t last_time = 0;
 
@@ -67,7 +67,7 @@ private:
 	bool initPipe();
 	void parseNalus(uint8_t *data, size_t size, uint8_t **out,
 			size_t *out_len);
-	void handleMirrorStatus();
+	void handleMirrorStatus(int status);
 	bool handleMediaData();
 	const char *killProc();
 	void updateStatusImage();
@@ -95,6 +95,7 @@ private:
 	int64_t m_lastAudioPts = LLONG_MAX;
 	int m_audioPacketSerial = -1;
 	int64_t m_extraDelay = 0;
+	float m_startTimeElapsed = 0.;
 
 	obs_source_frame2 m_videoFrame;
 	obs_source_frame2 m_imageFrame;

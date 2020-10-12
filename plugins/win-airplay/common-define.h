@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "../../libobs/media-io/audio-io.h"
 #include "ipc.h"
