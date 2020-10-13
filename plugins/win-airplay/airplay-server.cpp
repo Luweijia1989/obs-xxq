@@ -1,4 +1,4 @@
-﻿#include <obs-module.h>
+#include <obs-module.h>
 #include "airplay-server.h"
 #include <cstdio>
 #include <util/dstr.h>
@@ -74,8 +74,8 @@ ScreenMirrorServer::ScreenMirrorServer(obs_source_t *source)
 				    m_videoFrame.color_range_max);
 	memcpy(&m_imageFrame, &m_videoFrame, sizeof(struct obs_source_frame2));
 
-	pthread_create(&m_audioTh, NULL, ScreenMirrorServer::audio_tick_thread,
-		       this);
+	pthread_create(&m_audioTh, NULL, ScreenMirrorServer::audio_tick_thread, this);
+	pthread_create(&m_videoTh, NULL, ScreenMirrorServer::video_tick_thread, this);
 	circlebuf_init(&m_avBuffer);
 
 	updateStatusImage();
@@ -88,6 +88,7 @@ ScreenMirrorServer::~ScreenMirrorServer()
 	destroyAudioRenderer();
 	m_running = false;
 	pthread_join(m_audioTh, NULL);
+	pthread_join(m_videoTh, NULL);
 
 	obs_enter_graphics();
 	gs_image_file2_free(if2);
@@ -149,7 +150,6 @@ void ScreenMirrorServer::mirrorServerDestroy()
 		ipc_server_destroy(&m_ipcServer);
 
 	circlebuf_free(&m_avBuffer);
-	circlebuf_init(&m_avBuffer);
 
 	resetState();
 }
@@ -328,6 +328,18 @@ bool ScreenMirrorServer::handleMediaData()
 	size_t req_size = header_info.size;
 	if (m_avBuffer.size < req_size + header_size)
 		return false;
+
+	if (header_info.type == FFM_MIRROR_STATUS) {
+		if (req_size != sizeof(int)) {
+			circlebuf_free(&m_avBuffer);
+			return false;
+		}
+	} else if (header_info.type == FFM_MEDIA_INFO) {
+		if (req_size != sizeof(struct media_info)) {
+			circlebuf_free(&m_avBuffer);
+			return false;
+		}
+	}
 
 	circlebuf_pop_front(&m_avBuffer, &header_info,
 			    header_size); // remove it
@@ -638,12 +650,9 @@ void *ScreenMirrorServer::audio_tick_thread(void *data)
 			}
 
 			if (s->m_audioOffset == LLONG_MAX)
-				s->m_audioOffset =
-					now - frame->pts + s->m_extraDelay;
+				s->m_audioOffset = now - frame->pts + s->m_extraDelay;
 
-			if (s->m_lastAudioPts != LLONG_MAX &&
-			    frame->pts - s->m_lastAudioPts >
-				    1000000000000000000)
+			if (s->m_lastAudioPts != LLONG_MAX && frame->pts - s->m_lastAudioPts > 1000000000000000000)
 				s->m_audioOffset = now - frame->pts;
 
 			auto offset = s->m_audioOffset + frame->pts - now;
@@ -658,6 +667,30 @@ void *ScreenMirrorServer::audio_tick_thread(void *data)
 			}
 		}
 		pthread_mutex_unlock(&s->m_audioDataMutex);
+		os_sleep_ms(2);
+	}
+	return NULL;
+}
+
+void *ScreenMirrorServer::video_tick_thread(void *data)
+{
+	ScreenMirrorServer *s = (ScreenMirrorServer *)data;
+	while (s->m_running) {
+		pthread_mutex_lock(&s->m_videoDataMutex);
+		while (s->m_videoFrames.size() > 0) {
+			AVFrame *frame = s->m_videoFrames.front();
+			int64_t now = (int64_t)os_gettime_ns();
+			if (s->m_offset == LLONG_MAX)
+				s->m_offset = now - frame->pts + s->m_extraDelay;
+
+			if (s->m_offset + frame->pts <= now) {
+				s->outputVideoFrame(frame);
+				s->m_videoFrames.pop_front();
+				av_frame_free(&frame);
+			} else
+				break;
+		}
+		pthread_mutex_unlock(&s->m_videoDataMutex);
 		os_sleep_ms(2);
 	}
 	return NULL;
@@ -690,23 +723,6 @@ void ScreenMirrorServer::WinAirplayVideoTick(void *data, float seconds)
 		s->last_time = frame_time;
 	}
 	pthread_mutex_unlock(&s->m_imgMutex);
-
-	pthread_mutex_lock(&s->m_videoDataMutex);
-	while (s->m_videoFrames.size() > 0) {
-		AVFrame *frame = s->m_videoFrames.front();
-		int64_t now = (int64_t)os_gettime_ns();
-		if (s->m_offset == LLONG_MAX)
-			s->m_offset = now - frame->pts + s->m_extraDelay;
-
-		if (s->m_offset + frame->pts <= now) {
-			s->outputVideoFrame(frame);
-			s->m_videoFrames.pop_front();
-
-			av_frame_free(&frame);
-		} else
-			break;
-	}
-	pthread_mutex_unlock(&s->m_videoDataMutex);
 }
 
 static void WinAirplayCustomCommand(void *data, obs_data_t *cmd)

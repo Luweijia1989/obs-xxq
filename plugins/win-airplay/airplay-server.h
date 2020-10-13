@@ -50,6 +50,7 @@ public:
 	static void pipeCallback(void *param, uint8_t *data, size_t size);
 	static void WinAirplayVideoTick(void *data, float seconds);
 	static void *audio_tick_thread(void *data);
+	static void *video_tick_thread(void *data);
 	static void *video_decode_thread(void *data);
 	int m_width = 0;
 	int m_height = 0;
@@ -89,6 +90,7 @@ private:
 	pthread_mutex_t m_audioDataMutex;
 	pthread_mutex_t m_imgMutex;
 	pthread_t m_audioTh;
+	pthread_t m_videoTh;
 	bool m_running = true;
 	int64_t m_offset = LLONG_MAX;
 	int64_t m_audioOffset = LLONG_MAX;
