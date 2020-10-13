@@ -1,4 +1,4 @@
-#include <QApplication>
+﻿#include <QApplication>
 #include <Windows.h>
 #include <QProgressBar>
 #include <fcntl.h>
@@ -371,9 +371,11 @@ int main(int argc, char *argv[])
 	QObject::connect(&stdinThread, &StdInThread::stop, &bar,
 			 &ProgressBar::onStop);
 
+	bar.setWindowFlag(Qt::FramelessWindowHint, true);
 	bar.setFixedSize(1,1);
 	bar.show();
 	bar.hide();
+	bar.setWindowFlag(Qt::FramelessWindowHint, false);
 	bar.setFixedSize(280, 32);
 	stdinThread.start();
 
