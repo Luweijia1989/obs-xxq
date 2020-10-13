@@ -74,6 +74,7 @@ private:
 	void updateStatusImage();
 	void updateImageTexture();
 	void loadImage(const char *path);
+	void saveStatusSettings();
 
 private:
 	PaStreamParameters open_param_;

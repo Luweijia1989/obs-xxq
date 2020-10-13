@@ -78,6 +78,7 @@ ScreenMirrorServer::ScreenMirrorServer(obs_source_t *source)
 	pthread_create(&m_videoTh, NULL, ScreenMirrorServer::video_tick_thread, this);
 	circlebuf_init(&m_avBuffer);
 
+	saveStatusSettings();
 	updateStatusImage();
 }
 
@@ -255,6 +256,13 @@ void ScreenMirrorServer::loadImage(const char *path)
 	}
 }
 
+void ScreenMirrorServer::saveStatusSettings()
+{
+	obs_data_t *setting = obs_source_get_settings(m_source);
+	obs_data_release(setting);
+	obs_data_set_int(setting, "status", mirror_status);
+}
+
 void ScreenMirrorServer::parseNalus(uint8_t *data, size_t size, uint8_t **out,
 				    size_t *out_len)
 {
@@ -293,6 +301,7 @@ void ScreenMirrorServer::handleMirrorStatus(int status)
 	}
 
 	mirror_status = (obs_source_mirror_status)status;
+	saveStatusSettings();
 
 	obs_data_t *event = obs_data_create();
 	obs_data_set_string(event, "eventType", "MirrorStatus");
@@ -312,7 +321,9 @@ void ScreenMirrorServer::handleMirrorStatus(int status)
 		m_startTimeElapsed = 0;
 	}
 
-	updateStatusImage();
+	if (mirror_status != OBS_SOURCE_MIRROR_OUTPUT)
+		updateStatusImage();
+
 	pthread_mutex_unlock(&m_imgMutex);
 }
 
@@ -516,9 +527,6 @@ void ScreenMirrorServer::outputAudioFrame(uint8_t *data, size_t size)
 
 void ScreenMirrorServer::outputVideoFrame(AVFrame *frame)
 {
-	if (mirror_status != OBS_SOURCE_MIRROR_OUTPUT)
-		mirror_status = OBS_SOURCE_MIRROR_OUTPUT;
-
 	m_videoFrame.timestamp = frame->pts;
 	m_videoFrame.width = frame->width;
 	m_videoFrame.height = frame->height;
@@ -592,6 +600,7 @@ static void GetWinAirplayDefaultsOutput(obs_data_t *settings)
 {
 	obs_data_set_default_int(settings, "type",
 				 ScreenMirrorServer::IOS_AIRPLAY);
+	obs_data_set_default_int(settings, "status", MIRROR_STOP);
 }
 
 static obs_properties_t *GetWinAirplayPropertiesOutput(void *data)
@@ -684,6 +693,7 @@ void *ScreenMirrorServer::video_tick_thread(void *data)
 				s->m_offset = now - frame->pts + s->m_extraDelay;
 
 			if (s->m_offset + frame->pts <= now) {
+				s->handleMirrorStatus(OBS_SOURCE_MIRROR_OUTPUT);
 				s->outputVideoFrame(frame);
 				s->m_videoFrames.pop_front();
 				av_frame_free(&frame);
