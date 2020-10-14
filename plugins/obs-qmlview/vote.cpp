@@ -273,7 +273,7 @@ static void vote_source_defaults(obs_data_t *settings)
 		u8R"({"subject":"","fontInfo":{"fontFamily":"阿里巴巴普惠体 M","fontSize":16,"color":"#D4D4D5","backgroundColor":"transparent","bold":false,"italic":false,"underline":false,"strikeout":false}})");
 	obs_data_set_default_string(
 		settings, "option",
-		u8R"([{"optionContent":"","voteCount":0,"fontInfo":{"fontFamily":"阿里巴巴普惠体 R","fontSize":14,"color":"#D4D4D5","backgroundColor":"transparent","bold":false,"italic":false,"underline":false,"strikeout":false}}])");
+		u8R"([{"optionContent":"","voteCount":0,"fontInfo":{"fontFamily":"阿里巴巴普惠体 R","fontSize":14,"color":"#D4D4D5","backgroundColor":"transparent","bold":false,"italic":false,"underline":false,"strikeout":false}},{"optionContent":"","voteCount":0,"fontInfo":{"fontFamily":"阿里巴巴普惠体 R","fontSize":14,"color":"#D4D4D5","backgroundColor":"transparent","bold":false,"italic":false,"underline":false,"strikeout":false}}])");
 	obs_data_set_default_int(settings, "duration", 120);
 	obs_data_set_default_int(settings, "cusDuration", 30);
 	obs_data_set_default_bool(settings, "useDuration", true);
