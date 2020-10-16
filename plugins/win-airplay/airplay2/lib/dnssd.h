@@ -23,6 +23,7 @@ DNSSD_API dnssd_t *dnssd_init(const char *name, int name_len, const char *hw_add
 
 DNSSD_API int dnssd_register_raop(dnssd_t *dnssd, unsigned short port);
 DNSSD_API int dnssd_register_airplay(dnssd_t *dnssd, unsigned short port);
+DNSSD_API int dnssd_update_record_thread(dnssd_t *dnssd, unsigned short raop_port, unsigned short airplay_port);
 
 DNSSD_API void dnssd_unregister_raop(dnssd_t *dnssd);
 DNSSD_API void dnssd_unregister_airplay(dnssd_t *dnssd);

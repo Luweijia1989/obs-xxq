@@ -1,4 +1,4 @@
-﻿/**
+/**
  *  Copyright (C) 2011-2012  Juho Vähä-Herttua
  *
  *  This library is free software; you can redistribute it and/or
@@ -60,6 +60,7 @@
 # endif
 
 typedef struct _DNSServiceRef_t *DNSServiceRef;
+typedef struct _DNSRecordRef_t *DNSRecordRef;
 typedef union _TXTRecordRef_t { char PrivateData[16]; char *ForceNaturalAlignment; } TXTRecordRef;
 
 typedef uint32_t DNSServiceFlags;
@@ -114,6 +115,16 @@ typedef DNSServiceErrorType(DNSSD_STDCALL *TXTRecordSetValue_t)
 typedef uint16_t(DNSSD_STDCALL *TXTRecordGetLength_t)(const TXTRecordRef *txtRecord);
 typedef const void * (DNSSD_STDCALL *TXTRecordGetBytesPtr_t)(const TXTRecordRef *txtRecord);
 
+typedef DNSServiceErrorType(DNSSD_STDCALL *DNSServiceUpdateRecord_t)
+(
+	DNSServiceRef sdRef,
+	DNSRecordRef RecordRef,                            /* may be NULL */
+	DNSServiceFlags flags,
+	uint16_t rdlen,
+	const void                          *rdata,
+	uint32_t ttl
+);
+
 
 struct dnssd_s {
 #ifdef WIN32
@@ -124,6 +135,7 @@ struct dnssd_s {
 
 	DNSServiceRegister_t       DNSServiceRegister;
 	DNSServiceRefDeallocate_t  DNSServiceRefDeallocate;
+	DNSServiceUpdateRecord_t   DNSServiceUpdateRecord;
 	TXTRecordCreate_t          TXTRecordCreate;
 	TXTRecordSetValue_t        TXTRecordSetValue;
 	TXTRecordGetLength_t       TXTRecordGetLength;
@@ -141,6 +153,10 @@ struct dnssd_s {
 
 	char *hw_addr;
 	int hw_addr_len;
+	thread_handle_t update_th;
+	unsigned short airplay_port;
+	unsigned short raop_port;
+	int register_running;
 };
 
 
@@ -167,6 +183,7 @@ dnssd_init(const char* name, int name_len, const char* hw_addr, int hw_addr_len,
 	}
 	dnssd->DNSServiceRegister = (DNSServiceRegister_t)GetProcAddress(dnssd->module, "DNSServiceRegister");
 	dnssd->DNSServiceRefDeallocate = (DNSServiceRefDeallocate_t)GetProcAddress(dnssd->module, "DNSServiceRefDeallocate");
+	dnssd->DNSServiceUpdateRecord = (DNSServiceUpdateRecord_t)GetProcAddress(dnssd->module, "DNSServiceUpdateRecord");
 	dnssd->TXTRecordCreate = (TXTRecordCreate_t)GetProcAddress(dnssd->module, "TXTRecordCreate");
 	dnssd->TXTRecordSetValue = (TXTRecordSetValue_t)GetProcAddress(dnssd->module, "TXTRecordSetValue");
 	dnssd->TXTRecordGetLength = (TXTRecordGetLength_t)GetProcAddress(dnssd->module, "TXTRecordGetLength");
@@ -246,6 +263,15 @@ dnssd_destroy(dnssd_t *dnssd)
 #elif USE_LIBDL
 		dlclose(dnssd->module);
 #endif
+		dnssd->register_running = 0;
+		THREAD_JOIN(dnssd->update_th);
+
+		if (dnssd->name)
+			free(dnssd->name);
+
+		if (dnssd->hw_addr)
+			free(dnssd->hw_addr);
+
 		free(dnssd);
 	}
 }
@@ -300,6 +326,8 @@ dnssd_register_raop(dnssd_t *dnssd, unsigned short port)
 		htons(port),
 		dnssd->TXTRecordGetLength(&dnssd->raop_record),
 		dnssd->TXTRecordGetBytesPtr(&dnssd->raop_record),
+		/*0,
+		NULL,*/
 		NULL, NULL);
 
 
@@ -337,9 +365,49 @@ dnssd_register_airplay(dnssd_t *dnssd, unsigned short port)
 		htons(port),
 		dnssd->TXTRecordGetLength(&dnssd->airplay_record),
 		dnssd->TXTRecordGetBytesPtr(&dnssd->airplay_record),
+		/*0,
+		NULL,*/
 		NULL, NULL);
 
 	return 1;
+}
+
+static register_service(dnssd_t *dnssd)
+{
+	dnssd_unregister_raop(dnssd);
+	dnssd_unregister_airplay(dnssd);
+
+	dnssd_register_raop(dnssd, dnssd->raop_port);
+	dnssd_register_airplay(dnssd, dnssd->airplay_port);
+}
+
+static THREAD_RETVAL update_record_thread(void *arg)
+{
+	dnssd_t *dnssd = arg;
+	assert(dnssd);
+
+	register_service(dnssd);
+
+	uint64_t time_counting = 0;
+	while (dnssd->register_running)
+	{
+		time_counting += 10;
+		if (time_counting >= 60000)
+		{
+			register_service(dnssd);
+			time_counting = 0;
+		}
+		
+		Sleep(10);
+	}
+	return 0;
+}
+int dnssd_update_record_thread(dnssd_t *dnssd, unsigned short raop_port, unsigned short airplay_port)
+{
+	dnssd->airplay_port = airplay_port;
+	dnssd->raop_port = raop_port;
+	dnssd->register_running = 1;
+	THREAD_CREATE(dnssd->update_th, update_record_thread, dnssd);
 }
 
 const char *
@@ -378,10 +446,10 @@ dnssd_unregister_raop(dnssd_t *dnssd)
 	dnssd->DNSServiceRefDeallocate(dnssd->raop_service);
 	dnssd->raop_service = NULL;
 
-	if (dnssd->airplay_service == NULL) {
+	/*if (dnssd->airplay_service == NULL) {
 		free(dnssd->name);
 		free(dnssd->hw_addr);
-	}
+	}*/
 }
 
 void
@@ -399,8 +467,8 @@ dnssd_unregister_airplay(dnssd_t *dnssd)
 	dnssd->DNSServiceRefDeallocate(dnssd->airplay_service);
 	dnssd->airplay_service = NULL;
 
-	if (dnssd->raop_service == NULL) {
+	/*if (dnssd->raop_service == NULL) {
 		free(dnssd->name);
 		free(dnssd->hw_addr);
-	}
+	}*/
 }

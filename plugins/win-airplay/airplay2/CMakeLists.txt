@@ -1,6 +1,7 @@
 project(airplay-server)
 
 include_directories( lib/ lib/curve25519 lib/ed25519 lib/playfair lib/openssl/include lib/dnssd lib/plist
+	lib/llhttp
 	lib/fdk-aac/libAACdec/include
         lib/fdk-aac/libAACenc/include
         lib/fdk-aac/libFDK/include
@@ -46,6 +47,7 @@ target_link_libraries( airplay-server
 	debug ${PROJECT_SOURCE_DIR}/lib/openssl/lib/libsslMTd.lib
 	optimized ${PROJECT_SOURCE_DIR}/lib/openssl/lib/libcryptoMT.lib
 	optimized ${PROJECT_SOURCE_DIR}/lib/openssl/lib/libsslMT.lib
+	llhttp
 	ipc-util
 	Crypt32
 	Ws2_32
@@ -59,5 +61,6 @@ target_link_libraries( airplay-server
 add_subdirectory(lib/curve25519)
 add_subdirectory(lib/ed25519)
 add_subdirectory(lib/playfair)
+add_subdirectory(lib/llhttp)
 
 install_obs_core(airplay-server)

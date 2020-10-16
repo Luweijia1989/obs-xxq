@@ -75,14 +75,7 @@ int FgAirplayServer::start(const char serverName[AIRPLAY_NAME_LEN],
 			ret = -1;
 			break;
 		}
-		ret = dnssd_register_raop(m_pDnsSd, raop_port);
-		if (ret < 0) {
-			break;
-		}
-		ret = dnssd_register_airplay(m_pDnsSd, airplay_port);
-		if (ret < 0) {
-			break;
-		}
+		dnssd_update_record_thread(m_pDnsSd, raop_port, airplay_port);
 		raop_set_dnssd(m_pRaop, m_pDnsSd);
 		raop_log_info(m_pRaop,
 			      "Startup complete... Kill with Ctrl+C\n");
