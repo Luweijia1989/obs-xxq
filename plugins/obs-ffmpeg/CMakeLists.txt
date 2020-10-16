@@ -8,7 +8,7 @@ endif()
 option(ENABLE_FFMPEG_LOGGING "Enables obs-ffmpeg logging" OFF)
 
 find_package(FFmpeg REQUIRED
-	COMPONENTS avcodec avfilter avdevice avutil swscale avformat swresample avresample)
+	COMPONENTS avcodec avfilter avdevice avutil swscale avformat swresample)
 include_directories(${FFMPEG_INCLUDE_DIRS})
 
 configure_file(

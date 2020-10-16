@@ -2,7 +2,6 @@
 
 extern "C" {
 #include <libavcodec/avcodec.h>
-#include <libavcodec/codec.h>
 //#include <libavformat/avformat.h>
 #include <libavutil/avutil.h>
 #include <libavutil/time.h>
@@ -14,6 +13,7 @@ extern "C" {
 #include <libavutil/imgutils.h>
 #include <libavformat/avformat.h>
 #include <libavutil/pixdesc.h>
+#include <libavutil/hwcontext.h>
 }
 
 #include "Airplay2Def.h"
