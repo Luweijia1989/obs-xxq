@@ -109,4 +109,5 @@ private:
 	circlebuf m_avBuffer;
 	VideoDecoder m_decoder;
 	MirrorBackEnd m_backend = None;
+	MirrorBackEnd m_lastStopType = None;
 };

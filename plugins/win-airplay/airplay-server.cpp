@@ -182,6 +182,9 @@ static video_format gs_format_to_video_format(gs_color_format format)
 
 void ScreenMirrorServer::updateStatusImage()
 {
+	if (mirror_status == OBS_SOURCE_MIRROR_OUTPUT)
+		return;
+	
 	const char *path = nullptr;
 	switch (mirror_status) {
 	case OBS_SOURCE_MIRROR_START:
@@ -293,38 +296,46 @@ void ScreenMirrorServer::parseNalus(uint8_t *data, size_t size, uint8_t **out,
 
 void ScreenMirrorServer::handleMirrorStatus(int status)
 {
+	auto status_func = [=]() {
+		updateStatusImage();
+
+		obs_data_t *event = obs_data_create();
+		obs_data_set_string(event, "eventType", "MirrorStatus");
+		obs_data_set_int(event, "value", mirror_status);
+		auto handler = obs_source_get_signal_handler(m_source);
+		struct calldata cd;
+		uint8_t stack[128];
+		calldata_init_fixed(&cd, stack, sizeof(stack));
+		calldata_set_ptr(&cd, "source", m_source);
+		calldata_set_ptr(&cd, "event", event);
+		signal_handler_signal(handler, "signal_event", &cd);
+		obs_data_release(event);
+	};
+
 	pthread_mutex_lock(&m_imgMutex);
+
 	if (status == mirror_status) {
 		if (status == OBS_SOURCE_MIRROR_STOP)
-			updateStatusImage();
-
-		pthread_mutex_unlock(&m_imgMutex);
-		return;
+		{
+			if (m_lastStopType != m_backend)
+			{
+				m_lastStopType = m_backend;
+				status_func();
+			}
+		}
 	}
+	else
+	{
+		mirror_status = (obs_source_mirror_status)status;
+		saveStatusSettings();
+		status_func();
 
-	mirror_status = (obs_source_mirror_status)status;
-	saveStatusSettings();
-
-	obs_data_t *event = obs_data_create();
-	obs_data_set_string(event, "eventType", "MirrorStatus");
-	obs_data_set_int(event, "value", mirror_status);
-	auto handler = obs_source_get_signal_handler(m_source);
-	struct calldata cd;
-	uint8_t stack[128];
-	calldata_init_fixed(&cd, stack, sizeof(stack));
-	calldata_set_ptr(&cd, "source", m_source);
-	calldata_set_ptr(&cd, "event", event);
-	signal_handler_signal(handler, "signal_event", &cd);
-	obs_data_release(event);
-
-	if (mirror_status == OBS_SOURCE_MIRROR_STOP) {
-		resetState();
-	} else if (mirror_status == OBS_SOURCE_MIRROR_START) {
-		m_startTimeElapsed = 0;
+		if (mirror_status == OBS_SOURCE_MIRROR_STOP) {
+			resetState();
+		} else if (mirror_status == OBS_SOURCE_MIRROR_START) {
+			m_startTimeElapsed = 0;
+		}
 	}
-
-	if (mirror_status != OBS_SOURCE_MIRROR_OUTPUT)
-		updateStatusImage();
 
 	pthread_mutex_unlock(&m_imgMutex);
 }
