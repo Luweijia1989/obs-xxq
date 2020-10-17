@@ -1,4 +1,4 @@
-﻿#include <QApplication>
+#include <QApplication>
 #include <Windows.h>
 #include <QProgressBar>
 #include <fcntl.h>
@@ -16,6 +16,7 @@ extern "C" {
 #include "msapi_utf8.h"
 #include <util/dstr.h>
 #include <util/platform.h>
+#include "../common-define.h"
 
 static bool in_installing = false;
 #define APPLE_VID 0x05AC
@@ -347,6 +348,11 @@ int main(int argc, char *argv[])
 	os_kill_process(IOS_USB_EXE);
 	SetErrorMode(SEM_FAILCRITICALERRORS);
 	_setmode(_fileno(stdin), O_BINARY);
+
+	struct IPCClient *client = NULL;
+	ipc_client_create(&client);
+	send_status(client, MIRROR_STOP);
+	ipc_client_destroy(&client);
 
 	QApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
 

@@ -296,6 +296,9 @@ void ScreenMirrorServer::handleMirrorStatus(int status)
 {
 	pthread_mutex_lock(&m_imgMutex);
 	if (status == mirror_status) {
+		if (status == OBS_SOURCE_MIRROR_STOP)
+			updateStatusImage();
+
 		pthread_mutex_unlock(&m_imgMutex);
 		return;
 	}

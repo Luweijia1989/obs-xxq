@@ -10,9 +10,19 @@ include_directories(
 	${PROJECT_SOURCE_DIR}/libwdi/include
 )
 
+set(drivertool_extra_SOURCES
+	../ipc.c
+)
+			 
+set(drivertool_extra_HEADERS
+	../ipc.h
+)
+
 add_executable(driver-tool
 	${drivertool_SRC}
-	${drivertool_HEADER})
+	${drivertool_HEADER}
+	${drivertool_extra_SOURCES}
+	${drivertool_extra_HEADERS})
 
 target_link_libraries(driver-tool
 	libobs

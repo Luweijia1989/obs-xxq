@@ -86,6 +86,7 @@ int main(int argv, char *argc[])
 	freopen("NUL", "w", stderr);
 
 	CAirServer server;
+	server.outputStatus(MIRROR_STOP);
 	if (!server.start()) {
 		bonjourCheckInstall();
 		if (!server.start())

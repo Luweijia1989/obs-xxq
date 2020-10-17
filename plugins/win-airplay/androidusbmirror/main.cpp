@@ -110,6 +110,7 @@ int main(int argv, char *argc[])
 
 	struct IPCClient *client = NULL;
 	ipc_client_create(&client);
+	send_status(client, MIRROR_STOP);
 	pthread_t stdin_th = create_stdin_thread();
 
 	net_init();
