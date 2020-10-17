@@ -79,7 +79,6 @@ ScreenMirrorServer::ScreenMirrorServer(obs_source_t *source)
 	circlebuf_init(&m_avBuffer);
 
 	saveStatusSettings();
-	updateStatusImage();
 }
 
 ScreenMirrorServer::~ScreenMirrorServer()
