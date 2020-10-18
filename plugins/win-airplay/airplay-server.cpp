@@ -1,12 +1,18 @@
 #include <obs-module.h>
 #include "airplay-server.h"
+#include "resource.h"
 #include <cstdio>
 #include <util/dstr.h>
+#include <Shlwapi.h>
+
+using namespace std;
 
 #define DRIVER_EXE "driver-tool.exe"
 #define AIRPLAY_EXE "airplay-server.exe"
 #define ANDROID_USB_EXE "android-usb-mirror.exe"
 uint8_t start_code[4] = {00, 00, 00, 01};
+
+HMODULE DllHandle;
 
 static uint32_t byteutils_get_int(unsigned char *b, int offset)
 {
@@ -59,11 +65,12 @@ ScreenMirrorServer::ScreenMirrorServer(obs_source_t *source)
 	  m_decoder(this),
 	  if2((gs_image_file2_t *)bzalloc(sizeof(gs_image_file2_t)))
 {
+	dumpResourceImgs();
 	initAudioRenderer();
 
 	pthread_mutex_init(&m_videoDataMutex, nullptr);
 	pthread_mutex_init(&m_audioDataMutex, nullptr);
-	pthread_mutex_init(&m_imgMutex, nullptr);
+	pthread_mutex_init(&m_statusMutex, nullptr);
 	memset(m_videoFrame.data, 0, sizeof(m_videoFrame.data));
 	memset(&m_videoFrame, 0, sizeof(&m_videoFrame));
 
@@ -98,12 +105,57 @@ ScreenMirrorServer::~ScreenMirrorServer()
 	circlebuf_free(&m_avBuffer);
 	pthread_mutex_destroy(&m_videoDataMutex);
 	pthread_mutex_destroy(&m_audioDataMutex);
-	pthread_mutex_destroy(&m_imgMutex);
+	pthread_mutex_destroy(&m_statusMutex);
 
 #ifdef DUMPFILE
 	fclose(m_auioFile);
 	fclose(m_videoFile);
 #endif
+}
+
+void ScreenMirrorServer::dumpResourceImgs()
+{
+	string prefix;
+	prefix.resize(MAX_PATH);
+	DWORD len = GetTempPathA(MAX_PATH, (char *)prefix.data());
+	prefix.resize(len);
+	m_resourceImgs.push_back(prefix + "pic_mirror_connecting.gif");
+	m_resourceImgs.push_back(prefix + "pic_android_cableprojection.png");
+	m_resourceImgs.push_back(prefix + "pic_android_screencastfailed_cableprojection.png");
+	m_resourceImgs.push_back(prefix + "pic_ios_cableprojection.png");
+	m_resourceImgs.push_back(prefix + "pic_ios_screencastfailed_cableprojection.png");
+	m_resourceImgs.push_back(prefix + "pic_ios_wirelessprojection.png");
+	m_resourceImgs.push_back(prefix + "pic_ios_screencastfailed_wirelessprojection.png");
+
+	std::vector<int> ids = { IDB_PNG1, IDB_PNG2, IDB_PNG3, IDB_PNG4, IDB_PNG5, IDB_PNG6 };
+
+	for (auto iter = 0; iter < m_resourceImgs.size(); iter++)
+	{
+		const string &img = m_resourceImgs.at(iter);
+		if (!PathFileExistsA(img.c_str()))
+		{
+			HANDLE hFile = CreateFileA(img.c_str(), GENERIC_WRITE, FILE_SHARE_READ, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+			if (hFile != INVALID_HANDLE_VALUE)
+			{
+				HRSRC res = NULL;
+				if (iter == 0)
+				{
+					res = FindResource(DllHandle, MAKEINTRESOURCE(IDB_BITMAP1), L"GIF");
+				}
+				else
+				{
+					res = FindResource(DllHandle, MAKEINTRESOURCE(ids[iter-1]), L"PNG");
+				}
+				auto g  = GetLastError();
+				HGLOBAL res_handle = LoadResource(DllHandle, res);
+				auto res_data = LockResource(res_handle);
+				auto res_size = SizeofResource(DllHandle, res);
+
+				WriteFile(hFile, res_data, res_size, NULL, NULL);
+				CloseHandle(hFile);
+			}
+		}
+	}
 }
 
 void ScreenMirrorServer::pipeCallback(void *param, uint8_t *data, size_t size)
@@ -150,8 +202,6 @@ void ScreenMirrorServer::mirrorServerDestroy()
 		ipc_server_destroy(&m_ipcServer);
 
 	circlebuf_free(&m_avBuffer);
-
-	resetState();
 }
 
 const char *ScreenMirrorServer::killProc()
@@ -184,24 +234,36 @@ void ScreenMirrorServer::updateStatusImage()
 {
 	if (mirror_status == OBS_SOURCE_MIRROR_OUTPUT)
 		return;
-	
 	const char *path = nullptr;
 	switch (mirror_status) {
 	case OBS_SOURCE_MIRROR_START:
-		path = "E:\\test.gif";
+		path = m_resourceImgs[0].c_str();
 		break;
 	case OBS_SOURCE_MIRROR_STOP:
-		path = "E:\\test.jpg";
+		if (m_backend == IOS_USB_CABLE)
+			path = m_resourceImgs[3].c_str();
+		else if (m_backend == IOS_AIRPLAY)
+			path = m_resourceImgs[5].c_str();
+		else if (m_backend == ANDROID_USB_CABLE)
+			path = m_resourceImgs[1].c_str();
 		break;
 	case OBS_SOURCE_MIRROR_DEVICE_LOST: // 连接失败，检测超时
-		path = "E:\\test1.jpg";
+		if (m_backend == IOS_USB_CABLE)
+			path = m_resourceImgs[4].c_str();
+		else if (m_backend == IOS_AIRPLAY)
+			path = m_resourceImgs[6].c_str();
+		else if (m_backend == ANDROID_USB_CABLE)
+			path = m_resourceImgs[2].c_str();
 		break;
 	default:
 		break;
 	}
-	loadImage(path);
 
-	updateImageTexture();
+	if (path)
+	{
+		loadImage(path);
+		updateImageTexture();
+	}
 }
 
 void ScreenMirrorServer::updateImageTexture()
@@ -312,8 +374,6 @@ void ScreenMirrorServer::handleMirrorStatus(int status)
 		obs_data_release(event);
 	};
 
-	pthread_mutex_lock(&m_imgMutex);
-
 	if (status == mirror_status) {
 		if (status == OBS_SOURCE_MIRROR_STOP)
 		{
@@ -336,8 +396,6 @@ void ScreenMirrorServer::handleMirrorStatus(int status)
 			m_startTimeElapsed = 0;
 		}
 	}
-
-	pthread_mutex_unlock(&m_imgMutex);
 }
 
 bool ScreenMirrorServer::handleMediaData()
@@ -371,7 +429,10 @@ bool ScreenMirrorServer::handleMediaData()
 	if (header_info.type == FFM_MIRROR_STATUS) {
 		int status = -1;
 		circlebuf_pop_front(&m_avBuffer, &status, sizeof(int));
+
+		pthread_mutex_lock(&m_statusMutex);
 		handleMirrorStatus(status);
+		pthread_mutex_unlock(&m_statusMutex);
 	} else if (header_info.type == FFM_MEDIA_INFO) {
 		struct media_info info;
 		memset(&info, 0, req_size);
@@ -704,9 +765,7 @@ void *ScreenMirrorServer::video_tick_thread(void *data)
 			int64_t now = (int64_t)os_gettime_ns();
 			if (s->m_offset == LLONG_MAX)
 				s->m_offset = now - frame->pts + s->m_extraDelay;
-
 			if (s->m_offset + frame->pts <= now) {
-				s->handleMirrorStatus(OBS_SOURCE_MIRROR_OUTPUT);
 				s->outputVideoFrame(frame);
 				s->m_videoFrames.pop_front();
 				av_frame_free(&frame);
@@ -723,13 +782,11 @@ void ScreenMirrorServer::WinAirplayVideoTick(void *data, float seconds)
 {
 	ScreenMirrorServer *s = (ScreenMirrorServer *)data;
 
-	pthread_mutex_lock(&s->m_imgMutex);
+	pthread_mutex_lock(&s->m_statusMutex);
 	if (s->mirror_status == OBS_SOURCE_MIRROR_START) {
 		s->m_startTimeElapsed += seconds;
 		if (s->m_startTimeElapsed > 10.0) {
-			pthread_mutex_unlock(&s->m_imgMutex);
 			s->handleMirrorStatus(OBS_SOURCE_MIRROR_DEVICE_LOST);
-			pthread_mutex_lock(&s->m_imgMutex);
 		}
 	}
 
@@ -745,7 +802,7 @@ void ScreenMirrorServer::WinAirplayVideoTick(void *data, float seconds)
 		}
 		s->last_time = frame_time;
 	}
-	pthread_mutex_unlock(&s->m_imgMutex);
+	pthread_mutex_unlock(&s->m_statusMutex);
 }
 
 static void WinAirplayCustomCommand(void *data, obs_data_t *cmd)
@@ -783,3 +840,8 @@ bool obs_module_load(void)
 }
 
 void obs_module_unload(void) {}
+
+BOOL APIENTRY DllMain(HMODULE hModule, DWORD dwReason, LPVOID lpReserved) {
+	if (dwReason == DLL_PROCESS_ATTACH) DllHandle = hModule;
+	return TRUE;
+}

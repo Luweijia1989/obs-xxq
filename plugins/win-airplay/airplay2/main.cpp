@@ -84,7 +84,7 @@ int main(int argv, char *argc[])
 	SetErrorMode(SEM_FAILCRITICALERRORS);
 	_setmode(_fileno(stdin), O_BINARY);
 	freopen("NUL", "w", stderr);
-
+	 
 	CAirServer server;
 	server.outputStatus(MIRROR_STOP);
 	if (!server.start()) {

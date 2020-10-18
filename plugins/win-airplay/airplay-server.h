@@ -3,6 +3,8 @@
 #include <obs-module.h>
 #include <obs.hpp>
 #include <list>
+#include <vector>
+#include <string>
 #include <limits>
 #include "Airplay2Def.h"
 #include <util/circlebuf.h>
@@ -60,6 +62,7 @@ public:
 	uint64_t last_time = 0;
 
 private:
+	void dumpResourceImgs();
 	void resetState();
 	bool initAudioRenderer();
 	void destroyAudioRenderer();
@@ -89,7 +92,7 @@ private:
 	std::list<AudioFrame *> m_audioFrames;
 	pthread_mutex_t m_videoDataMutex;
 	pthread_mutex_t m_audioDataMutex;
-	pthread_mutex_t m_imgMutex;
+	pthread_mutex_t m_statusMutex;
 	pthread_t m_audioTh;
 	pthread_t m_videoTh;
 	bool m_running = true;
@@ -110,4 +113,6 @@ private:
 	VideoDecoder m_decoder;
 	MirrorBackEnd m_backend = None;
 	MirrorBackEnd m_lastStopType = None;
+
+	std::vector<std::string> m_resourceImgs;
 };

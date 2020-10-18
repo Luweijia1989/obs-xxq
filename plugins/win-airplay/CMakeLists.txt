@@ -11,6 +11,7 @@ set(win-airplay_SOURCES
 	airplay-server.cpp
 	VideoDecoder.cpp
 	ipc.c
+	Resource.rc
 )
 			 
 set(win-airplay_HEADERS
@@ -19,6 +20,7 @@ set(win-airplay_HEADERS
 	common-define.h
 	VideoDecoder.h
 	ipc.h
+	resource.h
 )
 
 add_subdirectory(${PROJECT_SOURCE_DIR}/airplay2)
@@ -33,6 +35,7 @@ target_link_libraries(win-airplay
 	Ws2_32
 	libobs
 	w32-pthreads
+	Shlwapi
 	debug ${PROJECT_SOURCE_DIR}/portaudio/lib/debug/portaudio_static_x86.lib
 	optimized ${PROJECT_SOURCE_DIR}/portaudio/lib/release/portaudio_static_x86.lib
 	${FFMPEG_LIBRARIES})
