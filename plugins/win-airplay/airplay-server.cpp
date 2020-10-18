@@ -443,6 +443,8 @@ bool ScreenMirrorServer::handleMediaData()
 		resetResampler(info.speakers, info.format,
 			       info.samples_per_sec);
 		m_decoder.docode(info.pps, info.pps_len, true, 0);
+
+		handleMirrorStatus(OBS_SOURCE_MIRROR_OUTPUT);
 	} else {
 		if (header_info.type == FFM_PACKET_AUDIO) {
 			outputAudio(req_size, header_info.pts,
