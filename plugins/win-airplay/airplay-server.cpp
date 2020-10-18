@@ -292,7 +292,8 @@ void ScreenMirrorServer::updateImageTexture()
 	m_imageFrame.linesize[2] = 0;
 	m_width = m_imageFrame.width;
 	m_height = m_imageFrame.height;
-	obs_source_set_videoframe(m_source, &m_imageFrame);
+	if (m_imageFrame.data[0])
+		obs_source_set_videoframe(m_source, &m_imageFrame);
 }
 
 void ScreenMirrorServer::setBackendType(int type)
