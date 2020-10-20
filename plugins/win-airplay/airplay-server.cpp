@@ -676,7 +676,7 @@ static void UpdateWinAirplaySource(void *obj, obs_data_t *settings)
 static void GetWinAirplayDefaultsOutput(obs_data_t *settings)
 {
 	obs_data_set_default_int(settings, "type",
-				 ScreenMirrorServer::IOS_AIRPLAY);
+				 ScreenMirrorServer::IOS_USB_CABLE);
 	obs_data_set_default_int(settings, "status", MIRROR_STOP);
 }
 

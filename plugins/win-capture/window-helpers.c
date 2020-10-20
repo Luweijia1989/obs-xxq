@@ -86,6 +86,9 @@ bool get_window_exe(struct dstr *name, HWND window)
 		goto fail;
 
 	dstr_from_wcs(&temp, wname);
+	if (!temp.array)
+		goto fail;
+
 	slash = strrchr(temp.array, '\\');
 	if (!slash)
 		goto fail;
