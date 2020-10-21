@@ -134,11 +134,11 @@ int main(int argv, char *argc[])
 		}
 	}
 	pthread_join(stdin_th, NULL);
-	net_cleanup();
-	ipc_client_destroy(&client);
 	if (is_server_running())
 		server_clear();
 
+	ipc_client_destroy(&client);
 	os_kill_process("adb.exe");
+	net_cleanup();
 	return 0;
 }
