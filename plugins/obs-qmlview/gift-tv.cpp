@@ -11,14 +11,6 @@ void GiftTV::default(obs_data_t *settings)
 {
 	obs_data_set_default_string(settings, "file",
 				    "qrc:/qmlfiles/GiftTV.qml");
-
-	obs_data_set_default_int(settings, "triggerCondition", 1);
-	obs_data_set_default_int(settings, "triggerConditionValue", 1000);
-	obs_data_set_default_int(settings, "row", 5);
-	obs_data_set_default_int(settings, "col", 2);
-	obs_data_set_default_int(settings, "prefer", 0);
-	obs_data_set_default_int(settings, "mode", 0);
-	obs_data_set_default_int(settings, "disappear", 0);
 }
 
 static const char *gifttv_source_get_name(void *unused)
@@ -58,6 +50,15 @@ static void gifttv_source_defaults(obs_data_t *settings)
 	QmlSourceBase::baseDefault(settings);
 	obs_data_set_default_int(settings, "width", 1928);
 	obs_data_set_default_int(settings, "height", 1088);
+
+	obs_data_set_default_int(settings, "triggerCondition", 1);
+	obs_data_set_default_int(settings, "triggerConditionValue", 1000);
+	obs_data_set_default_int(settings, "row", 5);
+	obs_data_set_default_int(settings, "col", 2);
+	obs_data_set_default_int(settings, "prefer", 0);
+	obs_data_set_default_int(settings, "mode", 0);
+	obs_data_set_default_int(settings, "disappear", 0);
+
 	GiftTV::default(settings);
 }
 

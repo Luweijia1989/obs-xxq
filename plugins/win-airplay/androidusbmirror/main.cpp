@@ -3,6 +3,7 @@
 #include "stream.h"
 #include <fcntl.h>
 #include <io.h>
+#include <util/platform.h>
 #include "../common-define.h"
 
 struct server g_s;
@@ -137,5 +138,7 @@ int main(int argv, char *argc[])
 	ipc_client_destroy(&client);
 	if (is_server_running())
 		server_clear();
+
+	os_kill_process("adb.exe");
 	return 0;
 }
