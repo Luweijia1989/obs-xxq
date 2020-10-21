@@ -64,7 +64,7 @@ int VideoDecoder::initFFMPEG(const void *privatedata, int privatedatalen)
 	m_pCodecCtx->extradata = (uint8_t *)av_malloc(privatedatalen);
 	m_pCodecCtx->extradata_size = privatedatalen;
 	memcpy(m_pCodecCtx->extradata, privatedata, privatedatalen);
-	m_pCodecCtx->pix_fmt = AV_PIX_FMT_YUV420P;
+	//m_pCodecCtx->pix_fmt = AV_PIX_FMT_YUV420P;
 	int res = avcodec_open2(m_pCodecCtx, m_pCodec, NULL);
 	if (res < 0) {
 

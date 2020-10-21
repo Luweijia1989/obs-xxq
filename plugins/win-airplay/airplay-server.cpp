@@ -31,6 +31,7 @@ ffmpeg_to_obs_video_format(enum AVPixelFormat format)
 	case AV_PIX_FMT_YUV444P:
 		return VIDEO_FORMAT_I444;
 	case AV_PIX_FMT_YUV420P:
+	case AV_PIX_FMT_YUVJ420P:
 		return VIDEO_FORMAT_I420;
 	case AV_PIX_FMT_NV12:
 		return VIDEO_FORMAT_NV12;
@@ -194,7 +195,7 @@ void ScreenMirrorServer::mirrorServerDestroy()
 	if (process) {
 		uint8_t data[1] = {1};
 		os_process_pipe_write(process, data, 1);
-		os_process_pipe_destroy(process);
+		os_process_pipe_destroy_timeout(process, 5000);
 		process = NULL;
 	}
 

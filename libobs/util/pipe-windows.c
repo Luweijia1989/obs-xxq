@@ -157,6 +157,30 @@ int os_process_pipe_destroy(os_process_pipe_t *pp)
 	return ret;
 }
 
+int os_process_pipe_destroy_timeout(os_process_pipe_t *pp, uint64_t mseconds)
+{
+	int ret = 0;
+
+	if (pp) {
+		DWORD code;
+
+		CloseHandle(pp->handle);
+		CloseHandle(pp->handle_err);
+
+		code = WaitForSingleObject(pp->process, mseconds);
+		if (code == WAIT_TIMEOUT)
+			TerminateProcess(pp->process, 9);
+
+		if (GetExitCodeProcess(pp->process, &code))
+			ret = (int)code;
+
+		CloseHandle(pp->process);
+		bfree(pp);
+	}
+
+	return ret;
+}
+
 size_t os_process_pipe_read(os_process_pipe_t *pp, uint8_t *data, size_t len)
 {
 	DWORD bytes_read;

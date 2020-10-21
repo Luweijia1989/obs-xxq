@@ -1,4 +1,4 @@
-﻿#include <QApplication>
+#include <QApplication>
 #include <Windows.h>
 #include <QProgressBar>
 #include <fcntl.h>
@@ -284,7 +284,7 @@ public slots:
 
 		uint8_t data[1] = {1};
 		os_process_pipe_write(m_mirrorProcess, data, 1);
-		os_process_pipe_destroy(m_mirrorProcess);
+		os_process_pipe_destroy_timeout(m_mirrorProcess, 5000);
 		m_mirrorProcess = NULL;
 	}
 
