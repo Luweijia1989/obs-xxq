@@ -44,6 +44,7 @@ set(qmlview_SOURCES
     private.cpp
     audiowave.cpp
     vote.cpp
+    gift-tv.cpp
 )
 
 set( qmlview_HEADERS
@@ -59,6 +60,7 @@ set( qmlview_HEADERS
     defines.h
     audiowave.h
     vote.h
+    gift-tv.h
 )
 
 set(qmlview_QRC qmlview.qrc)
