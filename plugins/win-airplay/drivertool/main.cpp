@@ -107,7 +107,7 @@ public:
 	{
 		m_terminateTimer = new QTimer(this);
 		m_terminateTimer->setSingleShot(true);
-		m_terminateTimer->setInterval(1000);
+		m_terminateTimer->setInterval(400);
 		connect(m_terminateTimer, &QTimer::timeout, this,
 			&InstallHelper::stopMirror);
 

@@ -78,7 +78,6 @@ struct usb_device_info app_device = {0};
 bool should_exit = false;
 bool in_progress = false;
 struct IPCClient *ipc_client = NULL;
-pthread_mutex_t exit_mutex;
 HANDLE lock_down_event = INVALID_HANDLE_VALUE;
 
 //////////////////////////////////////////////////////////////////////////////
@@ -461,7 +460,6 @@ static void usb_extract_frame(unsigned char *buf, uint32_t length)
 
 void *usb_read_thread(void *data)
 {
-	in_progress = true;
 	usb_clear_halt(app_device.device_handle, app_device.ep_in_fa);
 	usb_clear_halt(app_device.device_handle, app_device.ep_out_fa);
 
@@ -484,7 +482,6 @@ void *usb_read_thread(void *data)
 	}
 	usb_free_async(&app_device.bulk_read_context);
 	app_device.bulk_read_context = NULL;
-	in_progress = false;
 	return NULL;
 }
 
@@ -555,7 +552,7 @@ void closeSession()
 		free(d1);
 	}
 
-	DWORD res = WaitForSingleObject(app_device.stop_signal, 3000);
+	DWORD res = WaitForSingleObject(app_device.stop_signal, 1000);
 	if (res == WAIT_TIMEOUT) {
 		usbmuxd_log(LL_INFO, "Timed out waiting for device closing");
 		return;
@@ -582,15 +579,12 @@ void closeSession()
 
 void exit_app()
 {
-	pthread_mutex_lock(&exit_mutex);
 	should_exit = true;
 
 	if (in_progress) {
 		closeSession();
 	}
 	reset_app_device();
-
-	pthread_mutex_unlock(&exit_mutex);
 }
 
 void pipeConsume(struct CMSampleBuffer *buf, void *c)
@@ -660,11 +654,6 @@ struct Consumer PipeWriter()
 
 int usb_device_discover()
 {
-	pthread_mutex_lock(&exit_mutex);
-	if (should_exit) {
-		pthread_mutex_unlock(&exit_mutex);
-		return 0;
-	}
 	int res = 0;
 	usb_find_busses();  /* find all busses */
 	usb_find_devices(); /* find all connected devices */
@@ -691,7 +680,6 @@ int usb_device_discover()
 			res = 1;
 		}
 	}
-	pthread_mutex_unlock(&exit_mutex);
 	return res;
 }
 
@@ -715,23 +703,10 @@ void *stdin_read_thread(void *data)
 	return NULL;
 }
 
-static void create_stdin_thread()
-{
-	pthread_t th;
-	pthread_attr_t attr;
-
-	pthread_attr_init(&attr);
-	pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_DETACHED);
-
-	pthread_create(&th, &attr, stdin_read_thread, NULL);
-}
-
 int main(void)
 {
 	SetErrorMode(SEM_FAILCRITICALERRORS);
 	_setmode(_fileno(stdin), O_BINARY);
-
-	create_stdin_thread();
 
 #ifndef STANDALONE
 	freopen("NUL", "w", stderr);
@@ -743,12 +718,10 @@ int main(void)
 	device_init();
 	pthread_t socket_t = create_socket_thread();
 	usb_init(); /* initialize the library */
-	pthread_mutex_init(&exit_mutex, NULL);
 
-	while (!should_exit) {
-		Sleep(200);
+	while (true) {
 		if (!usb_device_discover())
-			continue;
+			break;
 		else {
 			send_status(ipc_client, MIRROR_START);
 			usb_get_string_simple(
@@ -768,7 +741,7 @@ int main(void)
 					app_device.device_handle, 0x40, 0x52,
 					0x00, 0x02, NULL, 0,
 					5000 /* LIBUSB_DEFAULT_TIMEOUT */);
-				Sleep(300);
+				Sleep(400);
 				continue;
 			}
 
@@ -783,141 +756,70 @@ int main(void)
 						      qtConfigIndex);
 			}
 
-			for (int m = 0;
-			     m <
-			     app_device.device->descriptor.bNumConfigurations;
-			     m++) {
-				struct usb_config_descriptor config =
-					app_device.device->config[m];
-				for (int n = 0; n < config.bNumInterfaces;
-				     n++) {
-					struct usb_interface_descriptor intf =
-						config.interface[n]
-							.altsetting[0];
-					if (intf.bInterfaceClass ==
-						    INTERFACE_CLASS &&
-					    intf.bInterfaceSubClass ==
-						    INTERFACE_SUBCLASS &&
-					    intf.bInterfaceProtocol ==
-						    INTERFACE_PROTOCOL) {
+			for (int m = 0; m < app_device.device->descriptor.bNumConfigurations; m++) {
+				struct usb_config_descriptor config = app_device.device->config[m];
+				for (int n = 0; n < config.bNumInterfaces; n++) {
+					struct usb_interface_descriptor intf = config.interface[n].altsetting[0];
+					if (intf.bInterfaceClass == INTERFACE_CLASS
+						&& intf.bInterfaceSubClass == INTERFACE_SUBCLASS
+						&& intf.bInterfaceProtocol == INTERFACE_PROTOCOL) {
 						if (intf.bNumEndpoints != 2) {
 							continue;
 						}
-						if ((intf.endpoint[0]
-							     .bEndpointAddress &
-						     0x80) ==
-							    USB_ENDPOINT_OUT &&
-						    (intf.endpoint[1]
-							     .bEndpointAddress &
-						     0x80) == USB_ENDPOINT_IN) {
-							app_device.interface =
-								intf.bInterfaceNumber;
-							app_device.ep_out =
-								intf.endpoint[0]
-									.bEndpointAddress;
-							app_device
-								.wMaxPacketSize =
-								intf.endpoint[0]
-									.wMaxPacketSize;
-							app_device.ep_in =
-								intf.endpoint[1]
-									.bEndpointAddress;
-						} else if (
-							(intf.endpoint[1]
-								 .bEndpointAddress &
-							 0x80) ==
-								USB_ENDPOINT_OUT &&
-							(intf.endpoint[0]
-								 .bEndpointAddress &
-							 0x80) ==
-								USB_ENDPOINT_IN) {
-							app_device.interface =
-								intf.bInterfaceNumber;
-							app_device.ep_out =
-								intf.endpoint[1]
-									.bEndpointAddress;
-							app_device
-								.wMaxPacketSize =
-								intf.endpoint[1]
-									.wMaxPacketSize;
-							app_device.ep_in =
-								intf.endpoint[0]
-									.bEndpointAddress;
+						if ((intf.endpoint[0].bEndpointAddress & 0x80) == USB_ENDPOINT_OUT
+							&& (intf.endpoint[1].bEndpointAddress & 0x80) == USB_ENDPOINT_IN) {
+							app_device.interface = intf.bInterfaceNumber;
+							app_device.ep_out = intf.endpoint[0].bEndpointAddress;
+							app_device.wMaxPacketSize = intf.endpoint[0].wMaxPacketSize;
+							app_device.ep_in = intf.endpoint[1].bEndpointAddress;
+						} else if ((intf.endpoint[1].bEndpointAddress & 0x80) == USB_ENDPOINT_OUT
+							&& (intf.endpoint[0].bEndpointAddress & 0x80) == USB_ENDPOINT_IN) {
+							app_device.interface = intf.bInterfaceNumber;
+							app_device.ep_out = intf.endpoint[1].bEndpointAddress;
+							app_device.wMaxPacketSize = intf.endpoint[1].wMaxPacketSize;
+							app_device.ep_in = intf.endpoint[0].bEndpointAddress;
 						} else {
 						}
 					}
 
-					if (intf.bInterfaceClass ==
-						    INTERFACE_CLASS &&
-					    intf.bInterfaceSubClass ==
-						    INTERFACE_QUICKTIMECLASS) {
+					if (intf.bInterfaceClass == INTERFACE_CLASS &&
+					    intf.bInterfaceSubClass == INTERFACE_QUICKTIMECLASS) {
 						if (intf.bNumEndpoints != 2) {
 							continue;
 						}
-						if ((intf.endpoint[0]
-							     .bEndpointAddress &
-						     0x80) ==
-							    USB_ENDPOINT_OUT &&
-						    (intf.endpoint[1]
-							     .bEndpointAddress &
-						     0x80) == USB_ENDPOINT_IN) {
-							app_device.interface_fa =
-								intf.bInterfaceNumber;
-							app_device.ep_out_fa =
-								intf.endpoint[0]
-									.bEndpointAddress;
-							app_device
-								.wMaxPacketSize_fa =
-								intf.endpoint[0]
-									.wMaxPacketSize;
-							app_device.ep_in_fa =
-								intf.endpoint[1]
-									.bEndpointAddress;
+						if ((intf.endpoint[0].bEndpointAddress & 0x80) == USB_ENDPOINT_OUT &&
+						    (intf.endpoint[1].bEndpointAddress & 0x80) == USB_ENDPOINT_IN) {
+							app_device.interface_fa = intf.bInterfaceNumber;
+							app_device.ep_out_fa = intf.endpoint[0].bEndpointAddress;
+							app_device.wMaxPacketSize_fa = intf.endpoint[0].wMaxPacketSize;
+							app_device.ep_in_fa = intf.endpoint[1].bEndpointAddress;
 						} else if (
-							(intf.endpoint[1]
-								 .bEndpointAddress &
-							 0x80) ==
-								USB_ENDPOINT_OUT &&
-							(intf.endpoint[0]
-								 .bEndpointAddress &
-							 0x80) ==
-								USB_ENDPOINT_IN) {
-							app_device.interface_fa =
-								intf.bInterfaceNumber;
-							app_device.ep_out_fa =
-								intf.endpoint[1]
-									.bEndpointAddress;
-							app_device
-								.wMaxPacketSize_fa =
-								intf.endpoint[1]
-									.wMaxPacketSize;
-							app_device.ep_in_fa =
-								intf.endpoint[0]
-									.bEndpointAddress;
+							(intf.endpoint[1].bEndpointAddress & 0x80) == USB_ENDPOINT_OUT &&
+							(intf.endpoint[0].bEndpointAddress & 0x80) == USB_ENDPOINT_IN) {
+							app_device.interface_fa = intf.bInterfaceNumber;
+							app_device.ep_out_fa = intf.endpoint[1].bEndpointAddress;
+							app_device.wMaxPacketSize_fa = intf.endpoint[1].wMaxPacketSize;
+							app_device.ep_in_fa = intf.endpoint[0].bEndpointAddress;
 						} else {
 						}
 					}
 				}
 			}
 
-			res = usb_claim_interface(app_device.device_handle,
-						  app_device.interface);
-			res = usb_claim_interface(app_device.device_handle,
-						  app_device.interface_fa);
+			res = usb_claim_interface(app_device.device_handle, app_device.interface);
+			res = usb_claim_interface(app_device.device_handle, app_device.interface_fa);
 
-			device_add(app_device.device, app_device.device_handle,
-				   app_device.ep_out, app_device.serial);
+			device_add(app_device.device, app_device.device_handle, app_device.ep_out, app_device.serial);
 
 			pthread_t th;
-			pthread_create(&th, NULL, usb_read_lock_down_thread,
-				       NULL);
+			pthread_create(&th, NULL, usb_read_lock_down_thread, NULL);
 
 			WaitForSingleObject(lock_down_event, INFINITE);
 			app_device.lock_down_read_exit = true;
 			pthread_join(th, NULL);
 
-			int perr = pthread_create(&app_device.thread_handle,
-						  NULL, usb_read_thread, NULL);
+			in_progress = true;
+			int perr = pthread_create(&app_device.thread_handle, NULL, usb_read_thread, NULL);
 			if (perr != 0) {
 				usbmuxd_log(
 					LL_ERROR,
@@ -925,10 +827,19 @@ int main(void)
 					app_device.serial, strerror(perr),
 					perr);
 			}
+
+			break;
 		}
 	}
+
+	if (in_progress)
+	{
+		stdin_read_thread(NULL);
+	}
+	else
+		exit_app();
+
 	send_status(ipc_client, MIRROR_STOP);
-	pthread_mutex_destroy(&exit_mutex);
 	pthread_join(socket_t, NULL);
 
 	usbmuxd_log(LL_NOTICE, "usbmuxd shutting down");
