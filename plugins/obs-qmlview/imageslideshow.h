@@ -28,6 +28,8 @@ public:
 public:
 	ImageSlideShow(QObject *parent = nullptr);
 	static void default(obs_data_t *settings);
+signals:
+	void Replay();
 
 public:
 	QMutex m_mutex;

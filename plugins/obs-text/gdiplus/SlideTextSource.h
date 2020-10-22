@@ -52,19 +52,19 @@ struct SlideTextSource {
 	int curIndex = 0;
 	SIZE max_size;
 	float animate_time = 3.0f;
-
+	bool replay = false;
 
 	FontFamily families[1];
-	Font* font_set;
+	Font *font_set;
 
 	std::vector<wstring> ver_texts;
 
 	/* --------------------------- */
 
-	inline SlideTextSource(obs_source_t *source_, obs_data_t *settings) :
-		source(source_),
-		hdc(CreateCompatibleDC(nullptr)),
-		graphics(hdc)
+	inline SlideTextSource(obs_source_t *source_, obs_data_t *settings)
+		: source(source_),
+		  hdc(CreateCompatibleDC(nullptr)),
+		  graphics(hdc)
 	{
 		texts.clear();
 		font_set = nullptr;
@@ -81,23 +81,28 @@ struct SlideTextSource {
 			obs_leave_graphics();
 		}
 	}
-	bool IsSlideTextInstallFont(const wchar_t* fontName);
+	bool IsSlideTextInstallFont(const wchar_t *fontName);
 	void UpdateSlideFont();
 	void GetSlideStringFormat(StringFormat &format);
 	void RemoveSlideNewlinePadding(const StringFormat &format, RectF &box);
-	void CalculateSlideTextSizes(const wstring& text_measure, const StringFormat &format, RectF &bounding_box, SIZE &text_size);
-	void GenerateVerSlideText(const wstring& text_tansforms, std::vector<wstring>& texts_vec);
+	void CalculateSlideTextSizes(const wstring &text_measure,
+				     const StringFormat &format,
+				     RectF &bounding_box, SIZE &text_size);
+	void GenerateVerSlideText(const wstring &text_tansforms,
+				  std::vector<wstring> &texts_vec);
 
-	int CaculateSlideTextColums(const wstring& text_measure);
-	void CalculateSlideTextPos(int count,const StringFormat &format,float& posx, float& posy, const SIZE& size);
-	void CalculateMaxSize();                        // 计算最大长度
+	int CaculateSlideTextColums(const wstring &text_measure);
+	void CalculateSlideTextPos(int count, const StringFormat &format,
+				   float &posx, float &posy, const SIZE &size);
+	void CalculateMaxSize(); // 计算最大长度
 	void RenderSlideOutlineText(Graphics &graphics,
-		const GraphicsPath &path,
-		const Brush &brush);
+				    const GraphicsPath &path,
+				    const Brush &brush);
 	void RenderSlideText();
 	const char *GetMainSlideString(const char *str);
 
 	void SlideUpdate(obs_data_t *settings);
+	void SlideTextCustomCommand(obs_data_t *cmd);
 	void SlideTick(float seconds);
 	void SlideRender();
 	void CaclculateSpeed();
@@ -106,4 +111,3 @@ struct SlideTextSource {
 	bool VerDeleteLineLarge();
 	wstring FontPath(const wchar_t *fontName);
 };
-

@@ -577,8 +577,7 @@ void SlideTextSource::RenderSlideText()
 				warn_stat("graphics_bitmap.Clear");
 			}
 
-			if (fill == false)
-			{
+			if (fill == false) {
 				stat = graphics_bitmap.Clear(Color(0));
 			}
 			stat = graphics_bitmap.DrawString(text.c_str(),
@@ -731,6 +730,15 @@ const char *SlideTextSource::GetMainSlideString(const char *str)
 	}
 
 	return *temp == '\n' ? temp + 1 : temp;
+}
+
+void SlideTextSource::SlideTextCustomCommand(obs_data_t *cmd)
+{
+	const char *cmdType = obs_data_get_string(cmd, "type");
+	if (strcmp("replay", cmdType) == 0) {
+		int index = texts.size() - 1;
+		curIndex = index >= 0 ? index : 0;
+	}
 }
 
 void SlideTextSource::SlideUpdate(obs_data_t *s)

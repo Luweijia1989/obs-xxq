@@ -979,6 +979,10 @@ bool obs_module_load(void)
 	slide_text.video_render = [](void *data, gs_effect_t *) {
 		reinterpret_cast<SlideTextSource *>(data)->SlideRender();
 	};
+	slide_text.make_command = [](void *data, obs_data_t *command) {
+		reinterpret_cast<SlideTextSource *>(data)
+			->SlideTextCustomCommand(command);
+	};
 
 	obs_register_source(&slide_text);
 

@@ -156,6 +156,18 @@ static obs_properties_t *quickview_source_properties(void *data)
 	return props;
 }
 
+static void quickview_source_make_custom(void *data, obs_data_t *command)
+{
+	if (!data)
+		return;
+
+	const char *cmdType = obs_data_get_string(command, "type");
+	if (strcmp("replay", cmdType) == 0) {
+		ImageSlideShow *s = (ImageSlideShow *)data;
+		emit s->Replay();
+	}
+}
+
 static struct obs_source_info quickimageslideshow_source_info = {
 	"quickimageslideshow_source",
 	OBS_SOURCE_TYPE_INPUT,
@@ -193,7 +205,8 @@ static struct obs_source_info quickimageslideshow_source_info = {
 	nullptr,
 	nullptr,
 	nullptr,
-	nullptr};
+	nullptr,
+	quickview_source_make_custom};
 
 OBS_DECLARE_MODULE()
 OBS_MODULE_USE_DEFAULT_LOCALE("qml-source", "en-US")

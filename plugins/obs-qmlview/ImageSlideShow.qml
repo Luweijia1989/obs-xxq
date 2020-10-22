@@ -141,4 +141,13 @@ Item {
                 view.decrementCurrentIndex()
         }
     }
+    
+    Connections {
+        target: imageSlideProperties
+        onReplay:{
+			view.currentIndex = imageSlideProperties.imageFiles.size() - 1
+			if(view.currentIndex < 0)
+				view.currentIndex = 0
+        }
+    }
 }
