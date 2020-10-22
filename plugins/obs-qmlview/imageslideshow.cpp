@@ -42,7 +42,7 @@ static void quickview_source_update(void *data, obs_data_t *settings)
 {
 	ImageSlideShow *s = (ImageSlideShow *)data;
 	s->baseUpdate(settings);
-
+	
 	quint32 speed = obs_data_get_int(settings, "speed");
 	s->setspeed((ImageSlideShow::SlideSpeed)speed);
 
@@ -164,7 +164,7 @@ static void quickview_source_make_custom(void *data, obs_data_t *command)
 	const char *cmdType = obs_data_get_string(command, "type");
 	if (strcmp("replay", cmdType) == 0) {
 		ImageSlideShow *s = (ImageSlideShow *)data;
-		emit s->Replay();
+		emit s->replay();
 	}
 }
 

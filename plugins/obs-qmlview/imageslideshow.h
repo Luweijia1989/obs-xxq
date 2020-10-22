@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include <QObject>
 #include <QMutex>
@@ -29,7 +29,7 @@ public:
 	ImageSlideShow(QObject *parent = nullptr);
 	static void default(obs_data_t *settings);
 signals:
-	void Replay();
+	void replay();
 
 public:
 	QMutex m_mutex;

@@ -145,7 +145,7 @@ Item {
     Connections {
         target: imageSlideProperties
         onReplay:{
-			view.currentIndex = imageSlideProperties.imageFiles.size() - 1
+			view.currentIndex = view.count - 1
 			if(view.currentIndex < 0)
 				view.currentIndex = 0
         }
