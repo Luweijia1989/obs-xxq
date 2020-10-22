@@ -23,8 +23,6 @@ static void gifttv_source_update(void *data, obs_data_t *settings)
 {
 	GiftTV *s = (GiftTV *)data;
 	s->baseUpdate(settings);
-
-
 }
 
 static void *gifttv_source_create(obs_data_t *settings, obs_source_t *source)
@@ -48,8 +46,8 @@ static void gifttv_source_destroy(void *data)
 static void gifttv_source_defaults(obs_data_t *settings)
 {
 	QmlSourceBase::baseDefault(settings);
-	obs_data_set_default_int(settings, "width", 1928);
-	obs_data_set_default_int(settings, "height", 1088);
+	obs_data_set_default_int(settings, "width", 932);
+	obs_data_set_default_int(settings, "height", 600);
 
 	obs_data_set_default_int(settings, "triggerCondition", 1);
 	obs_data_set_default_int(settings, "triggerConditionValue", 1000);
@@ -69,10 +67,20 @@ static obs_properties_t *gifttv_source_properties(void *data)
 	GiftTV *s = (GiftTV *)data;
 	obs_properties_t *props = s->baseProperties();
 
-	obs_properties_add_text(props, "backgroundImage", u8"背景图",
-				OBS_TEXT_DEFAULT);
-	obs_properties_add_text(props, "currentTime", u8"当前计时",
-				OBS_TEXT_DEFAULT);
+	obs_properties_add_int(props, "triggerCondition", u8"触发条件", 0, 1,
+			       1);
+	obs_properties_add_int(props, "triggerConditionValue", u8"单价设定", 0,
+			       999999, 1000);
+	obs_properties_add_int(props, "row", u8"行", 1, 9,
+			       1);
+	obs_properties_add_int(props, "col", u8"列", 1, 4,
+			       1);
+	obs_properties_add_int(props, "prefer", u8"优先展示", 0, 2,
+			       1);
+	obs_properties_add_int(props, "mode", u8"展示模式", 0, 2,
+			       1);
+	obs_properties_add_int(props, "disappear", u8"消失设定", 0, 2,
+			       1);
 	return props;
 }
 
