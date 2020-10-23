@@ -121,7 +121,7 @@ void ScreenMirrorServer::dumpResourceImgs()
 	DWORD len = GetTempPathA(MAX_PATH, (char *)prefix.data());
 	prefix.resize(len);
 	m_resourceImgs.push_back(prefix + "pic_mirror_connecting.gif");
-	m_resourceImgs.push_back(prefix + "pic_android_cableprojection.png");
+	m_resourceImgs.push_back(prefix + "pic_android_cableprojection2.png");
 	m_resourceImgs.push_back(prefix + "pic_android_screencastfailed_cableprojection.png");
 	m_resourceImgs.push_back(prefix + "pic_ios_cableprojection.png");
 	m_resourceImgs.push_back(prefix + "pic_ios_screencastfailed_cableprojection.png");
