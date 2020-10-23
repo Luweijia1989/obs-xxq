@@ -139,7 +139,6 @@ using namespace Gdiplus;
 #define S_FONTSIZE "fontSize"
 #define S_FILLCOLOR "fillColor"
 #define S_FONTCOLOR "frontColor"
-#define S_REPLY "replay"
 #define obs_data_get_uint32 (uint32_t) obs_data_get_int
 
 enum SlideDirection { BottomToTop = 1, TopToBottom, RightToLeft, LeftToRight };
