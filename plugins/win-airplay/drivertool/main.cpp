@@ -284,7 +284,7 @@ public slots:
 
 		uint8_t data[1] = {1};
 		os_process_pipe_write(m_mirrorProcess, data, 1);
-		os_process_pipe_destroy_timeout(m_mirrorProcess, 5000);
+		os_process_pipe_destroy_timeout(m_mirrorProcess, 1500);
 		m_mirrorProcess = NULL;
 	}
 

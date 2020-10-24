@@ -195,7 +195,7 @@ void ScreenMirrorServer::mirrorServerDestroy()
 	if (process) {
 		uint8_t data[1] = {1};
 		os_process_pipe_write(process, data, 1);
-		os_process_pipe_destroy_timeout(process, 5000);
+		os_process_pipe_destroy_timeout(process, 1500);
 		process = NULL;
 	}
 
