@@ -1,4 +1,4 @@
-﻿/******************************************************************************
+/******************************************************************************
     Copyright (C) 2013-2015 by Hugh Bailey <obs.jim@gmail.com>
                                Philippe Groarke <philippe.groarke@gmail.com>
 
@@ -1724,11 +1724,6 @@ obs_sceneitem_t *obs_scene_add(obs_scene_t *scene, obs_source_t *source)
 	obs_source_t *iter;
 
 	calldata_init_fixed(&params, stack, sizeof(stack));
-	calldata_set_ptr(&params, "scene", scene);
-	calldata_set_ptr(&params, "item", item);
-	signal_handler_signal(scene->source->context.signals, "item_add",
-			      &params);
-
 	calldata_set_ptr(&params, "source", source);
 	calldata_set_ptr(&params, "item", item);
 	if (scene->is_group) {
@@ -1762,6 +1757,11 @@ obs_sceneitem_t *obs_scene_add(obs_scene_t *scene, obs_source_t *source)
 		calldata_set_ptr(&params, "scene", scene);
 
 	signal_handler_signal(obs->signals, "source_sceneitem_add", &params);
+
+	calldata_set_ptr(&params, "scene", scene);
+	calldata_set_ptr(&params, "item", item);
+	signal_handler_signal(scene->source->context.signals, "item_add",
+			      &params);
 
 	return item;
 }
