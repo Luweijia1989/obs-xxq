@@ -1,4 +1,4 @@
-#include <QApplication>
+﻿#include <QApplication>
 #include <Windows.h>
 #include <QProgressBar>
 #include <fcntl.h>
@@ -296,7 +296,7 @@ public slots:
 		else
 			qApp->quit();
 	}
-
+	 
 	void onStartMirror()
 	{
 		if (m_mirrorProcess)
