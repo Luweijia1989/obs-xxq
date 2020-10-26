@@ -51,6 +51,7 @@ public:
 
 	static void pipeCallback(void *param, uint8_t *data, size_t size);
 	static void WinAirplayVideoTick(void *data, float seconds);
+	static void *CreateWinAirplay(obs_data_t *settings, obs_source_t *source);
 	static void *audio_tick_thread(void *data);
 	static void *video_tick_thread(void *data);
 	static void *video_decode_thread(void *data);
@@ -80,6 +81,8 @@ private:
 	void saveStatusSettings();
 
 private:
+	HANDLE m_handler;
+
 	PaStreamParameters open_param_;
 	PaStream *pa_stream_ = nullptr;
 	audio_resampler_t *resampler = nullptr;

@@ -10,6 +10,7 @@ using namespace std;
 #define DRIVER_EXE "driver-tool.exe"
 #define AIRPLAY_EXE "airplay-server.exe"
 #define ANDROID_USB_EXE "android-usb-mirror.exe"
+#define INSTANCE_LOCK L"AIRPLAY-ONE-INSTANCE"
 uint8_t start_code[4] = {00, 00, 00, 01};
 
 HMODULE DllHandle;
@@ -107,6 +108,9 @@ ScreenMirrorServer::~ScreenMirrorServer()
 	pthread_mutex_destroy(&m_videoDataMutex);
 	pthread_mutex_destroy(&m_audioDataMutex);
 	pthread_mutex_destroy(&m_statusMutex);
+
+	if (m_handler != INVALID_HANDLE_VALUE)
+		CloseHandle(m_handler);
 
 #ifdef DUMPFILE
 	fclose(m_auioFile);
@@ -690,9 +694,21 @@ static obs_properties_t *GetWinAirplayPropertiesOutput(void *data)
 	return props;
 }
 
-static void *CreateWinAirplay(obs_data_t *settings, obs_source_t *source)
+void *ScreenMirrorServer::CreateWinAirplay(obs_data_t *settings, obs_source_t *source)
 {
+	auto handler = CreateEvent(NULL, FALSE, FALSE, INSTANCE_LOCK);
+	auto lastError = GetLastError();
+	if (handler == NULL)
+		return nullptr;
+
+	if (lastError == ERROR_ALREADY_EXISTS)
+	{
+		CloseHandle(handler);
+		return nullptr;
+	}
+
 	ScreenMirrorServer *server = new ScreenMirrorServer(source);
+	server->m_handler = handler;
 	UpdateWinAirplaySource(server, settings);
 	return server;
 }
@@ -828,7 +844,7 @@ bool obs_module_load(void)
 	info.show = ShowWinAirplay;
 	info.hide = HideWinAirplay;
 	info.get_name = GetWinAirplayName;
-	info.create = CreateWinAirplay;
+	info.create = ScreenMirrorServer::CreateWinAirplay;
 	info.destroy = DestroyWinAirplay;
 	info.update = UpdateWinAirplaySource;
 	info.get_defaults = GetWinAirplayDefaultsOutput;
