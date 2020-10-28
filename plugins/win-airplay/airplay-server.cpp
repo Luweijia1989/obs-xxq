@@ -4,7 +4,6 @@
 #include <cstdio>
 #include <util/dstr.h>
 #include <Shlwapi.h>
-#include <Shlobj.h>
 
 using namespace std;
 
@@ -61,24 +60,6 @@ ffmpeg_to_obs_video_format(enum AVPixelFormat format)
 	default:
 		return VIDEO_FORMAT_NONE;
 	}
-}
-
-static void CreateDir(char *Path)
-{
-	char DirName[256];
-	char *p = Path;
-	char *q = DirName;
-
-	while (*p) {
-		if (('\\' == *p) || ('/' == *p)) {
-			if (':' != *(p - 1)) {
-				CreateDirectoryA(DirName, NULL);
-			}
-		}
-		*q++ = *p++;
-		*q = '\0';
-	}
-	CreateDirectoryA(DirName, NULL);
 }
 
 ScreenMirrorServer::ScreenMirrorServer(obs_source_t *source)
@@ -141,13 +122,8 @@ void ScreenMirrorServer::dumpResourceImgs()
 {
 	string prefix;
 	prefix.resize(MAX_PATH);
-	HRESULT ret = SHGetFolderPathA(NULL, CSIDL_LOCAL_APPDATA, NULL, 0, (char *)prefix.data());
-	if (ret != S_OK)
-		return;
-
-	prefix.resize(strlen(prefix.c_str()));
-	prefix = prefix + "\\yuerlive\\temp\\";
-	CreateDir((char *)prefix.c_str());
+	DWORD len = GetTempPathA(MAX_PATH, (char *)prefix.data());
+	prefix.resize(len);
 	m_resourceImgs.push_back(prefix + "pic_mirror_connecting.gif");
 	m_resourceImgs.push_back(prefix + "pic_android_cableprojection2.png");
 	m_resourceImgs.push_back(prefix + "pic_android_screencastfailed_cableprojection.png");
@@ -164,7 +140,7 @@ void ScreenMirrorServer::dumpResourceImgs()
 		if (!PathFileExistsA(img.c_str()))
 		{
 			HANDLE hFile = CreateFileA(img.c_str(), GENERIC_WRITE, FILE_SHARE_READ, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
-			if (hFile != INVALID_HANDLE_VALUE && hFile != NULL)
+			if (hFile != INVALID_HANDLE_VALUE)
 			{
 				HRSRC res = NULL;
 				if (iter == 0)
