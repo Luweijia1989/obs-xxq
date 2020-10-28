@@ -1,4 +1,4 @@
-﻿#include <QApplication>
+#include <QApplication>
 #include <Windows.h>
 #include <QProgressBar>
 #include <fcntl.h>
@@ -111,9 +111,12 @@ public:
 		connect(m_terminateTimer, &QTimer::timeout, this,
 			&InstallHelper::stopMirror);
 
-		temp_dir = QStandardPaths::writableLocation(
-				   QStandardPaths::TempLocation) +
-			   "/yuerlive";
+		QString localDir = QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation);
+		QDir d1(localDir);
+		if (!d1.exists())
+			d1.mkdir(localDir);
+
+		QString temp_dir = QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation) + "/temp";
 		QDir d(temp_dir);
 		if (!d.exists())
 			d.mkdir(temp_dir);
@@ -355,9 +358,8 @@ int main(int argc, char *argv[])
 	ipc_client_destroy(&client);
 
 	QApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
-
 	QApplication a(argc, argv);
-
+	a.setApplicationName("yuerlive");
 	InstallHelper helper;
 	QThread thread;
 	thread.start();
