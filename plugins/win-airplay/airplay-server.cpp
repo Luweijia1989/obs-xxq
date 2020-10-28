@@ -156,7 +156,8 @@ void ScreenMirrorServer::dumpResourceImgs()
 				auto res_data = LockResource(res_handle);
 				auto res_size = SizeofResource(DllHandle, res);
 
-				WriteFile(hFile, res_data, res_size, NULL, NULL);
+				DWORD byteWritten = 0;
+				WriteFile(hFile, res_data, res_size, &byteWritten, NULL);
 				CloseHandle(hFile);
 			}
 		}

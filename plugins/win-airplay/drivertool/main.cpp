@@ -114,6 +114,7 @@ public:
 		temp_dir = QStandardPaths::writableLocation(
 				   QStandardPaths::TempLocation) +
 			   "/yuerlive";
+		temp_dir = QDir::toNativeSeparators(temp_dir);
 		QDir d(temp_dir);
 		if (!d.exists())
 			d.mkdir(temp_dir);
