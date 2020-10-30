@@ -77,15 +77,14 @@ struct IPCClient {
 
 void ipc_server_create(struct IPCServer **input, read_cb cb, void *param);
 void ipc_server_destroy(struct IPCServer **input);
-DWORD ipc_server_read(struct IPCServer *server, void *pBuff, DWORD buffSize,
-		      DWORD timeout);
+DWORD ipc_server_read(struct IPCServer *server, void *pBuff, DWORD buffSize, WORD timeout);
 struct Block *ipc_server_get_block(struct IPCServer *server, DWORD dwTimeout);
 void ipc_server_ret_block(struct IPCServer *server, struct Block *pBlock);
 
 void ipc_client_create(struct IPCClient **input);
 void ipc_client_destroy(struct IPCClient **input);
-DWORD ipc_client_write(struct IPCClient *client, void *pBuff, DWORD amount,
-		       DWORD dwTimeout);
+DWORD ipc_client_write(struct IPCClient *client, void *pBuff, DWORD amount, DWORD dwTimeout);
+DWORD ipc_client_write_2(struct IPCClient *client, void *pBuff, DWORD amount, void *pBuff2, DWORD amount2, DWORD dwTimeout);
 
 #ifdef __cplusplus
 }

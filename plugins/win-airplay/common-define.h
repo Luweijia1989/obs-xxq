@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include "../../libobs/media-io/audio-io.h"
 #include "ipc.h"
@@ -50,6 +50,5 @@ static void send_status(struct IPCClient *c, int status)
 	info.size = sizeof(int);
 	info.type = FFM_MIRROR_STATUS;
 
-	ipc_client_write(c, &info, sizeof(struct av_packet_info), INFINITE);
-	ipc_client_write(c, &status, sizeof(int), INFINITE);
+	ipc_client_write_2(c, &info, sizeof(struct av_packet_info), &status, sizeof(int), INFINITE);
 }

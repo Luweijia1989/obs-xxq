@@ -598,10 +598,7 @@ void pipeConsume(struct CMSampleBuffer *buf, void *c)
 		pack_info.size = sizeof(struct media_info);
 		pack_info.type = FFM_MEDIA_INFO;
 #ifndef STANDALONE
-		ipc_client_write(ipc_client, &pack_info,
-				 sizeof(struct av_packet_info), INFINITE);
-		ipc_client_write(ipc_client, &app_device.m_info,
-				 sizeof(struct media_info), INFINITE);
+		ipc_client_write_2(ipc_client, &pack_info, sizeof(struct av_packet_info), &app_device.m_info, sizeof(struct media_info), INFINITE);
 #endif
 	}
 
@@ -638,10 +635,7 @@ void pipeConsume(struct CMSampleBuffer *buf, void *c)
 
 	pack_info.pts = pack_info.pts * 1000000;
 #ifndef STANDALONE
-	ipc_client_write(ipc_client, &pack_info, sizeof(struct av_packet_info),
-			 INFINITE);
-	ipc_client_write(ipc_client, buf->SampleData, buf->SampleData_len,
-			 INFINITE);
+	ipc_client_write_2(ipc_client, &pack_info, sizeof(struct av_packet_info), buf->SampleData, buf->SampleData_len, INFINITE);
 #endif
 }
 
