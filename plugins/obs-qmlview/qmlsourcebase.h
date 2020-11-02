@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include <QObject>
 #include <QMutex>
@@ -9,9 +9,10 @@ class QmlSourceBase : public QObject {
 	Q_OBJECT
 public:
 	QmlSourceBase(QObject *parent = nullptr);
-	~QmlSourceBase();
+	virtual ~QmlSourceBase();
 	void addProperties(QString name, QObject *value);
 	void setSource(obs_source_t *source);
+	obs_source_t *source();
 	void baseUpdate(obs_data_t *settings);
 	void baseDestroy();
 	static void baseDefault(obs_data_t *settings);

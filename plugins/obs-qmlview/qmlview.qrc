@@ -12,5 +12,66 @@
         <file>icon_ticket_display@2x.png</file>
         <file>pic_bullet_chat.png</file>
         <file>GiftTV.qml</file>
+        <file>CircularRectangle.qml</file>
+        <file>image/0.png</file>
+        <file>image/0@2x.png</file>
+        <file>image/1.png</file>
+        <file>image/1@2x.png</file>
+        <file>image/2.png</file>
+        <file>image/2@2x.png</file>
+        <file>image/3.png</file>
+        <file>image/3@2x.png</file>
+        <file>image/4.png</file>
+        <file>image/4@2x.png</file>
+        <file>image/5.png</file>
+        <file>image/5@2x.png</file>
+        <file>image/6.png</file>
+        <file>image/6@2x.png</file>
+        <file>image/7.png</file>
+        <file>image/7@2x.png</file>
+        <file>image/8.png</file>
+        <file>image/8@2x.png</file>
+        <file>image/9.png</file>
+        <file>image/9@2x.png</file>
+        <file>image/pic_big_banner.png</file>
+        <file>image/pic_big_banner@2x.png</file>
+        <file>image/pic_red_batch.png</file>
+        <file>image/pic_red_batch@2x.png</file>
+        <file>image/pic_ride.png</file>
+        <file>image/pic_ride@2x.png</file>
+        <file>image/pic_gift_scroll_level_1.png</file>
+        <file>image/pic_gift_scroll_level_1@2x.png</file>
+        <file>image/pic_gift_scroll_level_2.png</file>
+        <file>image/pic_gift_scroll_level_2@2x.png</file>
+        <file>image/pic_gift_scroll_level_3.png</file>
+        <file>image/pic_gift_scroll_level_3@2x.png</file>
+        <file>image/pic_gift_scroll_level_4.png</file>
+        <file>image/pic_gift_scroll_level_4@2x.png</file>
+        <file>image/pic_gift_scroll_level_5.png</file>
+        <file>image/pic_gift_scroll_level_5@2x.png</file>
+        <file>image/pic_gift_scroll_level_6.png</file>
+        <file>image/pic_gift_scroll_level_6@2x.png</file>
+        <file>image/pic_gift_scroll_level_7.png</file>
+        <file>image/pic_gift_scroll_level_7@2x.png</file>
+        <file>image/pic_nospeed_2.png</file>
+        <file>image/pic_nospeed_2@2x.png</file>
+        <file>image/pic_nospeed_3.png</file>
+        <file>image/pic_nospeed_3@2x.png</file>
+        <file>image/pic_nospeed_4.png</file>
+        <file>image/pic_nospeed_4@2x.png</file>
+        <file>image/pic_nospeed_5.png</file>
+        <file>image/pic_nospeed_5@2x.png</file>
+        <file>image/pic_nospeed_6.png</file>
+        <file>image/pic_nospeed_6@2x.png</file>
+        <file>image/pic_speed_2.png</file>
+        <file>image/pic_speed_2@2x.png</file>
+        <file>image/pic_speed_3.png</file>
+        <file>image/pic_speed_3@2x.png</file>
+        <file>image/pic_speed_4.png</file>
+        <file>image/pic_speed_4@2x.png</file>
+        <file>image/pic_speed_5.png</file>
+        <file>image/pic_speed_5@2x.png</file>
+        <file>image/pic_speed_6.png</file>
+        <file>image/pic_speed_6@2x.png</file>
     </qresource>
 </RCC>

@@ -1,4 +1,4 @@
-#include "qmlsourcebase.h"
+﻿#include "qmlsourcebase.h"
 #include "renderer.h"
 
 QmlSourceBase::QmlSourceBase(QObject *parent /*= nullptr*/) : QObject(parent)
@@ -16,6 +16,11 @@ void QmlSourceBase::addProperties(QString name, QObject *value)
 void QmlSourceBase::setSource(obs_source_t *source)
 {
 	quickView->source = source;
+}
+
+obs_source_t *QmlSourceBase::source()
+{
+	return quickView->source;
 }
 
 void QmlSourceBase::baseUpdate(obs_data_t *settings)
