@@ -1770,7 +1770,9 @@ static obs_source_t *obs_load_source_type(obs_data_t *source_data)
 {
 	obs_data_array_t *filters = obs_data_get_array(source_data, "filters");
 	obs_source_t *source;
+	obs_source_t *search_source = NULL;
 	const char *name = obs_data_get_string(source_data, "name");
+	char duplicate_name[256];
 	const char *id = obs_data_get_string(source_data, "id");
 	obs_data_t *settings = obs_data_get_obj(source_data, "settings");
 	obs_data_t *hotkeys = obs_data_get_obj(source_data, "hotkeys");
@@ -1784,11 +1786,20 @@ static obs_source_t *obs_load_source_type(obs_data_t *source_data)
 	int di_order;
 	int di_mode;
 	int monitoring_type;
+	int search_index = 2;
 
 	prev_ver = (uint32_t)obs_data_get_int(source_data, "prev_ver");
 
-	source = obs_source_create_set_last_ver(id, name, settings, hotkeys,
-						prev_ver);
+	memset(duplicate_name, 0, 256);
+	sprintf(duplicate_name, "%s", name);
+	while ((source = obs_get_source_by_name(duplicate_name))) {
+		obs_source_release(source);
+		memset(duplicate_name, 0, 256);
+		sprintf(duplicate_name, "%s %d", name, search_index++);
+	}
+	obs_data_set_string(source_data, "name", duplicate_name);
+	source = obs_source_create_set_last_ver(id, duplicate_name, settings,
+						hotkeys, prev_ver);
 
 	obs_data_release(hotkeys);
 
@@ -1894,6 +1905,18 @@ obs_source_t *obs_load_source(obs_data_t *source_data)
 	return obs_load_source_type(source_data);
 }
 
+static void filter_source_name(obs_data_array_t *items, const char *old_name, const char *new_name)
+{
+	size_t item_count = obs_data_array_count(items);
+	for (size_t m = 0; m < item_count; m++) {
+		obs_data_t *item_data = obs_data_array_item(items, m);
+		if (strcmp(obs_data_get_string(item_data, "name"), old_name) == 0) {
+			obs_data_set_string(item_data, "name", new_name);
+		}
+		obs_data_release(item_data);
+	}
+}
+
 void obs_load_sources(obs_data_array_t *array, obs_load_source_cb cb,
 		      void *private_data)
 {
@@ -1914,7 +1937,27 @@ void obs_load_sources(obs_data_array_t *array, obs_load_source_cb cb,
 
 	for (i = 0; i < count; i++) {
 		obs_data_t *source_data = obs_data_array_item(array, i);
+		char *old_name = bstrdup(obs_data_get_string(source_data, "name"));
 		obs_source_t *source = obs_load_source(source_data);
+		char *new_name = bstrdup(obs_data_get_string(source_data, "name"));
+
+		if (old_name && new_name && strcmp(old_name, new_name) != 0) {
+			size_t count = obs_data_array_count(array);
+			for (size_t j = 0; j < count; j++) {
+				obs_data_t *sd = obs_data_array_item(array, j);
+				obs_data_t *st = obs_data_get_obj(sd, "settings");
+				if (st) {
+					obs_data_array_t *items = obs_data_get_array(st, "items");
+					filter_source_name(items, old_name, new_name);
+					obs_data_array_release(items);
+					obs_data_release(st);
+				}
+				obs_data_release(sd);
+			}
+		}
+
+		bfree(old_name);
+		bfree(new_name);
 
 		da_push_back(sources, &source);
 
@@ -1969,7 +2012,33 @@ void obs_load_sources_with_specific_iteminfo(obs_data_array_t *array,
 
 	for (i = 0; i < count; i++) {
 		obs_data_t *source_data = obs_data_array_item(array, i);
+		char *old_name = bstrdup(obs_data_get_string(source_data, "name"));
 		obs_source_t *source = obs_load_source(source_data);
+		char *new_name = bstrdup(obs_data_get_string(source_data, "name"));
+
+		if (old_name && new_name && strcmp(old_name, new_name) != 0) {
+			size_t count = obs_data_array_count(array);
+			for (size_t j = 0; j < count; j++) {
+				obs_data_t *sd = obs_data_array_item(array, j);
+				obs_data_t *st = obs_data_get_obj(sd, "settings");
+				if (st) {
+					obs_data_array_t *items = obs_data_get_array(st, "items");
+					filter_source_name(items, old_name, new_name);
+					obs_data_array_release(items);
+					obs_data_release(st);
+				}
+				obs_data_release(sd);
+			} 
+
+			obs_data_array_t *items = obs_data_get_array(iteminfo, "items");
+			if (items) {
+				filter_source_name(items, old_name, new_name);
+				obs_data_array_release(items);
+			}
+		}
+
+		bfree(old_name);
+		bfree(new_name);
 
 		da_push_back(sources, &source);
 

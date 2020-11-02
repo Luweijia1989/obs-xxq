@@ -1,4 +1,4 @@
-﻿#include "CAirServer.h"
+#include "CAirServer.h"
 #include <cstdio>
 #include "../common-define.h"
 
@@ -41,9 +41,7 @@ void CAirServer::outputAudio(uint8_t *data, size_t data_len, uint64_t pts,
 	pack_info.pts = pts;
 	pack_info.serial = serial;
 
-	ipc_client_write(client, &pack_info, sizeof(struct av_packet_info),
-			 INFINITE);
-	ipc_client_write(client, data, data_len, INFINITE);
+	ipc_client_write_2(client, &pack_info, sizeof(struct av_packet_info), data, data_len, INFINITE);
 }
 
 void CAirServer::outputVideo(uint8_t *data, size_t data_len, uint64_t pts,
@@ -57,9 +55,7 @@ void CAirServer::outputVideo(uint8_t *data, size_t data_len, uint64_t pts,
 	pack_info.type = FFM_PACKET_VIDEO;
 	pack_info.pts = pts;
 
-	ipc_client_write(client, &pack_info, sizeof(struct av_packet_info),
-			 INFINITE);
-	ipc_client_write(client, data, data_len, INFINITE);
+	ipc_client_write_2(client, &pack_info, sizeof(struct av_packet_info), data, data_len, INFINITE);
 }
 
 void CAirServer::outputMediaInfo(media_info *info, const char *remoteName,
@@ -69,9 +65,7 @@ void CAirServer::outputMediaInfo(media_info *info, const char *remoteName,
 	pack_info.size = sizeof(struct media_info);
 	pack_info.type = FFM_MEDIA_INFO;
 
-	ipc_client_write(client, &pack_info, sizeof(struct av_packet_info),
-			 INFINITE);
-	ipc_client_write(client, info, sizeof(struct media_info), INFINITE);
+	ipc_client_write_2(client, &pack_info, sizeof(struct av_packet_info), info, sizeof(struct media_info), INFINITE);
 }
 
 bool getHostName(char hostName[512])

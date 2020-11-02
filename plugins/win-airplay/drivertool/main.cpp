@@ -1,4 +1,4 @@
-#include <QApplication>
+﻿#include <QApplication>
 #include <Windows.h>
 #include <QProgressBar>
 #include <fcntl.h>
@@ -114,6 +114,7 @@ public:
 		temp_dir = QStandardPaths::writableLocation(
 				   QStandardPaths::TempLocation) +
 			   "/yuerlive";
+		temp_dir = QDir::toNativeSeparators(temp_dir);
 		QDir d(temp_dir);
 		if (!d.exists())
 			d.mkdir(temp_dir);
@@ -284,7 +285,7 @@ public slots:
 
 		uint8_t data[1] = {1};
 		os_process_pipe_write(m_mirrorProcess, data, 1);
-		os_process_pipe_destroy_timeout(m_mirrorProcess, 5000);
+		os_process_pipe_destroy_timeout(m_mirrorProcess, 1500);
 		m_mirrorProcess = NULL;
 	}
 
@@ -296,7 +297,7 @@ public slots:
 		else
 			qApp->quit();
 	}
-
+	 
 	void onStartMirror()
 	{
 		if (m_mirrorProcess)

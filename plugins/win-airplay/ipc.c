@@ -465,12 +465,21 @@ void ipc_client_destroy(struct IPCClient **input)
 
 	*input = NULL;
 }
-DWORD ipc_client_write(struct IPCClient *client, void *pBuff, DWORD amount,
-	DWORD dwTimeout)
+DWORD ipc_client_write(struct IPCClient *client, void *pBuff, DWORD amount, DWORD dwTimeout)
 {
 	DWORD ret = 0;
 	EnterCriticalSection(&client->m_mutex);
 	ret = ipc_client_write_private(client->m_private, pBuff, amount, dwTimeout);
+	LeaveCriticalSection(&client->m_mutex);
+	return ret;
+}
+
+DWORD ipc_client_write_2(struct IPCClient *client, void *pBuff, DWORD amount, void *pBuff2, DWORD amount2, DWORD dwTimeout)
+{
+	DWORD ret = 0;
+	EnterCriticalSection(&client->m_mutex);
+	ret = ipc_client_write_private(client->m_private, pBuff, amount, dwTimeout);
+	ret = ipc_client_write_private(client->m_private, pBuff2, amount2, dwTimeout);
 	LeaveCriticalSection(&client->m_mutex);
 	return ret;
 }
