@@ -50,10 +50,6 @@ public:
 	DEFINE_PROPERTY(QString, invalidGift);
 	DEFINE_PROPERTY(QString, updateGift);
 
-	DEFINE_PROPERTY(int, row);
-	DEFINE_PROPERTY(int, col);
-	DEFINE_PROPERTY(int, prefer);
-
 public:
 	Q_INVOKABLE void autoExtendTvCols(int cols);
 
@@ -93,7 +89,7 @@ private:
 	PreferLayout m_preferLayout = Horizontal;
 	int m_mode = 0;
 	bool m_load = false;
-	int m_triggerCondition = 1;
+	int m_triggerCondition = 0;
 	int m_triggerConditionValue = 1000;
 	QVector<QVector<QJsonObject>> m_grid;
 	QMap<QString, QJsonObject> m_giftInfoMap;

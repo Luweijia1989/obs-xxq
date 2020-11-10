@@ -71,7 +71,6 @@ void GiftTV::setTriggerConditionValue(int triggerConditionValue)
 
 void GiftTV::refurshGrid(int rows, int cols)
 {
-	qDebug() << "AAAAAAAAAAAAAAAAAAAAAAAAAA";
 	if (m_grid.size() == rows && m_grid.at(0).size() == cols)
 		return;
 
@@ -104,13 +103,7 @@ void GiftTV::refurshGrid(int rows, int cols)
 		}
 	}
 
-	qDebug() << "AAAAAAAAAAAAAAAAAAAAAAAAAA" << hanAdvancedGift << cols;
-
 	if (hanAdvancedGift && cols == 1) {
-
-		qDebug() << "AAAAAAAAAAAAAAAAAAAAAAAAAA" << m_giftInfoMap
-			 << oldCols << oldRows;
-
 		obs_source_t *source = this->source();
 		obs_data_t *settings = obs_source_get_settings(source);
 		obs_data_release(settings);
@@ -374,7 +367,6 @@ void GiftTV::getPositonForNewGiftToGrid(QJsonObject &giftInfo)
 		find = findAdvancedGrid(tempRows, tempCols, giftInfo);
 
 	while (!find) {
-		qDebug() << "removeGrid";
 		removeGrid();
 		if (type == 0)
 			find = findNormalGrid(tempRows, tempCols, giftInfo);
@@ -503,8 +495,6 @@ bool GiftTV::needExtendCols(int cols)
 			QJsonObject giftInfo = m_grid[i][j];
 			if (!giftInfo.isEmpty() &&
 			    giftInfo["giftType"].toInt() == 1) {
-				qDebug() << "AAAAAAAAAAAAAAAAAAAAAAAAAA"
-					 << m_giftInfoMap << oldCols << oldRows;
 				autoExtendTvCols(oldCols);
 				return true;
 			}
@@ -643,10 +633,6 @@ static void gifttv_source_update(void *data, obs_data_t *settings)
 	s->baseUpdate(settings);
 	s->refurshGrid(row, col);
 
-	s->setprefer(prefer);
-	s->setrow(row);
-	s->setcol(col);
-
 	QStringList giftArray;
 	obs_data_array_t *array = obs_data_get_array(settings, "giftArray");
 	int count = obs_data_array_count(array);
@@ -716,7 +702,7 @@ static void gifttv_source_defaults(obs_data_t *settings)
 	obs_data_set_default_int(settings, "width", 932);
 	obs_data_set_default_int(settings, "height", 600);
 
-	obs_data_set_default_int(settings, "triggerCondition", 1);
+	obs_data_set_default_int(settings, "triggerCondition", 0);
 	obs_data_set_default_int(settings, "triggerConditionValue", 1000);
 	obs_data_set_default_int(settings, "row", 5);
 	obs_data_set_default_int(settings, "col", 2);
@@ -736,9 +722,9 @@ static obs_properties_t *gifttv_source_properties(void *data)
 
 	obs_properties_add_int(props, "triggerCondition", u8"触发条件", 0, 1,
 			       1);
-	obs_properties_add_int(props, "triggerConditionValue", u8"单价设定", 0,
-			       999999, 1000);
-	obs_properties_add_int(props, "row", u8"行", 1, 9, 1);
+	obs_properties_add_int(props, "triggerConditionValue", u8"单价设定",
+			       100, 999999, 100);
+	obs_properties_add_int(props, "row", u8"行", 1, 8, 1);
 	obs_properties_add_int(props, "col", u8"列", 1, 4, 1);
 	obs_properties_add_int(props, "prefer", u8"优先展示", 0, 1, 1);
 	obs_properties_add_int(props, "mode", u8"展示模式", 0, 2, 1);
