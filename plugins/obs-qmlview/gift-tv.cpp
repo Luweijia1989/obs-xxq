@@ -66,7 +66,7 @@ void GiftTV::setTriggerCondition(int triggerCondition)
 
 void GiftTV::setTriggerConditionValue(int triggerConditionValue)
 {
-	m_triggerConditionValue - triggerConditionValue;
+	m_triggerConditionValue = triggerConditionValue;
 }
 
 void GiftTV::refurshGrid(int rows, int cols)
@@ -358,7 +358,6 @@ void GiftTV::getPositonForNewGiftToGrid(QJsonObject &giftInfo)
 	int tempRows = rows;
 	int tempCols = cols;
 
-	GiftPositon positon;
 	int type = giftInfo["giftType"].toInt();
 	bool find = false;
 	if (type == 0)
@@ -500,6 +499,7 @@ bool GiftTV::needExtendCols(int cols)
 			}
 		}
 	}
+	return false;
 }
 
 int GiftTV::currentRows()

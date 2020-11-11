@@ -27,18 +27,6 @@ struct GiftInfo {
 	bool isPlaceholder = false;
 };
 
-struct GiftPositon {
-	int row;
-	int col;
-
-	GiftPositon() {}
-	GiftPositon(int i, int j)
-	{
-		row = i;
-		col = j;
-	}
-};
-
 class GiftTV : public QmlSourceBase {
 	Q_OBJECT
 public:
@@ -93,6 +81,7 @@ private:
 	int m_triggerConditionValue = 1000;
 	QVector<QVector<QJsonObject>> m_grid;
 	QMap<QString, QJsonObject> m_giftInfoMap;
+
 	QTimer *m_timer;
 	int modeList[2] = {5000, 2000};
 	int m_disappear = 0;
