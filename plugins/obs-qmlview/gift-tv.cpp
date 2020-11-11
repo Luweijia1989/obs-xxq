@@ -512,6 +512,49 @@ int GiftTV::currentCols()
 	return m_grid.at(0).size();
 }
 
+void GiftTV::startPreview(QString isPreview)
+{
+	if (m_isPreview == isPreview)
+		return;
+
+	m_isPreview = isPreview;
+
+	int rows = m_grid.size();
+	int cols = m_grid.at(0).size();
+
+	for (int i = 0; i < rows; ++i) {
+		for (int j = 0; j < cols; ++j) {
+			m_grid[i][j] = QJsonObject();
+		}
+	}
+	m_giftInfoMap.clear();
+
+	notifyQMLClearArray();
+}
+
+void GiftTV::clear(QString key)
+{
+	if (key.isEmpty())
+		return;
+
+	obs_source_t *source = this->source();
+	obs_data_t *settings = obs_source_get_settings(source);
+	obs_data_release(settings);
+	obs_data_erase(settings, "clearKey");
+
+	int rows = m_grid.size();
+	int cols = m_grid.at(0).size();
+
+	for (int i = 0; i < rows; ++i) {
+		for (int j = 0; j < cols; ++j) {
+			m_grid[i][j] = QJsonObject();
+		}
+	}
+	m_giftInfoMap.clear();
+
+	notifyQMLClearArray();
+}
+
 void GiftTV::notifyQMLLoadArray()
 {
 	QJsonArray giftList = getGiftListByMap();
@@ -540,6 +583,12 @@ void GiftTV::notifyQMLUpdateGift(QJsonObject &giftInfo)
 void GiftTV::notifyQMLDeleteGift(QJsonObject &giftInfo)
 {
 	setinvalidGift(QJsonDocument(giftInfo).toJson(QJsonDocument::Compact));
+}
+
+void GiftTV::notifyQMLClearArray()
+{
+	static int count = 0;
+	setclearGift(count++);
 }
 
 void GiftTV::updateMap()
@@ -647,6 +696,12 @@ static void gifttv_source_update(void *data, obs_data_t *settings)
 
 	QString gift = obs_data_get_string(settings, "gift");
 	s->add(gift);
+
+	QString isPreview = obs_data_get_string(settings, "isPreview");
+	s->startPreview(isPreview);
+
+	QString key = obs_data_get_string(settings, "clearKey");
+	s->clear(key);
 
 	s->gridPrintf();
 }

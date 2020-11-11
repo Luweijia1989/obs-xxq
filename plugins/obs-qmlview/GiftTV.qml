@@ -292,6 +292,10 @@ Item {
     Connections {
         target: gifttvProperties
 
+        onClearGiftChanged:{
+            clearComponent()
+        }
+
         onUpdateGiftChanged: {
             if (gifttvProperties.updateGift === "")
                 return

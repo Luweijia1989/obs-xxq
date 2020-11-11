@@ -73,5 +73,11 @@
         <file>image/pic_speed_5@2x.png</file>
         <file>image/pic_speed_6.png</file>
         <file>image/pic_speed_6@2x.png</file>
+        <file>image/avatar_1.png</file>
+        <file>image/avatar_2.png</file>
+        <file>image/avatar_3.png</file>
+        <file>image/avatar_4.png</file>
+        <file>image/avatar_5.png</file>
+        <file>image/avatar_6.png</file>
     </qresource>
 </RCC>

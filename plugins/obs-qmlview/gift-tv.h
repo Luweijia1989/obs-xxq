@@ -37,6 +37,7 @@ public:
 	DEFINE_PROPERTY(QString, gift);
 	DEFINE_PROPERTY(QString, invalidGift);
 	DEFINE_PROPERTY(QString, updateGift);
+	DEFINE_PROPERTY(int, clearGift);
 
 public:
 	Q_INVOKABLE void autoExtendTvCols(int cols);
@@ -67,11 +68,14 @@ public:
 	bool needExtendCols(int cols);
 	int currentRows();
 	int currentCols();
+	void startPreview(QString isPreview);
+	void clear(QString key);
 	// ===========================
 	void notifyQMLLoadArray();
 	void notifyQMLInsertNewGift(QJsonObject &giftInfo);
 	void notifyQMLUpdateGift(QJsonObject &giftInfo);
 	void notifyQMLDeleteGift(QJsonObject &giftInfo);
+	void notifyQMLClearArray();
 
 private:
 	PreferLayout m_preferLayout = Horizontal;
@@ -85,4 +89,5 @@ private:
 	QTimer *m_timer;
 	int modeList[2] = {5000, 2000};
 	int m_disappear = 0;
+	QString m_isPreview;
 };
