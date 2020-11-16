@@ -407,7 +407,7 @@ void GiftTV::add(QString data)
 	if (error.error == QJsonParseError::NoError) {
 		QJsonObject obj = document.object();
 
-		if (m_triggerCondition == 1 &&
+		if (obj["giftType"].toInt() == 0 && m_triggerCondition == 1 &&
 		    obj["giftPrice"].toInt() < m_triggerConditionValue) {
 			return;
 		}
@@ -757,7 +757,7 @@ static void gifttv_source_defaults(obs_data_t *settings)
 	obs_data_set_default_int(settings, "width", 932);
 	obs_data_set_default_int(settings, "height", 600);
 
-	obs_data_set_default_int(settings, "triggerCondition", 0);
+	obs_data_set_default_int(settings, "triggerCondition", 1);
 	obs_data_set_default_int(settings, "triggerConditionValue", 1000);
 	obs_data_set_default_int(settings, "row", 5);
 	obs_data_set_default_int(settings, "col", 2);
