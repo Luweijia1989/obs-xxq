@@ -316,11 +316,11 @@ Item {
                 container.children[i].giftInfo = obj;
         }
 
-        onInvalidGiftChanged: {
-            if (gifttvProperties.invalidGift === "")
+        onRemoveGiftItem: {
+            if (giftInfo === "")
                 return
 
-            let obj = JSON.parse(gifttvProperties.invalidGift)
+            let obj = JSON.parse(giftInfo)
             let i = 0
             let find = false
             for(i = 0; i < container.children.length; ++i)

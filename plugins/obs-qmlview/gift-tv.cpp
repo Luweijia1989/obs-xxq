@@ -344,10 +344,12 @@ void GiftTV::removeGrid()
 	}
 
 	//释放查找出的总价值最低的礼物对应的栅格位置
+	qDebug() << "free grid, row:" << tempRow << "col:" << tempCol
+		 << "min gift type" << minGift["giftType"].toInt()
+		 << minGift["hitBatchId"].toString();
+
 	notifyQMLDeleteGift(minGift);
 
-	qDebug() << "free grid, row:" << tempRow << "col:" << tempCol
-		 << "min gift type" << minGift["giftType"].toInt();
 	gridPrintf();
 }
 
@@ -481,24 +483,30 @@ int GiftTV::disappear()
 	return m_disappear;
 }
 
-bool GiftTV::needExtendCols(int cols)
+bool GiftTV::needExtendCols(int cols, bool isAdvanced)
 {
 	if (cols > 1)
 		return false;
 
-	int oldRows = m_grid.size();
-	int oldCols = m_grid.at(0).size();
+	if (isAdvanced) {
+		autoExtendTvCols(cols + 1);
+		return true;
+	} else {
+		int oldRows = m_grid.size();
+		int oldCols = m_grid.at(0).size();
 
-	for (int i = 0; i < oldRows; ++i) {
-		for (int j = 0; j < oldCols; ++j) {
-			QJsonObject giftInfo = m_grid[i][j];
-			if (!giftInfo.isEmpty() &&
-			    giftInfo["giftType"].toInt() == 1) {
-				autoExtendTvCols(oldCols);
-				return true;
+		for (int i = 0; i < oldRows; ++i) {
+			for (int j = 0; j < oldCols; ++j) {
+				QJsonObject giftInfo = m_grid[i][j];
+				if (!giftInfo.isEmpty() &&
+				    giftInfo["giftType"].toInt() == 1) {
+					autoExtendTvCols(oldCols);
+					return true;
+				}
 			}
 		}
 	}
+
 	return false;
 }
 
@@ -582,7 +590,8 @@ void GiftTV::notifyQMLUpdateGift(QJsonObject &giftInfo)
 
 void GiftTV::notifyQMLDeleteGift(QJsonObject &giftInfo)
 {
-	setinvalidGift(QJsonDocument(giftInfo).toJson(QJsonDocument::Compact));
+	emit removeGiftItem(
+		QJsonDocument(giftInfo).toJson(QJsonDocument::Compact));
 }
 
 void GiftTV::notifyQMLClearArray()
@@ -652,14 +661,24 @@ static void gifttv_source_update(void *data, obs_data_t *settings)
 	quint32 row = obs_data_get_int(settings, "row");
 	quint32 col = obs_data_get_int(settings, "col");
 
-	if (s->needExtendCols(col)) {
-		int oldCols = s->currentCols();
-		int oldRows = s->currentRows();
-		obs_data_set_int(settings, "row", oldRows);
-		obs_data_set_int(settings, "col", oldCols);
+	QString gift = obs_data_get_string(settings, "gift");
+	bool isAdvanced = false;
+	QJsonParseError error;
+	QJsonDocument document = QJsonDocument::fromJson(gift.toUtf8(), &error);
+	if (error.error == QJsonParseError::NoError) {
+		QJsonObject obj = document.object();
+		isAdvanced = (obj["giftType"].toInt() == 1);
+	}
 
-		row = oldRows;
-		col = oldCols;
+	if (s->needExtendCols(col, isAdvanced)) {
+		if (isAdvanced) {
+			col = col + 1;
+		} else {
+			col = s->currentCols();
+			row = s->currentRows();
+		}
+		obs_data_set_int(settings, "row", row);
+		obs_data_set_int(settings, "col", col);
 	}
 
 	obs_data_set_int(settings, "width", col * 456 + (col - 1) * 20);
@@ -694,7 +713,7 @@ static void gifttv_source_update(void *data, obs_data_t *settings)
 	obs_data_array_release(array);
 	s->loadGiftArray(giftArray);
 
-	QString gift = obs_data_get_string(settings, "gift");
+	//QString gift = obs_data_get_string(settings, "gift");
 	s->add(gift);
 
 	QString isPreview = obs_data_get_string(settings, "isPreview");

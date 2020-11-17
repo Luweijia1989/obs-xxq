@@ -35,12 +35,13 @@ public:
 
 	DEFINE_PROPERTY(QString, giftArray);
 	DEFINE_PROPERTY(QString, gift);
-	DEFINE_PROPERTY(QString, invalidGift);
 	DEFINE_PROPERTY(QString, updateGift);
 	DEFINE_PROPERTY(int, clearGift);
 
 public:
 	Q_INVOKABLE void autoExtendTvCols(int cols);
+signals:
+	void removeGiftItem(QString giftInfo);
 
 public:
 	GiftTV(QObject *parent = nullptr);
@@ -65,7 +66,7 @@ public:
 	void gridPrintf();
 	int mode();
 	int disappear();
-	bool needExtendCols(int cols);
+	bool needExtendCols(int cols, bool isAdvanced);
 	int currentRows();
 	int currentCols();
 	void startPreview(QString isPreview);
