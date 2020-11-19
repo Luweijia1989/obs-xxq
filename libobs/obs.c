@@ -1,4 +1,4 @@
-/******************************************************************************
+﻿/******************************************************************************
     Copyright (C) 2013-2014 by Hugh Bailey <obs.jim@gmail.com>
 
     This program is free software: you can redistribute it and/or modify
@@ -722,6 +722,7 @@ static const char *obs_signals[] = {
 
 	"void source_sceneitem_add(ptr scene, ptr source)",
 	"void source_sceneitem_remove(ptr source)",
+	"void source_need_release(ptr source)",
 
 	"void hotkey_layout_change()",
 	"void hotkey_register(ptr hotkey)",

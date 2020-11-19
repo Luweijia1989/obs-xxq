@@ -1,4 +1,4 @@
-/******************************************************************************
+﻿/******************************************************************************
     Copyright (C) 2013-2015 by Hugh Bailey <obs.jim@gmail.com>
                                Zachary Lund <admin@computerquip.com>
                                Philippe Groarke <philippe.groarke@gmail.com>
@@ -1406,11 +1406,13 @@ void OBSBasic::InitOBSCallbacks()
 {
 	ProfileScope("OBSBasic::InitOBSCallbacks");
 
-	signalHandlers.reserve(signalHandlers.size() + 6);
+	signalHandlers.reserve(signalHandlers.size() + 9);
 	signalHandlers.emplace_back(obs_get_signal_handler(), "source_create",
 				    OBSBasic::SourceCreated, this);
 	signalHandlers.emplace_back(obs_get_signal_handler(), "source_remove",
 				    OBSBasic::SourceRemoved, this);
+	signalHandlers.emplace_back(obs_get_signal_handler(), "source_destroy",
+				    OBSBasic::SourceDestroyed, this);
 	signalHandlers.emplace_back(obs_get_signal_handler(), "source_activate",
 				    OBSBasic::SourceActivated, this);
 	signalHandlers.emplace_back(obs_get_signal_handler(),
@@ -1427,9 +1429,8 @@ void OBSBasic::InitOBSCallbacks()
 	signalHandlers.emplace_back(obs_get_signal_handler(),
 				    "source_sceneitem_add",
 				    OBSBasic::SourceSceneItemAdd, this);
-	signalHandlers.emplace_back(obs_get_signal_handler(),
-				    "source_sceneitem_remove",
-				    OBSBasic::SourceSceneItemRemove, this);
+
+	releaseSignal.Connect(obs_get_signal_handler(), "source_need_release", OBSBasic::SourceRelease, this);
 }
 
 void OBSBasic::InitPrimitives()
@@ -3280,6 +3281,13 @@ void OBSBasic::SourceRemoved(void *data, calldata_t *params)
 					  Q_ARG(OBSSource, OBSSource(source)));
 }
 
+void OBSBasic::SourceDestroyed(void *data, calldata_t *params)
+{
+	bool b = QThread::currentThread() != qApp->thread();
+	if (b)
+		b = false;
+}
+
 void OBSBasic::SourceActivated(void *data, calldata_t *params)
 {
 	obs_source_t *source = (obs_source_t *)calldata_ptr(params, "source");
@@ -3344,6 +3352,15 @@ void OBSBasic::SourceSceneItemRemove(void *data, calldata_t *params)
 {
 	obs_source_t *source = (obs_source_t *)calldata_ptr(params, "source");
 	int dd = 0;
+}
+
+void OBSBasic::SourceRelease(void *data, calldata_t *params)
+{
+	obs_source_t *source = (obs_source_t *)calldata_ptr(params, "source");
+	OBSBasic *basic = static_cast<OBSBasic *>(data);
+	QMetaObject::invokeMethod(basic, [=](){
+		obs_source_release(source);
+	}, Qt::QueuedConnection);
 }
 
 void OBSBasic::DrawBackdrop(float cx, float cy)

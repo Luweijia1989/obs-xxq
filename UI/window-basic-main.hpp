@@ -1,4 +1,4 @@
-/******************************************************************************
+﻿/******************************************************************************
     Copyright (C) 2013-2014 by Hugh Bailey <obs.jim@gmail.com>
 
     This program is free software: you can redistribute it and/or modify
@@ -146,6 +146,7 @@ private:
 	std::vector<VolControl *> volumes;
 
 	std::vector<OBSSignal> signalHandlers;
+	OBSSignal releaseSignal;
 
 	QList<QPointer<QDockWidget>> extraDocks;
 
@@ -571,6 +572,7 @@ private:
 	static void SceneItemDeselected(void *data, calldata_t *params);
 	static void SourceCreated(void *data, calldata_t *params);
 	static void SourceRemoved(void *data, calldata_t *params);
+	static void SourceDestroyed(void *data, calldata_t *params);
 	static void SourceActivated(void *data, calldata_t *params);
 	static void SourceDeactivated(void *data, calldata_t *params);
 	static void SourceAudioActivated(void *data, calldata_t *params);
@@ -578,6 +580,7 @@ private:
 	static void SourceRenamed(void *data, calldata_t *params);
 	static void SourceSceneItemAdd(void *data, calldata_t *params);
 	static void SourceSceneItemRemove(void *data, calldata_t *params);
+	static void SourceRelease(void *data, calldata_t *params);
 	static void RenderMain(void *data, uint32_t cx, uint32_t cy);
 
 	void ResizePreview(uint32_t cx, uint32_t cy);
