@@ -2141,7 +2141,12 @@ void obs_source_video_render(obs_source_t *source)
 
 	obs_source_addref(source);
 	render_video(source);
-	obs_source_release(source);
+
+	struct calldata params;
+	uint8_t stack[128];
+	calldata_init_fixed(&params, stack, sizeof(stack));
+	calldata_set_ptr(&params, "source", source);
+	signal_handler_signal(obs->signals, "source_need_release", &params);
 }
 
 static uint32_t get_base_width(const obs_source_t *source)
