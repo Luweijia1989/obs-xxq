@@ -1,4 +1,4 @@
-/******************************************************************************
+﻿/******************************************************************************
     Copyright (C) 2016 by Hugh Bailey <obs.jim@gmail.com>
 
     This program is free software: you can redistribute it and/or modify
@@ -21,6 +21,12 @@
 
 #define blog(level, format, ...) \
 	blog(level, "%s: " format, __FUNCTION__, __VA_ARGS__)
+
+#define LIMIT_WIDTH 1920
+#define LIMIT_HEIGHT 1080
+#define GIF_MEMORY_LIMIT 838860800
+
+static uint64_t gif_left_memory = GIF_MEMORY_LIMIT;
 
 static void *bi_def_bitmap_create(int width, int height)
 {
@@ -116,7 +122,7 @@ static bool init_animated_gif(gs_image_file_t *image, const char *path,
 		}
 	} while (result != GIF_OK);
 
-	if (image->gif.width > 4096 || image->gif.height > 4096) {
+	if (image->gif.width > LIMIT_WIDTH || image->gif.height > LIMIT_HEIGHT) {
 		blog(LOG_WARNING, "Bad texture dimensions (%dx%d) in '%s'",
 		     image->gif.width, image->gif.height, path);
 		goto fail;
@@ -131,6 +137,9 @@ static bool init_animated_gif(gs_image_file_t *image, const char *path,
 		goto fail;
 	}
 
+	if (get_full_decoded_gif_size(image) > gif_left_memory)
+		goto fail;
+
 	image->is_animated_gif = (image->gif.frame_count > 1 && result >= 0);
 	if (image->is_animated_gif) {
 		gif_decode_frame(&image->gif, 0);
@@ -140,6 +149,7 @@ static bool init_animated_gif(gs_image_file_t *image, const char *path,
 				  image->gif.frame_count * sizeof(uint8_t *));
 		image->animation_frame_data = alloc_mem(
 			image, mem_usage, get_full_decoded_gif_size(image));
+		gif_left_memory -= get_full_decoded_gif_size(image);
 
 		for (unsigned int i = 0; i < image->gif.frame_count; i++) {
 			if (gif_decode_frame(&image->gif, i) != GIF_OK)
