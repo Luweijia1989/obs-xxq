@@ -2683,6 +2683,12 @@ void obs_source_create_xxqsource(int type /*1=privacy 2=leave*/,
 				"image_source", STICKER_ID, settings);
 			obs_source_activate(data->sticker_source, MAIN_VIEW);
 		}
+	} else if (type == 5) {
+		if (!data->mask_source) {
+			data->mask_source = obs_source_create_private(
+				"mask_source", MASK_ID, settings);
+			obs_source_activate(data->mask_source, MAIN_VIEW);
+		}
 	}
 }
 
@@ -2699,6 +2705,9 @@ void obs_source_update_xxqsource(int type /*1=privacy 2=leave*/,
 		break;
 	case 3:
 		obs_source_update(data->audiowave_source, settings);
+		break;
+	case 5:
+		obs_source_update(data->mask_source, settings);
 		break;
 	default:
 		break;
@@ -2720,5 +2729,16 @@ void obs_source_destroy_xxqsource(int type)
 	} else if (type == 4) {
 		obs_source_release(data->sticker_source);
 		data->sticker_source = NULL;
+	} else if (type == 5) {
+		obs_source_release(data->mask_source);
+		data->mask_source = NULL;
+	}
+}
+
+void obs_source_custom_command_xxqsource(int type, obs_data_t *settings)
+{
+	struct obs_core_data *data = &obs->data;
+	if (type == 5) {
+		obs_source_do_custom_command(data->mask_source, settings);
 	}
 }

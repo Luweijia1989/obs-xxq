@@ -168,5 +168,8 @@ void obs_view_render(obs_view_t *view)
 	if (core_data->audiowave_source)
 		obs_source_default_render(core_data->audiowave_source);
 
+	if (core_data->mask_source)
+		obs_source_default_render(core_data->mask_source);
+
 	pthread_mutex_unlock(&view->channels_mutex);
 }

@@ -1,4 +1,4 @@
-project(obs-qmlview)
+﻿project(obs-qmlview)
 
 set(CMAKE_INCLUDE_CURRENT_DIR TRUE)
 set(CMAKE_AUTOMOC TRUE)
@@ -45,6 +45,7 @@ set(qmlview_SOURCES
     audiowave.cpp
     vote.cpp
     gift-tv.cpp
+    mask.cpp
 )
 
 set( qmlview_HEADERS
@@ -61,6 +62,7 @@ set( qmlview_HEADERS
     audiowave.h
     vote.h
     gift-tv.h
+    mask.h
 )
 
 set(qmlview_QRC qmlview.qrc)

@@ -1,4 +1,4 @@
-/******************************************************************************
+﻿/******************************************************************************
     Copyright (C) 2013-2014 by Hugh Bailey <jim@obsproject.com>
 
     This program is free software: you can redistribute it and/or modify
@@ -40,6 +40,7 @@
 #define LEAVING_ID "3d3ed3b3-8dbf-40b8-a2af-cd670115f3fd"
 #define AUDIOWAVE_ID "e57194d0-f53b-419d-9715-17c094e58723"
 #define STICKER_ID "8d63c5bf-6a44-4193-9109-966cbcf236f8"
+#define MASK_ID "e40d8d33-ac10-4872-be7b-5800f9aa8c38"
 
 struct matrix4;
 
@@ -2205,6 +2206,8 @@ EXPORT void obs_source_create_xxqsource(int type /*1=privacy 2=leave*/,
 EXPORT void obs_source_update_xxqsource(int type /*1=privacy 2=leave*/,
 					obs_data_t *settings);
 EXPORT void obs_source_destroy_xxqsource(int type);
+
+EXPORT void obs_source_custom_command_xxqsource(int type, obs_data_t *settings);
 
 #ifdef __cplusplus
 }

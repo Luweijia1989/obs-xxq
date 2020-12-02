@@ -79,5 +79,10 @@
         <file>image/avatar_4.png</file>
         <file>image/avatar_5.png</file>
         <file>image/avatar_6.png</file>
+        <file>Mask.qml</file>
+        <file>image/choosing.apng</file>
+        <file>image/fail.apng</file>
+        <file>image/img_tips_selecting.png</file>
+        <file>image/popup_5.png</file>
     </qresource>
 </RCC>

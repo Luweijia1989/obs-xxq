@@ -358,6 +358,7 @@ struct obs_core_data {
 	struct obs_source *leave_source;
 	struct obs_source *audiowave_source;
 	struct obs_source *sticker_source;
+	struct obs_source *mask_source;
 
 	volatile bool valid;
 };

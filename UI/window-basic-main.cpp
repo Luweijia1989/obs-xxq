@@ -3832,6 +3832,12 @@ void OBSBasic::ClearSceneData()
 
 	disableSaving--;
 
+	QEventLoop loop;
+	QTimer t;
+	connect(&t, &QTimer::timeout, &loop, &QEventLoop::quit);
+	t.start(2000);
+	loop.exec(QEventLoop::ExcludeUserInputEvents);
+
 	blog(LOG_INFO, "All scene data cleared");
 	blog(LOG_INFO, "------------------------------------------------");
 }
