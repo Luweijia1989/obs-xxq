@@ -1,4 +1,4 @@
-/******************************************************************************
+﻿/******************************************************************************
     Copyright (C) 2016 by Hugh Bailey <obs.jim@gmail.com>
 
     This program is free software: you can redistribute it and/or modify
@@ -41,6 +41,7 @@ struct gs_image_file {
 	int cur_frame;
 	int cur_loop;
 	int last_decoded_frame;
+	int gif_alloc_memory_size;
 
 	uint8_t *texture_data;
 	gif_bitmap_callback_vt bitmap_callbacks;

@@ -82,6 +82,7 @@ static bool init_animated_gif(gs_image_file_t *image, const char *path,
 	bool is_animated_gif = true;
 	gif_result result;
 	uint64_t max_size;
+	int gif_memory_size;
 	size_t size, size_read;
 	FILE *file;
 
@@ -137,7 +138,8 @@ static bool init_animated_gif(gs_image_file_t *image, const char *path,
 		goto fail;
 	}
 
-	if (get_full_decoded_gif_size(image) > gif_left_memory)
+	gif_memory_size = get_full_decoded_gif_size(image);
+	if (gif_memory_size > gif_left_memory)
 		goto fail;
 
 	image->is_animated_gif = (image->gif.frame_count > 1 && result >= 0);
@@ -148,8 +150,9 @@ static bool init_animated_gif(gs_image_file_t *image, const char *path,
 			alloc_mem(image, mem_usage,
 				  image->gif.frame_count * sizeof(uint8_t *));
 		image->animation_frame_data = alloc_mem(
-			image, mem_usage, get_full_decoded_gif_size(image));
-		gif_left_memory -= get_full_decoded_gif_size(image);
+			image, mem_usage, gif_memory_size);
+		gif_left_memory -= gif_memory_size;
+		image->gif_alloc_memory_size = gif_memory_size;
 
 		for (unsigned int i = 0; i < image->gif.frame_count; i++) {
 			if (gif_decode_frame(&image->gif, i) != GIF_OK)
@@ -236,6 +239,7 @@ void gs_image_file_free(gs_image_file_t *image)
 
 	if (image->loaded) {
 		if (image->is_animated_gif) {
+			gif_left_memory += image->gif_alloc_memory_size;
 			gif_finalise(&image->gif);
 			bfree(image->animation_frame_cache);
 			bfree(image->animation_frame_data);
