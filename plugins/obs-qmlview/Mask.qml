@@ -35,7 +35,8 @@ Item {
                         source: "qrc:/qmlfiles/image/img_tips_selecting.png"
 
                         Text {
-                            anchors.centerIn: parent
+                            x: 8
+                            y: 3
                             text: "正在选择中…"
                             font.pixelSize: 12
                             font.family: "Alibaba PuHuiTi M"
