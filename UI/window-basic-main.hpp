@@ -139,6 +139,9 @@ class OBSBasic : public OBSMainWindow {
 	};
 
 private:
+	int m_sourceCount = 0;
+	QEventLoop m_sourceReleaseLoop;
+
 	obs_frontend_callbacks *api = nullptr;
 
 	std::shared_ptr<Auth> auth;

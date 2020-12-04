@@ -141,6 +141,7 @@ static bool graphics_init_sprite_vb(struct graphics_subsystem *graphics)
 static bool graphics_init(struct graphics_subsystem *graphics)
 {
 	struct matrix4 top_mat;
+	pthread_mutexattr_t attr;
 
 	matrix4_identity(&top_mat);
 	da_push_back(graphics->matrix_stack, &top_mat);
@@ -151,7 +152,12 @@ static bool graphics_init(struct graphics_subsystem *graphics)
 		return false;
 	if (!graphics_init_sprite_vb(graphics))
 		return false;
-	if (pthread_mutex_init(&graphics->mutex, NULL) != 0)
+
+	if (pthread_mutexattr_init(&attr) != 0)
+		return false;
+	if (pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE) != 0)
+		return false;
+	if (pthread_mutex_init(&graphics->mutex, &attr) != 0)
 		return false;
 	if (pthread_mutex_init(&graphics->effect_mutex, NULL) != 0)
 		return false;

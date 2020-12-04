@@ -829,6 +829,12 @@ EXPORT void obs_display_size(obs_display_t *display, uint32_t *width,
 /* ------------------------------------------------------------------------- */
 /* Sources */
 
+typedef void (*source_destroy_handler_t)(obs_source_t *source);
+
+EXPORT void obs_source_mannual_destroy(obs_source_t *source);
+
+EXPORT void obs_source_set_destroy_handler(source_destroy_handler_t handler);
+
 /** Returns the translated display name of a source */
 EXPORT const char *obs_source_get_display_name(const char *id);
 
@@ -1337,7 +1343,8 @@ EXPORT bool obs_source_audio_active(const obs_source_t *source);
 
 EXPORT uint32_t obs_source_get_last_obs_version(const obs_source_t *source);
 
-EXPORT void obs_source_do_custom_command(const obs_source_t *source, obs_data_t *command);
+EXPORT void obs_source_do_custom_command(const obs_source_t *source,
+					 obs_data_t *command);
 
 /* ------------------------------------------------------------------------- */
 /* Transition-specific functions */
@@ -1497,6 +1504,13 @@ typedef void (*obs_scene_atomic_update_func)(void *, obs_scene_t *scene);
 EXPORT void obs_scene_atomic_update(obs_scene_t *scene,
 				    obs_scene_atomic_update_func func,
 				    void *data);
+
+typedef void (*sceneitem_destroy_handler_t)(obs_sceneitem_t *item);
+
+EXPORT void obs_sceneitem_mannual_destroy(obs_sceneitem_t *item);
+
+EXPORT void
+obs_sceneitem_set_destroy_handler(sceneitem_destroy_handler_t handler);
 
 EXPORT void obs_sceneitem_addref(obs_sceneitem_t *item);
 EXPORT void obs_sceneitem_release(obs_sceneitem_t *item);

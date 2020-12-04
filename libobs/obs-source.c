@@ -1,4 +1,4 @@
-/******************************************************************************
+﻿/******************************************************************************
     Copyright (C) 2013-2014 by Hugh Bailey <obs.jim@gmail.com>
 
     This program is free software: you can redistribute it and/or modify
@@ -87,6 +87,15 @@ static const char *source_signals[] = {
 	NULL,
 };
 
+static void def_source_destroy(obs_source_t *source)
+{
+	struct obs_weak_source *control = source->control;
+	obs_source_destroy(source);
+	obs_weak_source_release(control);
+}
+
+static source_destroy_handler_t source_destroy_handler = def_source_destroy;
+
 bool obs_source_init_context(struct obs_source *source, obs_data_t *settings,
 			     const char *name, obs_data_t *hotkey_data,
 			     bool private)
@@ -97,6 +106,16 @@ bool obs_source_init_context(struct obs_source *source, obs_data_t *settings,
 
 	return signal_handler_add_array(source->context.signals,
 					source_signals);
+}
+
+void obs_source_mannual_destroy(obs_source_t *source)
+{
+	def_source_destroy(source);
+}
+
+void obs_source_set_destroy_handler(source_destroy_handler_t handler)
+{
+	source_destroy_handler = handler;
 }
 
 const char *obs_source_get_display_name(const char *id)
@@ -672,8 +691,7 @@ void obs_source_release(obs_source_t *source)
 
 	obs_weak_source_t *control = source->control;
 	if (obs_ref_release(&control->ref)) {
-		obs_source_destroy(source);
-		obs_weak_source_release(control);
+		source_destroy_handler(source);
 	}
 }
 
@@ -2141,12 +2159,7 @@ void obs_source_video_render(obs_source_t *source)
 
 	obs_source_addref(source);
 	render_video(source);
-
-	struct calldata params;
-	uint8_t stack[128];
-	calldata_init_fixed(&params, stack, sizeof(stack));
-	calldata_set_ptr(&params, "source", source);
-	signal_handler_signal(obs->signals, "source_need_release", &params);
+	obs_source_release(source);
 }
 
 static uint32_t get_base_width(const obs_source_t *source)

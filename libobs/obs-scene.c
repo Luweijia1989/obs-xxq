@@ -1619,7 +1619,9 @@ static inline bool source_has_audio(obs_source_t *source)
 		(OBS_SOURCE_AUDIO | OBS_SOURCE_COMPOSITE)) != 0;
 }
 
-static void obs_scene_item_added_signal(obs_scene_t *scene, obs_source_t *source, obs_sceneitem_t *item)
+static void obs_scene_item_added_signal(obs_scene_t *scene,
+					obs_source_t *source,
+					obs_sceneitem_t *item)
 {
 	struct calldata params;
 	uint8_t stack[128];
@@ -1804,6 +1806,24 @@ static void obs_sceneitem_destroy(obs_sceneitem_t *item)
 	}
 }
 
+static void def_sceneitem_destroy(obs_sceneitem_t *item)
+{
+	obs_sceneitem_destroy(item);
+}
+
+static sceneitem_destroy_handler_t sceneitem_destroy_handler =
+	def_sceneitem_destroy;
+
+void obs_sceneitem_mannual_destroy(obs_sceneitem_t *item)
+{
+	obs_sceneitem_destroy(item);
+}
+
+void obs_sceneitem_set_destroy_handler(sceneitem_destroy_handler_t handler)
+{
+	sceneitem_destroy_handler = handler;
+}
+
 void obs_sceneitem_addref(obs_sceneitem_t *item)
 {
 	if (item)
@@ -1816,7 +1836,7 @@ void obs_sceneitem_release(obs_sceneitem_t *item)
 		return;
 
 	if (os_atomic_dec_long(&item->ref) == 0)
-		obs_sceneitem_destroy(item);
+		sceneitem_destroy_handler(item);
 }
 
 void obs_sceneitem_remove(obs_sceneitem_t *item)

@@ -191,9 +191,28 @@ extern void RegisterTwitchAuth();
 extern void RegisterMixerAuth();
 extern void RegisterRestreamAuth();
 
+void source_destroy_handler(obs_source_t *source)
+{
+	if (QThread::currentThread() != qApp->thread())
+		int dd = 0;
+	QMetaObject::invokeMethod(
+		qApp, [=]() { obs_source_mannual_destroy(source); },
+		WaitConnection());
+}
+
+void sceneitem_destroy_handler(obs_sceneitem_t *item)
+{
+	if (QThread::currentThread() != qApp->thread())
+		int dd = 0;
+	QMetaObject::invokeMethod(
+		qApp, [=]() { obs_sceneitem_mannual_destroy(item); },
+		WaitConnection());
+}
+
 OBSBasic::OBSBasic(QWidget *parent)
 	: OBSMainWindow(parent), ui(new Ui::OBSBasic)
 {
+	obs_source_set_destroy_handler(source_destroy_handler);
 	setAttribute(Qt::WA_NativeWindow);
 
 #if TWITCH_ENABLED
@@ -1430,7 +1449,8 @@ void OBSBasic::InitOBSCallbacks()
 				    "source_sceneitem_add",
 				    OBSBasic::SourceSceneItemAdd, this);
 
-	releaseSignal.Connect(obs_get_signal_handler(), "source_need_release", OBSBasic::SourceRelease, this);
+	releaseSignal.Connect(obs_get_signal_handler(), "source_need_release",
+			      OBSBasic::SourceRelease, this);
 }
 
 void OBSBasic::InitPrimitives()
@@ -3264,7 +3284,7 @@ void OBSBasic::SceneItemDeselected(void *data, calldata_t *params)
 void OBSBasic::SourceCreated(void *data, calldata_t *params)
 {
 	obs_source_t *source = (obs_source_t *)calldata_ptr(params, "source");
-
+	static_cast<OBSBasic *>(data)->m_sourceCount++;
 	if (obs_scene_from_source(source) != NULL)
 		QMetaObject::invokeMethod(static_cast<OBSBasic *>(data),
 					  "AddScene", WaitConnection(),
@@ -3283,9 +3303,10 @@ void OBSBasic::SourceRemoved(void *data, calldata_t *params)
 
 void OBSBasic::SourceDestroyed(void *data, calldata_t *params)
 {
-	bool b = QThread::currentThread() != qApp->thread();
-	if (b)
-		b = false;
+	OBSBasic *basic = static_cast<OBSBasic *>(data);
+	basic->m_sourceCount--;
+	if (basic->m_sourceCount <= 0)
+		basic->m_sourceReleaseLoop.quit();
 }
 
 void OBSBasic::SourceActivated(void *data, calldata_t *params)
@@ -3356,11 +3377,11 @@ void OBSBasic::SourceSceneItemRemove(void *data, calldata_t *params)
 
 void OBSBasic::SourceRelease(void *data, calldata_t *params)
 {
-	obs_source_t *source = (obs_source_t *)calldata_ptr(params, "source");
-	OBSBasic *basic = static_cast<OBSBasic *>(data);
-	QMetaObject::invokeMethod(basic, [=](){
-		obs_source_release(source);
-	}, Qt::QueuedConnection);
+	//obs_source_t *source = (obs_source_t *)calldata_ptr(params, "source");
+	//OBSBasic *basic = static_cast<OBSBasic *>(data);
+	//QMetaObject::invokeMethod(
+	//	basic, [=]() { obs_source_release(source); },
+	//	Qt::QueuedConnection);
 }
 
 void OBSBasic::DrawBackdrop(float cx, float cy)
@@ -3832,11 +3853,13 @@ void OBSBasic::ClearSceneData()
 
 	disableSaving--;
 
-	QEventLoop loop;
-	QTimer t;
-	connect(&t, &QTimer::timeout, &loop, &QEventLoop::quit);
-	t.start(2000);
-	loop.exec(QEventLoop::ExcludeUserInputEvents);
+	if (m_sourceCount > 0) {
+		QTimer t;
+		connect(&t, &QTimer::timeout, &m_sourceReleaseLoop,
+			&QEventLoop::quit);
+		t.start(1000);
+		m_sourceReleaseLoop.exec(QEventLoop::ExcludeUserInputEvents);
+	}
 
 	blog(LOG_INFO, "All scene data cleared");
 	blog(LOG_INFO, "------------------------------------------------");
