@@ -2318,6 +2318,18 @@ void obs_context_data_remove(struct obs_context_data *context)
 	}
 }
 
+void obs_context_data_remove_no_lock(struct obs_context_data *context)
+{
+	if (context && context->mutex) {
+		if (context->prev_next)
+			*context->prev_next = context->next;
+		if (context->next)
+			context->next->prev_next = context->prev_next;
+
+		context->mutex = NULL;
+	}
+}
+
 void obs_context_data_setname(struct obs_context_data *context,
 			      const char *name)
 {

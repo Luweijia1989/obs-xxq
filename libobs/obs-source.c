@@ -1,4 +1,4 @@
-﻿/******************************************************************************
+/******************************************************************************
     Copyright (C) 2013-2014 by Hugh Bailey <obs.jim@gmail.com>
 
     This program is free software: you can redistribute it and/or modify
@@ -87,10 +87,15 @@ static const char *source_signals[] = {
 	NULL,
 };
 
-static void def_source_destroy(obs_source_t *source)
+static void def_source_destroy(obs_source_t *source,
+			       enum obs_source_destroy_type type)
 {
 	struct obs_weak_source *control = source->control;
-	obs_source_destroy(source);
+	if (type == OBS_SOURCE_RELEASE_NORMAL)
+		obs_source_destroy(source);
+	else if (type == OBS_SOURCE_RELEASE_IN_TICKSOURCE)
+		obs_source_destroy_no_source_mutex_lock(source);
+
 	obs_weak_source_release(control);
 }
 
@@ -108,9 +113,10 @@ bool obs_source_init_context(struct obs_source *source, obs_data_t *settings,
 					source_signals);
 }
 
-void obs_source_mannual_destroy(obs_source_t *source)
+void obs_source_mannual_destroy(obs_source_t *source,
+				enum obs_source_destroy_type type)
 {
-	def_source_destroy(source);
+	def_source_destroy(source, type);
 }
 
 void obs_source_set_destroy_handler(source_destroy_handler_t handler)
@@ -670,6 +676,98 @@ void obs_source_destroy(struct obs_source *source)
 	bfree(source);
 }
 
+void obs_source_destroy_no_source_mutex_lock(struct obs_source *source)
+{
+	size_t i;
+
+	if (!obs_source_valid(source, "obs_source_destroy"))
+		return;
+
+	if (source->info.type == OBS_SOURCE_TYPE_TRANSITION)
+		obs_transition_clear(source);
+
+	pthread_mutex_lock(&obs->data.audio_sources_mutex);
+	if (source->prev_next_audio_source) {
+		*source->prev_next_audio_source = source->next_audio_source;
+		if (source->next_audio_source)
+			source->next_audio_source->prev_next_audio_source =
+				source->prev_next_audio_source;
+	}
+	pthread_mutex_unlock(&obs->data.audio_sources_mutex);
+
+	if (source->filter_parent)
+		obs_source_filter_remove_refless(source->filter_parent, source);
+
+	while (source->filters.num)
+		obs_source_filter_remove(source, source->filters.array[0]);
+
+	obs_context_data_remove_no_lock(&source->context);
+
+	blog(LOG_DEBUG, "%ssource '%s' destroyed",
+	     source->context.private ? "private " : "", source->context.name);
+
+	obs_source_dosignal(source, "source_destroy", "destroy");
+
+	if (source->context.data) {
+		source->info.destroy(source->context.data);
+		source->context.data = NULL;
+	}
+
+	audio_monitor_destroy(source->monitor);
+
+	obs_hotkey_unregister(source->push_to_talk_key);
+	obs_hotkey_unregister(source->push_to_mute_key);
+	obs_hotkey_pair_unregister(source->mute_unmute_key);
+
+	for (i = 0; i < source->async_cache.num; i++)
+		obs_source_frame_decref(source->async_cache.array[i].frame);
+
+	gs_enter_context(obs->video.graphics);
+	if (source->async_texrender)
+		gs_texrender_destroy(source->async_texrender);
+	if (source->async_prev_texrender)
+		gs_texrender_destroy(source->async_prev_texrender);
+	for (size_t c = 0; c < MAX_AV_PLANES; c++) {
+		gs_texture_destroy(source->async_textures[c]);
+		gs_texture_destroy(source->async_prev_textures[c]);
+	}
+	if (source->filter_texrender)
+		gs_texrender_destroy(source->filter_texrender);
+	gs_leave_context();
+
+	for (i = 0; i < MAX_AV_PLANES; i++)
+		bfree(source->audio_data.data[i]);
+	for (i = 0; i < MAX_AUDIO_CHANNELS; i++)
+		circlebuf_free(&source->audio_input_buf[i]);
+	audio_resampler_destroy(source->resampler);
+	bfree(source->audio_output_buf[0][0]);
+	bfree(source->audio_mix_buf[0]);
+
+	obs_source_frame_destroy(source->async_preload_frame);
+
+	if (source->info.type == OBS_SOURCE_TYPE_TRANSITION)
+		obs_transition_free(source);
+
+	da_free(source->audio_actions);
+	da_free(source->audio_cb_list);
+	da_free(source->async_cache);
+	da_free(source->async_frames);
+	da_free(source->filters);
+	pthread_mutex_destroy(&source->filter_mutex);
+	pthread_mutex_destroy(&source->audio_actions_mutex);
+	pthread_mutex_destroy(&source->audio_buf_mutex);
+	pthread_mutex_destroy(&source->audio_cb_mutex);
+	pthread_mutex_destroy(&source->audio_mutex);
+	pthread_mutex_destroy(&source->async_mutex);
+	obs_data_release(source->private_settings);
+	obs_context_data_free(&source->context);
+
+	if (source->owns_info_id)
+		bfree((void *)source->info.id);
+
+	bfree(source);
+}
+
 void obs_source_addref(obs_source_t *source)
 {
 	if (!source)
@@ -691,7 +789,25 @@ void obs_source_release(obs_source_t *source)
 
 	obs_weak_source_t *control = source->control;
 	if (obs_ref_release(&control->ref)) {
-		source_destroy_handler(source);
+		source_destroy_handler(source, OBS_SOURCE_RELEASE_NORMAL);
+	}
+}
+
+void obs_source_release_no_source_mutex_lock(obs_source_t *source)
+{
+	if (!obs) {
+		blog(LOG_WARNING, "Tried to release a source when the OBS "
+				  "core is shut down!");
+		return;
+	}
+
+	if (!source)
+		return;
+
+	obs_weak_source_t *control = source->control;
+	if (obs_ref_release(&control->ref)) {
+		source_destroy_handler(source,
+				       OBS_SOURCE_RELEASE_IN_TICKSOURCE);
 	}
 }
 

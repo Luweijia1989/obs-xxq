@@ -1,4 +1,4 @@
-﻿/******************************************************************************
+/******************************************************************************
     Copyright (C) 2013-2014 by Hugh Bailey <jim@obsproject.com>
 
     This program is free software: you can redistribute it and/or modify
@@ -97,6 +97,11 @@ typedef struct obs_weak_service obs_weak_service_t;
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+enum obs_source_destroy_type {
+	OBS_SOURCE_RELEASE_NORMAL,
+	OBS_SOURCE_RELEASE_IN_TICKSOURCE,
+};
 
 /** Used for changing the order of items (for example, filters in a source,
  * or items in a scene) */
@@ -829,9 +834,11 @@ EXPORT void obs_display_size(obs_display_t *display, uint32_t *width,
 /* ------------------------------------------------------------------------- */
 /* Sources */
 
-typedef void (*source_destroy_handler_t)(obs_source_t *source);
+typedef void (*source_destroy_handler_t)(obs_source_t *source,
+					 enum obs_source_destroy_type type);
 
-EXPORT void obs_source_mannual_destroy(obs_source_t *source);
+EXPORT void obs_source_mannual_destroy(obs_source_t *source,
+				       enum obs_source_destroy_type type);
 
 EXPORT void obs_source_set_destroy_handler(source_destroy_handler_t handler);
 
@@ -862,6 +869,7 @@ EXPORT obs_source_t *obs_source_duplicate(obs_source_t *source,
  */
 EXPORT void obs_source_addref(obs_source_t *source);
 EXPORT void obs_source_release(obs_source_t *source);
+EXPORT void obs_source_release_no_source_mutex_lock(obs_source_t *source);
 
 EXPORT void obs_weak_source_addref(obs_weak_source_t *weak);
 EXPORT void obs_weak_source_release(obs_weak_source_t *weak);

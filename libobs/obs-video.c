@@ -1,4 +1,4 @@
-﻿/******************************************************************************
+/******************************************************************************
     Copyright (C) 2013-2014 by Hugh Bailey <obs.jim@gmail.com>
 
     This program is free software: you can redistribute it and/or modify
@@ -63,7 +63,7 @@ static uint64_t tick_sources(uint64_t cur_time, uint64_t last_time)
 
 		if (cur_source) {
 			obs_source_video_tick(cur_source, seconds);
-			obs_source_release(cur_source);
+			obs_source_release_no_source_mutex_lock(cur_source);
 		}
 	}
 
@@ -71,14 +71,14 @@ static uint64_t tick_sources(uint64_t cur_time, uint64_t last_time)
 		struct obs_source *cur_source =
 			obs_source_get_ref(data->sticker_source);
 		obs_source_video_tick(cur_source, seconds);
-		obs_source_release(cur_source);
+		obs_source_release_no_source_mutex_lock(cur_source);
 	}
 
 	if (data->privacy_source) {
 		struct obs_source *cur_source =
 			obs_source_get_ref(data->privacy_source);
 		obs_source_video_tick(cur_source, seconds);
-		obs_source_release(cur_source);
+		obs_source_release_no_source_mutex_lock(cur_source);
 	}
 
 	pthread_mutex_unlock(&data->sources_mutex);

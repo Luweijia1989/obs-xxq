@@ -1,4 +1,4 @@
-﻿/******************************************************************************
+/******************************************************************************
     Copyright (C) 2013-2014 by Hugh Bailey <obs.jim@gmail.com>
 
     This program is free software: you can redistribute it and/or modify
@@ -481,6 +481,7 @@ extern void obs_context_data_free(struct obs_context_data *context);
 extern void obs_context_data_insert(struct obs_context_data *context,
 				    pthread_mutex_t *mutex, void *first);
 extern void obs_context_data_remove(struct obs_context_data *context);
+extern void obs_context_data_remove_no_lock(struct obs_context_data *context);
 
 extern void obs_context_data_setname(struct obs_context_data *context,
 				     const char *name);
@@ -751,6 +752,7 @@ extern obs_source_t *obs_source_create_set_last_ver(const char *id,
 						    obs_data_t *hotkey_data,
 						    uint32_t last_obs_ver);
 extern void obs_source_destroy(struct obs_source *source);
+extern void obs_source_destroy_no_source_mutex_lock(struct obs_source *source);
 
 enum view_type {
 	MAIN_VIEW,

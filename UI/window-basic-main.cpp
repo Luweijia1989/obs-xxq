@@ -1,4 +1,4 @@
-﻿/******************************************************************************
+/******************************************************************************
     Copyright (C) 2013-2015 by Hugh Bailey <obs.jim@gmail.com>
                                Zachary Lund <admin@computerquip.com>
                                Philippe Groarke <philippe.groarke@gmail.com>
@@ -191,12 +191,13 @@ extern void RegisterTwitchAuth();
 extern void RegisterMixerAuth();
 extern void RegisterRestreamAuth();
 
-void source_destroy_handler(obs_source_t *source)
+void source_destroy_handler(obs_source_t *source,
+			    enum obs_source_destroy_type type)
 {
 	if (QThread::currentThread() != qApp->thread())
 		int dd = 0;
 	QMetaObject::invokeMethod(
-		qApp, [=]() { obs_source_mannual_destroy(source); },
+		qApp, [=]() { obs_source_mannual_destroy(source, type); },
 		WaitConnection());
 }
 
@@ -213,6 +214,7 @@ OBSBasic::OBSBasic(QWidget *parent)
 	: OBSMainWindow(parent), ui(new Ui::OBSBasic)
 {
 	obs_source_set_destroy_handler(source_destroy_handler);
+	obs_sceneitem_set_destroy_handler(sceneitem_destroy_handler);
 	setAttribute(Qt::WA_NativeWindow);
 
 #if TWITCH_ENABLED
