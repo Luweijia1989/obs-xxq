@@ -326,6 +326,8 @@ extern "C"
         RTMP_LNK Link;
         int connect_time_ms;
         int last_error_code;
+
+        char cdn_addr[16];
     } RTMP;
 
     int RTMP_ParseURL(const char *url, int *protocol, AVal *host,

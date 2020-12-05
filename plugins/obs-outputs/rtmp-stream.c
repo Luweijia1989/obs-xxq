@@ -1098,6 +1098,10 @@ static void *connect_thread(void *data)
 
 	ret = try_connect(stream);
 
+	obs_data_t *setting = obs_output_get_settings(stream->output);
+	obs_data_set_string(setting, "cdn_ip", stream->rtmp.cdn_addr);
+	obs_data_release(setting);
+
 	if (ret != OBS_OUTPUT_SUCCESS) {
 		obs_output_signal_stop(stream->output, ret);
 		info("Connection to %s failed: %d", stream->path.array, ret);

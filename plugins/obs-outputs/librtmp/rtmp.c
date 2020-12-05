@@ -1194,6 +1194,10 @@ RTMP_Connect(RTMP *r, RTMPPacket *cp)
 
     r->m_bSendCounter = TRUE;
 
+    memset(r->cdn_addr, 0, sizeof(r->cdn_addr));
+    char* ips = inet_ntoa((*(struct sockaddr_in *)&service).sin_addr);
+    strcpy(r->cdn_addr, ips);
+
     return RTMP_Connect1(r, cp);
 }
 
