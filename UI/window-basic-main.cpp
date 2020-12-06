@@ -191,13 +191,12 @@ extern void RegisterTwitchAuth();
 extern void RegisterMixerAuth();
 extern void RegisterRestreamAuth();
 
-void source_destroy_handler(obs_source_t *source,
-			    enum obs_source_destroy_type type)
+void source_destroy_handler(obs_source_t *source)
 {
 	if (QThread::currentThread() != qApp->thread())
 		int dd = 0;
 	QMetaObject::invokeMethod(
-		qApp, [=]() { obs_source_mannual_destroy(source, type); },
+		qApp, [=]() { obs_source_mannual_destroy(source); },
 		WaitConnection());
 }
 

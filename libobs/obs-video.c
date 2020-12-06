@@ -30,6 +30,8 @@ static uint64_t tick_sources(uint64_t cur_time, uint64_t last_time)
 	struct obs_source *source;
 	uint64_t delta_time;
 	float seconds;
+	DARRAY(struct obs_source *) tick_order;
+	da_init(tick_order);
 
 	if (!last_time)
 		last_time = cur_time -
@@ -59,29 +61,33 @@ static uint64_t tick_sources(uint64_t cur_time, uint64_t last_time)
 	source = data->first_source;
 	while (source) {
 		struct obs_source *cur_source = obs_source_get_ref(source);
+		da_push_back(tick_order, &cur_source);
 		source = (struct obs_source *)source->context.next;
 
 		if (cur_source) {
 			obs_source_video_tick(cur_source, seconds);
-			obs_source_release_no_source_mutex_lock(cur_source);
 		}
 	}
 
 	if (data->sticker_source) {
-		struct obs_source *cur_source =
-			obs_source_get_ref(data->sticker_source);
+		struct obs_source *cur_source = obs_source_get_ref(data->sticker_source);
+		da_push_back(tick_order, &cur_source);
 		obs_source_video_tick(cur_source, seconds);
-		obs_source_release_no_source_mutex_lock(cur_source);
 	}
 
 	if (data->privacy_source) {
-		struct obs_source *cur_source =
-			obs_source_get_ref(data->privacy_source);
+		struct obs_source *cur_source = obs_source_get_ref(data->privacy_source);
+		da_push_back(tick_order, &cur_source);
 		obs_source_video_tick(cur_source, seconds);
-		obs_source_release_no_source_mutex_lock(cur_source);
 	}
 
 	pthread_mutex_unlock(&data->sources_mutex);
+
+	for (size_t i = 0; i < tick_order.num; i++) {
+		obs_source_release(tick_order.array[i]);
+	}
+
+	da_free(tick_order);
 
 	return cur_time;
 }

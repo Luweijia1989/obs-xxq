@@ -98,11 +98,6 @@ typedef struct obs_weak_service obs_weak_service_t;
 extern "C" {
 #endif
 
-enum obs_source_destroy_type {
-	OBS_SOURCE_RELEASE_NORMAL,
-	OBS_SOURCE_RELEASE_IN_TICKSOURCE,
-};
-
 /** Used for changing the order of items (for example, filters in a source,
  * or items in a scene) */
 enum obs_order_movement {
@@ -834,11 +829,9 @@ EXPORT void obs_display_size(obs_display_t *display, uint32_t *width,
 /* ------------------------------------------------------------------------- */
 /* Sources */
 
-typedef void (*source_destroy_handler_t)(obs_source_t *source,
-					 enum obs_source_destroy_type type);
+typedef void (*source_destroy_handler_t)(obs_source_t *source);
 
-EXPORT void obs_source_mannual_destroy(obs_source_t *source,
-				       enum obs_source_destroy_type type);
+EXPORT void obs_source_mannual_destroy(obs_source_t *source);
 
 EXPORT void obs_source_set_destroy_handler(source_destroy_handler_t handler);
 
