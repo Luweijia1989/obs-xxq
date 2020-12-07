@@ -87,8 +87,7 @@ static const char *source_signals[] = {
 	NULL,
 };
 
-static void def_source_destroy(obs_source_t *source,
-			       enum obs_source_destroy_type type)
+static void def_source_destroy(obs_source_t *source)
 {
 	struct obs_weak_source *control = source->control;
 	obs_source_destroy(source);
@@ -109,10 +108,9 @@ bool obs_source_init_context(struct obs_source *source, obs_data_t *settings,
 					source_signals);
 }
 
-void obs_source_mannual_destroy(obs_source_t *source,
-				enum obs_source_destroy_type type)
+void obs_source_mannual_destroy(obs_source_t *source)
 {
-	def_source_destroy(source, type);
+	def_source_destroy(source);
 }
 
 void obs_source_set_destroy_handler(source_destroy_handler_t handler)
