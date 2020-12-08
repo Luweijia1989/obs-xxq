@@ -1,35 +1,12 @@
 ﻿#include "SlideTextSource.h"
-
-bool SlideTextSource::IsSlideTextInstallFont(const wchar_t *fontName)
-{
-	bool bRtn = false;
-	InstalledFontCollection *fonts = new InstalledFontCollection;
-	INT found;
-	int count = fonts->GetFamilyCount();
-	FontFamily *fontFamily = new FontFamily[count];
-	fonts->GetFamilies(count, fontFamily, &found);
-	for (int i = 0; i < fonts->GetFamilyCount(); i++) {
-		WCHAR wInstallFaceName[LF_FACESIZE];
-		fontFamily[i].GetFamilyName(wInstallFaceName);
-		if (wcscmp(fontName, wInstallFaceName) == 0) {
-			bRtn = true;
-			break;
-		}
-	}
-	delete fonts;
-	fonts = nullptr;
-	delete[] fontFamily;
-	fontFamily = NULL;
-	return bRtn;
-}
-
 void SlideTextSource::UpdateSlideFont()
 {
 	hfont = nullptr;
 	font.reset(nullptr);
 	if (face == L"阿里汉仪智能黑体" || face == L"DIN Condensed" ||
-	    face == L"阿里巴巴普惠体 R" || face == L"阿里巴巴普惠体 M") {
-		bool bInstall = IsSlideTextInstallFont(face.c_str());
+	    face == L"阿里巴巴普惠体 R" || face == L"阿里巴巴普惠体 M" ||
+	    face == L"DIN-BoldItalic" || face == L"DIN Alternate") {
+		bool bInstall = IsInstallFont(face.c_str());
 		if (bInstall == false) {
 			wstring fontpath = FontPath(face.c_str());
 			if (fontpath == L"")
@@ -91,20 +68,6 @@ Normal_Set:
 
 	if (hfont)
 		font.reset(new Font(hdc, hfont));
-}
-
-wstring SlideTextSource::FontPath(const wchar_t *fontName)
-{
-	wstring path = L"";
-	if (wcscmp(fontName, L"DIN Condensed") == 0)
-		path = L"\\resource\\font\\DIN Condensed Bold.ttf";
-	else if (wcscmp(fontName, L"阿里汉仪智能黑体") == 0)
-		path = L"\\resource\\font\\ALiHanYiZhiNengHeiTi-2.ttf";
-	else if (wcscmp(fontName, L"阿里巴巴普惠体 R") == 0)
-		path = L"\\resource\\font\\Alibaba-PuHuiTi-Regular.ttf";
-	else if (wcscmp(fontName, L"阿里巴巴普惠体 M") == 0)
-		path = L"\\resource\\font\\Alibaba-PuHuiTi-Medium.ttf";
-	return path;
 }
 
 void SlideTextSource::GetSlideStringFormat(StringFormat &format)

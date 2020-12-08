@@ -1,6 +1,6 @@
 ﻿#pragma once
 #include "Common.h"
-struct SlideTextSource {
+struct ScrollTextSource {
 	obs_source_t *source = nullptr;
 	gs_texture_t *tex = nullptr;
 	uint32_t cx = 0;
@@ -44,67 +44,65 @@ struct SlideTextSource {
 	bool chatlog_mode = false;
 	int chatlog_lines = 6;
 	uint32_t speed = 1;
-	uint32_t direction = BottomToTop;
-	float update_time = 0.00f;
+	uint32_t direction = LeftToRight;
+	float update_time1 = 0.0002f;
+	float update_time2 = 0.0000f;
 	std::vector<string> texts;
 	bool display = false;
 	int curIndex = 0;
 	SIZE max_size;
-	float animate_time = 3.0f;
+	float animate_time = 10.0f;
 	bool replay = false;
-
+	bool has_twotext = false;
 	FontFamily families[1];
 	Font *font_set;
 
-	std::vector<wstring> ver_texts;
-
 	/* --------------------------- */
-
-	inline SlideTextSource(obs_source_t *source_, obs_data_t *settings)
+	inline ScrollTextSource(obs_source_t *source_, obs_data_t *settings)
 		: source(source_),
 		  hdc(CreateCompatibleDC(nullptr)),
 		  graphics(hdc)
 	{
-		texts.clear();
 		font_set = nullptr;
 		obs_source_update(source, settings);
 		max_size.cx = 0;
 		max_size.cy = 0;
 	}
 
-	inline ~SlideTextSource()
+	inline ~ScrollTextSource()
 	{
 		if (tex) {
 			obs_enter_graphics();
 			gs_texture_destroy(tex);
 			obs_leave_graphics();
 		}
-	}
-	void UpdateSlideFont();
+	};
+
+	void ScrollUpdate(obs_data_t *settings);
+	//void ScrollTextCustomCommand(obs_data_t *cmd);
+	void ScrollTick(float seconds);
+	void ScrollRender();
+	void UpdateFont();
+	void RenderText();
+
 	void GetSlideStringFormat(StringFormat &format);
 	void RemoveSlideNewlinePadding(const StringFormat &format, RectF &box);
-	void CalculateSlideTextSizes(const wstring &text_measure,
-				     const StringFormat &format,
-				     RectF &bounding_box, SIZE &text_size);
+	void CalculateTextSizes(const wstring &text_measure,
+				const StringFormat &format, RectF &bounding_box,
+				SIZE &text_size);
 	void GenerateVerSlideText(const wstring &text_tansforms,
 				  std::vector<wstring> &texts_vec);
 
-	int CaculateSlideTextColums(const wstring &text_measure);
-	void CalculateSlideTextPos(int count, const StringFormat &format,
-				   float &posx, float &posy, const SIZE &size);
+	int CaculateTextColums(const wstring &text_measure);
+	void CalculateTextPos(int count, const StringFormat &format,
+			      float &posx, float &posy, const SIZE &size,
+			      const float &posTime);
 	void CalculateMaxSize(); // 计算最大长度
 	void RenderSlideOutlineText(Graphics &graphics,
 				    const GraphicsPath &path,
 				    const Brush &brush);
-	void RenderSlideText();
 	const char *GetMainSlideString(const char *str);
-
-	void SlideUpdate(obs_data_t *settings);
-	void SlideTextCustomCommand(obs_data_t *cmd);
-	void SlideTick(float seconds);
-	void SlideRender();
 	void CaclculateSpeed();
 	bool NeedRender();
-	wstring GetNextString();
 	bool VerDeleteLineLarge();
 };

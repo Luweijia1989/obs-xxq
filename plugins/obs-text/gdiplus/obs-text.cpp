@@ -1,4 +1,5 @@
 ﻿#include "SlideTextSource.h"
+#include "ScrollTextSource.h"
 #include "Common.h"
 struct TextSource {
 	obs_source_t *source = nullptr;
@@ -75,9 +76,7 @@ struct TextSource {
 			obs_leave_graphics();
 		}
 	}
-	bool IsInstallFont(const wchar_t *fontName);
 	void UpdateFont();
-	wstring FontPath(const wchar_t *fontName);
 	void GetStringFormat(StringFormat &format);
 	void RemoveNewlinePadding(const StringFormat &format, RectF &box);
 	void CalculateTextSizes(const StringFormat &format, RectF &bounding_box,
@@ -94,49 +93,13 @@ struct TextSource {
 	inline void Render();
 };
 
-bool TextSource::IsInstallFont(const wchar_t *fontName)
-{
-	bool bRtn = false;
-	InstalledFontCollection *fonts = new InstalledFontCollection;
-	INT found;
-	int count = fonts->GetFamilyCount();
-	FontFamily *fontFamily = new FontFamily[count];
-	fonts->GetFamilies(count, fontFamily, &found);
-	for (int i = 0; i < fonts->GetFamilyCount(); i++) {
-		WCHAR wInstallFaceName[LF_FACESIZE];
-		fontFamily[i].GetFamilyName(wInstallFaceName);
-		if (wcscmp(fontName, wInstallFaceName) == 0) {
-			bRtn = true;
-			break;
-		}
-	}
-	delete fonts;
-	fonts = nullptr;
-	delete[] fontFamily;
-	fontFamily = NULL;
-	return bRtn;
-}
-
-wstring TextSource::FontPath(const wchar_t *fontName)
-{
-	wstring path = L"";
-	if (wcscmp(fontName, L"DIN Condensed") == 0)
-		path = L"\\resource\\font\\DIN Condensed Bold.ttf";
-	else if (wcscmp(fontName, L"阿里汉仪智能黑体") == 0)
-		path = L"\\resource\\font\\ALiHanYiZhiNengHeiTi-2.ttf";
-	else if (wcscmp(fontName, L"阿里巴巴普惠体 R") == 0)
-		path = L"\\resource\\font\\Alibaba-PuHuiTi-Regular.ttf";
-	else if (wcscmp(fontName, L"阿里巴巴普惠体 M") == 0)
-		path = L"\\resource\\font\\Alibaba-PuHuiTi-Medium.ttf";
-	return path;
-}
-
 void TextSource::UpdateFont()
 {
 	hfont = nullptr;
 	font.reset(nullptr);
 	if (face == L"阿里汉仪智能黑体" || face == L"DIN Condensed" ||
-	    face == L"阿里巴巴普惠体 R" || face == L"阿里巴巴普惠体 M") {
+	    face == L"阿里巴巴普惠体 R" || face == L"阿里巴巴普惠体 M" ||
+	    face == L"DIN-BoldItalic" || face == L"DIN Alternate") {
 		bool bInstall = IsInstallFont(face.c_str());
 		if (bInstall == false) {
 			wstring fontpath = FontPath(face.c_str());
@@ -872,6 +835,7 @@ static obs_properties_t *get_properties(void *data)
 }
 
 extern struct obs_source_info slide_text = {};
+extern struct obs_source_info scroll_text = {};
 bool obs_module_load(void)
 {
 	obs_source_info si = {};
@@ -955,7 +919,6 @@ bool obs_module_load(void)
 		return reinterpret_cast<SlideTextSource *>(data)->cy;
 	};
 	slide_text.get_defaults = [](obs_data_t *settings) {
-		obs_data_t *font_obj = obs_data_create();
 		/////////////////////////////////////////////////////////
 		obs_data_set_default_int(settings, "speed", 1);
 		obs_data_set_default_int(settings, "direction", 1);
@@ -967,7 +930,6 @@ bool obs_module_load(void)
 		obs_data_set_default_int(settings, "fontSize", 36);
 		obs_data_set_default_bool(settings, "hDisplay", true);
 		obs_data_set_default_string(settings, "font", u8"微软雅黑");
-		obs_data_release(font_obj);
 	};
 	slide_text.update = [](void *data, obs_data_t *settings) {
 		reinterpret_cast<SlideTextSource *>(data)->SlideUpdate(
@@ -985,6 +947,51 @@ bool obs_module_load(void)
 	};
 
 	obs_register_source(&slide_text);
+
+	/////////scroll_text////////////////////////////////////
+	scroll_text.id = "quicktextscrollshow_source";
+	scroll_text.type = OBS_SOURCE_TYPE_INPUT;
+	scroll_text.output_flags = OBS_SOURCE_VIDEO | OBS_SOURCE_CUSTOM_DRAW;
+	scroll_text.get_properties = get_properties;
+	scroll_text.get_name = [](void *) {
+		return obs_module_text("ScrollTextGDIPlus");
+	};
+	scroll_text.create = [](obs_data_t *settings, obs_source_t *source) {
+		return (void *)new ScrollTextSource(source, settings);
+	};
+	scroll_text.destroy = [](void *data) {
+		delete reinterpret_cast<ScrollTextSource *>(data);
+	};
+	scroll_text.get_width = [](void *data) {
+		return reinterpret_cast<ScrollTextSource *>(data)->cx;
+	};
+	scroll_text.get_height = [](void *data) {
+		return reinterpret_cast<ScrollTextSource *>(data)->cy;
+	};
+	scroll_text.get_defaults = [](obs_data_t *settings) {
+		/////////////////////////////////////////////////////////
+		obs_data_set_default_int(settings, "speed", 1);
+		obs_data_set_default_int(settings, "direction", 1);
+		obs_data_set_default_string(settings, "fillColor", "#00000000");
+		obs_data_set_default_string(settings, "frontColor", "#FFFFFF");
+		obs_data_set_default_int(settings, "horizontalAlignment",
+					 0x0001);
+		obs_data_set_default_int(settings, "verticalAlignment", 0x0020);
+		obs_data_set_default_int(settings, "fontSize", 36);
+		obs_data_set_default_bool(settings, "hDisplay", true);
+		obs_data_set_default_string(settings, "font", u8"微软雅黑");
+	};
+	scroll_text.update = [](void *data, obs_data_t *settings) {
+		reinterpret_cast<ScrollTextSource *>(data)->ScrollUpdate(
+			settings);
+	};
+	scroll_text.video_tick = [](void *data, float seconds) {
+		reinterpret_cast<ScrollTextSource *>(data)->ScrollTick(seconds);
+	};
+	scroll_text.video_render = [](void *data, gs_effect_t *) {
+		reinterpret_cast<ScrollTextSource *>(data)->ScrollRender();
+	};
+	obs_register_source(&scroll_text);
 
 	const GdiplusStartupInput gdip_input;
 	GdiplusStartup(&gdip_token, &gdip_input, nullptr);
