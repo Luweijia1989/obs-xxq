@@ -183,6 +183,47 @@ static inline uint32_t rgb_to_bgr(uint32_t rgb)
 	return ((rgb & 0xFF) << 16) | (rgb & 0xFF00) | ((rgb & 0xFF0000) >> 16);
 }
 
+static bool IsInstallFont(const wchar_t *fontName)
+{
+	bool bRtn = false;
+	InstalledFontCollection *fonts = new InstalledFontCollection;
+	INT found;
+	int count = fonts->GetFamilyCount();
+	FontFamily *fontFamily = new FontFamily[count];
+	fonts->GetFamilies(count, fontFamily, &found);
+	for (int i = 0; i < fonts->GetFamilyCount(); i++) {
+		WCHAR wInstallFaceName[LF_FACESIZE];
+		fontFamily[i].GetFamilyName(wInstallFaceName);
+		if (wcscmp(fontName, wInstallFaceName) == 0) {
+			bRtn = true;
+			break;
+		}
+	}
+	delete fonts;
+	fonts = nullptr;
+	delete[] fontFamily;
+	fontFamily = NULL;
+	return bRtn;
+}
+
+static wstring FontPath(const wchar_t *fontName)
+{
+	wstring path = L"";
+	if (wcscmp(fontName, L"DIN Condensed") == 0)
+		path = L"\\resource\\font\\DIN Condensed Bold.ttf";
+	else if (wcscmp(fontName, L"阿里汉仪智能黑体") == 0)
+		path = L"\\resource\\font\\ALiHanYiZhiNengHeiTi-2.ttf";
+	else if (wcscmp(fontName, L"阿里巴巴普惠体 R") == 0)
+		path = L"\\resource\\font\\Alibaba-PuHuiTi-Regular.ttf";
+	else if (wcscmp(fontName, L"阿里巴巴普惠体 M") == 0)
+		path = L"\\resource\\font\\Alibaba-PuHuiTi-Medium.ttf";
+	else if (wcscmp(fontName, L"DIN-BoldItalic") == 0)
+		path = L"\\resource\\font\\xyz_bolditalic.ttf";
+	else if (wcscmp(fontName, L"DIN Alternate") == 0)
+		path = L"\\resource\\font\\DIN Alternate Bold.ttf";
+	return path;
+}
+
 /* ------------------------------------------------------------------------- */
 
 template<typename T, typename T2, BOOL WINAPI deleter(T2)> class GDIObj {
