@@ -20,7 +20,7 @@ Item {
 
         Loader {
             x: 107 * sharkScale
-            y: 248 * sharkScale
+            y: parent.height * 0.495
             active: maskProperties.status === 0
 
             sourceComponent: Component {
@@ -57,7 +57,7 @@ Item {
 
         Loader {
             x: 73 * sharkScale
-            y: 160 * sharkScale
+            y: parent.height * 0.31936
             active: maskProperties.status === 2
 
             sourceComponent: Component {
@@ -73,7 +73,7 @@ Item {
 
         Loader {
             x: 107 * sharkScale
-            y: 201 * sharkScale
+            y: parent.height * 0.4012
             active: maskProperties.status === 1
 
             sourceComponent: Component {
