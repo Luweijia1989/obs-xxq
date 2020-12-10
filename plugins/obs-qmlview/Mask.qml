@@ -19,26 +19,26 @@ Item {
         height: 1080
 
         Loader {
-            x: 107 * sharkScale
-            y: parent.height * 0.495
+            x: parent.width * 0.23653
+            y: parent.height * 0.31337
             active: maskProperties.status === 0
 
             sourceComponent: Component {
                 Item {
-                    width: 120
-                    height: 167
+                    width: 180
+                    height: 234
                     scale: sharkScale
                     transformOrigin: Item.TopLeft
                     Image {
-                        x: 16
+                        x: 2
                         y: 0
                         source: "qrc:/qmlfiles/image/img_tips_selecting.png"
 
                         Text {
-                            x: 8
-                            y: 3
+                            x: 16
+                            y: 7
                             text: "正在选择中…"
-                            font.pixelSize: 12
+                            font.pixelSize: 24
                             font.family: "Alibaba PuHuiTi M"
                             color: "#FFFFFF"
                         }
@@ -46,9 +46,9 @@ Item {
 
                     AnimatedImage {
                         x: 0
-                        y: 27
-                        width: 120
-                        height: 120
+                        y: 54
+                        width: 180
+                        height: 180
                         source: "qrc:/qmlfiles/image/choosing.apng"
                     }
                 }
@@ -56,7 +56,7 @@ Item {
         }
 
         Loader {
-            x: 73 * sharkScale
+            x: parent.width * 0.21856
             y: parent.height * 0.31936
             active: maskProperties.status === 2
 
@@ -72,23 +72,23 @@ Item {
         }
 
         Loader {
-            x: 107 * sharkScale
-            y: parent.height * 0.4012
+            x: parent.width * 0.20958
+            y: parent.height * 0.33732
             active: maskProperties.status === 1
 
             sourceComponent: Component {
                 Image {
                     transformOrigin: Item.TopLeft
                     scale: sharkScale
-                    width: 120
-                    height: 100
+                    width: 200
+                    height: 168
                     source: "qrc:/qmlfiles/image/popup_5.png"
 
                     Text {
-                        x: 23
-                        y: 35
+                        x: 34
+                        y: 51
                         text: "选择" + maskProperties.toothIndex + "号牙齿\n挑战成功"
-                        font.pixelSize: 14
+                        font.pixelSize: 24
                         color: "#FFFFFF"
                         horizontalAlignment: Text.AlignHCenter
                     }
