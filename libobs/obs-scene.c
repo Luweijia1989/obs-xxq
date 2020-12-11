@@ -1,4 +1,4 @@
-﻿/******************************************************************************
+/******************************************************************************
     Copyright (C) 2013-2015 by Hugh Bailey <obs.jim@gmail.com>
                                Philippe Groarke <philippe.groarke@gmail.com>
 
@@ -1761,9 +1761,9 @@ static obs_sceneitem_t *obs_scene_add_internal(obs_scene_t *scene,
 	return item;
 }
 
-obs_sceneitem_t *obs_scene_add(obs_scene_t *scene, obs_source_t *source)
+static obs_sceneitem_t *obs_scene_add_and_signal(obs_scene_t *scene, obs_source_t *source, obs_sceneitem_t *insert_after)
 {
-	obs_sceneitem_t *item = obs_scene_add_internal(scene, source, NULL);
+	obs_sceneitem_t *item = obs_scene_add_internal(scene, source, insert_after);
 
 	struct calldata params;
 	uint8_t stack[128];
@@ -1774,6 +1774,16 @@ obs_sceneitem_t *obs_scene_add(obs_scene_t *scene, obs_source_t *source)
 			      &params);
 
 	return item;
+}
+
+obs_sceneitem_t *obs_scene_add(obs_scene_t *scene, obs_source_t *source)
+{
+	return obs_scene_add_and_signal(scene, source, NULL);
+}
+
+obs_sceneitem_t *obs_scene_insert_after(obs_scene_t *scene, obs_source_t *source, obs_sceneitem_t *item)
+{
+	return obs_scene_add_and_signal(scene, source, item);
 }
 
 static void obs_sceneitem_destroy(obs_sceneitem_t *item)
