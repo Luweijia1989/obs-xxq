@@ -921,7 +921,7 @@ bool obs_module_load(void)
 	slide_text.get_defaults = [](obs_data_t *settings) {
 		/////////////////////////////////////////////////////////
 		obs_data_set_default_int(settings, "speed", 1);
-		obs_data_set_default_int(settings, "direction", 1);
+		obs_data_set_default_int(settings, "direction", 3);
 		obs_data_set_default_string(settings, "fillColor", "#00000000");
 		obs_data_set_default_string(settings, "frontColor", "#FFFFFF");
 		obs_data_set_default_int(settings, "horizontalAlignment",
