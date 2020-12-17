@@ -991,6 +991,11 @@ bool obs_module_load(void)
 	scroll_text.video_render = [](void *data, gs_effect_t *) {
 		reinterpret_cast<ScrollTextSource *>(data)->ScrollRender();
 	};
+
+	scroll_text.make_command = [](void *data, obs_data_t *command) {
+		reinterpret_cast<ScrollTextSource *>(data)
+			->ScrollTextCustomCommand(command);
+	};
 	obs_register_source(&scroll_text);
 
 	const GdiplusStartupInput gdip_input;

@@ -79,7 +79,7 @@ struct ScrollTextSource {
 	};
 
 	void ScrollUpdate(obs_data_t *settings);
-	//void ScrollTextCustomCommand(obs_data_t *cmd);
+	void ScrollTextCustomCommand(obs_data_t *cmd);
 	void ScrollTick(float seconds);
 	void ScrollRender();
 	void UpdateFont();

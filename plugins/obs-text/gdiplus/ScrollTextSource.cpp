@@ -75,6 +75,9 @@ void ScrollTextSource::ScrollUpdate(obs_data_t *s)
 	text = to_wide(new_text);
 	update_time_elapsed = 0.0f;
 	/* ----------------------------- */
+	update_time1 = 0.0002f;
+	update_time2 = 0.0000f;
+	has_twotext = false;
 	RenderText();
 }
 
@@ -150,12 +153,12 @@ void ScrollTextSource::RenderText()
 							  (int)text.size(),
 							  font.get(), box,
 							  &format, &brush);
-			wchar_t szBuffer[1024] = {0};
-			wsprintf(szBuffer,
-				 L"Draw1 Posx:%d~PosY:%d,updateTime%d\n",
-				 (int)box.X, (int)box.Y,
-				 (int)(update_time1 * 1000));
-			OutputDebugStringW(szBuffer);
+			//wchar_t szBuffer[1024] = {0};
+			//wsprintf(szBuffer,
+			//	 L"Draw1 Posx:%d~PosY:%d,updateTime%d\n",
+			//	 (int)box.X, (int)box.Y,
+			//	 (int)(update_time1 * 1000));
+			//OutputDebugStringW(szBuffer);
 		}
 
 		if ((update_time2 < animate_time && update_time2 > 0.0f)) {
@@ -169,13 +172,6 @@ void ScrollTextSource::RenderText()
 							  (int)text.size(),
 							  font.get(), box,
 							  &format, &brush);
-
-			wchar_t szBuffer[1024] = {0};
-			wsprintf(szBuffer,
-				 L"Draw2 Posx:%d~PosY:%d,updateTime%d\n",
-				 (int)box.X, (int)box.Y,
-				 (int)(update_time2 * 1000));
-			OutputDebugStringW(szBuffer);
 		}
 		warn_stat("graphics_bitmap.DrawString");
 	}
@@ -234,7 +230,6 @@ void ScrollTextSource::ScrollTick(float seconds)
 			change = true;
 			has_twotext = false;
 			update_time2 = 0.0f;
-			OutputDebugStringW(L"update_time2 = 0\n");
 		}
 
 		if (change)
@@ -566,7 +561,8 @@ void ScrollTextSource::CalculateTextSizes(const wstring &text_measure,
 			bounding_box.Y = 0.0f;
 
 			RemoveSlideNewlinePadding(format, bounding_box);
-
+			bounding_box.Width += face_size;
+			bounding_box.Height += face_size;
 			if (use_outline) {
 				bounding_box.Width += outline_size;
 				bounding_box.Height += outline_size;
@@ -726,4 +722,14 @@ bool ScrollTextSource::VerDeleteLineLarge()
 		return true;
 	else
 		return false;
+}
+
+void ScrollTextSource::ScrollTextCustomCommand(obs_data_t *cmd)
+{
+	const char *cmdType = obs_data_get_string(cmd, "type");
+	if (strcmp("replay", cmdType) == 0) {
+		update_time1 = 0.0002f;
+		update_time2 = 0.0000f;
+		has_twotext = false;
+	}
 }
