@@ -1,4 +1,4 @@
-﻿/****************************************************************************
+/****************************************************************************
 **
 ** Copyright (C) 2015 The Qt Company Ltd.
 ** Contact: http://www.qt.io/licensing/
@@ -87,7 +87,7 @@ public slots:
     void inc() { m_count++; }
     void printFPS() {
         double fps = (double) m_count / ( (double)m_timer.elapsed() / 1000.0 );
-        qDebug() << m_myname << ": FPS = " << fps;
+        //qDebug() << m_myname << ": FPS = " << fps;
         m_count = 0;
         m_timer.restart();
     }
