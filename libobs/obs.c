@@ -2750,7 +2750,7 @@ void obs_source_destroy_xxqsource(int type)
 void obs_source_custom_command_xxqsource(int type, obs_data_t *settings)
 {
 	struct obs_core_data *data = &obs->data;
-	if (type == 5) {
+	if (type == 5 && data->mask_source) {
 		obs_source_do_custom_command(data->mask_source, settings);
 	}
 }
