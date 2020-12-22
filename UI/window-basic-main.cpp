@@ -5093,6 +5093,14 @@ void OBSBasic::StartStreaming()
 		GetGlobalConfig(), "BasicWindow", "ReplayBufferWhileStreaming");
 	if (replayBufferWhileStreaming)
 		StartReplayBuffer();
+
+	QTimer::singleShot(10000, this, [=](){
+		obs_output_pause(outputHandler->streamOutput, true);
+	});
+
+	QTimer::singleShot(600000, this, [=]() {
+		obs_output_pause(outputHandler->streamOutput, false);
+	});
 }
 
 #ifdef _WIN32

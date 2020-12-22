@@ -1292,7 +1292,7 @@ static void receive_audio(void *param, size_t mix_idx, struct audio_data *in)
 		clear_audio(encoder);
 	}
 
-	if (audio_pause_check(&encoder->pause, &audio, encoder->samplerate))
+	if (audio_pause_check(&encoder->pause, &audio, encoder->samplerate) && 0) // do not pause audio due to rtmp connection will be closed if no data transfer
 		goto end;
 
 	if (!buffer_audio(encoder, &audio))

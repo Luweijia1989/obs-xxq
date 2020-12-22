@@ -1260,7 +1260,7 @@ static inline void send_interleaved(struct obs_output *output)
 	/* do not send an interleaved packet if there's no packet of the
 	 * opposing type of a higher timestamp in the interleave buffer.
 	 * this ensures that the timestamps are monotonic */
-	if (!has_higher_opposing_ts(output, &out))
+	if (!has_higher_opposing_ts(output, &out) && !output->paused)
 		return;
 
 	da_erase(output->interleaved_packets, 0);
