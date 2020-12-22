@@ -1686,6 +1686,9 @@ EXPORT bool obs_output_start(obs_output_t *output);
 /** Stops the output. */
 EXPORT void obs_output_stop(obs_output_t *output);
 
+/** Calls output specific function with json param **/
+EXPORT void obs_output_call_function(obs_output_t *output, obs_data_t *param);
+
 /**
  * On reconnection, start where it left of on reconnection.  Note however that
  * this option will consume extra memory to continually increase delay while

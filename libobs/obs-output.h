@@ -75,6 +75,9 @@ struct obs_output_info {
 
 	/* raw audio callback for multi track outputs */
 	void (*raw_audio2)(void *data, size_t idx, struct audio_data *frames);
+
+	/* direct call function */
+	void (*custom_command)(void *data, obs_data_t *param);
 };
 
 EXPORT void obs_register_output_s(const struct obs_output_info *info,

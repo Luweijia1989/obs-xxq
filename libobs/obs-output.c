@@ -2583,3 +2583,12 @@ const char *obs_output_get_supported_audio_codecs(const obs_output_t *output)
 		       ? output->info.encoded_audio_codecs
 		       : NULL;
 }
+
+void obs_output_call_function(obs_output_t *output, obs_data_t *param)
+{
+	if (!obs_output_valid(output, "obs_output_call_function"))
+		return;
+
+	if (output->info.custom_command)
+		output->info.custom_command(output->context.data, param);
+}
