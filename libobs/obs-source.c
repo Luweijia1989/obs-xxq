@@ -4785,7 +4785,7 @@ uint32_t obs_source_get_last_obs_version(const obs_source_t *source)
 void obs_source_do_custom_command(const obs_source_t *source,
 				  obs_data_t *command)
 {
-	if (!obs_source_valid(source, "obs_source_do_custom_command"))
+	if (!data_valid(source, "obs_source_do_custom_command"))
 		return;
 
 	if (source->info.make_command)
