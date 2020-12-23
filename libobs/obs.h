@@ -776,7 +776,7 @@ EXPORT void obs_view_set_source(obs_view_t *view, uint32_t channel,
 EXPORT obs_source_t *obs_view_get_source(obs_view_t *view, uint32_t channel);
 
 /** Renders the sources of this view context */
-EXPORT void obs_view_render(obs_view_t *view);
+EXPORT void obs_view_render(obs_view_t *view, void *output_order);
 
 /* ------------------------------------------------------------------------- */
 /* Display context */

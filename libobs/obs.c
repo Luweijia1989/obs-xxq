@@ -1687,7 +1687,7 @@ void obs_render_main_view(void)
 {
 	if (!obs)
 		return;
-	obs_view_render(&obs->data.main_view);
+	obs_view_render(&obs->data.main_view, NULL);
 }
 
 static void obs_render_main_texture_internal(enum gs_blend_type src_c,
