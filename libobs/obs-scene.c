@@ -1621,7 +1621,8 @@ static inline bool source_has_audio(obs_source_t *source)
 
 static void obs_scene_item_added_signal(obs_scene_t *scene,
 					obs_source_t *source,
-					obs_sceneitem_t *item)
+					obs_sceneitem_t *item,
+					bool added_by_ungroup)
 {
 	struct calldata params;
 	uint8_t stack[128];
@@ -1630,6 +1631,7 @@ static void obs_scene_item_added_signal(obs_scene_t *scene,
 	calldata_init_fixed(&params, stack, sizeof(stack));
 	calldata_set_ptr(&params, "source", source);
 	calldata_set_ptr(&params, "item", item);
+	calldata_set_bool(&params, "added_by_ungroup", added_by_ungroup);
 	if (scene->is_group) {
 		iter = obs->data.first_source;
 		while (iter) {
@@ -1665,7 +1667,8 @@ static void obs_scene_item_added_signal(obs_scene_t *scene,
 
 static obs_sceneitem_t *obs_scene_add_internal(obs_scene_t *scene,
 					       obs_source_t *source,
-					       obs_sceneitem_t *insert_after)
+					       obs_sceneitem_t *insert_after,
+					       bool added_by_ungroup)
 {
 	struct obs_scene_item *last;
 	struct obs_scene_item *item;
@@ -1756,14 +1759,17 @@ static obs_sceneitem_t *obs_scene_add_internal(obs_scene_t *scene,
 	signal_handler_connect(obs_source_get_signal_handler(source), "rename",
 			       sceneitem_renamed, item);
 
-	obs_scene_item_added_signal(scene, source, item);
+	obs_scene_item_added_signal(scene, source, item, added_by_ungroup);
 
 	return item;
 }
 
-static obs_sceneitem_t *obs_scene_add_and_signal(obs_scene_t *scene, obs_source_t *source, obs_sceneitem_t *insert_after)
+static obs_sceneitem_t *obs_scene_add_and_signal(obs_scene_t *scene,
+						 obs_source_t *source,
+						 obs_sceneitem_t *insert_after)
 {
-	obs_sceneitem_t *item = obs_scene_add_internal(scene, source, insert_after);
+	obs_sceneitem_t *item =
+		obs_scene_add_internal(scene, source, insert_after, false);
 
 	struct calldata params;
 	uint8_t stack[128];
@@ -1781,7 +1787,9 @@ obs_sceneitem_t *obs_scene_add(obs_scene_t *scene, obs_source_t *source)
 	return obs_scene_add_and_signal(scene, source, NULL);
 }
 
-obs_sceneitem_t *obs_scene_insert_after(obs_scene_t *scene, obs_source_t *source, obs_sceneitem_t *item)
+obs_sceneitem_t *obs_scene_insert_after(obs_scene_t *scene,
+					obs_source_t *source,
+					obs_sceneitem_t *item)
 {
 	return obs_scene_add_and_signal(scene, source, item);
 }
@@ -2646,7 +2654,7 @@ obs_sceneitem_t *obs_scene_insert_group(obs_scene_t *scene, const char *name,
 	obs_sceneitem_t *last_item = items ? items[count - 1] : NULL;
 
 	obs_sceneitem_t *item =
-		obs_scene_add_internal(scene, sub_scene->source, last_item);
+		obs_scene_add_internal(scene, sub_scene->source, last_item, false);
 
 	obs_scene_release(sub_scene);
 
@@ -2746,7 +2754,7 @@ void obs_sceneitem_group_ungroup(obs_sceneitem_t *item)
 		obs_sceneitem_t *dst;
 
 		remove_group_transform(item, last);
-		dst = obs_scene_add_internal(scene, last->source, insert_after);
+		dst = obs_scene_add_internal(scene, last->source, insert_after, true);
 		duplicate_item_data(dst, last, true, true, true);
 		apply_group_transform(last, item);
 
