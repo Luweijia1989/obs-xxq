@@ -29,12 +29,6 @@ void ScrollTextSource::ScrollUpdate(obs_data_t *s)
 	uint32_t new_o_opacity = obs_data_get_uint32(s, S_OUTLINE_OPACITY);
 	uint32_t new_o_size = obs_data_get_uint32(s, S_OUTLINE_SIZE);
 
-	// 这里兼容一下老版本
-	if (strcmp(new_color, "#00000000") == 0)
-		fill = false;
-	else
-		fill = true;
-
 	if (strcmp(new_color, "#FFF244F") == 0) {
 		new_color = "#00000000";
 	}
@@ -94,6 +88,10 @@ void ScrollTextSource::ScrollUpdate(obs_data_t *s)
 	outline_size = roundf(float(new_o_size));
 	color2 = rgb_to_bgr(new_color2);
 	bk_color = rgb_to_bgr(new_bk_color);
+	if (bk_color == 0)
+		bk_opacity = 0;
+	else
+		bk_opacity = 100;
 	gradient_dir = new_grad_dir;
 	if (!gradient) {
 		color2 = color;
@@ -130,21 +128,22 @@ void ScrollTextSource::RenderText()
 	graphics_bitmap.SetCompositingMode(CompositingModeSourceOver);
 	graphics_bitmap.SetSmoothingMode(SmoothingModeAntiAlias);
 
-	if ((size.cx > box.Width || size.cy > box.Height) && !use_extents &&
-	    fill) {
-		stat = graphics_bitmap.Clear(Color(0));
+	stat = graphics_bitmap.Clear(Color(0));
+	if ((size.cx > box.Width || size.cy > box.Height) && !use_extents) {
 		warn_stat("graphics_bitmap.Clear");
 		SolidBrush bk_brush = Color(full_bk_color);
-		stat = graphics_bitmap.FillRectangle(&bk_brush, box);
+		RectF box_brush;
+		box_brush.X = 0.0f;
+		box_brush.Y = 0.0f;
+		box_brush.Width = size.cx;
+		box_brush.Height = size.cy;
+		stat = graphics_bitmap.FillRectangle(&bk_brush, box_brush);
 		warn_stat("graphics_bitmap.FillRectangle");
 	} else {
 		stat = graphics_bitmap.Clear(Color(full_bk_color));
 		warn_stat("graphics_bitmap.Clear");
 	}
 
-	if (fill == false) {
-		stat = graphics_bitmap.Clear(Color(0));
-	}
 	if (use_outline) {
 		box.Offset(outline_size / 2, outline_size / 2);
 
@@ -214,12 +213,6 @@ void ScrollTextSource::RenderText()
 							  (int)text.size(),
 							  font.get(), box,
 							  &format, &brush1);
-			//wchar_t szBuffer[1024] = {0};
-			//wsprintf(szBuffer,
-			//	 L"Draw1 Posx:%d~PosY:%d,updateTime%d\n",
-			//	 (int)box.X, (int)box.Y,
-			//	 (int)(update_time1 * 1000));
-			//OutputDebugStringW(szBuffer);
 		}
 
 		if ((update_time2 < animate_time && update_time2 > 0.0f)) {

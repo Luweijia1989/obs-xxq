@@ -568,6 +568,11 @@ inline void TextSource::Update(obs_data_t *s)
 	extents_cy = n_extents_cy;
 	text_transform = new_text_transform;
 
+	if (bk_color == 0)
+		bk_opacity = 0;
+	else
+		bk_opacity = 100;
+
 	if (!gradient) {
 		color2 = color;
 		opacity2 = opacity;
