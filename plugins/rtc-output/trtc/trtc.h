@@ -21,9 +21,6 @@ public:
 
 private:
 	ITRTCCloud *m_trtc = nullptr;
-	TRTCVideoEncParam videoEncParams;
-	TRTCNetworkQosParam qosParams;
-	TRTCAppScene appScene = TRTCAppSceneVideoCall;
 	bool bPushSmallVideo = false; //推流打开推双流标志。
 	bool bPlaySmallVideo = false; //默认拉低请视频流标志。
 };

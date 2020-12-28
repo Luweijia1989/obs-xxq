@@ -1,13 +1,8 @@
 #include "trtc.h"
 #include "util/base.h"
+#include "../rtc-param.h"
 
 TRTC::TRTC() : m_trtc(getTRTCShareInstance()){
-	videoEncParams.videoResolution = TRTCVideoResolution_1920_1080;
-	videoEncParams.videoBitrate = 2000;
-	videoEncParams.videoFps = 20;
-
-	qosParams.preference = TRTCVideoQosPreferenceClear;
-	qosParams.controlMode = TRTCQosControlModeServer;
 }
 
  TRTC::~TRTC() {
@@ -30,8 +25,8 @@ void TRTC::enterRoom(uint32_t appid, uint32_t roomid, const char *userid,
 	// 设置视频编码参数，包括分辨率、帧率、码率等等，这些编码参数来自于 TRTCSettingViewController 的设置
 	// 注意（1）：不要在码率很低的情况下设置很高的分辨率，会出现较大的马赛克
 	// 注意（2）：不要设置超过25FPS以上的帧率，因为电影才使用24FPS，我们一般推荐15FPS，这样能将更多的码率分配给画质
-	m_trtc->setVideoEncoderParam(videoEncParams);
-	m_trtc->setNetworkQosParam(qosParams);
+	m_trtc->setVideoEncoderParam(VideoLinkParam::getInstance()->videoEncParams);
+	m_trtc->setNetworkQosParam(VideoLinkParam::getInstance()->qosParams);
 
 	if (m_bPushSmallVideo) {
 		//小画面的编码器参数设置

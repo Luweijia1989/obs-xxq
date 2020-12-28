@@ -10,8 +10,7 @@ static const char *rtc_output_getname(void *unused)
 static void *rtc_output_create(obs_data_t *settings, obs_output_t *output)
 {
 	UNUSED_PARAMETER(settings);
-	RTCOutput *context = new RTCOutput;
-	context->m_output = output;
+	RTCOutput *context = new RTCOutput(RTCOutput::RTC_TYPE_TRTC, output);
 	return context;
 }
 
@@ -92,3 +91,11 @@ bool obs_module_load(void)
 }
 
 void obs_module_unload(void) {}
+
+RTCOutput::RTCOutput(RTC_TYPE type, obs_output_t *output)
+{
+	if(type == RTC_TYPE_TRTC)
+		m_rtcBase = new TRTC();
+	else if (type == RTC_TYPE_QINIU)
+		m_rtcBase = new QINIURTC();
+}
