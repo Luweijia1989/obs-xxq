@@ -208,10 +208,44 @@ void sceneitem_destroy_handler(obs_sceneitem_t *item)
 		qApp, [=]() { obs_sceneitem_mannual_destroy(item); },
 		WaitConnection());
 }
-
+obs_output_t *outputttt;
 OBSBasic::OBSBasic(QWidget *parent)
 	: OBSMainWindow(parent), ui(new Ui::OBSBasic)
 {
+	QWidget *w = new QWidget;
+	w->show();
+	w->setFixedSize(200, 40);
+	QPushButton *btn = new QPushButton("start", w);
+	btn->setVisible(true);
+
+	RTCView *view = new RTCView;
+	view->setFixedSize(640, 480);
+	view->setVisible(true);
+	connect(btn, &QPushButton::clicked, this, [=](){
+		obs_output_pause(outputHandler->streamOutput, true);
+		obs_data_t *setting = obs_data_create();
+		obs_data_set_int(setting, "rtc_type", 0);
+		outputttt = obs_output_create("rtc_output", "rtc_output", setting, NULL);
+		obs_data_t *data = obs_data_create();
+		obs_data_set_string(data, "func", "set_info");
+		obs_data_set_int(data, "hwnd", view->winId());
+		obs_data_set_int(data, "cropX", 100);
+		obs_output_call_function(outputttt, data);
+		obs_data_release(data);
+		obs_data_release(setting);
+		obs_output_start(outputttt);
+		blog(LOG_INFO, "output start complete");
+	});
+
+	QPushButton *btn1 = new QPushButton("stop", w);
+	btn1->move(100, 0);
+	btn1->setVisible(true);
+	connect(btn1, &QPushButton::clicked, this, [=]() {
+		//obs_output_force_stop(outputttt);
+		obs_output_pause(outputHandler->streamOutput, false);
+		obs_output_release(outputttt);
+	});
+
 	obs_source_set_destroy_handler(source_destroy_handler);
 	obs_sceneitem_set_destroy_handler(sceneitem_destroy_handler);
 	setAttribute(Qt::WA_NativeWindow);
@@ -5093,14 +5127,6 @@ void OBSBasic::StartStreaming()
 		GetGlobalConfig(), "BasicWindow", "ReplayBufferWhileStreaming");
 	if (replayBufferWhileStreaming)
 		StartReplayBuffer();
-
-	QTimer::singleShot(10000, this, [=](){
-		obs_output_pause(outputHandler->streamOutput, true);
-	});
-
-	QTimer::singleShot(600000, this, [=]() {
-		obs_output_pause(outputHandler->streamOutput, false);
-	});
 }
 
 #ifdef _WIN32

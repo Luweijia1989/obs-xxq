@@ -1766,7 +1766,7 @@ static void default_raw_audio_callback(void *param, size_t mix_idx,
 
 	if (!prepare_audio(output, in, &out))
 		return;
-	if (audio_pause_check(&output->pause, &out, output->sample_rate))
+	if (audio_pause_check(&output->pause, &out, output->sample_rate) && 0)
 		return;
 	if (!output->audio_start_ts) {
 		output->audio_start_ts = out.timestamp;

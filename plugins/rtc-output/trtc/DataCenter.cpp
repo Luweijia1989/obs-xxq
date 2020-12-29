@@ -83,7 +83,6 @@ CDataCenter::CDataCenter()
 
 CDataCenter::~CDataCenter()
 {
-	UnInit();
 	::DeleteCriticalSection(&g_DataCS); //删除关键代码段对象
 }
 
@@ -92,18 +91,20 @@ void CDataCenter::CleanRoomInfo()
 	m_remoteUser.clear();
 	m_vecPKUserList.clear();
 	m_localInfo._bEnterRoom = false;
-	m_localInfo.publish_audio = false;
-	m_localInfo.publish_main_video = false;
-	m_localInfo.publish_sub_video = false;
-	m_bCustomAudioCapture = false;
-	m_bCustomVideoCapture = false;
 	m_strCustomStreamId = "";
-	m_strMixStreamId = "";
 }
 
 LocalUserInfo &CDataCenter::getLocalUserInfo()
 {
 	return m_localInfo;
+}
+
+void CDataCenter::setLocalUserInfo(std::string userId, int roomId,
+				   std::string userSig)
+{
+	m_localInfo._userId = userId;
+	m_localInfo._roomId = roomId;
+	m_localInfo._userSig = userSig;
 }
 
 CDataCenter::VideoResBitrateTable
@@ -121,21 +122,15 @@ CDataCenter::getVideoConfigInfo(int resolution)
 void CDataCenter::Init()
 {
 	//音视频参数配置
-	audio_quality_ = TRTCAudioQualityDefault;
-	m_videoEncParams.videoResolution = TRTCVideoResolution_640_360;
-	m_videoEncParams.videoFps = 15;
+	m_videoEncParams.videoResolution = TRTCVideoResolution_1280_720;
+	m_videoEncParams.videoFps = 20;
+	m_videoEncParams.videoBitrate = 1200;
+	m_videoEncParams.resMode = TRTCVideoResolutionModePortrait;
 	m_qosParams.preference = TRTCVideoQosPreferenceClear;
 	m_qosParams.controlMode = TRTCQosControlModeServer;
 	m_sceneParams = TRTCAppSceneLIVE;
 	m_roleType = TRTCRoleAnchor;
-	m_bPushSmallVideo = false;
-	m_bPlaySmallVideo = false;
 	m_nLinkTestServer = 0; // todo 环境切换
-	m_videoEncParams.resMode = TRTCVideoResolutionModeLandscape;
-	m_bRemoteVideoMirror = false;
-	m_bShowAudioVolume = false;
-	m_bCDNMixTranscoding = false;
-	m_bPublishScreenInBigStream = false;
 	m_mixTemplateID = TRTCTranscodingConfigMode_Template_PresetLayout;
 }
 
@@ -176,56 +171,14 @@ void CDataCenter::removeRemoteUser(std::string userId)
 	}
 }
 
-bool CDataCenter::getAudioAvaliable(std::string userId)
-{
-	if (userId.compare(m_localInfo._userId) == 0) {
-		return m_localInfo.publish_audio;
-	} else {
-		auto iter = m_remoteUser.find(userId);
-		if (iter != m_remoteUser.end()) {
-			return (iter->second.available_audio &&
-				iter->second.subscribe_audio);
-		}
-	}
-	return false;
-}
-
-bool CDataCenter::getVideoAvaliable(std::string userId,
-				    TRTCVideoStreamType type)
-{
-	if (userId.compare(m_localInfo._userId) == 0) {
-		return m_localInfo.publish_main_video;
-	} else {
-		auto iter = m_remoteUser.find(userId);
-		if (iter != m_remoteUser.end()) {
-			if (type == TRTCVideoStreamTypeSub) {
-				return (iter->second.available_sub_video &&
-					iter->second.subscribe_sub_video);
-			} else {
-				return (iter->second.available_main_video &&
-					iter->second.subscribe_main_video);
-			}
-		}
-	}
-	return false;
-}
-
 TRTCRenderParams CDataCenter::getLocalRenderParams()
 {
 	TRTCRenderParams param;
-	if (m_bLocalVideoMirror) {
-		param.mirrorType = TRTCVideoMirrorType_Enable;
-	} else {
-		param.mirrorType = TRTCVideoMirrorType_Disable;
-	}
+	param.mirrorType = TRTCVideoMirrorType_Disable;
 	return param;
 }
 
 TRTCVideoStreamType CDataCenter::getRemoteVideoStreamType()
 {
-	TRTCVideoStreamType type = TRTCVideoStreamTypeBig;
-	if (m_bPlaySmallVideo) {
-		type = TRTCVideoStreamTypeSmall;
-	}
-	return type;
+	return TRTCVideoStreamTypeBig;
 }

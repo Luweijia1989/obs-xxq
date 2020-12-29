@@ -9,11 +9,6 @@
 
 class TRTC;
 
-struct DashboardInfo {
-	int streamType = -1;
-	std::string userId;
-	std::string buffer;
-};
 typedef ITRTCCloud *(__cdecl *GetTRTCShareInstance)();
 typedef void(__cdecl *DestroyTRTCShareInstance)();
 
@@ -90,56 +85,15 @@ public:
 	void startCloudMixStream();
 	void stopCloudMixStream();
 	void updateMixTranCodeInfo();
-	void getMixVideoPos(int index, int &left, int &top, int &right,
-			    int &bottom);
-
-	void startCustomCaptureAudio(std::wstring filePath, int samplerate,
-				     int channel);
-	void stopCustomCaptureAudio();
-	void startCustomCaptureVideo(std::wstring filePat, int width,
-				     int height);
-	void stopCustomCaptureVideo();
-
-	void sendCustomAudioFrame();
-	void sendCustomVideoFrame();
 
 protected:
 	void setPresetLayoutConfig(TRTCTranscodingConfig &config);
-	std::string GetPathNoExt(std::string path);
 
 private:
 	static TRTCCloudCore *m_instance;
-	std::string m_localUserId;
-
 	TRTC *m_rtcInstance = nullptr;
-
-	std::vector<MediaDeviceInfo> m_vecSpeakDevice;
-	std::vector<MediaDeviceInfo> m_vecMicDevice;
-	std::vector<MediaDeviceInfo> m_vecCameraDevice;
-
 	ITRTCCloud *m_pCloud = nullptr;
 	ITXDeviceManager *m_pDeviceManager = nullptr;
-	bool m_bFirstUpdateDevice = false;
-
-	//云端混流功能
-
-	bool m_bStartCloudMixStream = false;
-
-	//自定义采集功能:
-	std::wstring m_videoFilePath, m_audioFilePath;
-	bool m_bStartCustomCaptureAudio = false;
-	bool m_bStartCustomCaptureVideo = false;
-	uint32_t _offset_videoread = 0, _offset_audioread = 0;
-	uint32_t _video_file_length = 0, _audio_file_length = 0;
-	char *_audio_buffer = nullptr;
-	char *_video_buffer = nullptr;
-	int _audio_samplerate = 0, _audio_channel = 0;
-	int _video_width = 0, _video_height = 0;
-
-	bool m_bPreUninit = false;
-
-	std::thread *custom_audio_thread_ = nullptr;
-	std::thread *custom_video_thread_ = nullptr;
 
 private:
 	HMODULE trtc_module_;

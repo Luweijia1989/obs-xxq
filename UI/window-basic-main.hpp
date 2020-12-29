@@ -1,4 +1,4 @@
-﻿/******************************************************************************
+/******************************************************************************
     Copyright (C) 2013-2014 by Hugh Bailey <obs.jim@gmail.com>
 
     This program is free software: you can redistribute it and/or modify
@@ -110,6 +110,22 @@ public:
 
 private:
 	std::unique_ptr<Ui::ColorSelect> ui;
+};
+
+class RTCView : public QWidget {
+Q_OBJECT
+public:
+	RTCView(){
+		setAttribute(Qt::WA_PaintOnScreen);
+		setAttribute(Qt::WA_StaticContents);
+		setAttribute(Qt::WA_NoSystemBackground);
+		setAttribute(Qt::WA_OpaquePaintEvent);
+		setAttribute(Qt::WA_DontCreateNativeAncestors);
+		setAttribute(Qt::WA_NativeWindow);
+	}
+	virtual QPaintEngine *paintEngine() const override {
+		return nullptr;
+	}
 };
 
 class OBSBasic : public OBSMainWindow {

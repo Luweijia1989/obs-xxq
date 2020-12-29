@@ -11,6 +11,21 @@ static void *rtc_output_create(obs_data_t *settings, obs_output_t *output)
 {
 	UNUSED_PARAMETER(settings);
 	RTCOutput *context = new RTCOutput(RTCOutput::RTC_TYPE_TRTC, output);
+	audio_convert_info info;
+	info.format = AUDIO_FORMAT_16BIT;
+	info.samples_per_sec = 48000;
+	info.speakers = SPEAKERS_STEREO;
+	obs_output_set_audio_conversion(output, &info);
+
+	struct obs_video_info ovi;
+	obs_get_video_info(&ovi);
+	video_scale_info vInfo;
+	vInfo.format = VIDEO_FORMAT_I420;
+	vInfo.colorspace = ovi.colorspace;
+	vInfo.range = ovi.range;
+	vInfo.width = ovi.output_width;
+	vInfo.height = ovi.output_height;
+	obs_output_set_video_conversion(output, &vInfo);
 	return context;
 }
 
@@ -19,7 +34,7 @@ static void rtc_output_destroy(void *data)
 	RTCOutput *context = static_cast<RTCOutput *>(data);
 	if (context->stop_thread_active)
 		pthread_join(context->stop_thread, NULL);
-	bfree(context);
+	delete context;
 }
 
 static bool rtc_output_start(void *data)
@@ -28,8 +43,10 @@ static bool rtc_output_start(void *data)
 
 	if (!obs_output_can_begin_data_capture(context->m_output, 0))
 		return false;
-	if (!obs_output_initialize_encoders(context->m_output, 0))
-		return false;
+
+	context->m_rtcBase->enterRoom("333333", 333333, "");
+
+	obs_output_initialize_encoders(context->m_output, 0);
 
 	if (context->stop_thread_active)
 		pthread_join(context->stop_thread, NULL);
@@ -51,19 +68,32 @@ static void rtc_output_stop(void *data, uint64_t ts)
 	UNUSED_PARAMETER(ts);
 
 	RTCOutput *context = static_cast<RTCOutput *>(data);
+	context->m_rtcBase->exitRoom();
 	context->stop_thread_active = pthread_create(&context->stop_thread,
 						     NULL, stop_thread,
 						     data) == 0;
 }
 
-static void rtc_output_data(void *data, struct encoder_packet *packet)
+static void rtc_output_raw_video(void *data, struct video_data *frame)
 {
-	UNUSED_PARAMETER(data);
-	UNUSED_PARAMETER(packet);
+	RTCOutput *context = static_cast<RTCOutput *>(data);
+	context->m_rtcBase->sendVideo(frame);
+}
+static void rtc_output_raw_audio(void *data, struct audio_data *frames)
+{
+	RTCOutput *context = static_cast<RTCOutput *>(data);
+	context->m_rtcBase->sendAudio(frames);
 }
 
 static void rtc_output_custom_command(void *data, obs_data_t *param)
 {
+	RTCOutput *context = static_cast<RTCOutput *>(data);
+	const char * func = obs_data_get_string(param, "func");
+	if (strcmp(func, "set_info") == 0)
+	{
+		context->m_rtcBase->setRemoteViewHwnd(obs_data_get_int(param, "hwnd"));
+		context->m_rtcBase->setCropInfo(obs_data_get_int(param, "cropX"));
+	}
 }
 
 OBS_DECLARE_MODULE()
@@ -77,13 +107,14 @@ bool obs_module_load(void)
 {
 	struct obs_output_info rtc_output_info = { 0 };
 	rtc_output_info.id = "rtc_output";
-	rtc_output_info.flags = OBS_OUTPUT_AV | OBS_OUTPUT_ENCODED | OBS_OUTPUT_MULTI_TRACK;
+	rtc_output_info.flags = OBS_OUTPUT_AV;
 	rtc_output_info.get_name = rtc_output_getname;
 	rtc_output_info.create = rtc_output_create;
 	rtc_output_info.destroy = rtc_output_destroy;
 	rtc_output_info.start = rtc_output_start;
 	rtc_output_info.stop = rtc_output_stop;
-	rtc_output_info.encoded_packet = rtc_output_data;
+	rtc_output_info.raw_audio = rtc_output_raw_audio;
+	rtc_output_info.raw_video = rtc_output_raw_video;
 	rtc_output_info.custom_command = rtc_output_custom_command;
 
 	obs_register_output(&rtc_output_info);
@@ -94,8 +125,15 @@ void obs_module_unload(void) {}
 
 RTCOutput::RTCOutput(RTC_TYPE type, obs_output_t *output)
 {
+	m_output = output;
 	if(type == RTC_TYPE_TRTC)
 		m_rtcBase = new TRTC();
 	else if (type == RTC_TYPE_QINIU)
 		m_rtcBase = new QINIURTC();
+}
+
+RTCOutput::~RTCOutput()
+{
+	if (m_rtcBase)
+		m_rtcBase->deleteLater();
 }

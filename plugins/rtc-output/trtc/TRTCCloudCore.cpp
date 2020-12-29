@@ -6,6 +6,7 @@
 #include <assert.h>
 #include "util/base.h"
 #include "../rtc-define.h"
+#include "GenerateTestUserSig.h"
 
 TRTCCloudCore *TRTCCloudCore::m_instance = nullptr;
 static std::mutex engine_mex;
@@ -35,23 +36,7 @@ TRTCCloudCore::TRTCCloudCore()
 	if (trtc_module_ != nullptr)
 		return;
 
-	HMODULE hmodule = NULL;
-	GetModuleHandleEx(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS |
-				  GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
-			  L"TRTCModule", &hmodule);
-
-	char module_path[MAX_PATH] = {0};
-	::GetModuleFileNameA(hmodule, module_path, _countof(module_path));
-
-	std::string module_dir = GetPathNoExt(module_path);
-	if (module_dir.length() == 0) {
-		blog(LOG_ERROR, "TRTC GetModule Path Error");
-		return;
-	}
-
-	std::string module_full_path = module_dir + "liteav.dll";
-
-	trtc_module_ = ::LoadLibraryExA(module_full_path.c_str(), NULL,
+	trtc_module_ = ::LoadLibraryExA("liteav.dll", NULL,
 					LOAD_WITH_ALTERED_SEARCH_PATH);
 
 	if (trtc_module_ == NULL) {
@@ -86,16 +71,10 @@ TRTCCloudCore::~TRTCCloudCore()
 
 void TRTCCloudCore::Init()
 {
-	//检查默认选择设备
-	m_localUserId = CDataCenter::GetInstance()->getLocalUserID();
-
 	m_pCloud->addCallback(this);
 	m_pCloud->setLogCallback(this);
-	m_bPreUninit = false;
-	//std::string logPath = Wide2UTF8(L"D:/中文/log/");
-	//m_pCloud->setLogDirPath(logPath.c_str());
-	// m_pCloud->setConsoleEnabled(true);
 	m_pCloud->setAudioFrameCallback(this);
+	CDataCenter::GetInstance()->Init();
 }
 
 void TRTCCloudCore::Uninit()
@@ -106,17 +85,9 @@ void TRTCCloudCore::Uninit()
 
 void TRTCCloudCore::PreUninit()
 {
-	m_bPreUninit = true;
-	if (CDataCenter::GetInstance()->m_bStartSystemVoice) {
-		CDataCenter::GetInstance()->m_bStartSystemVoice = false;
-		TRTCCloudCore::GetInstance()
-			->getTRTCCloud()
-			->stopSystemAudioLoopback();
-	}
-
 	stopCloudMixStream();
-	stopCustomCaptureVideo();
-	stopCustomCaptureAudio();
+	m_pCloud->enableCustomAudioCapture(false);
+	m_pCloud->enableCustomVideoCapture(false);
 	m_pCloud->stopAllRemoteView();
 	m_pCloud->stopLocalPreview();
 	m_pCloud->muteLocalVideo(true);
@@ -172,7 +143,7 @@ void TRTCCloudCore::onEnterRoom(int result)
 }
 
 void TRTCCloudCore::onExitRoom(int reason)
-{
+{ 
 	Q_UNUSED(reason)
 	blog(LOG_INFO, "onExitRoom reason[%d]", reason);
 
@@ -278,30 +249,22 @@ void TRTCCloudCore::onConnectOtherRoom(const char *userId,
 				       TXLiteAVError errCode,
 				       const char *errMsg)
 {
-	LINFO(L"onConnectOtherRoom\n");
-	for (auto &itr : m_mapSDKMsgFilter) {
-		if (itr.first == WM_USER_CMD_PKConnectStatus &&
-		    itr.second != nullptr) {
-			std::string *str = new std::string(errMsg);
-			::PostMessage(itr.second, WM_USER_CMD_PKConnectStatus,
-				      errCode, (LPARAM)str);
-		}
-	}
+	blog(LOG_DEBUG, "onConnectOtherRoom");
+	QJsonObject data;
+	data["userId"] = userId;
+	data["errCode"] = errCode;
+	data["errMsg"] = errMsg;
+	emit trtcEvent(RTC_EVENT_CONNECT_OTHER_ROOM, data);
 }
 
 void TRTCCloudCore::onDisconnectOtherRoom(TXLiteAVError errCode,
 					  const char *errMsg)
 {
-	LINFO(L"onConnectOtherRoom\n");
-	for (auto &itr : m_mapSDKMsgFilter) {
-		if (itr.first == WM_USER_CMD_PKDisConnectStatus &&
-		    itr.second != nullptr) {
-			std::string *str = new std::string(errMsg);
-			::PostMessage(itr.second,
-				      WM_USER_CMD_PKDisConnectStatus, errCode,
-				      (LPARAM)str);
-		}
-	}
+	blog(LOG_INFO, "onConnectOtherRoom");
+	QJsonObject data;
+	data["errCode"] = errCode;
+	data["errMsg"] = errMsg;
+	emit trtcEvent(RTC_EVENT_DISCONNECT_OTHER_ROOM, data);
 }
 
 void TRTCCloudCore::onSetMixTranscodingConfig(int errCode, const char *errMsg)
@@ -344,14 +307,11 @@ void TRTCCloudCore::connectOtherRoom(QString userId, uint32_t roomId)
 
 void TRTCCloudCore::startCloudMixStream()
 {
-	m_bStartCloudMixStream = true;
-
 	updateMixTranCodeInfo();
 }
 
 void TRTCCloudCore::stopCloudMixStream()
 {
-	m_bStartCloudMixStream = false;
 	if (m_pCloud) {
 		m_pCloud->setMixTranscodingConfig(NULL);
 	}
@@ -359,44 +319,18 @@ void TRTCCloudCore::stopCloudMixStream()
 
 void TRTCCloudCore::updateMixTranCodeInfo()
 {
-	if (m_bStartCloudMixStream == false)
-		return;
+	blog(LOG_INFO, "updateMixTranCodeInfo");
 
 	int appId = GenerateTestUserSig::APPID;
 	int bizId = GenerateTestUserSig::BIZID;
-
-	if (appId == 0 || bizId == 0) {
-		blog(LOG_ERROR, u8"混流功能不可使用，请在TRTCGetUserIDAndUserSig.h->TXCloudAccountInfo填写混流的账号信息");
-		return;
-	}
-
-	RemoteUserInfoList &remoteMetaInfo =
-		CDataCenter::GetInstance()->m_remoteUser;
-	LocalUserInfo &localMetaInfo =
-		CDataCenter::GetInstance()->getLocalUserInfo();
-
-	bool bAudioSenceStyle = false;
-	if (CDataCenter::GetInstance()->m_sceneParams ==
-		    TRTCAppSceneAudioCall ||
-	    CDataCenter::GetInstance()->m_sceneParams ==
-		    TRTCAppSceneVoiceChatRoom)
-		bAudioSenceStyle = true;
-
-	//没有主流，直接停止混流。
-	if (!localMetaInfo.publish_audio && !localMetaInfo.publish_main_video) {
-		m_pCloud->setMixTranscodingConfig(NULL);
-		return;
-	}
-
+	
 	TRTCTranscodingConfig config;
-	config.mode = (TRTCTranscodingConfigMode)CDataCenter::GetInstance()
-			      ->m_mixTemplateID;
+	config.mode = (TRTCTranscodingConfigMode)CDataCenter::GetInstance()->m_mixTemplateID;
 	config.appId = appId;
 	config.bizId = bizId;
 
 	if (config.mode > TRTCTranscodingConfigMode_Manual) {
-		if (config.mode ==
-		    TRTCTranscodingConfigMode_Template_PresetLayout) {
+		if (config.mode == TRTCTranscodingConfigMode_Template_PresetLayout) {
 			setPresetLayoutConfig(config);
 		}
 
@@ -409,216 +343,12 @@ void TRTCCloudCore::updateMixTranCodeInfo()
 	}
 }
 
-void TRTCCloudCore::getMixVideoPos(int index, int &left, int &top, int &right,
-				   int &bottom)
-{
-	left = 20, top = 40;
-	if (index == 1) {
-		left = 240 / 4 * 3 + 240 * 2;
-		top = 240 / 3 * 1;
-	}
-	if (index == 2) {
-		left = 240 / 4 * 3 + 240 * 2;
-		top = 240 / 3 * 2 + 240 * 1;
-	}
-	if (index == 3) {
-		left = 240 / 4 * 2 + 240 * 1;
-		top = 240 / 3 * 1;
-	}
-	if (index == 4) {
-		left = 240 / 4 * 2 + 240 * 1;
-		top = 240 / 3 * 2 + 240 * 1;
-	}
-	if (index == 5) {
-		left = 240 / 4 * 1;
-		top = 240 / 3 * 1;
-	}
-	if (index == 6) {
-		left = 240 / 4 * 1;
-		top = 240 / 3 * 2 + 240 * 1;
-	}
-	right = 240 + left;
-	bottom = 240 + top;
-}
-
-void TRTCCloudCore::startCustomCaptureAudio(std::wstring filePat,
-					    int samplerate, int channel)
-{
-	m_audioFilePath = filePat;
-	_audio_file_length = 0;
-	_audio_samplerate = samplerate;
-	_audio_channel = channel;
-	ifstream ifs(m_audioFilePath, ifstream::binary);
-	if (!ifs)
-		return;
-	streampos pos = ifs.tellg();
-	ifs.seekg(0, ios::end);
-	_audio_file_length = ifs.tellg();
-	ifs.close();
-
-	m_bStartCustomCaptureAudio = true;
-	m_pCloud->stopLocalAudio();
-	if (m_pCloud)
-		m_pCloud->enableCustomAudioCapture(true);
-
-	if (custom_audio_thread_ == nullptr) {
-		auto task2 = [=]() {
-			while (m_bStartCustomCaptureAudio) {
-				sendCustomAudioFrame();
-				Sleep(20);
-			}
-		};
-		custom_audio_thread_ = new std::thread(task2);
-	}
-}
-
-void TRTCCloudCore::stopCustomCaptureAudio()
-{
-	m_audioFilePath = L"";
-	m_bStartCustomCaptureAudio = false;
-	_offset_audioread = 0;
-	if (_audio_buffer != nullptr) {
-		delete _audio_buffer;
-		_audio_buffer = nullptr;
-	}
-
-	if (custom_audio_thread_) {
-		custom_audio_thread_->join();
-		delete custom_audio_thread_;
-		custom_audio_thread_ = nullptr;
-	}
-
-	if (m_pCloud)
-		m_pCloud->enableCustomAudioCapture(false);
-
-	LocalUserInfo &_loginInfo = CDataCenter::GetInstance()->m_localInfo;
-	if (_loginInfo.publish_audio && m_bPreUninit == false)
-		m_pCloud->startLocalAudio(
-			(TRTCAudioQuality)CDataCenter::GetInstance()
-				->audio_quality_);
-}
-
-void TRTCCloudCore::startCustomCaptureVideo(std::wstring filePat, int width,
-					    int height)
-{
-	m_videoFilePath = filePat;
-	_video_file_length = 0;
-	_video_width = width;
-	_video_height = height;
-	ifstream ifs(m_videoFilePath, ifstream::binary);
-	if (!ifs)
-		return;
-	streampos pos = ifs.tellg();
-	ifs.seekg(0, ios::end);
-	_video_file_length = ifs.tellg();
-	ifs.close();
-
-	m_bStartCustomCaptureVideo = true;
-	m_pCloud->stopLocalPreview();
-
-	if (m_pCloud)
-		m_pCloud->enableCustomVideoCapture(true);
-
-	if (custom_video_thread_ == nullptr) {
-		auto task2 = [=]() {
-			while (m_bStartCustomCaptureVideo) {
-				sendCustomVideoFrame();
-				Sleep(66);
-			}
-		};
-		custom_video_thread_ = new std::thread(task2);
-	}
-}
-
-void TRTCCloudCore::stopCustomCaptureVideo()
-{
-	m_videoFilePath = L"";
-	m_bStartCustomCaptureVideo = false;
-	_offset_videoread = 0;
-	if (_video_buffer != nullptr) {
-		delete _video_buffer;
-		_video_buffer = nullptr;
-	}
-	if (m_pCloud)
-		m_pCloud->enableCustomVideoCapture(false);
-	if (m_bStartLocalPreview && m_bPreUninit == false)
-		m_pCloud->startLocalPreview(NULL);
-
-	if (custom_video_thread_) {
-		custom_video_thread_->join();
-		delete custom_video_thread_;
-		custom_video_thread_ = nullptr;
-	}
-}
-
-void TRTCCloudCore::sendCustomAudioFrame()
-{
-	if (!m_bStartCustomCaptureAudio)
-		return;
-	if (m_pCloud) {
-		ifstream ifs(m_audioFilePath, ifstream::binary);
-		if (!ifs)
-			return;
-
-		uint32_t bufferSize = (960 * _audio_samplerate / 48000) *
-				      (_audio_channel * 16 / 8);
-		if (_audio_buffer == nullptr)
-			_audio_buffer = (char *)malloc(bufferSize + 2);
-
-		if (_offset_audioread + bufferSize > _audio_file_length)
-			_offset_audioread = 0;
-
-		ifs.seekg(_offset_audioread);
-		ifs.read(_audio_buffer, bufferSize);
-		_offset_audioread += bufferSize;
-
-		TRTCAudioFrame frame;
-		frame.audioFormat = LiteAVAudioFrameFormatPCM;
-		frame.length = bufferSize;
-		frame.data = _audio_buffer;
-		frame.sampleRate = _audio_samplerate;
-		frame.channel = _audio_channel;
-		m_pCloud->sendCustomAudioData(&frame);
-	}
-}
-
-void TRTCCloudCore::sendCustomVideoFrame()
-{
-	if (!m_bStartCustomCaptureVideo)
-		return;
-	if (m_pCloud) {
-		ifstream ifs(m_videoFilePath, ifstream::binary);
-		if (!ifs)
-			return;
-
-		uint32_t bufferSize = _video_width * _video_height * 3 / 2;
-		if (_video_buffer == nullptr)
-			_video_buffer = (char *)malloc(bufferSize + 2);
-
-		if (_offset_videoread + bufferSize > _video_file_length)
-			_offset_videoread = 0;
-
-		ifs.seekg(_offset_videoread);
-		ifs.read(_video_buffer, bufferSize);
-		_offset_videoread += bufferSize;
-
-		TRTCVideoFrame frame;
-		frame.videoFormat = LiteAVVideoPixelFormat_I420;
-		frame.length = bufferSize;
-		frame.data = _video_buffer;
-		frame.width = _video_width;
-		frame.height = _video_height;
-		m_pCloud->sendCustomVideoData(&frame);
-	}
-}
-
 void TRTCCloudCore::setPresetLayoutConfig(TRTCTranscodingConfig &config)
 {
 
 	int canvasWidth = 1280;
 	int canvasHeight = 720;
-	if (CDataCenter::GetInstance()->m_videoEncParams.resMode ==
-	    TRTCVideoResolutionModePortrait) {
+	if (CDataCenter::GetInstance()->m_videoEncParams.resMode == TRTCVideoResolutionModePortrait) {
 		canvasHeight = 1280;
 		canvasWidth = 720;
 	}
@@ -715,22 +445,4 @@ void TRTCCloudCore::setPresetLayoutConfig(TRTCTranscodingConfig &config)
 			}
 		}
 	}
-}
-
-void TRTCCloudCore::startGreenScreen(const std::string &path) {}
-
-void TRTCCloudCore::stopGreenScreen() {}
-std::string TRTCCloudCore::GetPathNoExt(std::string path)
-{
-	std::string str_ret;
-	if (path.length() > 0) {
-		size_t uPos = 0;
-		for (size_t u = 0; u < path.size() - 1; u++) {
-			if (path.c_str()[u] == '\\')
-				uPos = u;
-		}
-
-		str_ret = path.substr(0, uPos + 1);
-	}
-	return str_ret;
 }

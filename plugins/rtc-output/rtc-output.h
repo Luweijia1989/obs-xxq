@@ -9,11 +9,10 @@ public:
 		RTC_TYPE_QINIU,
 	};
 	RTCOutput(RTC_TYPE type, obs_output_t *output);
+	~RTCOutput();
 public:
 	obs_output_t *m_output = nullptr;
 	pthread_t stop_thread;
 	bool stop_thread_active = false;
-
-private:
 	RTCBase *m_rtcBase = nullptr;
 };

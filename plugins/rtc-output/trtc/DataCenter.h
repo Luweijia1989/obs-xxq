@@ -36,9 +36,6 @@ public:
     std::string strRoomId = "";
     std::string _userSig;
     bool _bEnterRoom = false;
-    bool publish_audio = false;
-    bool publish_main_video = false;
-    bool publish_sub_video = false;
 }LocalUserInfo;
 
 typedef struct _tagPKUserInfo
@@ -53,14 +50,6 @@ typedef std::map<std::string, RemoteUserInfo> RemoteUserInfoList;
 class CDataCenter
 {
 public:
-    typedef struct _tagBeautyConfig {
-        bool _bOpenBeauty = false;
-        TRTCBeautyStyle _beautyStyle = TRTCBeautyStyleSmooth;
-        uint32_t _beautyValue = 0;
-        uint32_t _whiteValue = 0;
-        uint32_t _ruddinessValue = 0;
-    }BeautyConfig;
-
     typedef struct _tagVideoResBitrateTable
     {
     public:
@@ -86,29 +75,21 @@ public:
     CDataCenter();
     ~CDataCenter();
     void CleanRoomInfo();
-    void UnInit();
     void Init();    //初始化SDK的local配置信息
 public:
     LocalUserInfo& getLocalUserInfo();
+    void setLocalUserInfo(std::string userId, int roomId, std::string userSig);
     std::string getLocalUserID() { return m_localInfo._userId; };
     VideoResBitrateTable getVideoConfigInfo(int resolution);
-    bool getAudioAvaliable(std::string userId);
-    bool getVideoAvaliable(std::string userId, TRTCVideoStreamType type);
     TRTCRenderParams getLocalRenderParams();
     TRTCVideoStreamType getRemoteVideoStreamType();
 
-public: //trtc 
-    std::wstring m_selectSpeak;
-    std::wstring m_selectMic;
-    std::wstring m_selectCamera;
+public:
 
     TRTCVideoEncParam m_videoEncParams;
     TRTCNetworkQosParam m_qosParams;
     TRTCAppScene m_sceneParams = TRTCAppSceneVideoCall;
     TRTCRoleType m_roleType = TRTCRoleAnchor;
-
-    bool m_bPushSmallVideo = false; //推流打开小流设置。
-    bool m_bPlaySmallVideo = false; //拉流打开小流设置。
 
     /*
     enum {
@@ -117,36 +98,8 @@ public: //trtc
         Env_UAT = 2,    // 体验环境
     };
     */
-    int m_nLinkTestServer = 1; //是否连接测试环境。
-    bool m_bOpenDemoTestConfig = false; //是否打开demo的测试环境开关。。
-
-    bool m_bAutoRecvAudio = true;
-    bool m_bAutoRecvVideo = true;
-
-    bool m_bMuteLocalVideo = false;
-    bool m_bMuteLocalAudio = false;
-
-    bool m_bLocalVideoMirror = false;      //本地镜像
-    bool m_bRemoteVideoMirror = false;     //暂不支持
-    bool m_bShowAudioVolume =   true;      //开启音量提示
-    bool m_bBlackFramePush = false;        //开启黑帧推流
-
-    bool m_bCustomAudioCapture = false;    //自定义采集音频
-    bool m_bCustomVideoCapture = false;    //自定义采集视频
-
-    bool user_default_3a_config_ = true;  
-    bool m_bEnableAec = true;
-    bool m_bEnableAns = true;
-    bool m_bEnableAgc = true;
-
-    std::string m_strSocks5ProxyIp;
-    int         m_strSocks5ProxyPort = 0;
-
-    bool m_bOpenAudioAndCanvasMix = false; //开启纯音频+画布混流模式。
-    bool m_bCDNMixTranscoding = false;     //混流设置
-    bool m_bPublishScreenInBigStream = false;
+    int m_nLinkTestServer = 0; //是否连接测试环境。
     int m_mixTemplateID = 0;
-    std::string m_strMixStreamId;
     std::string m_strCustomStreamId;
 
     std::map<int, VideoResBitrateTable> m_videoConfigMap;
@@ -156,11 +109,6 @@ public: //trtc
     uint32_t m_audioPlayoutVolume = 100; // 软件播放音量（人声）
     //是否在room中
     bool m_bIsEnteredRoom = false;
-
-    bool m_bStartSystemVoice = false;
-
-    int audio_quality_ = TRTCAudioQualityUnSelect;
-    LivePlayerSourceType m_emLivePlayerSourceType = TRTC_RTC;
 public: 
     //远端用户信息
     RemoteUserInfoList m_remoteUser;
