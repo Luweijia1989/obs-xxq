@@ -148,11 +148,11 @@ void ScrollTextSource::RenderText()
 		box.Offset(outline_size / 2, outline_size / 2);
 
 		FontFamily family;
-		GraphicsPath path;
 		font->GetFamily(&family);
 		int count = CaculateTextColums(text);
 
 		if ((update_time1 < animate_time && update_time1 > 0.0f)) {
+			GraphicsPath path1;
 			float posx = 0;
 			float posy = 0;
 			CalculateTextPos(count, format, posx, posy, size,
@@ -160,19 +160,18 @@ void ScrollTextSource::RenderText()
 			box.X = posx;
 			box.Y = posy;
 			LinearGradientBrush brush1(
-				RectF(posx, posy, (float)size.cx,
-				      (float)size.cy),
-				Color(calc_color(color, opacity)),
+				box, Color(calc_color(color, opacity)),
 				Color(calc_color(color2, opacity2)),
 				gradient_dir, 1);
-			stat = path.AddString(text.c_str(), (int)text.size(),
-					      &family, font->GetStyle(),
-					      font->GetSize(), box, &format);
+			stat = path1.AddString(text.c_str(), (int)text.size(),
+					       &family, font->GetStyle(),
+					       font->GetSize(), box, &format);
 			warn_stat("path.AddString");
-			RenderSlideOutlineText(graphics_bitmap, path, brush1);
+			RenderSlideOutlineText(graphics_bitmap, path1, brush1);
 		}
 
 		if ((update_time2 < animate_time && update_time2 > 0.0f)) {
+			GraphicsPath path2;
 			float posx = 0;
 			float posy = 0;
 			CalculateTextPos(count, format, posx, posy, size,
@@ -180,19 +179,16 @@ void ScrollTextSource::RenderText()
 			box.X = posx;
 			box.Y = posy;
 			LinearGradientBrush brush2(
-				RectF(posx, posy, (float)size.cx,
-				      (float)size.cy),
-				Color(calc_color(color, opacity)),
+				box, Color(calc_color(color, opacity)),
 				Color(calc_color(color2, opacity2)),
 				gradient_dir, 1);
 
-			stat = path.AddString(text.c_str(), (int)text.size(),
-					      &family, font->GetStyle(),
-					      font->GetSize(), box, &format);
+			stat = path2.AddString(text.c_str(), (int)text.size(),
+					       &family, font->GetStyle(),
+					       font->GetSize(), box, &format);
 			warn_stat("path.AddString");
-			RenderSlideOutlineText(graphics_bitmap, path, brush2);
+			RenderSlideOutlineText(graphics_bitmap, path2, brush2);
 		}
-
 	} else {
 		int count = CaculateTextColums(text);
 
@@ -204,9 +200,7 @@ void ScrollTextSource::RenderText()
 			box.X = posx;
 			box.Y = posy;
 			LinearGradientBrush brush1(
-				RectF(posx, posy, (float)size.cx,
-				      (float)size.cy),
-				Color(calc_color(color, opacity)),
+				box, Color(calc_color(color, opacity)),
 				Color(calc_color(color2, opacity2)),
 				gradient_dir, 1);
 			stat = graphics_bitmap.DrawString(text.c_str(),
@@ -223,9 +217,7 @@ void ScrollTextSource::RenderText()
 			box.X = posx;
 			box.Y = posy;
 			LinearGradientBrush brush2(
-				RectF(posx, posy, (float)size.cx,
-				      (float)size.cy),
-				Color(calc_color(color, opacity)),
+				box, Color(calc_color(color, opacity)),
 				Color(calc_color(color2, opacity2)),
 				gradient_dir, 1);
 			stat = graphics_bitmap.DrawString(text.c_str(),
@@ -691,7 +683,6 @@ void ScrollTextSource::RenderSlideOutlineText(Graphics &graphics,
 
 	stat = graphics.DrawPath(&pen, &path);
 	warn_stat("graphics.DrawPath");
-
 	stat = graphics.FillPath(&brush, &path);
 	warn_stat("graphics.FillPath");
 }

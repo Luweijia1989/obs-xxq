@@ -536,10 +536,10 @@ void SlideTextSource::RenderSlideText()
 			warn_stat("graphics_bitmap.Clear");
 		}
 
-		LinearGradientBrush brush1(
-			RectF(box.X, box.Y, (float)size.cx, (float)size.cy),
-			Color(calc_color(color, opacity)),
-			Color(calc_color(color2, opacity2)), gradient_dir, 1);
+		LinearGradientBrush brush1(box,
+					   Color(calc_color(color, opacity)),
+					   Color(calc_color(color2, opacity2)),
+					   gradient_dir, 1);
 		stat = path.AddString(text.c_str(), (int)text.size(), &family,
 				      font->GetStyle(), font->GetSize(), box,
 				      &format);
@@ -569,9 +569,7 @@ void SlideTextSource::RenderSlideText()
 				warn_stat("graphics_bitmap.Clear");
 			}
 			LinearGradientBrush brush1(
-				RectF(box.X, box.Y, (float)size.cx,
-				      (float)size.cy),
-				Color(calc_color(color, opacity)),
+				box, Color(calc_color(color, opacity)),
 				Color(calc_color(color2, opacity2)),
 				gradient_dir, 1);
 			stat = graphics_bitmap.DrawString(text.c_str(),
