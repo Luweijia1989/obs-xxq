@@ -1,9 +1,11 @@
 #include "rtc-base.h"
 #include "trtc/TRTCCloudCore.h"
 #include "trtc/GenerateTestUserSig.h"
+#include "qnrtc/qiniurtc.h"
 #include "TXLiteAVBase.h"
 #include "rtc-define.h"
 #include <QDebug>
+#include <QTimer>
 
 TRTC::TRTC()
 {
@@ -61,9 +63,12 @@ void TRTC::init()
 	TRTCCloudCore::GetInstance()->Init();
 }
 
-void TRTC::enterRoom(QString userId, int roomId, QString userSig)
+void TRTC::enterRoom()
 {
-	userSig = QString::fromStdString(GenerateTestUserSig::instance().genTestUserSig(userId.toStdString()));
+	QString userId = linkInfo().value("userId").toString();
+	int roomId = linkInfo().value("roomId").toInt();
+	QString userSig = QString::fromStdString(GenerateTestUserSig::instance().genTestUserSig(userId.toStdString()));
+	//QString userSig = linkInfo().value("userSig").toString();
 	CDataCenter::GetInstance()->setLocalUserInfo(userId.toStdString(), roomId, userSig.toStdString());
 	init();
 
@@ -81,12 +86,8 @@ void TRTC::enterRoom(QString userId, int roomId, QString userSig)
 
 
 	TRTCCloudCore::GetInstance()->getTRTCCloud()->setVideoEncoderParam(CDataCenter::GetInstance()->m_videoEncParams);
-	TRTCCloudCore::GetInstance()->getTRTCCloud()->setLocalRenderParams(CDataCenter::GetInstance()->getLocalRenderParams());
 	TRTCCloudCore::GetInstance()->getTRTCCloud()->setVideoEncoderMirror(false);
 	TRTCCloudCore::GetInstance()->getTRTCCloud()->setNetworkQosParam(CDataCenter::GetInstance()->m_qosParams);
-
-	TRTCCloudCore::GetInstance()->getDeviceManager()->setCurrentDeviceVolume(TRTCDeviceTypeMic, CDataCenter::GetInstance()->m_micVolume);
-	TRTCCloudCore::GetInstance()->getDeviceManager()->setCurrentDeviceVolume(TRTCDeviceTypeSpeaker, CDataCenter::GetInstance()->m_speakerVolume);
 
 	TRTCCloudCore::GetInstance()->getTRTCCloud()->stopLocalPreview();
 	TRTCCloudCore::GetInstance()->getTRTCCloud()->stopLocalAudio();
@@ -105,10 +106,16 @@ void TRTC::exitRoom()
 	TRTCCloudCore::GetInstance()->PreUninit();
 	TRTCCloudCore::GetInstance()->getTRTCCloud()->exitRoom();
 
-	if (info._bEnterRoom == false)
+	if (!CDataCenter::GetInstance()->m_bIsEnteredRoom)
 	{
 		onExitRoom();
+		return;
 	}
+
+	QTimer timer;
+	connect(&timer, &QTimer::timeout, &m_exitRoomLoop, &QEventLoop::quit);
+	timer.start(1000);
+	m_exitRoomLoop.exec(QEventLoop::ExcludeUserInputEvents);
 }
 
 void TRTC::switchRoom(int roomId)
@@ -247,7 +254,6 @@ void TRTC::onEnterRoom(int result)
 		TRTCCloudCore::GetInstance()->getTRTCCloud()->muteLocalAudio(false);
 
 		LocalUserInfo& info = CDataCenter::GetInstance()->getLocalUserInfo();
-		info._bEnterRoom = true;
 
 		qDebug() << QString(u8"进入[%1]房间成功,耗时:%2ms").arg(info._roomId).arg(result);
 		TRTCCloudCore::GetInstance()->startCloudMixStream();
@@ -265,6 +271,7 @@ void TRTC::onExitRoom()
 	CDataCenter::GetInstance()->CleanRoomInfo();
 	TRTCCloudCore::GetInstance()->Uninit();
 	CDataCenter::GetInstance()->m_bIsEnteredRoom = false;
+	m_exitRoomLoop.quit();
 }
 
 void TRTC::onUserAudioAvailable(QString userId, bool available)
@@ -291,11 +298,11 @@ void TRTC::onUserVideoAvailable(QString userId, bool available)
 		{
 			remoteInfo->available_main_video = true;
 			remoteInfo->subscribe_main_video = true;
-			TRTCCloudCore::GetInstance()->getTRTCCloud()->startRemoteView(idstr.c_str(), CDataCenter::GetInstance()->getRemoteVideoStreamType(), (trtc::TXView)m_remoteView);
+			TRTCCloudCore::GetInstance()->getTRTCCloud()->startRemoteView(idstr.c_str(), (HWND)m_remoteView);
 		}
 	}
 	else {
-		TRTCCloudCore::GetInstance()->getTRTCCloud()->stopRemoteView(idstr.c_str(), TRTCVideoStreamTypeBig);
+		TRTCCloudCore::GetInstance()->getTRTCCloud()->stopRemoteView(idstr.c_str());
 		if (remoteInfo != nullptr && remoteInfo->user_id != "")
 		{
 			remoteInfo->available_main_video = false;
@@ -325,11 +332,7 @@ void TRTC::onRemoteUserLeave(QString userId)
 	qDebug() << QString(u8"%1离开房间").arg(userId);
 	std::string idstr = userId.toStdString();
 	if (TRTCCloudCore::GetInstance()->getTRTCCloud())
-		TRTCCloudCore::GetInstance()->getTRTCCloud()->stopRemoteView(idstr.c_str(), TRTCVideoStreamTypeBig);
-
-	//强制清除辅路视频位。
-	if (TRTCCloudCore::GetInstance()->getTRTCCloud())
-		TRTCCloudCore::GetInstance()->getTRTCCloud()->stopRemoteView(idstr.c_str(), TRTCVideoStreamTypeSub);
+		TRTCCloudCore::GetInstance()->getTRTCCloud()->stopRemoteView(idstr.c_str());
 
 	CDataCenter::GetInstance()->removeRemoteUser(idstr);
 }
@@ -344,13 +347,87 @@ void TRTC::onDisconnectOtherRoom(int errCode, QString errMsg)
 	qDebug() << (errCode == 0 ? QString(u8"取消连麦成功[msg:%s]").arg(errMsg) : QString(u8"取消连麦失败:[errCode:%d, msg:%s]").arg(errCode).arg(errMsg));
 }
 
-QINIURTC::QINIURTC(){}
+QINIURTC::QINIURTC()
+{
+	m_rtc = new QNRtc(this);
+	connect(
+		m_rtc, &QNRtc::linkStateResult, this, [=](QNRtc::ResultCode code, int erorrCode, QString errorStr) {
+		switch (code)
+		{
+		case QNRtc::JoinSucess:
+		case QNRtc::SubscribeSucess:
+		case QNRtc::PublishSucess:
+		{
+			if (code == QNRtc::JoinSucess)
+			{
+				m_joinSucess = true;
+			}
+			else if (code == QNRtc::SubscribeSucess)
+			{
+				m_subscibeSucess = true;
+			}
+			else if (code == QNRtc::PublishSucess)
+			{
+				m_publishSucess = true;
+			}
+
+			if (m_joinSucess && m_subscibeSucess && m_publishSucess)
+				m_rtc->doLinkMerge();
+		}
+		break;
+		case QNRtc::MergeSucess:
+			emit onEvent(RTC_EVENT_SUCCESS, QJsonObject());
+		break;
+		case QNRtc::Failture:
+		{
+			QJsonObject obj;
+			obj["errCode"] = erorrCode;
+			obj["errMsg"] = errorStr;
+			obj["isNetFail"] = true;
+			emit onEvent(RTC_EVENT_FAIL, obj);
+		}
+		break;
+		case QNRtc::ReConnect:
+			emit onEvent(RTC_EVENT_RECONNECTING, QJsonObject());
+		break;
+		case QNRtc::ReJoin:
+			emit onEvent(RTC_EVENT_REJOIN, QJsonObject());
+		break;
+		case QNRtc::JoinFailture:
+		{
+			QJsonObject obj;
+			obj["errCode"] = erorrCode;
+			obj["errMsg"] = errorStr;
+			obj["isNetFail"] = false;
+			emit onEvent(RTC_EVENT_FAIL, obj);
+		}
+		break;
+		default:
+			break;
+		}
+	});
+}
+
+ QINIURTC::~QINIURTC() {}
 
 void QINIURTC::init() {}
 
-void QINIURTC::enterRoom(QString userId, int roomId, QString userSig) {}
+void QINIURTC::enterRoom()
+{
+	m_rtc->SetVideoInfo(videoInfo().audioBitrate, videoInfo().videoBitrate, videoInfo().fps);
+	m_rtc->setCropInfo(cropInfo().x(), 0, 724, 1080);
+	m_rtc->setUserId(linkInfo().value("userId").toString());
+	m_rtc->setPushUrl(linkInfo().value("pushUrl").toString());
+	m_rtc->startLink(linkInfo().value("token").toString());
+}
 
-void QINIURTC::exitRoom() {}
+void QINIURTC::exitRoom()
+{
+	m_rtc->stopLink();
+	bool m_joinSucess = false;
+	bool m_subscibeSucess = false;
+	bool m_publishSucess = false;
+}
 
 void QINIURTC::switchRoom(int roomId) {}
 
@@ -358,8 +435,17 @@ void QINIURTC::connectOtherRoom(QString userId, int roomId) {}
 
 void QINIURTC::disconnectOtherRoom() {}
 
-void QINIURTC::setRemoteViewHwnd(long window) {}
+void QINIURTC::setRemoteViewHwnd(long window)
+{
+	m_rtc->setRenderWidget((HWND)window);
+}
 
-void QINIURTC::sendAudio(struct audio_data *data) {}
+void QINIURTC::sendAudio(struct audio_data *data)
+{
+	m_rtc->PushExternalAudioData(data->data[0], data->frames);
+}
 
-void QINIURTC::sendVideo(struct video_data *data) {}
+void QINIURTC::sendVideo(struct video_data *data)
+{
+	m_rtc->PushExternalVideoData(data->data[0], data->timestamp);
+}

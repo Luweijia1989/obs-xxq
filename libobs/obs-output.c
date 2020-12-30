@@ -82,6 +82,7 @@ static const char *output_signals[] = {
 	"void deactivate(ptr output)",
 	"void reconnect(ptr output)",
 	"void reconnect_success(ptr output)",
+	"void sig_event(ptr output, ptr data)",
 	NULL,
 };
 

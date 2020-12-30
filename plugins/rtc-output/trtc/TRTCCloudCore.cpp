@@ -54,7 +54,6 @@ TRTCCloudCore::TRTCCloudCore()
 				trtc_module_, "destroyTRTCShareInstance");
 
 		m_pCloud = getTRTCShareInstance();
-		m_pDeviceManager = getTRTCShareInstance()->getDeviceManager();
 	}
 }
 
@@ -97,11 +96,6 @@ void TRTCCloudCore::PreUninit()
 ITRTCCloud *TRTCCloudCore::getTRTCCloud()
 {
 	return m_pCloud;
-}
-
-ITXDeviceManager *TRTCCloudCore::getDeviceManager()
-{
-	return m_pDeviceManager;
 }
 
 ITRTCCloudCallback *TRTCCloudCore::GetITRTCCloudCallback()

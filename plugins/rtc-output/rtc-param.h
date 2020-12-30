@@ -1,6 +1,6 @@
 #pragma once
 
-#include <TRTC/ITRTCCloud.h>
+#include <ITRTCCloud.h>
 class VideoLinkParam
 {
 public:

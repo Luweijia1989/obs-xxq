@@ -15,7 +15,8 @@ else()
 endif()
 
 include_directories(${PROJECT_SOURCE_DIR}/trtc/sdk/include)
-include_directories(${PROJECT_SOURCE_DIR}/trtc/sdk/include/TRTC)
+include_directories(${PROJECT_SOURCE_DIR}/qnrtc/include/cpp)
+include_directories(${PROJECT_SOURCE_DIR}/qnrtc/include/cpp/qiniu)
 include_directories(${PROJECT_SOURCE_DIR})
 
 find_package(Qt5Core REQUIRED)
@@ -28,6 +29,7 @@ set(rtc-output_SOURCES
 	trtc/TRTCCloudCore.cpp
 	trtc/DataCenter.cpp
 	trtc/GenerateTestUserSig.cpp
+	qnrtc/qiniurtc.cpp
 	rtc-param.cpp
 	rtc-base.cpp
 )
@@ -38,6 +40,7 @@ set(rtc-output_HEADERS
 	trtc/TRTCCloudCore.h
 	trtc/DataCenter.h
 	trtc/GenerateTestUserSig.h
+	qnrtc/qiniurtc.h
 	rtc-param.h
 	rtc-base.h
 	rtc-define.h
@@ -50,6 +53,8 @@ target_link_libraries(rtc-output
 	libobs
 	Qt5::Core
 	w32-pthreads
+	debug ${PROJECT_SOURCE_DIR}/qnrtc/lib/QNRTCStreamingD.lib
+	optimized ${PROJECT_SOURCE_DIR}/qnrtc/lib/QNRTCStreaming.lib
 	${ZLIB_LIBRARIES}
 	${PROJECT_SOURCE_DIR}/trtc/sdk/lib/liteav.lib)
 
@@ -68,4 +73,19 @@ add_custom_command(TARGET rtc-output POST_BUILD
 		VERBATIM)
 endfunction()
 
+function(install_dependency_qiniu target)
+add_custom_command(TARGET rtc-output POST_BUILD
+		COMMAND "${CMAKE_COMMAND}" -E copy
+			"${PROJECT_SOURCE_DIR}/qnrtc/lib/${target}"
+			"${OBS_OUTPUT_DIR}/$<CONFIGURATION>/bin/${_bit_suffix}${target}"
+		VERBATIM)
+add_custom_command(TARGET rtc-output POST_BUILD
+		COMMAND "${CMAKE_COMMAND}" -E copy
+			"${PROJECT_SOURCE_DIR}/qnrtc/lib/${target}"
+			"$<TARGET_FILE_DIR:rtc-output>/${target}"
+		VERBATIM)
+endfunction()
+
 install_dependency("liteav.dll")
+install_dependency_qiniu("QNRTCStreaming.dll")
+install_dependency_qiniu("QNRTCStreamingD.dll")

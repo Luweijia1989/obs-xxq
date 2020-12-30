@@ -28,6 +28,8 @@
 #include <QScreen>
 #include <QColorDialog>
 #include <QSizePolicy>
+#include <QJsonObject>
+#include <QJsonDocument>
 
 #include <util/dstr.h>
 #include <util/util.hpp>
@@ -209,6 +211,7 @@ void sceneitem_destroy_handler(obs_sceneitem_t *item)
 		WaitConnection());
 }
 obs_output_t *outputttt;
+
 OBSBasic::OBSBasic(QWidget *parent)
 	: OBSMainWindow(parent), ui(new Ui::OBSBasic)
 {
@@ -224,14 +227,24 @@ OBSBasic::OBSBasic(QWidget *parent)
 	connect(btn, &QPushButton::clicked, this, [=](){
 		obs_output_pause(outputHandler->streamOutput, true);
 		obs_data_t *setting = obs_data_create();
-		obs_data_set_int(setting, "rtc_type", 0);
+		obs_data_set_int(setting, "rtc_type", 1);
+		obs_data_set_int(setting, "audiobitrate", config_get_uint(basicConfig, "SimpleOutput", "ABitrate"));
+		obs_data_set_int(setting, "videobitrate", config_get_uint(basicConfig, "SimpleOutput", "VBitrate"));
+		obs_data_set_int(setting, "fps", 30);
+		obs_data_set_int(setting, "hwnd", view->winId());
+		obs_data_set_int(setting, "cropX", 600);
+		QJsonObject obj;
+		obj["userId"] = "333333";
+		obj["roomId"] = 333333;
+		obj["userSig"] = "";
+		obs_data_set_string(setting, "linkInfo", QJsonDocument(obj).toJson(QJsonDocument::Compact).data());
 		outputttt = obs_output_create("rtc_output", "rtc_output", setting, NULL);
-		obs_data_t *data = obs_data_create();
-		obs_data_set_string(data, "func", "set_info");
-		obs_data_set_int(data, "hwnd", view->winId());
-		obs_data_set_int(data, "cropX", 100);
-		obs_output_call_function(outputttt, data);
-		obs_data_release(data);
+		signal_handler_connect(obs_output_get_signal_handler(outputttt),
+			"sig_event", [](void *data, calldata_t *params){
+			obs_data_t *eventData = (obs_data_t *)calldata_ptr(params, "data");
+			blog(LOG_DEBUG, "AAAAAAA %lld", obs_data_get_int(eventData, "event_type"));
+		},
+			this);
 		obs_data_release(setting);
 		obs_output_start(outputttt);
 		blog(LOG_INFO, "output start complete");

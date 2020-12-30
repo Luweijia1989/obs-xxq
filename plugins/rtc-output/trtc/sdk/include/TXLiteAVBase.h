@@ -1,17 +1,20 @@
 ﻿/**
- * Module:   TXLiteAVBase @ liteav
- *
- * Function: SDK 公共定义头文件
- *
- */
+* Module:   TXLiteAVBase @ liteav
+*
+* Function: SDK 公共定义头文件
+*
+*/
 
 #ifndef __TXLITEAVBASE_H__
 #define __TXLITEAVBASE_H__
 
-#ifdef _WIN32
-//防止windows用户引用TXLiteAVBase.h报错
-#include "TRTCTypeDef.h"
+#include <stdint.h>
+
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
 #endif
+
+#include <Windows.h>
 
 #ifdef LITEAV_EXPORTS
 #define LITEAV_API __declspec(dllexport)
@@ -23,54 +26,253 @@ extern "C" {
     /// @name SDK 导出基础功能接口
     /// @{
     /**
-     * \brief 获取 SDK 版本号
-     *
-     * \return 返回 UTF-8 编码的版本号。
-     */
+    * \brief 获取 SDK 版本号
+    *
+    * \return 返回 UTF-8 编码的版本号。
+    */
     LITEAV_API const char* getLiteAvSDKVersion();
     /// @}
 }
 
+/// @addtogroup TRTCCloudDef_cplusplus
+/// @{
+
 /**
- * 以下定义仅用于兼容原有接口，具体定义参见 TRTCTypeDef.h 文件
- */
-typedef TRTCVideoBufferType LiteAVVideoBufferType;
-#define LiteAVVideoBufferType_Unknown TRTCVideoBufferType_Unknown
-#define LiteAVVideoBufferType_Buffer  TRTCVideoBufferType_Buffer
-#define LiteAVVideoBufferType_Texture TRTCVideoBufferType_Texture
+* 视频数据结构类型
+*/
+enum LiteAVVideoBufferType
+{
+    LiteAVVideoBufferType_Unknown = 0,
+    LiteAVVideoBufferType_Buffer = 1,       ///< 二进制Buffer类型
+    LiteAVVideoBufferType_Texture = 3,      ///< 纹理类型
+};
 
-typedef TRTCVideoPixelFormat LiteAVVideoPixelFormat;
-#define LiteAVVideoPixelFormat_Unknown    TRTCVideoPixelFormat_Unknown
-#define LiteAVVideoPixelFormat_I420       TRTCVideoPixelFormat_I420
-#define LiteAVVideoPixelFormat_Texture_2D TRTCVideoPixelFormat_Texture_2D
-#define LiteAVVideoPixelFormat_BGRA32     TRTCVideoPixelFormat_BGRA32
+/**
+* 视频帧的格式
+*/
+enum LiteAVVideoPixelFormat
+{
+    LiteAVVideoPixelFormat_Unknown = 0,
+    LiteAVVideoPixelFormat_I420 = 1,        ///< I420
+    LiteAVVideoPixelFormat_Texture_2D = 2,  ///< OpenGL 2D 纹理
+    LiteAVVideoPixelFormat_BGRA32 = 3,      ///< BGRA32
+};
 
-typedef TRTCAudioFrameFormat LiteAVAudioFrameFormat;
-#define LiteAVAudioFrameFormatNone TRTCAudioFrameFormatNone
-#define LiteAVAudioFrameFormatPCM  TRTCAudioFrameFormatPCM
+/**
+* 音频帧的格式
+*/
+enum LiteAVAudioFrameFormat
+{
+    LiteAVAudioFrameFormatNone = 0,
+    LiteAVAudioFrameFormatPCM,              ///< PCM，每个采样点占16bit数据量。
+};
 
-typedef TRTCVideoRotation LiteAVVideoRotation;
-#define LiteAVVideoRotation0   TRTCVideoRotation0
-#define LiteAVVideoRotation90  TRTCVideoRotation90
-#define LiteAVVideoRotation180 TRTCVideoRotation180
-#define LiteAVVideoRotation270 TRTCVideoRotation270
+/**
+* 视频画面旋转方向
+*/
+enum LiteAVVideoRotation
+{
+    LiteAVVideoRotation0 = 0,             ///< 顺时针旋转0度
+    LiteAVVideoRotation90 = 1,             ///< 顺时针旋转90度
+    LiteAVVideoRotation180 = 2,             ///< 顺时针旋转180度
+    LiteAVVideoRotation270 = 3,             ///< 顺时针旋转270度
+};
 
-typedef TRTCVideoFrame LiteAVVideoFrame;
-typedef TRTCAudioFrame LiteAVAudioFrame;
+/*************************************************************************************************************************************************************************/
 
-typedef TRTCScreenCaptureSourceType LiteAVScreenCaptureSourceType;
-#define LiteAVScreenCaptureSourceTypeUnknown TRTCScreenCaptureSourceTypeUnknown
-#define LiteAVScreenCaptureSourceTypeWindow  TRTCScreenCaptureSourceTypeWindow
-#define LiteAVScreenCaptureSourceTypeScreen  TRTCScreenCaptureSourceTypeScreen
-#define LiteAVScreenCaptureSourceTypeCustom  TRTCScreenCaptureSourceTypeCustom
+/**
+* 视频帧数据
+*/
+struct LiteAVVideoFrame
+{
+    LiteAVVideoPixelFormat videoFormat;     ///< 视频帧的格式
+    LiteAVVideoBufferType bufferType;       ///< 视频数据结构类型
+    char* data;                             ///< 视频数据，字段bufferType是LiteAVVideoBufferType_Buffer时生效
+    int textureId;                          ///< 视频纹理ID，字段bufferType是LiteAVVideoBufferType_Texture时生效
+    uint32_t length;                        ///< 视频数据的长度，单位是字节，对于i420而言， length = width * height * 3 / 2，对于BGRA32而言， length = width * height * 4
+    uint32_t width;                         ///< 画面的宽度
+    uint32_t height;                        ///< 画面的高度
+    uint64_t timestamp;                     ///< 时间戳，单位ms
+    LiteAVVideoRotation rotation;           ///< 画面旋转角度
 
-typedef TRTCImageBuffer LiteAVImageBuffer;
-typedef TRTCScreenCaptureSourceInfo LiteAVScreenCaptureSourceInfo;
-typedef ITRTCScreenCaptureSourceList ILiteAVScreenCaptureSourceList;
-typedef TRTCScreenCaptureProperty LiteAVScreenCaptureProperty;
+    LiteAVVideoFrame()
+        : videoFormat(LiteAVVideoPixelFormat_Unknown)
+        , data(NULL)
+        , textureId(-1)
+        , length(0)
+        , width(640)
+        , height(360)
+        , timestamp(0)
+        , rotation(LiteAVVideoRotation0)
+    {
 
-typedef ITRTCDeviceInfo ILiteAVDeviceInfo;
-typedef ITRTCDeviceCollection ILiteAVDeviceCollection;
+    }
+};
+
+/**
+* 音频帧数据
+*/
+struct LiteAVAudioFrame
+{
+    LiteAVAudioFrameFormat audioFormat;     ///< 音频帧的格式
+    char* data;                             ///< 音频数据
+    uint32_t length;                        ///< 音频数据的长度
+    uint32_t sampleRate;                    ///< 采样率
+    uint32_t channel;                       ///< 声道数
+    uint64_t timestamp;                     ///< 时间戳，单位ms
+
+    LiteAVAudioFrame()
+        : audioFormat(LiteAVAudioFrameFormatNone)
+        , data(NULL)
+        , length(0)
+        , sampleRate(48000)
+        , channel(1)
+        , timestamp(0)
+    {
+
+    }
+};
+
+
+
+
+/////////////////////////////////////////////////////////////////////////////////
+/// \brief【屏幕分享窗口信息 TRTCScreenCaptureSourceInfo】
+///
+/// \desc 您可以通过 getScreenCaptureSources() 枚举可共享的窗口列表，列表通过 ITRTCScreenCaptureSourceList 返回
+/////////////////////////////////////////////////////////////////////////////////
+enum LiteAVScreenCaptureSourceType
+{
+    LiteAVScreenCaptureSourceTypeUnknown = -1,
+    LiteAVScreenCaptureSourceTypeWindow = 0,   ///< 该分享目标是某一个Windows窗口
+    LiteAVScreenCaptureSourceTypeScreen = 1,   ///< 该分享目标是整个Windows桌面
+    LiteAVScreenCaptureSourceTypeCustom = 2,
+};
+
+struct LiteAVImageBuffer
+{
+    const char* buffer;      ///< 图内容
+    uint32_t length;         ///< 图缓存大小
+    uint32_t width;          ///< 图宽
+    uint32_t height;         ///< 图高
+    LiteAVImageBuffer()
+        : buffer(NULL)
+        , length(0)
+        , width(0)
+        , height(0)
+    {};
+};
+
+struct LiteAVScreenCaptureSourceInfo {
+    LiteAVScreenCaptureSourceType type;              ///< 采集源类型
+    HWND            sourceId;                        ///< 采集源ID；对于窗口，该字段指示窗口句柄；对于屏幕，该字段指示屏幕ID
+    const char*     sourceName;                      ///< 采集源名称，UTF8编码
+    LiteAVImageBuffer thumbBGRA;                     ///< 缩略图内容
+    LiteAVImageBuffer iconBGRA;                      ///< 图标内容
+    LiteAVScreenCaptureSourceInfo()
+        : type(LiteAVScreenCaptureSourceTypeUnknown)
+        , sourceId(0)
+        , sourceName(NULL)
+    {};
+};
+
+class ILiteAVScreenCaptureSourceList
+{
+protected:
+    virtual ~ILiteAVScreenCaptureSourceList() {}
+public:
+    /**
+    * \return 窗口个数
+    */
+    virtual uint32_t getCount() = 0;
+    /**
+    * \return 窗口信息
+    */
+    virtual LiteAVScreenCaptureSourceInfo getSourceInfo(uint32_t index) = 0;
+    /**
+    * \brief 遍历完窗口列表后，调用release释放资源。
+    */
+    virtual void release() = 0;
+};
+
+struct LiteAVScreenCaptureProperty {
+    bool enableCaptureMouse;           ///< 是否采集目标内容时顺带采集鼠标，默认为 true
+    bool enableHighLight;              ///< 是否高亮正在共享的窗口，默认为 true
+    bool enableHighPerformance;        ///< 是否开启高性能模式（只会在分享屏幕时会生效），开启后屏幕采集性能最佳，但无法过滤远端的高亮边框，默认为 true
+    int highLightColor;                ///< 指定高亮边框颜色，RGB格式，传入0时采用默认颜色，默认颜色为 #8CBF26
+    int highLightWidth;                ///< 指定高亮边框的宽度，传入0时采用默认描边宽度，默认宽度为 5，最大值为 50
+
+    LiteAVScreenCaptureProperty()
+        : enableCaptureMouse(true)
+        , enableHighLight(true)
+        , enableHighPerformance(true)
+        , highLightColor(0)
+        , highLightWidth(0)
+    {
+
+    }
+};
+
+/////////////////////////////////////////////////////////////////////////////////
+/// \brief【获取SDK当前使用设备信息 ILiteAVDeviceInfo】
+///
+/// \desc 您可以通过 setCurrentCameraDevice()/getCurrentMicDevice()/getCurrentSpeakerDevice 获取当前使用设备。
+/////////////////////////////////////////////////////////////////////////////////
+class ILiteAVDeviceInfo
+{
+protected:
+    virtual ~ILiteAVDeviceInfo() {}
+public:
+    /**
+    * \return 设备名称，字符编码格式是UTF-8
+    */
+    virtual const char* getDeviceName() = 0;
+
+    /**
+    * \return 设备PID，字符编码格式是UTF-8
+    */
+    virtual const char* getDevicePID() = 0;
+
+    /**
+    * \brief 获取完设备信息后，调用release释放资源。
+    */
+    virtual void release() = 0;
+};
+
+/////////////////////////////////////////////////////////////////////////////////
+/// \brief【获取SDK设备信息接口 ITRTCDeviceCollection】
+///
+/// \desc 您可以通过 getMicDevicesList()/getSpeakerDevicesList()/getMicDevicesList 枚举硬件设备列表，列表通过 ITRTCDeviceCollection 返回
+/////////////////////////////////////////////////////////////////////////////////
+class ILiteAVDeviceCollection
+{
+protected:
+    virtual ~ILiteAVDeviceCollection() {}
+public:
+    /**
+    * \return 设备个数
+    */
+    virtual uint32_t getCount() = 0;
+
+    /**
+    * \return 设备名称，字符编码格式是UTF-8
+    */
+    virtual const char* getDeviceName(uint32_t index) = 0;
+
+    /**
+    * \return 设备PID，字符编码格式是UTF-8
+    */
+    virtual const char* getDevicePID(uint32_t index) = 0;
+
+    /**
+    * \brief 遍历完设备后，调用release释放资源。
+    */
+    virtual void release() = 0;
+};
+
+
+
+/*************************************************************************************************************************************************************************/
 
 class ILiteAVStreamDataSource
 {
@@ -153,5 +355,6 @@ private:
     void *m_pOnDestoryCallbackParam;
 
 };
+/// @}
 
 #endif /* __TXLITEAVBASE_H__ */

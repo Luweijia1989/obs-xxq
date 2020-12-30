@@ -3,7 +3,8 @@
 #include <queue>
 #include <string>
 #include <memory>
-#include "TRTC/TRTCCloudDef.h"
+#include "TRTCCloudDef.h"
+#include "ITRTCCloud.h"
 
 class CConfigMgr;
 
@@ -35,7 +36,6 @@ public:
     int _roomId = 1222222;
     std::string strRoomId = "";
     std::string _userSig;
-    bool _bEnterRoom = false;
 }LocalUserInfo;
 
 typedef struct _tagPKUserInfo
@@ -81,7 +81,6 @@ public:
     void setLocalUserInfo(std::string userId, int roomId, std::string userSig);
     std::string getLocalUserID() { return m_localInfo._userId; };
     VideoResBitrateTable getVideoConfigInfo(int resolution);
-    TRTCRenderParams getLocalRenderParams();
     TRTCVideoStreamType getRemoteVideoStreamType();
 
 public:
@@ -103,10 +102,6 @@ public:
     std::string m_strCustomStreamId;
 
     std::map<int, VideoResBitrateTable> m_videoConfigMap;
-    uint32_t m_micVolume = 100;
-    uint32_t m_speakerVolume = 100;
-    uint32_t m_audioCaptureVolume = 100; // 软件采集音量
-    uint32_t m_audioPlayoutVolume = 100; // 软件播放音量（人声）
     //是否在room中
     bool m_bIsEnteredRoom = false;
 public: 

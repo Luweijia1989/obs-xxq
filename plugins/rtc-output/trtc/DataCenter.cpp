@@ -90,7 +90,6 @@ void CDataCenter::CleanRoomInfo()
 {
 	m_remoteUser.clear();
 	m_vecPKUserList.clear();
-	m_localInfo._bEnterRoom = false;
 	m_strCustomStreamId = "";
 }
 
@@ -169,13 +168,6 @@ void CDataCenter::removeRemoteUser(std::string userId)
 	if (iter != m_remoteUser.end()) {
 		m_remoteUser.erase(iter);
 	}
-}
-
-TRTCRenderParams CDataCenter::getLocalRenderParams()
-{
-	TRTCRenderParams param;
-	param.mirrorType = TRTCVideoMirrorType_Disable;
-	return param;
 }
 
 TRTCVideoStreamType CDataCenter::getRemoteVideoStreamType()

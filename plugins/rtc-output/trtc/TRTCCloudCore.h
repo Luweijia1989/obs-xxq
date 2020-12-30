@@ -1,5 +1,5 @@
 #pragma once
-#include "TRTC/ITRTCCloud.h"
+#include "ITRTCCloud.h"
 #include "DataCenter.h"
 #include <map>
 #include <string>
@@ -36,7 +36,6 @@ public:
 	void Uninit();
 	void PreUninit();
 	ITRTCCloud *getTRTCCloud();
-	ITXDeviceManager *getDeviceManager();
 	ITRTCCloudCallback *GetITRTCCloudCallback();
 
 signals:
@@ -93,7 +92,6 @@ private:
 	static TRTCCloudCore *m_instance;
 	TRTC *m_rtcInstance = nullptr;
 	ITRTCCloud *m_pCloud = nullptr;
-	ITXDeviceManager *m_pDeviceManager = nullptr;
 
 private:
 	HMODULE trtc_module_;

@@ -9,11 +9,15 @@ static const char *rtc_output_getname(void *unused)
 
 static void *rtc_output_create(obs_data_t *settings, obs_output_t *output)
 {
-	UNUSED_PARAMETER(settings);
-	RTCOutput *context = new RTCOutput(RTCOutput::RTC_TYPE_TRTC, output);
+	int rtc_type = obs_data_get_int(settings, "rtc_type");
+	RTCOutput *context = new RTCOutput((RTCOutput::RTC_TYPE)rtc_type, output);
+	context->m_rtcBase->setVideoInfo(obs_data_get_int(settings, "audiobitrate"), obs_data_get_int(settings, "videobitrate"), obs_data_get_int(settings, "fps"));
+	context->m_rtcBase->setLinkInfo(obs_data_get_string(settings, "linkInfo"));
+	context->m_rtcBase->setCropInfo(obs_data_get_int(settings, "cropX"));
+	context->m_rtcBase->setRemoteViewHwnd(obs_data_get_int(settings, "hwnd"));
 	audio_convert_info info;
 	info.format = AUDIO_FORMAT_16BIT;
-	info.samples_per_sec = 48000;
+	info.samples_per_sec = rtc_type == 0 ? 48000 : 44100;
 	info.speakers = SPEAKERS_STEREO;
 	obs_output_set_audio_conversion(output, &info);
 
@@ -44,7 +48,7 @@ static bool rtc_output_start(void *data)
 	if (!obs_output_can_begin_data_capture(context->m_output, 0))
 		return false;
 
-	context->m_rtcBase->enterRoom("333333", 333333, "");
+	context->m_rtcBase->enterRoom();
 
 	obs_output_initialize_encoders(context->m_output, 0);
 
@@ -89,11 +93,6 @@ static void rtc_output_custom_command(void *data, obs_data_t *param)
 {
 	RTCOutput *context = static_cast<RTCOutput *>(data);
 	const char * func = obs_data_get_string(param, "func");
-	if (strcmp(func, "set_info") == 0)
-	{
-		context->m_rtcBase->setRemoteViewHwnd(obs_data_get_int(param, "hwnd"));
-		context->m_rtcBase->setCropInfo(obs_data_get_int(param, "cropX"));
-	}
 }
 
 OBS_DECLARE_MODULE()
@@ -130,6 +129,17 @@ RTCOutput::RTCOutput(RTC_TYPE type, obs_output_t *output)
 		m_rtcBase = new TRTC();
 	else if (type == RTC_TYPE_QINIU)
 		m_rtcBase = new QINIURTC();
+
+	QObject::connect(m_rtcBase, &RTCBase::onEvent, [=](int type, QJsonObject data){
+		data["event_type"] = type;
+		obs_data_t *p = obs_data_create_from_json(QJsonDocument(data).toJson(QJsonDocument::Compact).data());
+		struct calldata params = { 0 };
+		calldata_set_ptr(&params, "output", m_output);
+		calldata_set_ptr(&params, "data", p);
+		signal_handler_signal(obs_output_get_signal_handler(m_output), "sig_event", &params);
+		obs_data_release(p);
+		calldata_free(&params);
+	});
 }
 
 RTCOutput::~RTCOutput()
