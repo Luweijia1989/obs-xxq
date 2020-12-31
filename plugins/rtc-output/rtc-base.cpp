@@ -139,6 +139,8 @@ void TRTC::disconnectOtherRoom()
 	TRTCCloudCore::GetInstance()->getTRTCCloud()->disconnectOtherRoom();
 }
 
+void TRTC::mixStream(QJsonObject param) {}
+
 void TRTC::setRemoteViewHwnd(long window)
 {
 	m_remoteView = window;
@@ -372,7 +374,7 @@ QINIURTC::QINIURTC()
 			}
 
 			if (m_joinSucess && m_subscibeSucess && m_publishSucess)
-				m_rtc->doLinkMerge();
+				emit onEvent(RTC_EVENT_REQUEST_MIX, QJsonObject());
 		}
 		break;
 		case QNRtc::MergeSucess:
@@ -417,7 +419,6 @@ void QINIURTC::enterRoom()
 	m_rtc->SetVideoInfo(videoInfo().audioBitrate, videoInfo().videoBitrate, videoInfo().fps);
 	m_rtc->setCropInfo(cropInfo().x(), 0, 724, 1080);
 	m_rtc->setUserId(linkInfo().value("userId").toString());
-	m_rtc->setPushUrl(linkInfo().value("pushUrl").toString());
 	m_rtc->startLink(linkInfo().value("token").toString());
 }
 
@@ -434,6 +435,11 @@ void QINIURTC::switchRoom(int roomId) {}
 void QINIURTC::connectOtherRoom(QString userId, int roomId) {}
 
 void QINIURTC::disconnectOtherRoom() {}
+
+void QINIURTC::mixStream(QJsonObject param)
+{
+	m_rtc->doLinkMerge(param["streamUrl"].toString());
+}
 
 void QINIURTC::setRemoteViewHwnd(long window)
 {

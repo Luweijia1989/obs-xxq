@@ -73,19 +73,19 @@ add_custom_command(TARGET rtc-output POST_BUILD
 		VERBATIM)
 endfunction()
 
-function(install_dependency_qiniu target)
+function(install_dependency_qiniu)
 add_custom_command(TARGET rtc-output POST_BUILD
-		COMMAND "${CMAKE_COMMAND}" -E copy
-			"${PROJECT_SOURCE_DIR}/qnrtc/lib/${target}"
-			"${OBS_OUTPUT_DIR}/$<CONFIGURATION>/bin/${_bit_suffix}${target}"
+		COMMAND "${CMAKE_COMMAND}" ARGS -E copy
+			"$<$<CONFIG:debug>:${PROJECT_SOURCE_DIR}/qnrtc/lib/$<CONFIGURATION>/QNRTCStreamingD.dll>$<$<CONFIG:relwithdebinfo>:${PROJECT_SOURCE_DIR}/qnrtc/lib/$<CONFIGURATION>/QNRTCStreaming.dll>"
+			"$<$<CONFIG:debug>:${OBS_OUTPUT_DIR}/$<CONFIGURATION>/bin/${_bit_suffix}QNRTCStreamingD.dll>$<$<CONFIG:relwithdebinfo>:${OBS_OUTPUT_DIR}/$<CONFIGURATION>/bin/${_bit_suffix}QNRTCStreaming.dll>"
 		VERBATIM)
+
 add_custom_command(TARGET rtc-output POST_BUILD
 		COMMAND "${CMAKE_COMMAND}" -E copy
-			"${PROJECT_SOURCE_DIR}/qnrtc/lib/${target}"
-			"$<TARGET_FILE_DIR:rtc-output>/${target}"
+			"$<$<CONFIG:debug>:${PROJECT_SOURCE_DIR}/qnrtc/lib/$<CONFIGURATION>/QNRTCStreamingD.dll>$<$<CONFIG:relwithdebinfo>:${PROJECT_SOURCE_DIR}/qnrtc/lib/$<CONFIGURATION>/QNRTCStreaming.dll>"
+			"$<$<CONFIG:debug>:$<TARGET_FILE_DIR:rtc-output>/QNRTCStreamingD.dll>$<$<CONFIG:relwithdebinfo>:$<TARGET_FILE_DIR:rtc-output>/QNRTCStreaming.dll>"
 		VERBATIM)
 endfunction()
 
 install_dependency("liteav.dll")
-install_dependency_qiniu("QNRTCStreaming.dll")
-install_dependency_qiniu("QNRTCStreamingD.dll")
+install_dependency_qiniu()

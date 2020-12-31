@@ -93,6 +93,10 @@ static void rtc_output_custom_command(void *data, obs_data_t *param)
 {
 	RTCOutput *context = static_cast<RTCOutput *>(data);
 	const char * func = obs_data_get_string(param, "func");
+	if (strcmp(func, "mixStream") == 0)
+	{
+		context->m_rtcBase->mixStream(QJsonDocument::fromJson(obs_data_get_string(param, "param")).object());
+	}
 }
 
 OBS_DECLARE_MODULE()

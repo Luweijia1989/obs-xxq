@@ -45,6 +45,8 @@ class ObsXXQConan(ConanFile):
             self.copy("*.exe", dst="bin", src="build32/plugins/win-airplay/iosusbmirror/Debug", keep_path=False)
             self.copy("*.dll", dst="bin", src="build32/plugins/win-airplay/iosusbmirror/Debug", keep_path=False)
             self.copy("*.pdb", dst="bin", src="build32/plugins/win-airplay/iosusbmirror/Debug", keep_path=False)
+            self.copy("liteav.dll", dst="bin", src="build32/plugins/rtc-output/Debug", keep_path=False)
+            self.copy("QNRTCStreamingD.dll", dst="bin", src="build32/plugins/rtc-output/Debug", keep_path=False)
            
             self.copy("*.dll", dst="plugins/obs-plugins/32bit", src="build32/plugins/coreaudio-encoder/Debug", keep_path=False)
             self.copy("*.pdb", dst="plugins/obs-plugins/32bit", src="build32/plugins/coreaudio-encoder/Debug", keep_path=False)
@@ -86,6 +88,8 @@ class ObsXXQConan(ConanFile):
             self.copy("*.pdb", dst="plugins/obs-plugins/32bit", src="build32/plugins/enc-amf/Debug", keep_path=False)
             self.copy("*.dll", dst="plugins/obs-plugins/32bit", src="build32/plugins/win-airplay/Debug", keep_path=False)
             self.copy("*.pdb", dst="plugins/obs-plugins/32bit", src="build32/plugins/win-airplay/Debug", keep_path=False)
+            self.copy("rtc-output.dll", dst="plugins/obs-plugins/32bit", src="build32/plugins/rtc-output/Debug", keep_path=False)
+            self.copy("rtc-output.pdb", dst="plugins/obs-plugins/32bit", src="build32/plugins/rtc-output/Debug", keep_path=False)
         else:
             self.copy("*.dll", dst="bin", src="build32/libobs/RelWithDebInfo", keep_path=False)
             self.copy("*.pdb", dst="bin", src="build32/libobs/RelWithDebInfo", keep_path=False)
@@ -110,6 +114,8 @@ class ObsXXQConan(ConanFile):
             self.copy("*.exe", dst="bin", src="build32/plugins/win-airplay/iosusbmirror/RelWithDebInfo", keep_path=False)
             self.copy("*.dll", dst="bin", src="build32/plugins/win-airplay/iosusbmirror/RelWithDebInfo", keep_path=False)
             self.copy("*.pdb", dst="bin", src="build32/plugins/win-airplay/iosusbmirror/RelWithDebInfo", keep_path=False)
+            self.copy("liteav.dll", dst="bin", src="build32/plugins/rtc-output/RelWithDebInfo", keep_path=False)
+            self.copy("QNRTCStreaming.dll", dst="bin", src="build32/plugins/rtc-output/RelWithDebInfo", keep_path=False)
            
             self.copy("*.dll", dst="plugins/obs-plugins/32bit", src="build32/plugins/coreaudio-encoder/RelWithDebInfo", keep_path=False)
             self.copy("*.pdb", dst="plugins/obs-plugins/32bit", src="build32/plugins/coreaudio-encoder/RelWithDebInfo", keep_path=False)
@@ -151,6 +157,8 @@ class ObsXXQConan(ConanFile):
             self.copy("*.pdb", dst="plugins/obs-plugins/32bit", src="build32/plugins/enc-amf/RelWithDebInfo", keep_path=False)
             self.copy("*.dll", dst="plugins/obs-plugins/32bit", src="build32/plugins/win-airplay/RelWithDebInfo", keep_path=False)
             self.copy("*.pdb", dst="plugins/obs-plugins/32bit", src="build32/plugins/win-airplay/RelWithDebInfo", keep_path=False)
+            self.copy("rtc-output.dll", dst="plugins/obs-plugins/32bit", src="build32/plugins/rtc-output/RelWithDebInfo", keep_path=False)
+            self.copy("rtc-output.pdb", dst="plugins/obs-plugins/32bit", src="build32/plugins/rtc-output/RelWithDebInfo", keep_path=False)
             
             
         self.copy("*.*", dst="plugins/data/libobs", src="libobs/data", keep_path=True)

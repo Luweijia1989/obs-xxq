@@ -28,6 +28,7 @@ public:
 	virtual void switchRoom(int roomId) = 0;
 	virtual void connectOtherRoom(QString userId, int roomId) = 0;
 	virtual void disconnectOtherRoom() = 0;
+	virtual void mixStream(QJsonObject param) = 0;
 	virtual void setRemoteViewHwnd(long window) = 0;
 	virtual void sendAudio(struct audio_data *data) = 0;
 	virtual void sendVideo(struct video_data *data) = 0;
@@ -87,6 +88,7 @@ public:
 	virtual void switchRoom(int roomId);
 	virtual void connectOtherRoom(QString userId, int roomId);
 	virtual void disconnectOtherRoom();
+	virtual void mixStream(QJsonObject param);
 	virtual void setRemoteViewHwnd(long window);
 	virtual void sendAudio(struct audio_data *data);
 	virtual void sendVideo(struct video_data *data);
@@ -109,6 +111,7 @@ public:
 	virtual void switchRoom(int roomId);
 	virtual void connectOtherRoom(QString userId, int roomId);
 	virtual void disconnectOtherRoom();
+	virtual void mixStream(QJsonObject param);
 	virtual void setRemoteViewHwnd(long window);
 	virtual void sendAudio(struct audio_data *data);
 	virtual void sendVideo(struct video_data *data);

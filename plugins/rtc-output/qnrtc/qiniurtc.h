@@ -18,7 +18,7 @@
 using namespace std;
 
 struct VideoFormat
-{
+{ 
     int width;
     int height;
 };
@@ -91,10 +91,9 @@ public slots:
     void startLink(const QString &token);
     void stopLink();
     void setUserId(const QString &userId);
-    void setPushUrl(const QString &pushUrl);
     void setIsAdmin(bool admin = false);
     void setSei(const QJsonObject &data, int insetType);
-    void doLinkMerge();
+    void doLinkMerge(QString url);
 signals:
     void linkStateResult(ResultCode code, int erorrCode = 0, QString errorStr = "");
 

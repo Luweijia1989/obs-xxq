@@ -115,14 +115,11 @@ void QNRtc::uninit()
 
 void QNRtc::entreRoom(const QString &token)
 {
-    //if(token.isEmpty())
-    //{
-    //    return;
-    //}
-    //m_roomToken = token;
-    std::string t;
-    GetRoomToken_s("d8lk7l4ed", "111111", "222222", "api-demo.qnsdk.com", 1000, t);
-    m_roomToken = QString::fromStdString(t);
+    if(token.isEmpty())
+    {
+        return;
+    }
+    m_roomToken = token;
     m_rtcRoomInterface->SetDnsServerUrl("223.5.5.5");
     int ret = m_rtcRoomInterface->JoinRoom(m_roomToken.toStdString());
     qDebug() << "token:" << token << endl;
@@ -280,8 +277,9 @@ void QNRtc::setSei(const QJsonObject &data, int insetType)
     }
 }
 
-void QNRtc::doLinkMerge()
+void QNRtc::doLinkMerge(QString url)
 {
+	m_pushUrl = url;
 	lock_guard<recursive_mutex> lck(m_mutex);
 	m_startMergeTrack = true;
 	int size1 = m_remote_tracks_map.size();
@@ -291,11 +289,6 @@ void QNRtc::doLinkMerge()
 		CreateCustomMerge();
 		m_startMergeTrack = false;
 	}
-}
-
-void QNRtc::setPushUrl(const QString &pushUrl)
-{
-	m_pushUrl = pushUrl;
 }
 
 void QNRtc::CreateCustomMerge()
