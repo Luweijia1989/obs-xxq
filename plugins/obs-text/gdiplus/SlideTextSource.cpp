@@ -424,6 +424,7 @@ void SlideTextSource::CalculateSlideTextSizes(const wstring &text_measure,
 	 * its internal value in case the texture gets cut off */
 	bounding_box.Width = temp_box.Width;
 	bounding_box.Height = temp_box.Height;
+	text_size.cx = text_size.cx + face_size;
 }
 
 void SlideTextSource::RenderSlideOutlineText(Graphics &graphics,
