@@ -50,6 +50,8 @@ bool NewCMSampleBufferFromBytesVideo(uint8_t *data, size_t data_len, struct CMSa
 
 bool NewCMSampleBufferFromBytes(uint8_t *data, size_t data_len, uint32_t media_type, struct CMSampleBuffer *sb_buffer);
 
+bool FillCMSampleBufferData(uint8_t *data, size_t data_len, struct CMSampleBuffer *sb_buffer);
+
 list_t *parseStia(uint8_t **data, size_t data_len);
 
 size_t *parseSampleSizeArray(uint8_t **data, size_t data_len);

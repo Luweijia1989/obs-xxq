@@ -447,33 +447,17 @@ bool ScreenMirrorServer::handleMediaData()
 		if (info.sps_len == 0 && info.pps_len == 0)
 			return true;
 
-		resetResampler(info.speakers, info.format,
-			       info.samples_per_sec);
+		resetResampler(info.speakers, info.format, info.samples_per_sec);
 		m_decoder.docode(info.pps, info.pps_len, true, 0);
 
 		handleMirrorStatus(OBS_SOURCE_MIRROR_OUTPUT);
 	} else {
 		if (header_info.type == FFM_PACKET_AUDIO) {
-			outputAudio(req_size, header_info.pts,
-				    header_info.serial);
+			outputAudio(req_size, header_info.pts, header_info.serial);
 		} else {
 			uint8_t *temp_buf = (uint8_t *)calloc(1, req_size);
 			circlebuf_pop_front(&m_avBuffer, temp_buf, req_size);
-
-			if (memcmp(temp_buf, start_code, 4) == 0) {
-				m_decoder.docode(temp_buf, req_size, false,
-						 header_info.pts);
-			} else {
-				uint8_t *all = NULL;
-				size_t all_len = 0;
-				parseNalus(temp_buf, req_size, &all, &all_len);
-				if (all_len) {
-					m_decoder.docode(all, all_len, false,
-							 header_info.pts);
-				}
-				free(all);
-			}
-
+			m_decoder.docode(temp_buf, req_size, false, header_info.pts);
 			free(temp_buf);
 		}
 	}

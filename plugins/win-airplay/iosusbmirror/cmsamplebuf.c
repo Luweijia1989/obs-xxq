@@ -3,6 +3,8 @@
 #include "byteutils.h"
 #include <memory.h>
 
+extern uint8_t start_code[];
+
 bool NewCMSampleBufferFromBytesAudio(uint8_t *data, size_t data_len, struct CMSampleBuffer *sb_buffer)
 {
 	return NewCMSampleBufferFromBytes(data, data_len, MediaTypeSound, sb_buffer);
@@ -57,9 +59,9 @@ bool NewCMSampleBufferFromBytes(uint8_t *data, size_t data_len, uint32_t media_t
 			if (ParseLengthAndMagic(next_data_pointer, data_len - (next_data_pointer - data), sdat, &next_data_pointer, &length) < 0)
 				return false;
 
-			sb_buffer->SampleData_len = length - 8;
-			sb_buffer->SampleData = calloc(1, sb_buffer->SampleData_len);
-			memcpy(sb_buffer->SampleData, next_data_pointer, sb_buffer->SampleData_len);
+			if (!FillCMSampleBufferData(next_data_pointer, length - 8, sb_buffer))
+				return false;
+			
 			next_data_pointer += length - 8;
 		}
 		break;
@@ -125,6 +127,41 @@ bool NewCMSampleBufferFromBytes(uint8_t *data, size_t data_len, uint32_t media_t
 			return false;
 		}
 	}
+	return true;
+}
+
+bool FillCMSampleBufferData(uint8_t *data, size_t data_len,
+			    struct CMSampleBuffer *sb_buffer)
+{
+	int total_size = 0;
+	uint8_t *slice = data;
+	while (slice < data + data_len) {
+		size_t length = byteutils_get_int_be(slice, 0);
+		total_size += length + 4;
+		slice += length + 4;
+	}
+
+	//here we assume that one encoded video packet size less than 10M, if total_size larger than 10M, return false to avoid crash
+	if (total_size > 10485760)
+		return false;
+
+	sb_buffer->SampleData_len = total_size;
+	if (total_size) {
+		sb_buffer->SampleData = (uint8_t *)calloc(1, total_size);
+		uint8_t *ptr = sb_buffer->SampleData;
+		slice = data;
+		size_t copy_index = 0;
+		while (slice < data + data_len) {
+			memcpy(ptr + copy_index, start_code, 4);
+			copy_index += 4;
+			size_t length = byteutils_get_int_be(slice, 0);
+			total_size += length + 4;
+			memcpy(ptr + copy_index, slice + 4, length);
+			copy_index += length;
+			slice += length + 4;
+		}
+	}
+
 	return true;
 }
 
