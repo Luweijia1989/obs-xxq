@@ -875,8 +875,6 @@ static void obs_source_deferred_update(obs_source_t *source)
 		source->info.update(source->context.data,
 				    source->context.settings);
 
-	obs_source_dosignal(source, NULL, "settings_update");
-
 	source->defer_update = false;
 }
 
@@ -893,9 +891,9 @@ void obs_source_update(obs_source_t *source, obs_data_t *settings)
 	} else if (source->context.data && source->info.update) {
 		source->info.update(source->context.data,
 				    source->context.settings);
-
-		obs_source_dosignal(source, NULL, "settings_update");
 	}
+
+	obs_source_dosignal(source, NULL, "settings_update");
 }
 
 void obs_source_update_properties(obs_source_t *source)
