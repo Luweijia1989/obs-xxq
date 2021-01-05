@@ -59,8 +59,17 @@ bool NewCMSampleBufferFromBytes(uint8_t *data, size_t data_len, uint32_t media_t
 			if (ParseLengthAndMagic(next_data_pointer, data_len - (next_data_pointer - data), sdat, &next_data_pointer, &length) < 0)
 				return false;
 
-			if (!FillCMSampleBufferData(next_data_pointer, length - 8, sb_buffer))
-				return false;
+			if (media_type == MediaTypeSound)
+			{
+				sb_buffer->SampleData_len = length - 8;
+				sb_buffer->SampleData = calloc(1, sb_buffer->SampleData_len);
+				memcpy(sb_buffer->SampleData, next_data_pointer, sb_buffer->SampleData_len);
+			}
+			else
+			{
+				if (!FillCMSampleBufferData(next_data_pointer, length - 8, sb_buffer))
+					return false;
+			}
 			
 			next_data_pointer += length - 8;
 		}
