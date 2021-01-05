@@ -27,13 +27,6 @@
 #include <stdio.h>
 #include <stdarg.h>
 
-
-#define  RTMP_TOLOG 1
-#if RTMP_TOLOG
-#include "../../../libobs/util/base.h"
-
-#endif
-
 #ifdef __cplusplus
 extern "C" {
 #endif

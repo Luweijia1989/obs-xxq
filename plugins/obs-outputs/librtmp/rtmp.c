@@ -3935,13 +3935,8 @@ RTMP_ReadPacket(RTMP *r, RTMPPacket *packet)
     {
         /* using values from the last message of this channel */
         if (r->m_vecChannelsIn[packet->m_nChannel])
-        {
             memcpy(packet, r->m_vecChannelsIn[packet->m_nChannel],
-                sizeof(RTMPPacket));
-            RTMP_Log(RTMP_LOGDEBUG2, "%s, %d using values from the last message of this channel: %d",
-                __FUNCTION__, __LINE__, sizeof(RTMPPacket));
-            RTMP_LogHexString(RTMP_LOGDEBUG2, (uint8_t *)packet->m_body, packet->m_nBodySize);
-        }
+                   sizeof(RTMPPacket));
     }
 
     nSize--;
@@ -4013,9 +4008,6 @@ RTMP_ReadPacket(RTMP *r, RTMPPacket *packet)
     {
         packet->m_chunk->c_headerSize = hSize;
         memcpy(packet->m_chunk->c_header, hbuf, hSize);
-        RTMP_Log(RTMP_LOGDEBUG, "%s, %d Does the caller want the raw chunk: %d",
-            __FUNCTION__, __LINE__, hSize);
-        RTMP_LogHexString(RTMP_LOGDEBUG, (uint8_t *)packet->m_chunk->c_header, packet->m_chunk->c_headerSize);
         packet->m_chunk->c_chunk = packet->m_body + packet->m_nBytesRead;
         packet->m_chunk->c_chunkSize = nChunk;
     }
@@ -4035,10 +4027,6 @@ RTMP_ReadPacket(RTMP *r, RTMPPacket *packet)
     if (!r->m_vecChannelsIn[packet->m_nChannel])
         r->m_vecChannelsIn[packet->m_nChannel] = malloc(sizeof(RTMPPacket));
     memcpy(r->m_vecChannelsIn[packet->m_nChannel], packet, sizeof(RTMPPacket));
-    RTMP_Log(RTMP_LOGDEBUG, "%s, %d keep the packet as ref for other packets on this channel: %d",
-        __FUNCTION__, __LINE__, packet->m_nChannel);
-    RTMP_LogHexString(RTMP_LOGDEBUG, (uint8_t *)r->m_vecChannelsIn[packet->m_nChannel]->m_body,
-        r->m_vecChannelsIn[packet->m_nChannel]->m_nBodySize);
     if (extendedTimestamp)
         r->m_vecChannelsIn[packet->m_nChannel]->m_nTimeStamp = 0xffffff;
 
@@ -4346,8 +4334,8 @@ RTMP_SendPacket(RTMP *r, RTMPPacket *packet, int queue)
     buffer = packet->m_body;
     nChunkSize = r->m_outChunkSize;
 
-    // RTMP_Log(RTMP_LOGDEBUG2, "%s: fd=%d, size=%d", __FUNCTION__, (int)r->m_sb.sb_socket,
-    //         nSize);
+    RTMP_Log(RTMP_LOGDEBUG2, "%s: fd=%d, size=%d", __FUNCTION__, (int)r->m_sb.sb_socket,
+             nSize);
     /* send all chunks in one HTTP request */
     if (r->Link.protocol & RTMP_FEATURE_HTTP)
     {
@@ -4368,8 +4356,8 @@ RTMP_SendPacket(RTMP *r, RTMPPacket *packet, int queue)
         if (nSize < nChunkSize)
             nChunkSize = nSize;
 
-        // RTMP_LogHexString(RTMP_LOGDEBUG2, (uint8_t *)header, hSize);
-        // RTMP_LogHexString(RTMP_LOGDEBUG2, (uint8_t *)buffer, nChunkSize);
+        RTMP_LogHexString(RTMP_LOGDEBUG2, (uint8_t *)header, hSize);
+        RTMP_LogHexString(RTMP_LOGDEBUG2, (uint8_t *)buffer, nChunkSize);
         if (tbuf)
         {
             memcpy(toff, header, nChunkSize + hSize);
@@ -4420,7 +4408,7 @@ RTMP_SendPacket(RTMP *r, RTMPPacket *packet, int queue)
         char *ptr;
         ptr = packet->m_body + 1;
         AMF_DecodeString(ptr, &method);
-        // RTMP_Log(RTMP_LOGDEBUG, "Invoking %s", method.av_val);
+        RTMP_Log(RTMP_LOGDEBUG, "Invoking %s", method.av_val);
         /* keep it in call queue till result arrives */
         if (queue)
         {

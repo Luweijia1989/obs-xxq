@@ -88,17 +88,10 @@ RTMP_LogLevel RTMP_LogGetLevel()
 
 void RTMP_Log(int level, const char *format, ...)
 {
-#if RTMP_TOLOG
-    va_list args;
-    va_start(args, format);
-    blogva(LOG_INFO, format, args);
-    va_end(args);
-#else
     va_list args;
     va_start(args, format);
     cb(level, format, args);
     va_end(args);
-#endif
 }
 
 static const char hexdig[] = "0123456789abcdef";
