@@ -27,6 +27,8 @@
 #include <stdio.h>
 #include <stdarg.h>
 
+#define RTMP_OUTLOG 1
+
 #ifdef __cplusplus
 extern "C" {
 #endif
