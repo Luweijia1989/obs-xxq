@@ -227,7 +227,7 @@ OBSBasic::OBSBasic(QWidget *parent)
 	connect(btn, &QPushButton::clicked, this, [=](){
 		obs_output_pause(outputHandler->streamOutput, true);
 		obs_data_t *setting = obs_data_create();
-		obs_data_set_int(setting, "rtc_type", 1);
+		obs_data_set_int(setting, "rtc_type", 0);
 		obs_data_set_int(setting, "audiobitrate", config_get_uint(basicConfig, "SimpleOutput", "ABitrate"));
 		obs_data_set_int(setting, "videobitrate", config_get_uint(basicConfig, "SimpleOutput", "VBitrate"));
 		obs_data_set_int(setting, "fps", 30);
@@ -257,6 +257,23 @@ OBSBasic::OBSBasic(QWidget *parent)
 		//obs_output_force_stop(outputttt);
 		obs_output_pause(outputHandler->streamOutput, false);
 		obs_output_release(outputttt);
+	});
+
+	QPushButton *btn2 = new QPushButton("connect", w);
+	btn2->move(0, 20);
+	btn2->setVisible(true);
+	connect(btn2, &QPushButton::clicked, this, [=]() {
+		QJsonObject obj;
+		obj["roomId"] = 222222;
+		obj["userId"] = "222222";
+
+		obs_data_t *data = obs_data_create();
+		obs_data_set_string(data, "func", "connectOtherRoom");
+		obs_data_set_string(data, "param",
+				    QJsonDocument(obj).toJson().data());
+		QString dd = obs_data_get_string(data, "param");
+		obs_output_call_function(outputttt, data);
+		obs_data_release(data);
 	});
 
 	obs_source_set_destroy_handler(source_destroy_handler);

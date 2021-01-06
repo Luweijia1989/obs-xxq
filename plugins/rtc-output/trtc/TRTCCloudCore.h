@@ -78,6 +78,8 @@ public:
 	virtual void onSetMixTranscodingConfig(int errCode, const char *errMsg);
 	virtual void onStartPublishing(int err, const char *errMsg);
 	virtual void onStopPublishing(int err, const char *errMsg);
+	virtual void onStartPublishCDNStream(int err, const char *errMsg);
+	virtual void onStopPublishCDNStream(int err, const char *errMsg);
 
 public:
 	void connectOtherRoom(QString userId, uint32_t roomId);

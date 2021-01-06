@@ -40,10 +40,7 @@ public:
 			m_cropInfo = QRect(x, 0, 720, 1080);
 	}
 
-	const QRect &cropInfo()
-	{
-		return m_cropInfo;
-	}
+	const QRect &cropInfo() { return m_cropInfo; }
 
 	void setVideoInfo(int a, int v, int fps)
 	{
@@ -52,10 +49,7 @@ public:
 		m_vinfo.fps = fps;
 	}
 
-	const VideoInfo &videoInfo()
-	{
-		return m_vinfo;
-	}
+	const VideoInfo &videoInfo() { return m_vinfo; }
 
 	void setLinkInfo(QString str)
 	{
@@ -63,13 +57,11 @@ public:
 		m_linkInfo = jd.object();
 	}
 
-	const QJsonObject &linkInfo()
-	{
-		return m_linkInfo;
-	}
+	const QJsonObject &linkInfo() { return m_linkInfo; }
 
 signals:
 	void onEvent(int type, QJsonObject data);
+
 private:
 	QRect m_cropInfo = QRect(0, 0, 1920, 1080);
 	VideoInfo m_vinfo;
@@ -131,6 +123,7 @@ private:
 
 private:
 	bool m_bStartCustomCapture = false;
+	bool m_bSendMixRequest = false;
 	int m_pkRoomId;
 	long m_remoteView;
 	char *m_yuvBuffer = nullptr;

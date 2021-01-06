@@ -84,6 +84,8 @@ void TRTCCloudCore::Uninit()
 
 void TRTCCloudCore::PreUninit()
 {
+	m_pCloud->stopPublishing();
+	m_pCloud->stopPublishCDNStream();
 	stopCloudMixStream();
 	m_pCloud->enableCustomAudioCapture(false);
 	m_pCloud->enableCustomVideoCapture(false);
@@ -269,12 +271,31 @@ void TRTCCloudCore::onSetMixTranscodingConfig(int errCode, const char *errMsg)
 void TRTCCloudCore::onStartPublishing(int err, const char *errMsg)
 {
 	blog(LOG_INFO, "onStartPublishing err[%d], errMsg[%s]", err, errMsg);
+	QJsonObject data;
+	data["errCode"] = err;
+	data["errMsg"] = errMsg;
+	emit trtcEvent(RTC_EVENT_PUBLISH_CDN, data);
 }
 
 void TRTCCloudCore::onStopPublishing(int err, const char *errMsg)
 {
 	blog(LOG_INFO, "onStartPublishing err[%d], errMsg[%s]", err, errMsg);
 }
+
+void TRTCCloudCore::onStartPublishCDNStream(int err, const char *errMsg)
+{
+	blog(LOG_INFO, "onStartPublishCDNStream err[%d], errMsg[%s]", err, errMsg);
+	QJsonObject data;
+	data["errCode"] = err;
+	data["errMsg"] = errMsg;
+	emit trtcEvent(RTC_EVENT_PUBLISH_CDN, data);
+}
+
+void TRTCCloudCore::onStopPublishCDNStream(int err, const char *errMsg)
+{
+	blog(LOG_INFO, "onStopPublishCDNStream err[%d], errMsg[%s]", err, errMsg);
+}
+
 
 void TRTCCloudCore::onConnectionLost()
 {
@@ -294,8 +315,9 @@ void TRTCCloudCore::onConnectionRecovery()
 void TRTCCloudCore::connectOtherRoom(QString userId, uint32_t roomId)
 {
 	QString json = QString("{\"roomId\":%1,\"userId\":\"%2\"}").arg(roomId).arg(userId);
+	std::string str = json.toStdString();
 	if (m_pCloud) {
-		m_pCloud->connectOtherRoom(json.toStdString().c_str());
+		m_pCloud->connectOtherRoom(str.c_str());
 	}
 }
 
@@ -340,23 +362,18 @@ void TRTCCloudCore::updateMixTranCodeInfo()
 void TRTCCloudCore::setPresetLayoutConfig(TRTCTranscodingConfig &config)
 {
 
-	int canvasWidth = 1280;
-	int canvasHeight = 720;
-	if (CDataCenter::GetInstance()->m_videoEncParams.resMode == TRTCVideoResolutionModePortrait) {
-		canvasHeight = 1280;
-		canvasWidth = 720;
-	}
-
+	int canvasWidth = 1440;
+	int canvasHeight = 1080;
 	config.videoWidth = canvasWidth;
 	config.videoHeight = canvasHeight;
-	config.videoBitrate = 1500;
-	config.videoFramerate = 15;
-	config.videoGOP = 1;
+	config.videoBitrate = 2000;
+	config.videoFramerate = 20;
+	config.videoGOP = 2;
 	config.audioSampleRate = 48000;
 	config.audioBitrate = 64;
 	config.audioChannels = 1;
 
-	config.mixUsersArraySize = 8;
+	config.mixUsersArraySize = 2;
 
 	TRTCMixUser *mixUsersArray = new TRTCMixUser[config.mixUsersArraySize];
 	config.mixUsersArray = mixUsersArray;
@@ -374,69 +391,9 @@ void TRTCCloudCore::setPresetLayoutConfig(TRTCTranscodingConfig &config)
 		}
 	};
 	//本地主路信息
-	setMixUser("$PLACE_HOLDER_LOCAL_MAIN$", index, zOrder, 0, 0,
-		   canvasWidth, canvasHeight);
+	setMixUser("$PLACE_HOLDER_LOCAL_MAIN$", index, zOrder, 0, 0, 720, 1080);
 	index++;
 	zOrder++;
 
-	setMixUser("$PLACE_HOLDER_LOCAL_SUB$", index, zOrder, 0, 0, canvasWidth,
-		   canvasHeight);
-	index++;
-	zOrder++;
-
-	if (canvasWidth < canvasHeight) {
-		//竖屏排布
-		int subWidth = canvasWidth / 5 / 2 * 2;
-		int subHeight = canvasHeight / 5 / 2 * 2;
-		int xOffSet = (canvasWidth - (3 * subWidth)) / 4;
-		int yOffSet = (canvasHeight - (4 * subHeight)) / 5;
-		for (int u = 0; u < 6; ++u, index++, zOrder++) {
-
-			if (u < 3) {
-				// 前三个小画面靠左往右
-				setMixUser("$PLACE_HOLDER_REMOTE$", index,
-					   zOrder,
-					   xOffSet * (1 + u) + subWidth * u,
-					   canvasHeight - yOffSet - subHeight,
-					   subWidth, subHeight);
-			} else if (u < 6) {
-				// 后三个小画面靠左从下往上铺
-				setMixUser("$PLACE_HOLDER_REMOTE$", index,
-					   zOrder,
-					   canvasWidth - xOffSet - subWidth,
-					   canvasHeight - (u - 1) * yOffSet -
-						   (u - 1) * subHeight,
-					   subWidth, subHeight);
-			} else {
-				// 最多只叠加六个小画面
-			}
-		}
-	} else {
-		//横屏排布
-		int subWidth = canvasWidth / 5 / 2 * 2;
-		int subHeight = canvasHeight / 5 / 2 * 2;
-		int xOffSet = 10;
-		int yOffSet = (canvasHeight - (3 * subHeight)) / 4;
-
-		for (int u = 0; u < 6; ++u, index++, zOrder++) {
-			if (u < 3) {
-				// 前三个小画面靠右从下往上铺
-				setMixUser("$PLACE_HOLDER_REMOTE$", index,
-					   zOrder,
-					   canvasWidth - xOffSet - subWidth,
-					   canvasHeight - (u + 1) * yOffSet -
-						   (u + 1) * subHeight,
-					   subWidth, subHeight);
-			} else if (u < 6) {
-				// 后三个小画面靠左从下往上铺
-				setMixUser("$PLACE_HOLDER_REMOTE$", index,
-					   zOrder, xOffSet,
-					   canvasHeight - (u - 2) * yOffSet -
-						   (u - 2) * subHeight,
-					   subWidth, subHeight);
-			} else {
-				// 最多只叠加六个小画面
-			}
-		}
-	}
+	setMixUser("$PLACE_HOLDER_REMOTE$", index, zOrder, 720, 0, 720, 1080);
 }

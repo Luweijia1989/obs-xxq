@@ -97,6 +97,11 @@ static void rtc_output_custom_command(void *data, obs_data_t *param)
 	{
 		context->m_rtcBase->mixStream(QJsonDocument::fromJson(obs_data_get_string(param, "param")).object());
 	}
+	else if (strcmp(func, "connectOtherRoom") == 0)
+	{
+		auto obj = QJsonDocument::fromJson(obs_data_get_string(param, "param")).object();
+		context->m_rtcBase->connectOtherRoom(obj["userId"].toString(), obj["roomId"].toInt());
+	}
 }
 
 OBS_DECLARE_MODULE()

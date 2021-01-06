@@ -47,8 +47,15 @@ TRTC::TRTC()
 		{
 			onUserVideoAvailable(data["userId"].toString(), data["available"].toBool());
 		}
-
-		emit onEvent(type, data);
+		else if (type == RTC_EVENT_PUBLISH_CDN)
+		{
+			int err = data["errCode"].toInt();
+			data["isNetFail"] = false;
+			if (err != 0)
+				emit onEvent(RTC_EVENT_FAIL, data);
+			else
+				emit onEvent(RTC_EVENT_SUCCESS, QJsonObject());
+		}
 	});
 }
 
@@ -139,7 +146,22 @@ void TRTC::disconnectOtherRoom()
 	TRTCCloudCore::GetInstance()->getTRTCCloud()->disconnectOtherRoom();
 }
 
-void TRTC::mixStream(QJsonObject param) {}
+void TRTC::mixStream(QJsonObject param)
+{
+	bool isTencentCdn = param["isTencent"].toBool();
+	QString url = param["streamUrl"].toString();
+	if (isTencentCdn)
+		TRTCCloudCore::GetInstance()->getTRTCCloud()->startPublishing(CDataCenter::GetInstance()->m_strCustomStreamId.c_str(), TRTCVideoStreamTypeBig);
+	else
+	{
+		TRTCPublishCDNParam p;
+		p.appId = GenerateTestUserSig::APPID;
+		p.bizId = GenerateTestUserSig::BIZID;
+		std::string str = url.toStdString();
+		p.url = str.c_str();
+		TRTCCloudCore::GetInstance()->getTRTCCloud()->startPublishCDNStream(p);
+	}
+}
 
 void TRTC::setRemoteViewHwnd(long window)
 {
@@ -259,11 +281,13 @@ void TRTC::onEnterRoom(int result)
 
 		qDebug() << QString(u8"进入[%1]房间成功,耗时:%2ms").arg(info._roomId).arg(result);
 		TRTCCloudCore::GetInstance()->startCloudMixStream();
+		emit onEvent(RTC_EVENT_TRTC_ENTER_ROOM, QJsonObject());
 	}
 	else
 	{
 		LocalUserInfo info = CDataCenter::GetInstance()->getLocalUserInfo();
 		qDebug() << QString(u8"进房失败，ErrorCode:%1").arg(result);
+		emit onEvent(RTC_EVENT_REJOIN, QJsonObject());
 	}
 }
 
@@ -301,6 +325,11 @@ void TRTC::onUserVideoAvailable(QString userId, bool available)
 			remoteInfo->available_main_video = true;
 			remoteInfo->subscribe_main_video = true;
 			TRTCCloudCore::GetInstance()->getTRTCCloud()->startRemoteView(idstr.c_str(), (HWND)m_remoteView);
+			if (!m_bSendMixRequest)
+			{
+				m_bSendMixRequest = true;
+				emit onEvent(RTC_EVENT_REQUEST_MIX, QJsonObject());
+			}
 		}
 	}
 	else {
@@ -342,6 +371,14 @@ void TRTC::onRemoteUserLeave(QString userId)
 void TRTC::onConnectOtherRoom(QString userId, int errCode, QString errMsg)
 {
 	qDebug() << (errCode == 0 ? QString(u8"连麦成功:[room:%1, user:%2]").arg(m_pkRoomId).arg(userId) : QString(u8"连麦失败[userId:%1, roomId:%2, errCode:%3, msg:%4]").arg(userId).arg(m_pkRoomId).arg(errCode).arg(errMsg));
+	if (errCode != 0)
+	{
+		QJsonObject obj;
+		obj["errCode"] = errCode;
+		obj["errMsg"] = errMsg;
+		obj["isNetFail"] = true;
+		emit onEvent(RTC_EVENT_FAIL, obj);
+	}
 }
 
 void TRTC::onDisconnectOtherRoom(int errCode, QString errMsg)
@@ -425,14 +462,21 @@ void QINIURTC::enterRoom()
 void QINIURTC::exitRoom()
 {
 	m_rtc->stopLink();
-	bool m_joinSucess = false;
-	bool m_subscibeSucess = false;
-	bool m_publishSucess = false;
+	m_joinSucess = false;
+	m_subscibeSucess = false;
+	m_publishSucess = false;
 }
 
-void QINIURTC::switchRoom(int roomId) {}
+void QINIURTC::switchRoom(int roomId)
+{
+	Q_UNUSED(roomId)
+}
 
-void QINIURTC::connectOtherRoom(QString userId, int roomId) {}
+void QINIURTC::connectOtherRoom(QString userId, int roomId)
+{
+	Q_UNUSED(userId)
+	Q_UNUSED(roomId)
+}
 
 void QINIURTC::disconnectOtherRoom() {}
 
