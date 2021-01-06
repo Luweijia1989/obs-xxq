@@ -1,4 +1,4 @@
-﻿#include "SlideTextSource.h"
+#include "SlideTextSource.h"
 #include "ScrollTextSource.h"
 #include "Common.h"
 struct TextSource {
@@ -877,7 +877,7 @@ bool obs_module_load(void)
 		obs_data_set_default_double(settings, S_GRADIENT_DIR, 90.0);
 		obs_data_set_default_int(settings, S_BKCOLOR, 0x000000);
 		obs_data_set_default_int(settings, S_BKOPACITY, 0);
-		obs_data_set_default_int(settings, S_OUTLINE_SIZE, 2);
+		obs_data_set_default_int(settings, S_OUTLINE_SIZE, 1);
 		obs_data_set_default_int(settings, S_OUTLINE_COLOR, 0xFFFFFF);
 		obs_data_set_default_int(settings, S_OUTLINE_OPACITY, 100);
 		obs_data_set_default_int(settings, S_CHATLOG_LINES, 6);
