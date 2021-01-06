@@ -124,7 +124,7 @@ private:
 private:
 	bool m_bStartCustomCapture = false;
 	bool m_bSendMixRequest = false;
-	int m_pkRoomId;
+	std::string m_pkRoomId;
 	long m_remoteView;
 	char *m_yuvBuffer = nullptr;
 	QEventLoop m_exitRoomLoop;

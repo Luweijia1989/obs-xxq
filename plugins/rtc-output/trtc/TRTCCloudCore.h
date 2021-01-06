@@ -83,12 +83,11 @@ public:
 
 public:
 	void connectOtherRoom(QString userId, uint32_t roomId);
-	void startCloudMixStream();
+	void startCloudMixStream(const char *remoteRoomId);
 	void stopCloudMixStream();
-	void updateMixTranCodeInfo();
 
 protected:
-	void setPresetLayoutConfig(TRTCTranscodingConfig &config);
+	void setPresetLayoutConfig(TRTCTranscodingConfig &config, const char *remoteRoomId);
 
 private:
 	static TRTCCloudCore *m_instance;

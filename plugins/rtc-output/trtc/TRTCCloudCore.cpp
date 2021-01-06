@@ -321,11 +321,6 @@ void TRTCCloudCore::connectOtherRoom(QString userId, uint32_t roomId)
 	}
 }
 
-void TRTCCloudCore::startCloudMixStream()
-{
-	updateMixTranCodeInfo();
-}
-
 void TRTCCloudCore::stopCloudMixStream()
 {
 	if (m_pCloud) {
@@ -333,9 +328,9 @@ void TRTCCloudCore::stopCloudMixStream()
 	}
 }
 
-void TRTCCloudCore::updateMixTranCodeInfo()
+void TRTCCloudCore::startCloudMixStream(const char *remoteRoomId)
 {
-	blog(LOG_INFO, "updateMixTranCodeInfo");
+	blog(LOG_INFO, "startCloudMixStream");
 
 	int appId = GenerateTestUserSig::APPID;
 	int bizId = GenerateTestUserSig::BIZID;
@@ -347,7 +342,7 @@ void TRTCCloudCore::updateMixTranCodeInfo()
 
 	if (config.mode > TRTCTranscodingConfigMode_Manual) {
 		if (config.mode == TRTCTranscodingConfigMode_Template_PresetLayout) {
-			setPresetLayoutConfig(config);
+			setPresetLayoutConfig(config, remoteRoomId);
 		}
 
 		m_pCloud->setMixTranscodingConfig(&config);
@@ -359,7 +354,7 @@ void TRTCCloudCore::updateMixTranCodeInfo()
 	}
 }
 
-void TRTCCloudCore::setPresetLayoutConfig(TRTCTranscodingConfig &config)
+void TRTCCloudCore::setPresetLayoutConfig(TRTCTranscodingConfig &config, const char *remoteRoomId)
 {
 
 	int canvasWidth = 1440;
@@ -379,8 +374,8 @@ void TRTCCloudCore::setPresetLayoutConfig(TRTCTranscodingConfig &config)
 	config.mixUsersArray = mixUsersArray;
 	int zOrder = 1, index = 0;
 	auto setMixUser = [&](const char *_userid, int _index, int _zOrder,
-			      int left, int top, int width, int height) {
-		mixUsersArray[_index].roomId = nullptr;
+			      int left, int top, int width, int height, const char *roomId) {
+		mixUsersArray[_index].roomId = roomId;
 		mixUsersArray[_index].userId = _userid;
 		mixUsersArray[_index].zOrder = _zOrder;
 		{
@@ -391,9 +386,9 @@ void TRTCCloudCore::setPresetLayoutConfig(TRTCTranscodingConfig &config)
 		}
 	};
 	//本地主路信息
-	setMixUser("$PLACE_HOLDER_LOCAL_MAIN$", index, zOrder, 0, 0, 720, 1080);
+	setMixUser("$PLACE_HOLDER_LOCAL_MAIN$", index, zOrder, 0, 0, 720, 1080, nullptr);
 	index++;
 	zOrder++;
 
-	setMixUser("$PLACE_HOLDER_REMOTE$", index, zOrder, 720, 0, 720, 1080);
+	setMixUser("$PLACE_HOLDER_REMOTE$", index, zOrder, 720, 0, 720, 1080, remoteRoomId);
 }

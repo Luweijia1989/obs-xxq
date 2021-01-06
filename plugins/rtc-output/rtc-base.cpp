@@ -137,7 +137,7 @@ void TRTC::switchRoom(int roomId)
 
 void TRTC::connectOtherRoom(QString userId, int roomId)
 {
-	m_pkRoomId = roomId;
+	m_pkRoomId = QString::number(roomId).toStdString();
 	TRTCCloudCore::GetInstance()->connectOtherRoom(userId, roomId);
 }
 
@@ -280,7 +280,6 @@ void TRTC::onEnterRoom(int result)
 		LocalUserInfo& info = CDataCenter::GetInstance()->getLocalUserInfo();
 
 		qDebug() << QString(u8"进入[%1]房间成功,耗时:%2ms").arg(info._roomId).arg(result);
-		TRTCCloudCore::GetInstance()->startCloudMixStream();
 		emit onEvent(RTC_EVENT_TRTC_ENTER_ROOM, QJsonObject());
 	}
 	else
@@ -370,7 +369,7 @@ void TRTC::onRemoteUserLeave(QString userId)
 
 void TRTC::onConnectOtherRoom(QString userId, int errCode, QString errMsg)
 {
-	qDebug() << (errCode == 0 ? QString(u8"连麦成功:[room:%1, user:%2]").arg(m_pkRoomId).arg(userId) : QString(u8"连麦失败[userId:%1, roomId:%2, errCode:%3, msg:%4]").arg(userId).arg(m_pkRoomId).arg(errCode).arg(errMsg));
+	qDebug() << (errCode == 0 ? QString(u8"连麦成功:[room:%1, user:%2]").arg(QString::fromStdString(m_pkRoomId)).arg(userId) : QString(u8"连麦失败[userId:%1, roomId:%2, errCode:%3, msg:%4]").arg(userId).arg(QString::fromStdString(m_pkRoomId)).arg(errCode).arg(errMsg));
 	if (errCode != 0)
 	{
 		QJsonObject obj;
@@ -379,6 +378,8 @@ void TRTC::onConnectOtherRoom(QString userId, int errCode, QString errMsg)
 		obj["isNetFail"] = true;
 		emit onEvent(RTC_EVENT_FAIL, obj);
 	}
+	else
+		TRTCCloudCore::GetInstance()->startCloudMixStream(m_pkRoomId.c_str());
 }
 
 void TRTC::onDisconnectOtherRoom(int errCode, QString errMsg)
