@@ -1960,7 +1960,7 @@ void obs_load_sources(obs_data_array_t *array, obs_load_source_cb cb,
 		bfree(old_name);
 		bfree(new_name);
 
-		char *source_id = bstrdup(obs_data_get_string(source_data, "id"));
+		char *source_id = obs_data_get_string(source_data, "id");
 		if (strcmp(source_id, "scene") == 0)
 			da_insert(sources, 0, &source);
 		else
