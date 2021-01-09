@@ -39,6 +39,7 @@ void QNRtc::init()
 
     m_rtcVideoInterface = m_rtcRoomInterface->ObtainVideoInterface();
     m_rtcVideoInterface->SetVideoListener(this);
+    m_rtcVideoInterface->EnableD3dRender(true);
     m_rtcAudioInterface = m_rtcRoomInterface->ObtainAudioInterface();
     m_rtcAudioInterface->SetAudioListener(this);
 
@@ -264,16 +265,17 @@ void QNRtc::setSei(const QJsonObject &data, int insetType)
     if(m_rtcVideoInterface)
     {
         lock_guard< recursive_mutex > lck(m_mutex);
-        QJsonDocument                 jd(data);
-        QByteArray                    jsonData = jd.toJson(QJsonDocument::Compact);
+	QJsonDocument jd(data);
+	QByteArray jsonData = jd.toJson(QJsonDocument::Compact);
         list< string >                track_list;
         for(auto &&itor : m_localTracksList)
         {
             if(itor->GetKind().compare("video") == 0)
                 track_list.emplace_back(itor->GetTrackId());
         }
-        QString content = jsonData.data();
-        m_rtcVideoInterface->SetLocalVideoSei(track_list, content.toStdString(), insetType);
+
+	QString content = jsonData.data();
+	m_rtcVideoInterface->SetLocalVideoSei(track_list, content.toStdString(), insetType);
     }
 }
 

@@ -241,6 +241,8 @@ void TRTC::sendVideo(struct video_data *data)
 	TRTCCloudCore::GetInstance()->getTRTCCloud()->sendCustomVideoData(&frame);
 }
 
+void TRTC::setSei(const QJsonObject &data, int insetType) {}
+
 void TRTC::internalEnterRoom()
 {
 	//进入房间
@@ -499,4 +501,9 @@ void QINIURTC::sendAudio(struct audio_data *data)
 void QINIURTC::sendVideo(struct video_data *data)
 {
 	m_rtc->PushExternalVideoData(data->data[0], data->timestamp);
+}
+
+void QINIURTC::setSei(const QJsonObject &data, int insetType)
+{
+	m_rtc->setSei(data, insetType);
 }

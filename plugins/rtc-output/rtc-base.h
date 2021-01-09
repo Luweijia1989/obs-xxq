@@ -32,6 +32,7 @@ public:
 	virtual void setRemoteViewHwnd(long window) = 0;
 	virtual void sendAudio(struct audio_data *data) = 0;
 	virtual void sendVideo(struct video_data *data) = 0;
+	virtual void setSei(const QJsonObject &data, int insetType) = 0;
 	void setCropInfo(int x)
 	{
 		if (x + 720 > 1920)
@@ -84,6 +85,7 @@ public:
 	virtual void setRemoteViewHwnd(long window);
 	virtual void sendAudio(struct audio_data *data);
 	virtual void sendVideo(struct video_data *data);
+	virtual void setSei(const QJsonObject &data, int insetType);
 
 private:
 	QNRtc *m_rtc;
@@ -107,6 +109,7 @@ public:
 	virtual void setRemoteViewHwnd(long window);
 	virtual void sendAudio(struct audio_data *data);
 	virtual void sendVideo(struct video_data *data);
+	virtual void setSei(const QJsonObject &data, int insetType);
 
 private:
 	void internalEnterRoom();

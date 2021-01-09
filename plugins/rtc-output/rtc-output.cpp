@@ -102,6 +102,11 @@ static void rtc_output_custom_command(void *data, obs_data_t *param)
 		auto obj = QJsonDocument::fromJson(obs_data_get_string(param, "param")).object();
 		context->m_rtcBase->connectOtherRoom(obj["userId"].toString(), obj["roomId"].toInt());
 	}
+	else if (strcmp(func, "sei") == 0)
+	{
+		auto obj = QJsonDocument::fromJson(obs_data_get_string(param, "param")).object();
+		context->m_rtcBase->setSei(obj["sei_content"].toObject(), obj["sei_type"].toInt());
+	}
 }
 
 OBS_DECLARE_MODULE()
