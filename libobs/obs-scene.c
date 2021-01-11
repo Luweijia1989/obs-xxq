@@ -2348,6 +2348,14 @@ void obs_scene_atomic_update(obs_scene_t *scene,
 	obs_scene_release(scene);
 }
 
+bool obs_scene_remove_items(obs_scene_t *scene)
+{
+	if (!scene)
+		return;
+
+	remove_all_items(scene);
+}
+
 static inline bool crop_equal(const struct obs_sceneitem_crop *crop1,
 			      const struct obs_sceneitem_crop *crop2)
 {

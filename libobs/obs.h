@@ -1488,6 +1488,8 @@ EXPORT bool obs_scene_reorder_items(obs_scene_t *scene,
 				    obs_sceneitem_t *const *item_order,
 				    size_t item_order_size);
 
+EXPORT bool obs_scene_remove_items(obs_scene_t *scene);
+
 struct obs_sceneitem_order_info {
 	obs_sceneitem_t *group;
 	obs_sceneitem_t *item;
