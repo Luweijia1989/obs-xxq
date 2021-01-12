@@ -1,4 +1,4 @@
-#include "SlideTextSource.h"
+﻿#include "SlideTextSource.h"
 #include "ScrollTextSource.h"
 #include "Common.h"
 struct TextSource {
