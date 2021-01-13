@@ -20,7 +20,6 @@ struct SlideTextSource {
 	uint32_t opacity2 = 100;
 	uint32_t bk_color = 0;
 	uint32_t bk_opacity = 100;
-	bool fill = true;
 	Align align = Align::Left;
 	VAlign valign = VAlign::Top;
 	bool gradient = false;

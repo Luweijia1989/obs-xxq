@@ -19,7 +19,7 @@ endif()
 
 include_directories(SYSTEM "${CMAKE_SOURCE_DIR}/libobs")
 include_directories(${CMAKE_CURRENT_SOURCE_DIR})
-
+ 
 if(CMAKE_VERSION VERSION_GREATER 3.7.2)
 	SWIG_ADD_LIBRARY(obslua
 		LANGUAGE lua

@@ -1,4 +1,4 @@
-﻿#include "st-thread.h"
+#include "st-thread.h"
 #include "obs.h"
 #include <QDebug>
 #include <QDateTime>
@@ -400,11 +400,13 @@ void STThread::updateSticker(const QString &stickerId, bool isAdd)
 		if (m_stickers.contains(stickerId))
 			return;
 		int id = m_stFunc->addSticker(stickerId);
+		qDebug() << "st do sticker, sticker id: " << stickerId;
 		m_stickers.insert(stickerId, id);
 	} else {
 		if (!m_stickers.contains(stickerId))
 			return;
 
+		qDebug() << "st remove sticker, sticker id: " << stickerId;
 		m_stFunc->removeSticker(m_stickers.value(stickerId));
 		m_stickers.remove(stickerId);
 	}

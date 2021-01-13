@@ -921,6 +921,11 @@ HandShake(RTMP * r, int FP9HandShake)
     RTMP_LogHex(RTMP_LOGDEBUG, clientsig, RTMP_SIG_SIZE);
 #endif
 
+#if RTMP_OUTLOG
+    RTMP_Log(RTMP_LOGDEBUG, "Clientsig: ");
+    RTMP_LogHexString(RTMP_LOGDEBUG, clientsig, RTMP_SIG_SIZE);
+#endif
+
     if (!WriteN(r, (char *)clientsig-1, RTMP_SIG_SIZE + 1))
         return FALSE;
 
@@ -950,6 +955,11 @@ HandShake(RTMP * r, int FP9HandShake)
 #ifdef _DEBUG
     RTMP_Log(RTMP_LOGDEBUG, "Server signature:");
     RTMP_LogHex(RTMP_LOGDEBUG, serversig, RTMP_SIG_SIZE);
+#endif
+
+#if RTMP_OUTLOG
+    RTMP_Log(RTMP_LOGDEBUG, "Server signature:");
+    RTMP_LogHexString(RTMP_LOGDEBUG, serversig, RTMP_SIG_SIZE);
 #endif
 
     if (FP9HandShake)
@@ -1085,6 +1095,11 @@ HandShake(RTMP * r, int FP9HandShake)
 #ifdef _DEBUG
     RTMP_Log(RTMP_LOGDEBUG, "%s: 2nd handshake: ", __FUNCTION__);
     RTMP_LogHex(RTMP_LOGDEBUG, serversig, RTMP_SIG_SIZE);
+#endif
+
+#if RTMP_OUTLOG
+    RTMP_Log(RTMP_LOGDEBUG, "%s: 2nd handshake: ", __FUNCTION__);
+    RTMP_LogHexString(RTMP_LOGDEBUG, serversig, RTMP_SIG_SIZE);
 #endif
 
     if (FP9HandShake)

@@ -1,4 +1,4 @@
-﻿/******************************************************************************
+/******************************************************************************
     Copyright (C) 2014 by Hugh Bailey <obs.jim@gmail.com>
 
     This program is free software: you can redistribute it and/or modify
@@ -121,7 +121,7 @@ void obs_view_set_source(obs_view_t *view, uint32_t channel,
 	}
 }
 
-void obs_view_render(obs_view_t *view)
+void obs_view_render(obs_view_t *view, void *output_order)
 {
 	if (!view)
 		return;
@@ -133,7 +133,11 @@ void obs_view_render(obs_view_t *view)
 		struct obs_source *source;
 
 		source = view->channels[i];
-
+		if (output_order) {
+			obs_source_addref(source);
+			darray_push_back(sizeof(struct obs_source *),
+					 output_order, &source);
+		}
 		if (source) {
 			if (source->removed) {
 				obs_source_release(source);

@@ -160,8 +160,10 @@ Normal_Set:
 		hfont = CreateFontIndirect(&lf);
 	}
 
-	if (hfont)
+	if (hfont) {
 		font.reset(new Font(hdc, hfont));
+		font->GetFamily(&families[0]);
+	}
 }
 
 void TextSource::GetStringFormat(StringFormat &format)
@@ -414,13 +416,9 @@ void TextSource::RenderText()
 	if (!text.empty()) {
 		if (use_outline) {
 			box.Offset(outline_size / 2, outline_size / 2);
-
-			FontFamily family;
 			GraphicsPath path;
-
-			font->GetFamily(&family);
 			stat = path.AddString(text.c_str(), (int)text.size(),
-					      &family, font->GetStyle(),
+					      &families[0], font->GetStyle(),
 					      font->GetSize(), box, &format);
 			warn_stat("path.AddString");
 
@@ -567,6 +565,11 @@ inline void TextSource::Update(obs_data_t *s)
 	extents_cx = n_extents_cx;
 	extents_cy = n_extents_cy;
 	text_transform = new_text_transform;
+
+	if (bk_color == 0)
+		bk_opacity = 0;
+	else
+		bk_opacity = 100;
 
 	if (!gradient) {
 		color2 = color;
@@ -872,7 +875,7 @@ bool obs_module_load(void)
 		obs_data_set_default_double(settings, S_GRADIENT_DIR, 90.0);
 		obs_data_set_default_int(settings, S_BKCOLOR, 0x000000);
 		obs_data_set_default_int(settings, S_BKOPACITY, 0);
-		obs_data_set_default_int(settings, S_OUTLINE_SIZE, 2);
+		obs_data_set_default_int(settings, S_OUTLINE_SIZE, 1);
 		obs_data_set_default_int(settings, S_OUTLINE_COLOR, 0xFFFFFF);
 		obs_data_set_default_int(settings, S_OUTLINE_OPACITY, 100);
 		obs_data_set_default_int(settings, S_CHATLOG_LINES, 6);

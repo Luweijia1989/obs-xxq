@@ -776,7 +776,7 @@ EXPORT void obs_view_set_source(obs_view_t *view, uint32_t channel,
 EXPORT obs_source_t *obs_view_get_source(obs_view_t *view, uint32_t channel);
 
 /** Renders the sources of this view context */
-EXPORT void obs_view_render(obs_view_t *view);
+EXPORT void obs_view_render(obs_view_t *view, void *output_order);
 
 /* ------------------------------------------------------------------------- */
 /* Display context */
@@ -1487,6 +1487,8 @@ EXPORT void obs_scene_enum_items(obs_scene_t *scene,
 EXPORT bool obs_scene_reorder_items(obs_scene_t *scene,
 				    obs_sceneitem_t *const *item_order,
 				    size_t item_order_size);
+
+EXPORT bool obs_scene_remove_items(obs_scene_t *scene);
 
 struct obs_sceneitem_order_info {
 	obs_sceneitem_t *group;

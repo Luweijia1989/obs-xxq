@@ -43,9 +43,10 @@ static const char *rtmp_stream_getname(void *unused)
 
 static void log_rtmp(int level, const char *format, va_list args)
 {
+#if !RTMP_OUTLOG
 	if (level > RTMP_LOGWARNING)
 		return;
-
+#endif
 	blogva(LOG_INFO, format, args);
 }
 

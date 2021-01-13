@@ -70,13 +70,15 @@ static uint64_t tick_sources(uint64_t cur_time, uint64_t last_time)
 	}
 
 	if (data->sticker_source) {
-		struct obs_source *cur_source = obs_source_get_ref(data->sticker_source);
+		struct obs_source *cur_source =
+			obs_source_get_ref(data->sticker_source);
 		da_push_back(tick_order, &cur_source);
 		obs_source_video_tick(cur_source, seconds);
 	}
 
 	if (data->privacy_source) {
-		struct obs_source *cur_source = obs_source_get_ref(data->privacy_source);
+		struct obs_source *cur_source =
+			obs_source_get_ref(data->privacy_source);
 		da_push_back(tick_order, &cur_source);
 		obs_source_video_tick(cur_source, seconds);
 	}
@@ -138,7 +140,8 @@ static inline void unmap_last_surface(struct obs_core_video *video)
 }
 
 static const char *render_main_texture_name = "render_main_texture";
-static inline void render_main_texture(struct obs_core_video *video)
+static inline void render_main_texture(struct obs_core_video *video,
+				       void *output_order)
 {
 	struct obs_core_data *core_data = &obs->data;
 	profile_start(render_main_texture_name);
@@ -165,7 +168,7 @@ static inline void render_main_texture(struct obs_core_video *video)
 
 	pthread_mutex_unlock(&obs->data.draw_callbacks_mutex);
 
-	obs_view_render(&obs->data.main_view);
+	obs_view_render(&obs->data.main_view, output_order);
 
 	video->texture_rendered = true;
 
@@ -492,14 +495,15 @@ end:
 #endif
 
 static inline void render_video(struct obs_core_video *video, bool raw_active,
-				const bool gpu_active, int cur_texture)
+				const bool gpu_active, int cur_texture,
+				void *output_order)
 {
 	gs_begin_scene();
 
 	gs_enable_depth_test(false);
 	gs_set_cull_mode(GS_NEITHER);
 
-	render_main_texture(video);
+	render_main_texture(video, output_order);
 
 	if (raw_active || gpu_active) {
 		gs_texture_t *texture = render_output_texture(video);
@@ -765,6 +769,9 @@ static inline void output_frame(bool raw_active, const bool gpu_active)
 					    : cur_texture - 1;
 	struct video_data frame;
 	bool frame_ready = 0;
+	struct obs_source *temp;
+	struct darray output_order;
+	darray_init(&output_order);
 
 	memset(&frame, 0, sizeof(struct video_data));
 
@@ -774,7 +781,7 @@ static inline void output_frame(bool raw_active, const bool gpu_active)
 	profile_start(output_frame_render_video_name);
 	GS_DEBUG_MARKER_BEGIN(GS_DEBUG_COLOR_RENDER_VIDEO,
 			      output_frame_render_video_name);
-	render_video(video, raw_active, gpu_active, cur_texture);
+	render_video(video, raw_active, gpu_active, cur_texture, &output_order);
 	GS_DEBUG_MARKER_END();
 	profile_end(output_frame_render_video_name);
 
@@ -790,6 +797,16 @@ static inline void output_frame(bool raw_active, const bool gpu_active)
 
 	gs_leave_context();
 	profile_end(output_frame_gs_context_name);
+
+	for (size_t i = 0; i < output_order.num; i++) {
+		memcpy(&temp,
+		       darray_item(sizeof(struct obs_source *), &output_order,
+				   i),
+		       sizeof(sizeof(struct obs_source *)));
+		obs_source_release(temp);
+	}
+
+	darray_free(&output_order);
 
 	if (raw_active && frame_ready) {
 		struct obs_vframe_info vframe_info;

@@ -3875,6 +3875,10 @@ RTMP_ReadPacket(RTMP *r, RTMPPacket *packet)
         return FALSE;
     }
 
+#if RTMP_OUTLOG
+    RTMP_Log(RTMP_LOGDEBUG, "%s: read 1 byte: %0x", __FUNCTION__, hbuf[0]);
+#endif 
+
     packet->m_headerType = (hbuf[0] & 0xc0) >> 6;
     packet->m_nChannel = (hbuf[0] & 0x3f);
     header++;
@@ -3886,6 +3890,11 @@ RTMP_ReadPacket(RTMP *r, RTMPPacket *packet)
                      __FUNCTION__);
             return FALSE;
         }
+
+#if RTMP_OUTLOG
+        RTMP_Log(RTMP_LOGDEBUG, "%s: read 2 byte: %0x", __FUNCTION__, hbuf[1]);
+#endif
+
         packet->m_nChannel = hbuf[1];
         packet->m_nChannel += 64;
         header++;
@@ -3899,6 +3908,11 @@ RTMP_ReadPacket(RTMP *r, RTMPPacket *packet)
                      __FUNCTION__);
             return FALSE;
         }
+
+#if RTMP_OUTLOG
+        RTMP_Log(RTMP_LOGDEBUG, "%s: read 2-3 bytes: %0x%0x", __FUNCTION__, hbuf[1], hbuf[2]);
+#endif
+
         tmp = (hbuf[2] << 8) + hbuf[1];
         packet->m_nChannel = tmp + 64;
         RTMP_Log(RTMP_LOGDEBUG, "%s, m_nChannel: %0x", __FUNCTION__, packet->m_nChannel);
@@ -3935,8 +3949,22 @@ RTMP_ReadPacket(RTMP *r, RTMPPacket *packet)
     {
         /* using values from the last message of this channel */
         if (r->m_vecChannelsIn[packet->m_nChannel])
+        {
+#if RTMP_OUTLOG
+            RTMP_Log(RTMP_LOGDEBUG, "%s: using values from the last message of this channel: %0x, header type: %0x, bytes: %d",
+                __FUNCTION__, packet->m_nChannel,packet->m_headerType,
+                r->m_vecChannelsIn[packet->m_nChannel]->m_nBodySize);
+            RTMP_LogHexString(RTMP_LOGDEBUG, (uint8_t *)r->m_vecChannelsIn[packet->m_nChannel]->m_body,
+                r->m_vecChannelsIn[packet->m_nChannel]->m_nBodySize);
+#endif
             memcpy(packet, r->m_vecChannelsIn[packet->m_nChannel],
-                   sizeof(RTMPPacket));
+                sizeof(RTMPPacket));
+#if RTMP_OUTLOG
+            RTMP_Log(RTMP_LOGDEBUG, "memcpy last message chunk: header type:%0x of %d bytes",
+                packet->m_headerType, packet->m_nBodySize);
+            RTMP_LogHexString(RTMP_LOGDEBUG, (uint8_t *)packet->m_body, packet->m_nBodySize);
+#endif
+        }
     }
 
     nSize--;
@@ -3947,6 +3975,10 @@ RTMP_ReadPacket(RTMP *r, RTMPPacket *packet)
                  __FUNCTION__, (unsigned int)hbuf[0]);
         return FALSE;
     }
+
+#if RTMP_OUTLOG
+    RTMP_Log(RTMP_LOGDEBUG, "%s: read header %d bytes: %s", __FUNCTION__, nSize, header);
+#endif
 
     hSize = nSize + (header - (char *)hbuf);
 
@@ -3980,13 +4012,20 @@ RTMP_ReadPacket(RTMP *r, RTMPPacket *packet)
                          __FUNCTION__);
                 return FALSE;
             }
+#if RTMP_OUTLOG
+            RTMP_Log(RTMP_LOGDEBUG2, "%s, %d:", __FUNCTION__, __LINE__);
+            RTMP_LogHexString(RTMP_LOGDEBUG2, (uint8_t *)header + nSize, 4);
+#endif
+
             packet->m_nTimeStamp = AMF_DecodeInt32(header + nSize);
             hSize += 4;
         }
     }
 
-    RTMP_LogHexString(RTMP_LOGDEBUG2, (uint8_t *)hbuf, hSize);
-
+#if RTMP_OUTLOG
+    RTMP_Log(RTMP_LOGDEBUG2, "%s, %d: ", __FUNCTION__, __LINE__);
+#endif
+	RTMP_LogHexString(RTMP_LOGDEBUG2, (uint8_t *)hbuf, hSize);
     if (packet->m_nBodySize > 0 && packet->m_body == NULL)
     {
         if (!RTMPPacket_Alloc(packet, packet->m_nBodySize))
@@ -4007,7 +4046,18 @@ RTMP_ReadPacket(RTMP *r, RTMPPacket *packet)
     if (packet->m_chunk)
     {
         packet->m_chunk->c_headerSize = hSize;
+#if RTMP_OUTLOG
+        RTMP_Log(RTMP_LOGDEBUG, "%s: Does the caller want the raw chunk: %d bytes",
+            __FUNCTION__, hSize);
+        RTMP_LogHexString(RTMP_LOGDEBUG, (uint8_t *)hbuf, hSize);
+#endif
         memcpy(packet->m_chunk->c_header, hbuf, hSize);
+
+#if RTMP_OUTLOG
+        RTMP_Log(RTMP_LOGDEBUG, "memcpy chunk header: %d bytes:", hSize);
+        RTMP_LogHexString(RTMP_LOGDEBUG, (uint8_t *)packet->m_chunk->c_header, hSize);
+#endif
+
         packet->m_chunk->c_chunk = packet->m_body + packet->m_nBytesRead;
         packet->m_chunk->c_chunkSize = nChunk;
     }
@@ -4019,6 +4069,9 @@ RTMP_ReadPacket(RTMP *r, RTMPPacket *packet)
         return FALSE;
     }
 
+#if RTMP_OUTLOG
+    RTMP_Log(RTMP_LOGDEBUG2, "%s, %d: %s",__FUNCTION__, __LINE__, packet->m_body + packet->m_nBytesRead);
+#endif
     RTMP_LogHexString(RTMP_LOGDEBUG2, (uint8_t *)packet->m_body + packet->m_nBytesRead, nChunk);
 
     packet->m_nBytesRead += nChunk;
@@ -4026,7 +4079,19 @@ RTMP_ReadPacket(RTMP *r, RTMPPacket *packet)
     /* keep the packet as ref for other packets on this channel */
     if (!r->m_vecChannelsIn[packet->m_nChannel])
         r->m_vecChannelsIn[packet->m_nChannel] = malloc(sizeof(RTMPPacket));
+
+#if RTMP_OUTLOG
+    RTMP_Log(RTMP_LOGDEBUG, "%s: keep the packet as ref for other packets on this channel: %0x of %d bytes",
+        __FUNCTION__, packet->m_nChannel, packet->m_nBodySize);
+    RTMP_LogHexString(RTMP_LOGDEBUG, (uint8_t *)packet->m_body, packet->m_nBodySize);
+#endif
     memcpy(r->m_vecChannelsIn[packet->m_nChannel], packet, sizeof(RTMPPacket));
+#if RTMP_OUTLOG
+    RTMP_Log(RTMP_LOGDEBUG, "memcpy packet %d sizes:",
+        r->m_vecChannelsIn[packet->m_nChannel]->m_nBodySize);
+    RTMP_LogHexString(RTMP_LOGDEBUG, (uint8_t *)r->m_vecChannelsIn[packet->m_nChannel]->m_body, r->m_vecChannelsIn[packet->m_nChannel]->m_nBodySize);
+#endif
+
     if (extendedTimestamp)
         r->m_vecChannelsIn[packet->m_nChannel]->m_nTimeStamp = 0xffffff;
 
@@ -4334,8 +4399,10 @@ RTMP_SendPacket(RTMP *r, RTMPPacket *packet, int queue)
     buffer = packet->m_body;
     nChunkSize = r->m_outChunkSize;
 
+#if !RTMP_OUTLOG
     RTMP_Log(RTMP_LOGDEBUG2, "%s: fd=%d, size=%d", __FUNCTION__, (int)r->m_sb.sb_socket,
              nSize);
+#endif
     /* send all chunks in one HTTP request */
     if (r->Link.protocol & RTMP_FEATURE_HTTP)
     {
@@ -4603,6 +4670,12 @@ RTMPSockBuf_Fill(RTMPSockBuf *sb)
 #endif
         {
             nBytes = recv(sb->sb_socket, sb->sb_start + sb->sb_size, nBytes, MSG_NOSIGNAL);
+
+#if RTMP_OUTLOG
+            RTMP_Log(RTMP_LOGDEBUG, "%s: recv %d bytes:", __FUNCTION__, nBytes);
+            RTMP_LogHex(RTMP_LOGDEBUG, (uint8_t *)sb->sb_start + sb->sb_size, nBytes);
+#endif
+
         }
         if (nBytes > 0)
         {

@@ -66,8 +66,10 @@ Normal_Set:
 		hfont = CreateFontIndirect(&lf);
 	}
 
-	if (hfont)
+	if (hfont) {
 		font.reset(new Font(hdc, hfont));
+		font->GetFamily(&families[0]);
+	}
 }
 
 void SlideTextSource::GetSlideStringFormat(StringFormat &format)
@@ -424,6 +426,7 @@ void SlideTextSource::CalculateSlideTextSizes(const wstring &text_measure,
 	 * its internal value in case the texture gets cut off */
 	bounding_box.Width = temp_box.Width;
 	bounding_box.Height = temp_box.Height;
+	text_size.cx = text_size.cx + face_size;
 }
 
 void SlideTextSource::RenderSlideOutlineText(Graphics &graphics,
@@ -509,44 +512,67 @@ void SlideTextSource::RenderSlideText()
 
 	if (use_outline) {
 		box.Offset(outline_size / 2, outline_size / 2);
-
-		FontFamily family;
 		GraphicsPath path;
+		int count = CaculateSlideTextColums(text);
+		CalculateSlideTextPos(count, format, box.X, box.Y, size);
+		stat = graphics_bitmap.Clear(Color(0));
+		if ((size.cx > box.Width || size.cy > box.Height) &&
+		    !use_extents) {
+			warn_stat("graphics_bitmap.Clear");
+			SolidBrush bk_brush = Color(full_bk_color);
+			RectF box_brush;
+			box_brush.X = 0.0f;
+			box_brush.Y = 0.0f;
+			box_brush.Width = size.cx;
+			box_brush.Height = size.cy;
+			stat = graphics_bitmap.FillRectangle(&bk_brush,
+							     box_brush);
+			warn_stat("graphics_bitmap.FillRectangle");
+		} else {
+			stat = graphics_bitmap.Clear(Color(full_bk_color));
+			warn_stat("graphics_bitmap.Clear");
+		}
 
-		font->GetFamily(&family);
-		stat = path.AddString(text.c_str(), (int)text.size(), &family,
-				      font->GetStyle(), font->GetSize(), box,
-				      &format);
+		LinearGradientBrush brush1(box,
+					   Color(calc_color(color, opacity)),
+					   Color(calc_color(color2, opacity2)),
+					   gradient_dir, 1);
+		stat = path.AddString(text.c_str(), (int)text.size(),
+				      &families[0], font->GetStyle(),
+				      font->GetSize(), box, &format);
 		warn_stat("path.AddString");
-
-		RenderSlideOutlineText(graphics_bitmap, path, brush);
+		RenderSlideOutlineText(graphics_bitmap, path, brush1);
 	} else {
 		if (!vertical) {
 			int count = CaculateSlideTextColums(text);
 			CalculateSlideTextPos(count, format, box.X, box.Y,
 					      size);
-
+			stat = graphics_bitmap.Clear(Color(0));
 			if ((size.cx > box.Width || size.cy > box.Height) &&
-			    !use_extents && fill) {
-				stat = graphics_bitmap.Clear(Color(0));
+			    !use_extents) {
 				warn_stat("graphics_bitmap.Clear");
 				SolidBrush bk_brush = Color(full_bk_color);
+				RectF box_brush;
+				box_brush.X = 0.0f;
+				box_brush.Y = 0.0f;
+				box_brush.Width = size.cx;
+				box_brush.Height = size.cy;
 				stat = graphics_bitmap.FillRectangle(&bk_brush,
-								     box);
+								     box_brush);
 				warn_stat("graphics_bitmap.FillRectangle");
 			} else {
 				stat = graphics_bitmap.Clear(
 					Color(full_bk_color));
 				warn_stat("graphics_bitmap.Clear");
 			}
-
-			if (fill == false) {
-				stat = graphics_bitmap.Clear(Color(0));
-			}
+			LinearGradientBrush brush1(
+				box, Color(calc_color(color, opacity)),
+				Color(calc_color(color2, opacity2)),
+				gradient_dir, 1);
 			stat = graphics_bitmap.DrawString(text.c_str(),
 							  (int)text.size(),
 							  font.get(), box,
-							  &format, &brush);
+							  &format, &brush1);
 			warn_stat("graphics_bitmap.DrawString");
 		} else {
 			bool b = VerDeleteLineLarge();
@@ -721,12 +747,19 @@ void SlideTextSource::SlideUpdate(obs_data_t *s)
 	const char *new_front_color = obs_data_get_string(s, S_FONTCOLOR);
 	bool new_vertical = obs_data_get_bool(s, S_DISPLAY) == false ? true
 								     : false;
+	uint32_t new_bk_color = obs_data_get_uint32(s, S_BKCOLOR);
+	//描边
+	bool new_outline = obs_data_get_bool(s, S_OUTLINE);
+	uint32_t new_o_color = obs_data_get_uint32(s, S_OUTLINE_COLOR);
+	uint32_t new_o_opacity = obs_data_get_uint32(s, S_OUTLINE_OPACITY);
+	uint32_t new_o_size = obs_data_get_uint32(s, S_OUTLINE_SIZE);
+
+	//渐变
+	uint32_t new_color2 = obs_data_get_uint32(s, S_GRADIENT_COLOR);
+	float new_grad_dir = (float)obs_data_get_double(s, S_GRADIENT_DIR);
+	bool gradient = obs_data_get_bool(s, S_GRADIENT);
+
 	texts.clear();
-	// 这里兼容一下老版本
-	if (strcmp(new_color, "#00000000") == 0)
-		fill = false;
-	else
-		fill = true;
 
 	if (strcmp(new_color, "#FFF244F") == 0) {
 		new_color = "#00000000";
@@ -768,13 +801,7 @@ void SlideTextSource::SlideUpdate(obs_data_t *s)
 	string str_color = new_front_color;
 	str_color = str_color.substr(1);
 	str_color = "0x" + str_color;
-	sscanf(str_color.c_str(), "%x", &color2);        //十六进制转数字
-	sscanf(str_color.c_str(), "%x", &color);         //十六进制转数字
-	sscanf(str_color.c_str(), "%x", &outline_color); //十六进制转数字
-	str_color = new_color;
-	str_color = str_color.substr(1);
-	str_color = "0x" + str_color;
-	sscanf(str_color.c_str(), "%x", &bk_color); //十六进制转数字
+	sscanf(str_color.c_str(), "%x", &color); //十六进制转数字
 	CaclculateSpeed();
 
 	if (new_halign == 0x0004)
@@ -809,6 +836,26 @@ void SlideTextSource::SlideUpdate(obs_data_t *s)
 	if (vertical) {
 		GenerateVerSlideText(text, ver_texts);
 	}
+
+	use_outline = new_outline;
+	outline_color = rgb_to_bgr(new_o_color);
+	outline_opacity = new_o_opacity;
+	outline_size = roundf(float(new_o_size));
+	color2 = rgb_to_bgr(new_color2);
+	bk_color = rgb_to_bgr(new_bk_color);
+	if (bk_color == 0)
+		bk_opacity = 0;
+	else
+		bk_opacity = 100;
+	gradient_dir = new_grad_dir;
+	if (!gradient) {
+		color2 = color;
+		opacity2 = opacity;
+	} else {
+		uint32_t color_tmp = obs_data_get_uint32(s, S_COLOR);
+		color = rgb_to_bgr(color_tmp);
+	}
+
 	CalculateMaxSize();
 	RenderSlideText();
 }

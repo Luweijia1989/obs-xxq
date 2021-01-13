@@ -1687,7 +1687,7 @@ void obs_render_main_view(void)
 {
 	if (!obs)
 		return;
-	obs_view_render(&obs->data.main_view);
+	obs_view_render(&obs->data.main_view, NULL);
 }
 
 static void obs_render_main_texture_internal(enum gs_blend_type src_c,
@@ -1960,7 +1960,11 @@ void obs_load_sources(obs_data_array_t *array, obs_load_source_cb cb,
 		bfree(old_name);
 		bfree(new_name);
 
-		da_push_back(sources, &source);
+		char *source_id = obs_data_get_string(source_data, "id");
+		if (strcmp(source_id, "scene") == 0)
+			da_insert(sources, 0, &source);
+		else
+			da_push_back(sources, &source);
 
 		obs_data_release(source_data);
 	}
@@ -2046,6 +2050,14 @@ void obs_load_sources_with_specific_iteminfo(obs_data_array_t *array,
 		obs_data_release(source_data);
 	}
 
+	if (scene) {
+		obs_data_t *scene_data = obs_source_get_settings(scene);
+		obs_data_clear(scene_data);
+		obs_data_apply(scene_data, iteminfo);
+		obs_source_load(scene);
+		obs_data_release(scene_data);
+	}
+
 	/* tell sources that we want to load */
 	for (i = 0; i < sources.num; i++) {
 		obs_source_t *source = sources.array[i];
@@ -2061,14 +2073,6 @@ void obs_load_sources_with_specific_iteminfo(obs_data_array_t *array,
 			}
 		}
 		obs_data_release(source_data);
-	}
-
-	if (scene) {
-		obs_data_t *scene_data = obs_source_get_settings(scene);
-		obs_data_clear(scene_data);
-		obs_data_apply(scene_data, iteminfo);
-		obs_source_load(scene);
-		obs_data_release(scene_data);
 	}
 
 	for (i = 0; i < sources.num; i++)
