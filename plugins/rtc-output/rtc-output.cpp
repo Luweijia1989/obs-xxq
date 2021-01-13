@@ -11,9 +11,9 @@ static void *rtc_output_create(obs_data_t *settings, obs_output_t *output)
 {
 	int rtc_type = obs_data_get_int(settings, "rtc_type");
 	RTCOutput *context = new RTCOutput((RTCOutput::RTC_TYPE)rtc_type, output);
-	context->m_rtcBase->setVideoInfo(obs_data_get_int(settings, "audiobitrate"), obs_data_get_int(settings, "videobitrate"), obs_data_get_int(settings, "fps"));
+	context->m_rtcBase->setVideoInfo(obs_data_get_int(settings, "audiobitrate"), obs_data_get_int(settings, "videobitrate"), obs_data_get_int(settings, "fps"), obs_data_get_int(settings, "v_width"), obs_data_get_int(settings, "v_height"));
 	context->m_rtcBase->setLinkInfo(obs_data_get_string(settings, "linkInfo"));
-	context->m_rtcBase->setCropInfo(obs_data_get_int(settings, "cropX"));
+	context->m_rtcBase->setCropInfo(obs_data_get_int(settings, "cropX"), obs_data_get_int(settings, "cropWidth"));
 	context->m_rtcBase->setRemoteViewHwnd(obs_data_get_int(settings, "hwnd"));
 	audio_convert_info info;
 	info.format = AUDIO_FORMAT_16BIT;

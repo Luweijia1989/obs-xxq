@@ -83,7 +83,7 @@ public:
     void PushExternalVideoData(const uint8_t *data, unsigned long long reference_time);
     void PushExternalAudioData(const uint8_t *data, int frames);
     void CreateCustomMerge();
-    void SetVideoInfo(int a, int v, int fps);
+    void SetVideoInfo(int a, int v, int fps, int w, int h);
 public slots:
     void leaveRoom();
     void setCropInfo(int posX, int posY, int width, int height);

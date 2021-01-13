@@ -16,8 +16,6 @@ unsigned long long QNRtc::s_startTimeStamp = 0;
 QNRtc::QNRtc(QObject *parent)
     : QObject(parent)
 {
-    m_vedioFormat.width = 1920;
-    m_vedioFormat.height = 1080;
     init();
 }
 
@@ -320,11 +318,13 @@ void QNRtc::CreateCustomMerge()
     int rtn         = m_rtcRoomInterface->CreateMergeJob(job_desc, background, watermarks);
 }
 
-void QNRtc::SetVideoInfo(int a, int v, int fps)
+void QNRtc::SetVideoInfo(int a, int v, int fps, int w, int h)
 {
 	m_audiobitrate = a;
 	m_videobitrate = v;
 	m_fps = fps;
+	m_vedioFormat.width = w;
+	m_vedioFormat.height = h;
 }
 
 ////////////////////////SDK回调///////////////////////////////////////////////

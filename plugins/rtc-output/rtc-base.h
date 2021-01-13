@@ -14,11 +14,15 @@ public:
 		int audioBitrate;
 		int videoBitrate;
 		int fps;
+		int width;
+		int height;
 		VideoInfo()
 		{
 			audioBitrate = 0;
 			videoBitrate = 0;
 			fps = 0;
+			width = 0;
+			height = 0;
 		}
 	};
 
@@ -33,21 +37,20 @@ public:
 	virtual void sendAudio(struct audio_data *data) = 0;
 	virtual void sendVideo(struct video_data *data) = 0;
 	virtual void setSei(const QJsonObject &data, int insetType) = 0;
-	void setCropInfo(int x)
+	void setCropInfo(int x, int cropWidth)
 	{
-		if (x + 720 > 1920)
-			m_cropInfo = QRect(0, 0, 720, 1080);
-		else
-			m_cropInfo = QRect(x, 0, 720, 1080);
+		m_cropInfo = QRect(x, 0, cropWidth, m_vinfo.height);
 	}
 
 	const QRect &cropInfo() { return m_cropInfo; }
 
-	void setVideoInfo(int a, int v, int fps)
+	void setVideoInfo(int a, int v, int fps, int w, int h)
 	{
 		m_vinfo.audioBitrate = a;
 		m_vinfo.videoBitrate = v;
 		m_vinfo.fps = fps;
+		m_vinfo.width = w;
+		m_vinfo.height = h;
 	}
 
 	const VideoInfo &videoInfo() { return m_vinfo; }

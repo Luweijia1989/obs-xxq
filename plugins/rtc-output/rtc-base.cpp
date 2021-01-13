@@ -456,8 +456,8 @@ void QINIURTC::init() {}
 
 void QINIURTC::enterRoom()
 {
-	m_rtc->SetVideoInfo(videoInfo().audioBitrate, videoInfo().videoBitrate, videoInfo().fps);
-	m_rtc->setCropInfo(cropInfo().x(), 0, 724, 1080);
+	m_rtc->SetVideoInfo(videoInfo().audioBitrate, videoInfo().videoBitrate, videoInfo().fps, videoInfo().width, videoInfo().height);
+	m_rtc->setCropInfo(cropInfo().x(), 0, cropInfo().width(), cropInfo().height());
 	m_rtc->setUserId(linkInfo().value("userId").toString());
 	m_rtc->startLink(linkInfo().value("token").toString());
 }
