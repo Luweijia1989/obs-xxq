@@ -146,9 +146,6 @@ void ScrollTextSource::RenderText()
 
 	if (use_outline) {
 		box.Offset(outline_size / 2, outline_size / 2);
-
-		FontFamily family;
-		font->GetFamily(&family);
 		int count = CaculateTextColums(text);
 
 		if ((update_time1 < animate_time && update_time1 > 0.0f)) {
@@ -164,7 +161,7 @@ void ScrollTextSource::RenderText()
 				Color(calc_color(color2, opacity2)),
 				gradient_dir, 1);
 			stat = path1.AddString(text.c_str(), (int)text.size(),
-					       &family, font->GetStyle(),
+					       &families[0], font->GetStyle(),
 					       font->GetSize(), box, &format);
 			warn_stat("path.AddString");
 			RenderSlideOutlineText(graphics_bitmap, path1, brush1);
@@ -184,7 +181,7 @@ void ScrollTextSource::RenderText()
 				gradient_dir, 1);
 
 			stat = path2.AddString(text.c_str(), (int)text.size(),
-					       &family, font->GetStyle(),
+					       &families[0], font->GetStyle(),
 					       font->GetSize(), box, &format);
 			warn_stat("path.AddString");
 			RenderSlideOutlineText(graphics_bitmap, path2, brush2);

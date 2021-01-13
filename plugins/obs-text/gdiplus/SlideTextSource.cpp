@@ -510,13 +510,7 @@ void SlideTextSource::RenderSlideText()
 
 	if (use_outline) {
 		box.Offset(outline_size / 2, outline_size / 2);
-		FontFamily family;
 		GraphicsPath path;
-		font->GetFamily(&family);
-		/*		stat = path.AddString(text.c_str(), (int)text.size(), &family,
-				      font->GetStyle(), font->GetSize(), box,
-				      &format);
-		warn_stat("path.AddString")*/
 		int count = CaculateSlideTextColums(text);
 		CalculateSlideTextPos(count, format, box.X, box.Y, size);
 		stat = graphics_bitmap.Clear(Color(0));
@@ -541,9 +535,9 @@ void SlideTextSource::RenderSlideText()
 					   Color(calc_color(color, opacity)),
 					   Color(calc_color(color2, opacity2)),
 					   gradient_dir, 1);
-		stat = path.AddString(text.c_str(), (int)text.size(), &family,
-				      font->GetStyle(), font->GetSize(), box,
-				      &format);
+		stat = path.AddString(text.c_str(), (int)text.size(),
+				      &families[0], font->GetStyle(),
+				      font->GetSize(), box, &format);
 		warn_stat("path.AddString");
 		RenderSlideOutlineText(graphics_bitmap, path, brush1);
 	} else {

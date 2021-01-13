@@ -414,13 +414,9 @@ void TextSource::RenderText()
 	if (!text.empty()) {
 		if (use_outline) {
 			box.Offset(outline_size / 2, outline_size / 2);
-
-			FontFamily family;
 			GraphicsPath path;
-
-			font->GetFamily(&family);
 			stat = path.AddString(text.c_str(), (int)text.size(),
-					      &family, font->GetStyle(),
+					      &families[0], font->GetStyle(),
 					      font->GetSize(), box, &format);
 			warn_stat("path.AddString");
 
