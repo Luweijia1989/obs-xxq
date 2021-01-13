@@ -356,8 +356,10 @@ Normal_Set:
 		hfont = CreateFontIndirect(&lf);
 	}
 
-	if (hfont)
+	if (hfont) {
 		font.reset(new Font(hdc, hfont));
+		font->GetFamily(&families[0]);
+	}
 }
 
 void ScrollTextSource::GetSlideStringFormat(StringFormat &format)
