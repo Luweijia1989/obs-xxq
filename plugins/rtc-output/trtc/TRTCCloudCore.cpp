@@ -175,19 +175,17 @@ void TRTCCloudCore::onUserAudioAvailable(const char *userId, bool available)
 	emit trtcEvent(RTC_EVENT_USER_AUDIO_AVAILABLE, data);
 }
 
-void TRTCCloudCore::onSwitchRoom(TXLiteAVError errCode, const char *errMsg)
-{
-	blog(LOG_INFO, "onSwitchRoom errorCode[%d], errorInfo[%s]", errCode, errMsg);
-
-	QJsonObject data;
-	data["errCode"] = errCode;
-	data["errMsg"] = errMsg;
-	emit trtcEvent(RTC_EVENT_SWITCH_ROOM, data);
-}
-
 void TRTCCloudCore::onFirstAudioFrame(const char *userId)
 {
 	blog(LOG_INFO, "onFirstAudioFrame userId[%s]", userId);
+}
+
+void TRTCCloudCore::onFirstVideoFrame(const char *userId,
+				      const TRTCVideoStreamType streamType,
+				      const int width, const int height)
+{
+	blog(LOG_INFO, "onFirstAudioFrame userId[%s]", userId);
+	emit trtcEvent(RTC_EVENT_FIRST_VIDEO, QJsonObject());
 }
 
 void TRTCCloudCore::onUserVoiceVolume(TRTCVolumeInfo *userVolumes,
@@ -239,28 +237,6 @@ void TRTCCloudCore::onLog(const char *log, TRTCLogLevel level,
 		int streamType = 0;
 		blog(LOG_DEBUG, "SDK Event data, stream type: %1, msg: %s", streamType, log);
 	}
-}
-
-void TRTCCloudCore::onConnectOtherRoom(const char *userId,
-				       TXLiteAVError errCode,
-				       const char *errMsg)
-{
-	blog(LOG_DEBUG, "onConnectOtherRoom");
-	QJsonObject data;
-	data["userId"] = userId;
-	data["errCode"] = errCode;
-	data["errMsg"] = errMsg;
-	emit trtcEvent(RTC_EVENT_CONNECT_OTHER_ROOM, data);
-}
-
-void TRTCCloudCore::onDisconnectOtherRoom(TXLiteAVError errCode,
-					  const char *errMsg)
-{
-	blog(LOG_INFO, "onConnectOtherRoom");
-	QJsonObject data;
-	data["errCode"] = errCode;
-	data["errMsg"] = errMsg;
-	emit trtcEvent(RTC_EVENT_DISCONNECT_OTHER_ROOM, data);
 }
 
 void TRTCCloudCore::onSetMixTranscodingConfig(int errCode, const char *errMsg)

@@ -52,8 +52,8 @@ public:
 	virtual void onRemoteUserEnterRoom(const char *userId);
 	virtual void onRemoteUserLeaveRoom(const char *userId, int reason);
 	virtual void onUserAudioAvailable(const char *userId, bool available);
-	virtual void onSwitchRoom(TXLiteAVError errCode, const char *errMsg);
 	virtual void onFirstAudioFrame(const char *userId);
+	virtual void onFirstVideoFrame(const char* userId, const TRTCVideoStreamType streamType, const int width, const int height);
 	virtual void onUserVoiceVolume(TRTCVolumeInfo *userVolumes,
 				       uint32_t userVolumesCount,
 				       uint32_t totalVolume);
@@ -70,11 +70,6 @@ public:
 
 	virtual void onLog(const char *log, TRTCLogLevel level,
 			   const char *module);
-	virtual void onConnectOtherRoom(const char *userId,
-					TXLiteAVError errCode,
-					const char *errMsg);
-	virtual void onDisconnectOtherRoom(TXLiteAVError errCode,
-					   const char *errMsg);
 	virtual void onSetMixTranscodingConfig(int errCode, const char *errMsg);
 	virtual void onStartPublishing(int err, const char *errMsg);
 	virtual void onStopPublishing(int err, const char *errMsg);

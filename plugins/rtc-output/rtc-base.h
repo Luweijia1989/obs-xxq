@@ -7,6 +7,8 @@
 #include <QRect>
 #include <QEventLoop>
 
+typedef std::function< void(int type, QJsonObject data) > RtcEventCallback;
+
 class RTCBase : public QObject {
 	Q_OBJECT
 public:
@@ -29,10 +31,6 @@ public:
 	virtual void init() = 0;
 	virtual void enterRoom() = 0;
 	virtual void exitRoom() = 0;
-	virtual void switchRoom(int roomId) = 0;
-	virtual void connectOtherRoom(QString userId, int roomId) = 0;
-	virtual void disconnectOtherRoom() = 0;
-	virtual void mixStream(QJsonObject param) = 0;
 	virtual void setRemoteViewHwnd(long window) = 0;
 	virtual void sendAudio(struct audio_data *data) = 0;
 	virtual void sendVideo(struct video_data *data) = 0;
@@ -58,18 +56,45 @@ public:
 	void setLinkInfo(QString str)
 	{
 		QJsonDocument jd = QJsonDocument::fromJson(str.toUtf8());
-		m_linkInfo = jd.object();
+		QJsonObject obj = jd.object();
+		link_uid = obj["uid"].toString();
+		link_otherUid = obj["otherUid"].toString();
+		link_rtcRoomId = obj["rtcRoomId"].toString();
+		link_streamUrl = obj["streamUrl"].toString();
+		link_streamId = obj["streamId"].toString();
+		link_cdnSupplier = obj["cdnSupplier"].toString();
+		link_rtcRoomToken = obj["rtcRoomToken"].toString();
+		link_std_rtcRoomId = link_rtcRoomId.toStdString();
 	}
 
-	const QJsonObject &linkInfo() { return m_linkInfo; }
+	void setRtcEventCallback(RtcEventCallback cb)
+	{
+		m_rtccb = cb;
+	}
 
-signals:
-	void onEvent(int type, QJsonObject data);
+	void sendEvent(int type, QJsonObject data)
+	{
+		if (!m_rtccb)
+			return;
+
+		m_rtccb(type, data);
+	}
 
 private:
 	QRect m_cropInfo = QRect(0, 0, 1920, 1080);
 	VideoInfo m_vinfo;
 	QJsonObject m_linkInfo;
+	RtcEventCallback m_rtccb = nullptr;
+
+public:
+	QString link_uid;
+	QString link_otherUid;
+	QString link_rtcRoomId;
+	QString link_streamUrl;
+	QString link_streamId;
+	QString link_cdnSupplier;
+	QString link_rtcRoomToken;
+	std::string link_std_rtcRoomId;
 };
 
 class QNRtc;
@@ -81,10 +106,6 @@ public:
 	virtual void init();
 	virtual void enterRoom();
 	virtual void exitRoom();
-	virtual void switchRoom(int roomId);
-	virtual void connectOtherRoom(QString userId, int roomId);
-	virtual void disconnectOtherRoom();
-	virtual void mixStream(QJsonObject param);
 	virtual void setRemoteViewHwnd(long window);
 	virtual void sendAudio(struct audio_data *data);
 	virtual void sendVideo(struct video_data *data);
@@ -105,10 +126,6 @@ public:
 	virtual void init();
 	virtual void enterRoom();
 	virtual void exitRoom();
-	virtual void switchRoom(int roomId);
-	virtual void connectOtherRoom(QString userId, int roomId);
-	virtual void disconnectOtherRoom();
-	virtual void mixStream(QJsonObject param);
 	virtual void setRemoteViewHwnd(long window);
 	virtual void sendAudio(struct audio_data *data);
 	virtual void sendVideo(struct video_data *data);
@@ -121,16 +138,11 @@ private:
 	void onExitRoom();
 	void onUserAudioAvailable(QString userId, bool available);
 	void onUserVideoAvailable(QString userId, bool available);
-	void onSwitchRoom(int errCode, QString errMsg);
 	void onRemoteUserEnter(QString userId);
 	void onRemoteUserLeave(QString userId);
-	void onConnectOtherRoom(QString userId, int errCode, QString errMsg);
-	void onDisconnectOtherRoom(int errCode, QString errMsg);
 
 private:
 	bool m_bStartCustomCapture = false;
-	bool m_bSendMixRequest = false;
-	std::string m_pkRoomId;
 	long m_remoteView;
 	char *m_yuvBuffer = nullptr;
 	QEventLoop m_exitRoomLoop;

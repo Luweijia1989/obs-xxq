@@ -93,16 +93,8 @@ static void rtc_output_custom_command(void *data, obs_data_t *param)
 {
 	RTCOutput *context = static_cast<RTCOutput *>(data);
 	const char * func = obs_data_get_string(param, "func");
-	if (strcmp(func, "mixStream") == 0)
-	{
-		context->m_rtcBase->mixStream(QJsonDocument::fromJson(obs_data_get_string(param, "param")).object());
-	}
-	else if (strcmp(func, "connectOtherRoom") == 0)
-	{
-		auto obj = QJsonDocument::fromJson(obs_data_get_string(param, "param")).object();
-		context->m_rtcBase->connectOtherRoom(obj["userId"].toString(), obj["roomId"].toInt());
-	}
-	else if (strcmp(func, "sei") == 0)
+
+	if (strcmp(func, "sei") == 0)
 	{
 		auto obj = QJsonDocument::fromJson(obs_data_get_string(param, "param")).object();
 		context->m_rtcBase->setSei(obj["sei_content"].toObject(), obj["sei_type"].toInt());
@@ -144,20 +136,25 @@ RTCOutput::RTCOutput(RTC_TYPE type, obs_output_t *output)
 	else if (type == RTC_TYPE_QINIU)
 		m_rtcBase = new QINIURTC();
 
-	QObject::connect(m_rtcBase, &RTCBase::onEvent, [=](int type, QJsonObject data){
-		data["event_type"] = type;
-		obs_data_t *p = obs_data_create_from_json(QJsonDocument(data).toJson(QJsonDocument::Compact).data());
-		struct calldata params = { 0 };
-		calldata_set_ptr(&params, "output", m_output);
-		calldata_set_ptr(&params, "data", p);
-		signal_handler_signal(obs_output_get_signal_handler(m_output), "sig_event", &params);
-		obs_data_release(p);
-		calldata_free(&params);
-	});
+	m_rtcBase->setRtcEventCallback(std::bind(&RTCOutput::sigEvent, this, std::placeholders::_1, std::placeholders::_2));
 }
 
 RTCOutput::~RTCOutput()
 {
+	m_rtcBase->setRtcEventCallback(nullptr);
+
 	if (m_rtcBase)
 		m_rtcBase->deleteLater();
+}
+
+void RTCOutput::sigEvent(int type, QJsonObject data)
+{
+	data["event_type"] = type;
+	obs_data_t *p = obs_data_create_from_json(QJsonDocument(data).toJson(QJsonDocument::Compact).data());
+	struct calldata params = { 0 };
+	calldata_set_ptr(&params, "output", m_output);
+	calldata_set_ptr(&params, "data", p);
+	signal_handler_signal(obs_output_get_signal_handler(m_output), "sig_event", &params);
+	obs_data_release(p);
+	calldata_free(&params);
 }

@@ -1,6 +1,8 @@
 #pragma once
 #include <obs-module.h>
+#include <pthread.h>
 #include "rtc-base.h"
+#include <QJsonObject>
 class RTCOutput {
 public:
 	enum RTC_TYPE
@@ -10,6 +12,8 @@ public:
 	};
 	RTCOutput(RTC_TYPE type, obs_output_t *output);
 	~RTCOutput();
+
+	void sigEvent(int type, QJsonObject data);
 public:
 	obs_output_t *m_output = nullptr;
 	pthread_t stop_thread;
