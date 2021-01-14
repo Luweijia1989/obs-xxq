@@ -36,11 +36,11 @@ struct MergeConfig
 
     int32_t job_width  = 375 * 3;
     int32_t job_height = 282 * 3;
-    int32_t job_fps    = 25;
+    int32_t job_fps    = 20;
 
-    int32_t job_bitrate         = 2500 * 1000;
-    int32_t job_max_bitrate     = 2500 * 1000;
-    int32_t job_min_bitrate     = 2500 * 1000;
+    int32_t job_bitrate         = 2000 * 1000;
+    int32_t job_max_bitrate     = 2000 * 1000;
+    int32_t job_min_bitrate     = 2000 * 1000;
     int32_t job_stretch_mode    = 1;
     int32_t local_video_x       = 0;
     int32_t local_video_y       = 0;
@@ -250,7 +250,8 @@ private:
 protected:
     int				m_audiobitrate;
     int				m_videobitrate;
-    int				m_fps;
+    qint64			m_pushInterval;
+    qint64			m_expectedTimestamp = 0;
     bool                        m_reConenct       = false;
     bool                        m_startMergeTrack = false;
     string                      m_jobId;

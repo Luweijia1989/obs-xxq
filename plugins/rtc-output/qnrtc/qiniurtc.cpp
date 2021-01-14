@@ -181,15 +181,16 @@ void QNRtc::PushExternalVideoData(const uint8_t *data, unsigned long long refere
     if(!m_rtcVideoInterface || !capture_started_)
         return;
 
-    int len = m_vedioFormat.width * m_vedioFormat.height * 3 / 2;
-    
     if (s_startTimeStamp == 0) {
 	    s_startTimeStamp = reference_time;
-    } 
-
-    unsigned long long  timeStamp = (reference_time - s_startTimeStamp) / 1000;
-    m_rtcVideoInterface->InputVideoFrame(m_externalVedioTrackId, data, len, m_vedioFormat.width, m_vedioFormat.height,
-	    timeStamp, qiniu_v2::VideoCaptureType::kI420, qiniu_v2::kVideoRotation_0);
+    }
+    unsigned long long  timeStamp = (reference_time - s_startTimeStamp);
+    if (timeStamp >= m_expectedTimestamp) {
+	    int len = m_vedioFormat.width * m_vedioFormat.height * 3 / 2;
+	    m_rtcVideoInterface->InputVideoFrame(m_externalVedioTrackId, data, len, m_vedioFormat.width, m_vedioFormat.height,
+		    timeStamp / 1000, qiniu_v2::VideoCaptureType::kI420, qiniu_v2::kVideoRotation_0);
+	    m_expectedTimestamp += m_pushInterval;
+    }
 }
 
 void QNRtc::PushExternalAudioData(const uint8_t *data, int frames)
@@ -226,7 +227,7 @@ void QNRtc::StartPublish()
         nullptr,
         m_vedioFormat.width,
         m_vedioFormat.height,
-        m_fps,
+        20,
         2000 * 1000,
         qiniu_v2::tst_ExternalYUV,
         false,
@@ -297,15 +298,13 @@ void QNRtc::CreateCustomMerge()
         return;
     MergeConfig merge_config;
 
-    auto fps = m_fps;
-
     qiniu_v2::MergeJob job_desc;
     job_desc.job_id       = "merge_" + m_userId.toStdString();
     m_jobId               = job_desc.job_id;
     job_desc.publish_url  = m_pushUrl.toStdString();
     job_desc.width        = merge_config.job_width;
     job_desc.height       = merge_config.job_height;
-    job_desc.fps          = QString(fps).toInt();
+    job_desc.fps          = merge_config.job_fps;
     job_desc.bitrate      = merge_config.job_bitrate;
     job_desc.min_bitrate  = merge_config.job_min_bitrate;
     job_desc.max_bitrate  = merge_config.job_max_bitrate;
@@ -322,7 +321,7 @@ void QNRtc::SetVideoInfo(int a, int v, int fps, int w, int h)
 {
 	m_audiobitrate = a;
 	m_videobitrate = v;
-	m_fps = fps;
+	m_pushInterval = 1.0 / 20 * 1000000000;
 	m_vedioFormat.width = w;
 	m_vedioFormat.height = h;
 }
