@@ -251,8 +251,8 @@ void TRTC::onEnterRoom(int result)
 		qDebug() << QString(u8"进入[%1]房间成功,耗时:%2ms").arg(info._roomId).arg(result);
 
 		std::string strOtherUid = link_otherUid.toStdString();
-		TRTCCloudCore::GetInstance()->getTRTCCloud()->startRemoteView(strOtherUid.c_str(), (HWND)m_remoteView);
 		TRTCCloudCore::GetInstance()->getTRTCCloud()->setRemoteViewFillMode(strOtherUid.c_str(), TRTCVideoFillMode_Fill);
+		TRTCCloudCore::GetInstance()->getTRTCCloud()->startRemoteView(strOtherUid.c_str(), (HWND)m_remoteView);
 		TRTCCloudCore::GetInstance()->startCloudMixStream(link_std_rtcRoomId.c_str());
 	}
 	else
