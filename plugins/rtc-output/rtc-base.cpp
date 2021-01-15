@@ -47,21 +47,6 @@ TRTC::TRTC()
 		}
 		else if (type == RTC_EVENT_FIRST_VIDEO)
 		{
-			bool isTencentCdn = link_cdnSupplier == "TENCENT";
-			if (isTencentCdn)
-			{
-				std::string sid = link_streamId.toStdString();
-				TRTCCloudCore::GetInstance()->getTRTCCloud()->startPublishing(sid.c_str(), TRTCVideoStreamTypeBig);
-			}
-			else
-			{
-				TRTCPublishCDNParam p;
-				p.appId = GenerateTestUserSig::APPID;
-				p.bizId = GenerateTestUserSig::BIZID;
-				std::string str = link_streamUrl.toStdString();
-				p.url = str.c_str();
-				TRTCCloudCore::GetInstance()->getTRTCCloud()->startPublishCDNStream(p);
-			}
 		}
 	}, Qt::DirectConnection);
 }
@@ -254,6 +239,22 @@ void TRTC::onEnterRoom(int result)
 		TRTCCloudCore::GetInstance()->getTRTCCloud()->setRemoteViewFillMode(strOtherUid.c_str(), TRTCVideoFillMode_Fill);
 		TRTCCloudCore::GetInstance()->getTRTCCloud()->startRemoteView(strOtherUid.c_str(), (HWND)m_remoteView);
 		TRTCCloudCore::GetInstance()->startCloudMixStream(link_std_rtcRoomId.c_str());
+
+		bool isTencentCdn = link_cdnSupplier == "TENCENT";
+		if (isTencentCdn)
+		{
+			std::string sid = link_streamId.toStdString();
+			TRTCCloudCore::GetInstance()->getTRTCCloud()->startPublishing(sid.c_str(), TRTCVideoStreamTypeBig);
+		}
+		else
+		{
+			TRTCPublishCDNParam p;
+			p.appId = GenerateTestUserSig::APPID;
+			p.bizId = GenerateTestUserSig::BIZID;
+			std::string str = link_streamUrl.toStdString();
+			p.url = str.c_str();
+			TRTCCloudCore::GetInstance()->getTRTCCloud()->startPublishCDNStream(p);
+		}
 	}
 	else
 	{
