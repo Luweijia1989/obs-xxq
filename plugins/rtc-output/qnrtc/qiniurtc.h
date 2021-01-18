@@ -15,6 +15,7 @@
 #include <QPointer>
 #include <thread>
 #include <QFile>
+#include "rtc-define.h"
 using namespace std;
 
 struct VideoFormat
@@ -34,9 +35,9 @@ struct MergeConfig
 {
     std::string publish_url = "";
 
-    int32_t job_width  = 375 * 3;
-    int32_t job_height = 282 * 3;
-    int32_t job_fps    = 20;
+    int32_t job_width  = MIX_CANVAS_WIDTH;
+    int32_t job_height = MIX_CANVAS_HEIGHT;
+    int32_t job_fps    = MIX_FPS;
 
     int32_t job_bitrate         = 2000 * 1000;
     int32_t job_max_bitrate     = 2000 * 1000;
@@ -44,12 +45,12 @@ struct MergeConfig
     int32_t job_stretch_mode    = 1;
     int32_t local_video_x       = 0;
     int32_t local_video_y       = 0;
-    int32_t local_video_width   = 375 * 3 / 2;
-    int32_t local_video_height  = 282 * 3;
-    int32_t remote_video_x      = 563;
+    int32_t local_video_width   = job_width / 2;
+    int32_t local_video_height  = job_height;
+    int32_t remote_video_x      = MIX_CANVAS_WIDTH / 2;
     int32_t remote_video_y      = 0;
-    int32_t remote_video_width  = 375 * 3 / 2;
-    int32_t remote_video_height = 282 * 3;
+    int32_t remote_video_width  = job_width / 2;
+    int32_t remote_video_height = job_height;
 };
 
 class QNRtc : public QObject,

@@ -333,12 +333,12 @@ void TRTCCloudCore::startCloudMixStream(const char *remoteRoomId)
 void TRTCCloudCore::setPresetLayoutConfig(TRTCTranscodingConfig &config, const char *remoteRoomId)
 {
 
-	int canvasWidth = 1440;
-	int canvasHeight = 1080;
+	int canvasWidth = MIX_CANVAS_WIDTH;
+	int canvasHeight = MIX_CANVAS_HEIGHT;
 	config.videoWidth = canvasWidth;
 	config.videoHeight = canvasHeight;
 	config.videoBitrate = 2000;
-	config.videoFramerate = 20;
+	config.videoFramerate = MIX_FPS;
 	config.videoGOP = 2;
 	config.audioSampleRate = 48000;
 	config.audioBitrate = 64;
@@ -362,9 +362,9 @@ void TRTCCloudCore::setPresetLayoutConfig(TRTCTranscodingConfig &config, const c
 		}
 	};
 	//本地主路信息
-	setMixUser("$PLACE_HOLDER_LOCAL_MAIN$", index, zOrder, 0, 0, 720, 1080, nullptr);
+	setMixUser("$PLACE_HOLDER_LOCAL_MAIN$", index, zOrder, 0, 0, canvasWidth / 2, canvasHeight, nullptr);
 	index++;
 	zOrder++;
 
-	setMixUser("$PLACE_HOLDER_REMOTE$", index, zOrder, 720, 0, 720, 1080, remoteRoomId);
+	setMixUser("$PLACE_HOLDER_REMOTE$", index, zOrder, canvasWidth / 2, 0, canvasWidth / 2, canvasHeight, remoteRoomId);
 }
