@@ -78,7 +78,7 @@ public:
 
 public:
 	void connectOtherRoom(QString userId, uint32_t roomId);
-	void startCloudMixStream(const char *remoteRoomId);
+	void startCloudMixStream(const char *remoteRoomId, int cdnAppID, int bizID);
 	void stopCloudMixStream();
 
 protected:

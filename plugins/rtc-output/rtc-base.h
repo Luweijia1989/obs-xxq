@@ -65,6 +65,9 @@ public:
 		link_cdnSupplier = obj["cdnSupplier"].toString();
 		link_rtcRoomToken = obj["rtcRoomToken"].toString();
 		link_std_rtcRoomId = link_rtcRoomId.toStdString();
+		link_rtcAPPID = obj["rtcAppId"].toString().toInt();
+		link_cdnAPPID = obj["cdnAppId"].toString().toInt();
+		link_cdnBizID = obj["cdnBizId"].toString().toInt();
 	}
 
 	void setRtcEventCallback(RtcEventCallback cb)
@@ -94,6 +97,9 @@ public:
 	QString link_streamId;
 	QString link_cdnSupplier;
 	QString link_rtcRoomToken;
+	int link_rtcAPPID;
+	int link_cdnAPPID;
+	int link_cdnBizID;
 	std::string link_std_rtcRoomId;
 };
 

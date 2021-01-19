@@ -1,6 +1,5 @@
 #include "rtc-base.h"
 #include "trtc/TRTCCloudCore.h"
-#include "trtc/GenerateTestUserSig.h"
 #include "qnrtc/qiniurtc.h"
 #include "TXLiteAVBase.h"
 #include "rtc-define.h"
@@ -64,8 +63,7 @@ void TRTC::init()
 
 void TRTC::enterRoom()
 {
-	QString userSig = QString::fromStdString(GenerateTestUserSig::instance().genTestUserSig(link_uid.toStdString()));
-	//QString userSig = linkInfo().value("userSig").toString();
+	QString userSig = link_rtcRoomToken;
 	CDataCenter::GetInstance()->setLocalUserInfo(link_uid.toStdString(), link_rtcRoomId.toInt(), userSig.toStdString());
 	init();
 
@@ -200,7 +198,7 @@ void TRTC::internalEnterRoom()
 	//进入房间
 	LocalUserInfo& info = CDataCenter::GetInstance()->getLocalUserInfo();
 	TRTCParams params;
-	params.sdkAppId = GenerateTestUserSig::SDKAPPID;
+	params.sdkAppId = link_rtcAPPID;
 	params.roomId = info._roomId;//std::to_string(info._roomId).c_str();
 	std::string userid = info._userId.c_str();
 	params.userId = (char*)userid.c_str();
@@ -212,7 +210,7 @@ void TRTC::internalEnterRoom()
 
 	// 默认旁路streamId = sdkappid_roomid_userid_main
 	if (CDataCenter::GetInstance()->m_strCustomStreamId.empty())
-		CDataCenter::GetInstance()->m_strCustomStreamId = QString("%1_%2_%3_main").arg(GenerateTestUserSig::SDKAPPID).arg(info._roomId).arg(QString::fromStdString(info._userId)).toStdString();
+		CDataCenter::GetInstance()->m_strCustomStreamId = QString("%1_%2_%3_main").arg(link_rtcAPPID).arg(info._roomId).arg(QString::fromStdString(info._userId)).toStdString();
 	params.streamId = CDataCenter::GetInstance()->m_strCustomStreamId.c_str();
 
 	// TRTCCloudCore::GetInstance()->getTRTCCloud()->setEncodedDataProcessingListener();
@@ -238,7 +236,7 @@ void TRTC::onEnterRoom(int result)
 		std::string strOtherUid = link_otherUid.toStdString();
 		TRTCCloudCore::GetInstance()->getTRTCCloud()->setRemoteViewFillMode(strOtherUid.c_str(), TRTCVideoFillMode_Fill);
 		TRTCCloudCore::GetInstance()->getTRTCCloud()->startRemoteView(strOtherUid.c_str(), (HWND)m_remoteView);
-		TRTCCloudCore::GetInstance()->startCloudMixStream(link_std_rtcRoomId.c_str());
+		TRTCCloudCore::GetInstance()->startCloudMixStream(link_std_rtcRoomId.c_str(), link_cdnAPPID, link_cdnBizID);
 
 		bool isTencentCdn = link_cdnSupplier == "TENCENT";
 		if (isTencentCdn)
@@ -249,8 +247,8 @@ void TRTC::onEnterRoom(int result)
 		else
 		{
 			TRTCPublishCDNParam p;
-			p.appId = GenerateTestUserSig::APPID;
-			p.bizId = GenerateTestUserSig::BIZID;
+			p.appId = link_cdnAPPID;
+			p.bizId = link_cdnBizID;
 			std::string str = link_streamUrl.toStdString();
 			p.url = str.c_str();
 			TRTCCloudCore::GetInstance()->getTRTCCloud()->startPublishCDNStream(p);

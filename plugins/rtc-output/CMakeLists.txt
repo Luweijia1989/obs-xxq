@@ -28,7 +28,6 @@ set(rtc-output_SOURCES
 	rtc-output.cpp
 	trtc/TRTCCloudCore.cpp
 	trtc/DataCenter.cpp
-	trtc/GenerateTestUserSig.cpp
 	qnrtc/qiniurtc.cpp
 	rtc-param.cpp
 	rtc-base.cpp
@@ -39,7 +38,6 @@ set(rtc-output_HEADERS
 	rtc-output.h
 	trtc/TRTCCloudCore.h
 	trtc/DataCenter.h
-	trtc/GenerateTestUserSig.h
 	qnrtc/qiniurtc.h
 	rtc-param.h
 	rtc-base.h

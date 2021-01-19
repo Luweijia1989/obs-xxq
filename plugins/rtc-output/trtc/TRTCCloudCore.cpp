@@ -6,7 +6,6 @@
 #include <assert.h>
 #include "util/base.h"
 #include "../rtc-define.h"
-#include "GenerateTestUserSig.h"
 
 TRTCCloudCore *TRTCCloudCore::m_instance = nullptr;
 static std::mutex engine_mex;
@@ -304,12 +303,12 @@ void TRTCCloudCore::stopCloudMixStream()
 	}
 }
 
-void TRTCCloudCore::startCloudMixStream(const char *remoteRoomId)
+void TRTCCloudCore::startCloudMixStream(const char *remoteRoomId, int cdnAppID, int bizID)
 {
 	blog(LOG_INFO, "startCloudMixStream");
 
-	int appId = GenerateTestUserSig::APPID;
-	int bizId = GenerateTestUserSig::BIZID;
+	int appId = cdnAppID;
+	int bizId = bizID;
 	
 	TRTCTranscodingConfig config;
 	config.mode = (TRTCTranscodingConfigMode)CDataCenter::GetInstance()->m_mixTemplateID;
