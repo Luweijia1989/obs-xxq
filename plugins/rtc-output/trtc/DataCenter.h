@@ -28,23 +28,6 @@ typedef struct RemoteUserInfo
     bool subscribe_sub_video = false;
 }RemoteUserInfo;
 
-typedef struct _tagLocalUserInfo {
-public:
-    _tagLocalUserInfo() {};
-    std::string _userId = "test_trtc_01";
-    std::string _pwd = "12345678";
-    int _roomId = 1222222;
-    std::string strRoomId = "";
-    std::string _userSig;
-}LocalUserInfo;
-
-typedef struct _tagPKUserInfo
-{
-    std::string _userId = "";
-    uint32_t _roomId = 0;
-    bool bEnterRoom = false;
-}PKUserInfo;
-
 typedef std::map<std::string, RemoteUserInfo> RemoteUserInfoList;
 
 class CDataCenter
@@ -77,9 +60,6 @@ public:
     void CleanRoomInfo();
     void Init();    //初始化SDK的local配置信息
 public:
-    LocalUserInfo& getLocalUserInfo();
-    void setLocalUserInfo(std::string userId, int roomId, std::string userSig);
-    std::string getLocalUserID() { return m_localInfo._userId; };
     VideoResBitrateTable getVideoConfigInfo(int resolution);
     TRTCVideoStreamType getRemoteVideoStreamType();
 
@@ -99,7 +79,6 @@ public:
     */
     int m_nLinkTestServer = 0; //是否连接测试环境。
     int m_mixTemplateID = 0;
-    std::string m_strCustomStreamId;
 
     std::map<int, VideoResBitrateTable> m_videoConfigMap;
     //是否在room中
@@ -110,9 +89,5 @@ public:
     void addRemoteUser(std::string userId, bool bClear = true);
     void removeRemoteUser(std::string userId);
     RemoteUserInfo* FindRemoteUser(std::string userId);
-public:
-    LocalUserInfo m_localInfo;
-
-    std::vector<PKUserInfo> m_vecPKUserList;
 };
 

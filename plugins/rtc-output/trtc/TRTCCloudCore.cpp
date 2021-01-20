@@ -1,4 +1,4 @@
-#include "TRTCCloudCore.h"
+﻿#include "TRTCCloudCore.h"
 #include <mutex>
 #include <iostream>
 #include <fstream>
@@ -241,6 +241,10 @@ void TRTCCloudCore::onLog(const char *log, TRTCLogLevel level,
 void TRTCCloudCore::onSetMixTranscodingConfig(int errCode, const char *errMsg)
 {
 	blog(LOG_INFO, "onSetMixTranscodingConfig errCode[%d], errMsg[%s]", errCode, errMsg);
+	QJsonObject data;
+	data["errCode"] = errCode;
+	data["errMsg"] = errMsg;
+	emit trtcEvent(RTC_EVENT_MIX_STREAM, data);
 }
 
 void TRTCCloudCore::onStartPublishing(int err, const char *errMsg)
@@ -339,9 +343,9 @@ void TRTCCloudCore::setPresetLayoutConfig(TRTCTranscodingConfig &config, const c
 	config.videoBitrate = 2000;
 	config.videoFramerate = MIX_FPS;
 	config.videoGOP = 2;
-	config.audioSampleRate = 48000;
+	config.audioSampleRate = 44100;
 	config.audioBitrate = 64;
-	config.audioChannels = 1;
+	config.audioChannels = 2;
 
 	config.mixUsersArraySize = 2;
 
@@ -361,7 +365,7 @@ void TRTCCloudCore::setPresetLayoutConfig(TRTCTranscodingConfig &config, const c
 		}
 	};
 	//本地主路信息
-	setMixUser("$PLACE_HOLDER_LOCAL_MAIN$", index, zOrder, 0, 0, canvasWidth / 2, canvasHeight, nullptr);
+	setMixUser("$PLACE_HOLDER_LOCAL_MAIN$", index, zOrder, 0, 0, canvasWidth / 2, canvasHeight, remoteRoomId);
 	index++;
 	zOrder++;
 

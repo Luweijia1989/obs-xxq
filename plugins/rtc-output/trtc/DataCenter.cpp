@@ -89,21 +89,6 @@ CDataCenter::~CDataCenter()
 void CDataCenter::CleanRoomInfo()
 {
 	m_remoteUser.clear();
-	m_vecPKUserList.clear();
-	m_strCustomStreamId = "";
-}
-
-LocalUserInfo &CDataCenter::getLocalUserInfo()
-{
-	return m_localInfo;
-}
-
-void CDataCenter::setLocalUserInfo(std::string userId, int roomId,
-				   std::string userSig)
-{
-	m_localInfo._userId = userId;
-	m_localInfo._roomId = roomId;
-	m_localInfo._userSig = userSig;
 }
 
 CDataCenter::VideoResBitrateTable

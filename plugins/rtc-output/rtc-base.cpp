@@ -6,9 +6,31 @@
 #include "rtc-output.h"
 #include <QDebug>
 #include <QTimer>
+#include <QUuid>
+
+QByteArray hexstrTobyte(QString str)
+{
+    QByteArray byte_arr;
+    bool ok;
+    int len=str.size();
+    for(int i=0;i<len;i+=2){
+         byte_arr.append(char(str.mid(i,2).toUShort(&ok,16)));
+    }
+    return byte_arr;
+}
 
 TRTC::TRTC()
 {
+	auto str = QUuid::createUuid().toString(QUuid::Id128);
+	m_uuid = hexstrTobyte(str);
+
+	m_seiTimer.setInterval(50);
+	m_seiTimer.setSingleShot(false);
+
+	connect(&m_seiTimer, &QTimer::timeout, this, [=](){
+		TRTCCloudCore::GetInstance()->getTRTCCloud()->sendSEIMsg((uint8_t *)m_seiData.data(), m_seiData.size(), 1);
+	});
+
 	connect(TRTCCloudCore::GetInstance(), &TRTCCloudCore::trtcEvent, this, [=](int type, QJsonObject data){
 		if (type == RTC_EVENT_ENTERROOM_RESULT)
 		{
@@ -47,6 +69,29 @@ TRTC::TRTC()
 		else if (type == RTC_EVENT_FIRST_VIDEO)
 		{
 		}
+		else if (type == RTC_EVENT_MIX_STREAM)
+		{
+			int err = data["errCode"].toInt();
+			if (err == 0 && !m_hasMixStream)
+			{
+				m_hasMixStream = true;
+				bool isTencentCdn = link_cdnSupplier == "TENCENT";
+				if (isTencentCdn)
+				{
+					std::string sid = link_streamId.toStdString();
+					TRTCCloudCore::GetInstance()->getTRTCCloud()->startPublishing(sid.c_str(), TRTCVideoStreamTypeBig);
+				}
+				else
+				{
+					TRTCPublishCDNParam p;
+					p.appId = link_cdnAPPID;
+					p.bizId = link_cdnBizID;
+					std::string str = link_streamUrl.toStdString();
+					p.url = str.c_str();
+					TRTCCloudCore::GetInstance()->getTRTCCloud()->startPublishCDNStream(p);
+				}
+			}
+		}
 	}, Qt::DirectConnection);
 }
 
@@ -63,22 +108,20 @@ void TRTC::init()
 
 void TRTC::enterRoom()
 {
-	QString userSig = link_rtcRoomToken;
-	CDataCenter::GetInstance()->setLocalUserInfo(link_uid.toStdString(), link_rtcRoomId.toInt(), userSig.toStdString());
+	m_hasMixStream = false;
 	init();
 
 	//设置连接环境
 	std::string cmd = QString("{\"api\": \"setNetEnv\",\"params\" :{\"env\" : %1}}").arg(CDataCenter::GetInstance()->m_nLinkTestServer).toStdString();
 	TRTCCloudCore::GetInstance()->getTRTCCloud()->callExperimentalAPI(cmd.c_str());
 
+	std::string cmd2 = QString("{\"api\":\"setSEIPayloadType\",\"params\":{\"payloadType\":5}}").toStdString();
+	TRTCCloudCore::GetInstance()->getTRTCCloud()->callExperimentalAPI(cmd2.c_str());
+
 	TRTCCloudCore::GetInstance()->getTRTCCloud()->setDefaultStreamRecvMode(true, true);
 	TRTCCloudCore::GetInstance()->getTRTCCloud()->setAudioQuality(TRTCAudioQualityMusic);
 
 	internalEnterRoom();
-
-	//进入房间
-	LocalUserInfo& info = CDataCenter::GetInstance()->getLocalUserInfo();
-
 
 	TRTCCloudCore::GetInstance()->getTRTCCloud()->setVideoEncoderParam(CDataCenter::GetInstance()->m_videoEncParams);
 	TRTCCloudCore::GetInstance()->getTRTCCloud()->setVideoEncoderMirror(false);
@@ -90,13 +133,13 @@ void TRTC::enterRoom()
 	TRTCCloudCore::GetInstance()->getTRTCCloud()->enableCustomAudioCapture(true);
 	TRTCCloudCore::GetInstance()->getTRTCCloud()->enableCustomVideoCapture(true);
 
-	qDebug() << QString(u8"正在进入[%1]房间,customstreamId[%2] sceneType[%3]").arg(info._roomId).arg(QString::fromStdString(CDataCenter::GetInstance()->m_strCustomStreamId)).arg(u8"视频互动直播");
+	qDebug() << QString(u8"正在进入[%1]房间, sceneType[%3]").arg(link_rtcRoomId).arg(u8"视频互动直播");
 }
 
 void TRTC::exitRoom()
 {
-	LocalUserInfo info = CDataCenter::GetInstance()->getLocalUserInfo();
-
+	if (m_seiTimer.isActive())
+		m_seiTimer.stop();
 	m_bStartCustomCapture = false;
 	TRTCCloudCore::GetInstance()->PreUninit();
 	TRTCCloudCore::GetInstance()->getTRTCCloud()->exitRoom();
@@ -191,27 +234,25 @@ void TRTC::sendVideo(struct video_data *data)
 	TRTCCloudCore::GetInstance()->getTRTCCloud()->sendCustomVideoData(&frame);
 }
 
-void TRTC::setSei(const QJsonObject &data, int insetType) {}
+void TRTC::setSei(const QJsonObject &data, int insetType)
+{
+	m_seiData = QJsonDocument(data).toJson(QJsonDocument::Compact);
+	m_seiData = m_uuid + m_seiData;
+	if (!m_seiTimer.isActive())
+		m_seiTimer.start();
+}
 
 void TRTC::internalEnterRoom()
 {
 	//进入房间
-	LocalUserInfo& info = CDataCenter::GetInstance()->getLocalUserInfo();
 	TRTCParams params;
 	params.sdkAppId = link_rtcAPPID;
-	params.roomId = info._roomId;//std::to_string(info._roomId).c_str();
-	std::string userid = info._userId.c_str();
-	params.userId = (char*)userid.c_str();
-	std::string userSig = info._userSig.c_str();
-	params.userSig = (char*)userSig.c_str();
+	params.roomId = link_rtcRoomId.toInt();
+	params.userId = link_std_rtcUid.c_str();
+	params.userSig = link_std_rtcRoomToken.c_str();
 	std::string privMapEncrypt = "";
 	params.privateMapKey = (char*)privMapEncrypt.c_str();
 	params.role = CDataCenter::GetInstance()->m_roleType;
-
-	// 默认旁路streamId = sdkappid_roomid_userid_main
-	if (CDataCenter::GetInstance()->m_strCustomStreamId.empty())
-		CDataCenter::GetInstance()->m_strCustomStreamId = QString("%1_%2_%3_main").arg(link_rtcAPPID).arg(info._roomId).arg(QString::fromStdString(info._userId)).toStdString();
-	params.streamId = CDataCenter::GetInstance()->m_strCustomStreamId.c_str();
 
 	// TRTCCloudCore::GetInstance()->getTRTCCloud()->setEncodedDataProcessingListener();
 	char api_str[128] = { 0 };
@@ -229,34 +270,15 @@ void TRTC::onEnterRoom(int result)
 		TRTCCloudCore::GetInstance()->getTRTCCloud()->muteLocalVideo(false);
 		TRTCCloudCore::GetInstance()->getTRTCCloud()->muteLocalAudio(false);
 
-		LocalUserInfo& info = CDataCenter::GetInstance()->getLocalUserInfo();
-
-		qDebug() << QString(u8"进入[%1]房间成功,耗时:%2ms").arg(info._roomId).arg(result);
+		qDebug() << QString(u8"进入[%1]房间成功,耗时:%2ms").arg(link_rtcRoomId).arg(result);
 
 		std::string strOtherUid = link_otherUid.toStdString();
 		TRTCCloudCore::GetInstance()->getTRTCCloud()->setRemoteViewFillMode(strOtherUid.c_str(), TRTCVideoFillMode_Fill);
 		TRTCCloudCore::GetInstance()->getTRTCCloud()->startRemoteView(strOtherUid.c_str(), (HWND)m_remoteView);
 		TRTCCloudCore::GetInstance()->startCloudMixStream(link_std_rtcRoomId.c_str(), link_cdnAPPID, link_cdnBizID);
-
-		bool isTencentCdn = link_cdnSupplier == "TENCENT";
-		if (isTencentCdn)
-		{
-			std::string sid = link_streamId.toStdString();
-			TRTCCloudCore::GetInstance()->getTRTCCloud()->startPublishing(sid.c_str(), TRTCVideoStreamTypeBig);
-		}
-		else
-		{
-			TRTCPublishCDNParam p;
-			p.appId = link_cdnAPPID;
-			p.bizId = link_cdnBizID;
-			std::string str = link_streamUrl.toStdString();
-			p.url = str.c_str();
-			TRTCCloudCore::GetInstance()->getTRTCCloud()->startPublishCDNStream(p);
-		}
 	}
 	else
 	{
-		LocalUserInfo info = CDataCenter::GetInstance()->getLocalUserInfo();
 		qDebug() << QString(u8"进房失败，ErrorCode:%1").arg(result);
 		sendEvent(RTC_EVENT_REJOIN, QJsonObject());
 	}

@@ -6,6 +6,7 @@
 #include <QJsonDocument>
 #include <QRect>
 #include <QEventLoop>
+#include <QTimer>
 
 typedef std::function< void(int type, QJsonObject data) > RtcEventCallback;
 
@@ -57,8 +58,8 @@ public:
 	{
 		QJsonDocument jd = QJsonDocument::fromJson(str.toUtf8());
 		QJsonObject obj = jd.object();
-		link_uid = obj["uid"].toString();
-		link_otherUid = obj["otherUid"].toString();
+		link_uid = obj["rtcUserId"].toString();
+		link_otherUid = obj["rtcOtherUserId"].toString();
 		link_rtcRoomId = obj["rtcRoomId"].toString();
 		link_streamUrl = obj["streamUrl"].toString();
 		link_streamId = obj["streamId"].toString();
@@ -68,6 +69,8 @@ public:
 		link_rtcAPPID = obj["rtcAppId"].toString().toInt();
 		link_cdnAPPID = obj["cdnAppId"].toString().toInt();
 		link_cdnBizID = obj["cdnBizId"].toString().toInt();
+		link_std_rtcUid = link_uid.toStdString();
+		link_std_rtcRoomToken = link_rtcRoomToken.toStdString();
 	}
 
 	void setRtcEventCallback(RtcEventCallback cb)
@@ -101,6 +104,8 @@ public:
 	int link_cdnAPPID;
 	int link_cdnBizID;
 	std::string link_std_rtcRoomId;
+	std::string link_std_rtcUid;
+	std::string link_std_rtcRoomToken;
 };
 
 class QNRtc;
@@ -152,4 +157,8 @@ private:
 	long m_remoteView;
 	char *m_yuvBuffer = nullptr;
 	QEventLoop m_exitRoomLoop;
+	QTimer m_seiTimer;
+	QByteArray m_seiData;
+	QByteArray m_uuid;
+	bool m_hasMixStream = false;
 };
