@@ -39,9 +39,9 @@ struct MergeConfig
     int32_t job_height = MIX_CANVAS_HEIGHT;
     int32_t job_fps    = MIX_FPS;
 
-    int32_t job_bitrate         = 2000 * 1000;
-    int32_t job_max_bitrate     = 2000 * 1000;
-    int32_t job_min_bitrate     = 2000 * 1000;
+    int32_t job_bitrate         = 850 * 1000;
+    int32_t job_max_bitrate     = 850 * 1000;
+    int32_t job_min_bitrate     = 850 * 1000;
     int32_t job_stretch_mode    = 1;
     int32_t local_video_x       = 0;
     int32_t local_video_y       = 0;

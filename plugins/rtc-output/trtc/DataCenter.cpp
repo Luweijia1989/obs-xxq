@@ -106,9 +106,9 @@ CDataCenter::getVideoConfigInfo(int resolution)
 void CDataCenter::Init()
 {
 	//音视频参数配置
-	m_videoEncParams.videoResolution = TRTCVideoResolution_1280_720;
+	m_videoEncParams.videoResolution = TRTCVideoResolution_960_540;
 	m_videoEncParams.videoFps = 20;
-	m_videoEncParams.videoBitrate = 1200;
+	m_videoEncParams.videoBitrate = 1000;
 	m_videoEncParams.resMode = TRTCVideoResolutionModePortrait;
 	m_qosParams.preference = TRTCVideoQosPreferenceClear;
 	m_qosParams.controlMode = TRTCQosControlModeServer;

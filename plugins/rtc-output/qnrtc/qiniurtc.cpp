@@ -228,7 +228,7 @@ void QNRtc::StartPublish()
         m_vedioFormat.width,
         m_vedioFormat.height,
         20,
-        2000 * 1000,
+        1000 * 1000,
         qiniu_v2::tst_ExternalYUV,
         false,
         false);

@@ -1,4 +1,4 @@
-﻿#include "TRTCCloudCore.h"
+#include "TRTCCloudCore.h"
 #include <mutex>
 #include <iostream>
 #include <fstream>
@@ -340,7 +340,7 @@ void TRTCCloudCore::setPresetLayoutConfig(TRTCTranscodingConfig &config, const c
 	int canvasHeight = MIX_CANVAS_HEIGHT;
 	config.videoWidth = canvasWidth;
 	config.videoHeight = canvasHeight;
-	config.videoBitrate = 2000;
+	config.videoBitrate = 850;
 	config.videoFramerate = MIX_FPS;
 	config.videoGOP = 2;
 	config.audioSampleRate = 44100;
