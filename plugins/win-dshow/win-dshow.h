@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include <objbase.h>
 
@@ -149,6 +149,7 @@ public:
 	bool flip = false;
 	bool flipH = false;
 	bool active = false;
+	bool encodeFrameFormatChanged = false;
 
 	STThread *stThread = nullptr;
 

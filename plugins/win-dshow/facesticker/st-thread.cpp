@@ -165,8 +165,8 @@ void STThread::processImage(uint8_t **data, int *linesize)
 	m_stFunc->doFaceDetect(m_swsRetFrame->data[0], m_curFrameWidth, m_curFrameHeight, flip);
 	bool drawMask = m_gameStickerType != None;
 
-	int x = 0;
-	int y = 0;
+	int x = 400;
+	int y = 400;
 
 	ctx->makeCurrent(surface);
 	bool sizeChanged = (m_curFrameWidth != m_fboWidth ||
@@ -197,6 +197,17 @@ void STThread::processImage(uint8_t **data, int *linesize)
 		m_backgroundTexture->setSize(m_fboWidth, m_fboHeight);
 		m_backgroundTexture->setFormat(QOpenGLTexture::RGBA8_UNorm);
 		m_backgroundTexture->allocateStorage();
+
+		if (m_outputTexture) {
+			m_outputTexture->destroy();
+			delete m_outputTexture;
+		}
+
+		m_outputTexture =
+			new QOpenGLTexture(QOpenGLTexture::Target2D);
+		m_outputTexture->setSize(m_fboWidth, m_fboHeight);
+		m_outputTexture->setFormat(QOpenGLTexture::RGBA8_UNorm);
+		m_outputTexture->allocateStorage();
 	}
 
 	m_backgroundTexture->setData(QOpenGLTexture::RGBA,
@@ -247,6 +258,18 @@ void STThread::processImage(uint8_t **data, int *linesize)
 	m_shader->release();
 	m_fbo->release();
 
+	m_outputTexture->bind();
+	bool b = m_stFunc->doFaceSticker(m_fbo->texture(), m_outputTexture->textureId(),
+				m_curFrameWidth, m_curFrameHeight,
+				nullptr);
+	if (b)
+		m_dshowInput->OutputFrame(false, false,
+					  DShow::VideoFormat::NV12,
+					  m_stickerBuffer, m_stickerBufferSize,
+					  0, 0);
+	//QImage i = m_fbo->toImage();
+	//m_dshowInput->OutputFrame(false, false, DShow::VideoFormat::ARGB, (unsigned char *)i.constBits(), i.sizeInBytes(), 0, 0);
+
 	ctx->doneCurrent();
 }
 
@@ -275,7 +298,7 @@ void STThread::setFrameConfig(const DShow::VideoConfig &cg)
 	setFrameConfig(cg.cx, cg.cy, obs_to_ffmpeg_video_format(format));
 }
 
-void STThread::setFrameConfig(int w, int h, AVPixelFormat f)
+void STThread::setFrameConfig(int w, int h, int f)
 {
 	if (m_curFrameWidth != w || m_curFrameHeight != h ||
 	    m_curPixelFormat != f) {
@@ -298,7 +321,7 @@ void STThread::setFrameConfig(int w, int h, AVPixelFormat f)
 				      avpicture_get_size(AV_PIX_FMT_NV12, w, h);
 		m_stickerBuffer = (unsigned char *)bmalloc(m_stickerBufferSize);
 
-		m_curPixelFormat = f;
+		m_curPixelFormat = (AVPixelFormat)f;
 		flip = AV_PIX_FMT_BGRA == m_curPixelFormat;
 		m_curFrameWidth = w;
 		m_curFrameHeight = h;
@@ -541,8 +564,12 @@ void STThread::initVertexData()
 
 void STThread::initTexture()
 {
-	m_strawberryTexture =
-		new QOpenGLTexture(QImage(":/mark/image/main/strawberry2.png"));
-	m_bombTexture =
-		new QOpenGLTexture(QImage(":/mark/image/main/bomb2.png"));
+	//m_strawberryTexture =
+	//	new QOpenGLTexture(QImage(":/mark/image/main/strawberry2.png"));
+	//m_bombTexture =
+	//	new QOpenGLTexture(QImage(":/mark/image/main/bomb2.png"));
+	m_strawberryTexture = new QOpenGLTexture(
+		QImage("C:/Users/luweijia.YUPAOPAO/Desktop/strawberry2.png"));
+	m_bombTexture = new QOpenGLTexture(
+		QImage("C:/Users/luweijia.YUPAOPAO/Desktop/bomb2.png"));
 }

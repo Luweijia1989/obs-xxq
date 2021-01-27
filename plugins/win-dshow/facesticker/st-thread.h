@@ -38,7 +38,6 @@ public:
 	STThread(DShowInput *dsInput);
 	~STThread();
 	void setFrameConfig(const DShow::VideoConfig &cg);
-	void setFrameConfig(int w, int h, AVPixelFormat f);
 	bool stInited() { return m_stFunc->stInited(); }
 	bool needProcess();
 	void updateInfo(const char *data);
@@ -46,6 +45,7 @@ public:
 	void updateGameInfo(GameStickerType type, int region);
 
 	Q_INVOKABLE void processImage(uint8_t **data, int *linesize);
+	Q_INVOKABLE void setFrameConfig(int w, int h, int f);
 
 protected:
 	virtual void run() override;
@@ -70,8 +70,6 @@ private:
 	AVFrame *m_swsRetFrame = nullptr;
 	unsigned char *m_stickerBuffer = nullptr;
 	size_t m_stickerBufferSize = 0;
-	GLuint textureSrc = -1;
-	GLuint textureDst = -1;
 	QMap<QString, int> m_stickers;
 	QMutex m_stickerSetterMutex;
 	GameStickerType m_gameStickerType = None;
@@ -86,6 +84,7 @@ private:
 	QOpenGLTexture *m_backgroundTexture = nullptr;
 	QOpenGLTexture *m_strawberryTexture = nullptr;
 	QOpenGLTexture *m_bombTexture = nullptr;
+	QOpenGLTexture *m_outputTexture = nullptr;
 	int m_fboWidth = 0;
 	int m_fboHeight = 0;
 };
