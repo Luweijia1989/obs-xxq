@@ -1,4 +1,4 @@
-﻿#include "win-dshow.h"
+#include "win-dshow.h"
 #include "facesticker/st-thread.h"
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -66,6 +66,9 @@ void DShowInput::QueueActivate(obs_data_t *settings)
 DShowInput::DShowInput(obs_source_t *source_, obs_data_t *settings)
 	: source(source_), device(InitGraph::False)
 {
+	stThread = new STThread(this);
+	stThread->start(QThread::HighestPriority);
+
 	memset(&audio, 0, sizeof(audio));
 	memset(&frame, 0, sizeof(frame));
 
@@ -94,14 +97,13 @@ DShowInput::DShowInput(obs_source_t *source_, obs_data_t *settings)
 
 		active = true;
 	}
-	stThread = new STThread(this);
-	stThread->start(QThread::HighestPriority);
 }
 
 DShowInput::~DShowInput()
 {
 	if (stThread) {
-		stThread->stop();
+		stThread->quit();
+		stThread->wait();
 		delete stThread;
 		stThread = nullptr;
 	}
@@ -319,7 +321,11 @@ void DShowInput::OnEncodedVideoData(enum AVCodecID id, unsigned char *data,
 		blog(LOG_DEBUG, "video ts: %llu", frame.timestamp);
 #endif
 		if (stThread && stThread->stInited() && stThread->needProcess())
-			stThread->addFrame(avFrame);
+			QMetaObject::invokeMethod(
+				stThread, "processImage",
+				Qt::BlockingQueuedConnection,
+				Q_ARG(uint8_t **, avFrame->data),
+				Q_ARG(int *, avFrame->linesize));
 
 		else {
 			obs_source_output_video2(source, &frame);
@@ -337,7 +343,8 @@ void DShowInput::OnVideoData(const VideoConfig &config, unsigned char *data,
 	}
 
 	if (stThread && stThread->stInited() && stThread->needProcess())
-		stThread->addFrame(data, size, startTime);
+	{
+	}
 	else
 		OutputFrame((videoConfig.format == VideoFormat::XRGB ||
 			     videoConfig.format == VideoFormat::ARGB),

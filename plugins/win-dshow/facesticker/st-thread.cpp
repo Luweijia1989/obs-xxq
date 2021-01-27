@@ -12,183 +12,20 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QDebug>
+#include <QOpenGLFramebufferObject>
+#include <QOpenGLVertexArrayObject>
+#include <QOpenGLBuffer>
+#include <QOpenGLShader>
+#include <QOpenGLShaderProgram>
+#include <QOpenGLTexture>
+#include <QOpenGLFramebufferObjectFormat>
 #include "..\win-dshow.h"
 
 extern video_format ConvertVideoFormat(DShow::VideoFormat format);
 
 bool g_st_checkpass = false;
-#define FAST_DIV255(x) ((((x) + 128) * 257) >> 16)
 #define G_VALUE 1000
 #define STRAWBERRY_TIME 4
-static void blend_image_rgba(struct VideoFrame *main,
-			     struct VideoFrame *overlay, int x, int y)
-{
-	int real_overlay_height = 0;
-	int real_overlay_width = 0;
-	if (x >= 0) {
-		real_overlay_width = main->width - x < overlay->width
-					     ? main->width - x
-					     : overlay->width;
-	} else {
-		real_overlay_width = main->width < overlay->width + x
-					     ? main->width
-					     : overlay->width + x;
-	}
-
-	if (y >= 0) {
-		real_overlay_height = main->height - y < overlay->height
-					      ? main->height - y
-					      : overlay->height;
-	} else {
-		real_overlay_height = main->height < overlay->height + y
-					      ? main->height
-					      : overlay->height + y;
-	}
-
-	for (int j = 0; j < real_overlay_height; j++) {
-		for (int i = 0; i < real_overlay_width; i++) {
-			int overlay_pixel_pos = 0;
-			int main_pixel_pos = 0;
-			if (x >= 0) {
-				if (y >= 0) {
-					overlay_pixel_pos =
-						j * overlay->width + i;
-				} else {
-					overlay_pixel_pos =
-						(-y + j) * overlay->width + i;
-				}
-			} else {
-				if (y >= 0) {
-					overlay_pixel_pos =
-						j * overlay->width + i - x;
-				} else {
-					overlay_pixel_pos =
-						(-y + j) * overlay->width + i -
-						x;
-				}
-			}
-			if (x >= 0) {
-				if (y >= 0) {
-					main_pixel_pos =
-						(y + j) * main->width + (x + i);
-				} else {
-					main_pixel_pos =
-						j * main->width + (x + i);
-				}
-			} else {
-				if (y >= 0) {
-					main_pixel_pos =
-						(y + j) * main->width + i;
-				} else {
-					main_pixel_pos = j * main->width + i;
-				}
-			}
-
-			if (0) {
-				uint8_t overlay_alpha =
-					*(overlay->data +
-					  overlay_pixel_pos * 4 + 3);
-				if (overlay_alpha == 255) {
-					main->data[main_pixel_pos * 4] = *(
-						overlay->data +
-						overlay_pixel_pos * 4 + 2); //A
-					main->data[main_pixel_pos * 4 + 1] = *(
-						overlay->data +
-						overlay_pixel_pos * 4 + 1); //B
-					main->data[main_pixel_pos * 4 + 2] = *(
-						overlay->data +
-						overlay_pixel_pos * 4 + 0); //G
-					main->data[main_pixel_pos * 4 + 3] = *(
-						overlay->data +
-						overlay_pixel_pos * 4 + 3); //R
-				} else if (overlay_alpha < 255 &&
-					   overlay_alpha > 0) {
-					main->data[main_pixel_pos * 4] = FAST_DIV255(
-						main->data[main_pixel_pos * 4] *
-							(255 - overlay_alpha) +
-						overlay->data[overlay_pixel_pos *
-								      4 +
-							      2] *
-							overlay_alpha); //A
-					main->data[main_pixel_pos * 4 + 1] = FAST_DIV255(
-						main->data[main_pixel_pos * 4 +
-							   1] *
-							(255 - overlay_alpha) +
-						overlay->data[overlay_pixel_pos *
-								      4 +
-							      1] *
-							overlay_alpha); //B
-					main->data[main_pixel_pos * 4 + 2] = FAST_DIV255(
-						main->data[main_pixel_pos * 4 +
-							   2] *
-							(255 - overlay_alpha) +
-						overlay->data[overlay_pixel_pos *
-								      4 +
-							      0] *
-							overlay_alpha); //G
-					main->data[main_pixel_pos * 4 + 3] = FAST_DIV255(
-						main->data[main_pixel_pos * 4 +
-							   3] *
-							(255 - overlay_alpha) +
-						overlay->data[overlay_pixel_pos *
-								      4 +
-							      3] *
-							overlay_alpha); //R
-				}
-			} else {
-				uint8_t overlay_alpha =
-					*(overlay->data +
-					  overlay_pixel_pos * 4 + 3);
-				if (overlay_alpha == 255) {
-					main->data[main_pixel_pos * 4] =
-						*(overlay->data +
-						  overlay_pixel_pos * 4); //A
-					main->data[main_pixel_pos * 4 + 1] = *(
-						overlay->data +
-						overlay_pixel_pos * 4 + 1); //B
-					main->data[main_pixel_pos * 4 + 2] = *(
-						overlay->data +
-						overlay_pixel_pos * 4 + 2); //G
-					main->data[main_pixel_pos * 4 + 3] = *(
-						overlay->data +
-						overlay_pixel_pos * 4 + 3); //R
-				} else if (overlay_alpha < 255 &&
-					   overlay_alpha > 0) {
-					main->data[main_pixel_pos * 4] = FAST_DIV255(
-						main->data[main_pixel_pos * 4] *
-							(255 - overlay_alpha) +
-						overlay->data[overlay_pixel_pos *
-							      4] *
-							overlay_alpha); //A
-					main->data[main_pixel_pos * 4 + 1] = FAST_DIV255(
-						main->data[main_pixel_pos * 4 +
-							   1] *
-							(255 - overlay_alpha) +
-						overlay->data[overlay_pixel_pos *
-								      4 +
-							      1] *
-							overlay_alpha); //B
-					main->data[main_pixel_pos * 4 + 2] = FAST_DIV255(
-						main->data[main_pixel_pos * 4 +
-							   2] *
-							(255 - overlay_alpha) +
-						overlay->data[overlay_pixel_pos *
-								      4 +
-							      2] *
-							overlay_alpha); //G
-					main->data[main_pixel_pos * 4 + 3] = FAST_DIV255(
-						main->data[main_pixel_pos * 4 +
-							   3] *
-							(255 - overlay_alpha) +
-						overlay->data[overlay_pixel_pos *
-								      4 +
-							      3] *
-							overlay_alpha); //R
-				}
-			}
-		}
-	}
-}
 
 enum AVPixelFormat obs_to_ffmpeg_video_format(enum video_format format)
 {
@@ -222,19 +59,10 @@ enum AVPixelFormat obs_to_ffmpeg_video_format(enum video_format format)
 
 STThread::STThread(DShowInput *dsInput) : m_dshowInput(dsInput)
 {
+	surface = new QOffscreenSurface;
+	surface->create();
 	m_stFunc = new STFunction;
-	m_strawberryOverlay = QImage(":/mark/image/main/strawberry2.png");
-	m_strawberryOverlay =
-		m_strawberryOverlay.convertToFormat(QImage::Format_RGBA8888);
-	m_bombOverlay = QImage(":/mark/image/main/bomb2.png");
-	m_bombOverlay = m_bombOverlay.convertToFormat(QImage::Format_RGBA8888);
-	m_strawberryFrameOverlay = {(size_t)m_strawberryOverlay.sizeInBytes(),
-				    m_strawberryOverlay.width(),
-				    m_strawberryOverlay.height(),
-				    m_strawberryOverlay.bits()};
-	m_bombFrameOverlay = {(size_t)m_bombOverlay.sizeInBytes(),
-			      m_bombOverlay.width(), m_bombOverlay.height(),
-			      m_bombOverlay.bits()};
+	moveToThread(this);
 }
 
 STThread::~STThread()
@@ -260,11 +88,10 @@ void STThread::run()
 		return;
 	}
 
-	if (!InitGL()) {
-		qDebug() << "STThread fail to start, opengl init fail";
-		m_running = false;
-		return;
-	}
+	initOpenGLContext();
+	initShader();
+	initVertexData();
+	initTexture();
 
 	m_stFunc->initSenseTimeEnv();
 	qDebug() << "SenseTime init result: " << m_stFunc->stInited();
@@ -273,95 +100,31 @@ void STThread::run()
 		return;
 	}
 
-	while (m_running) {
-		FrameInfo frame;
-		m_frameQueue.wait_dequeue(frame);
-
-		if (!m_running)
-			break;
-
-		//updateSticker();
-
-		if (QDateTime::currentMSecsSinceEpoch() - frame.timestamp <
-		    10) {
-			if (frame.avFrame)
-				processVideoData(frame.avFrame);
-
-			if (frame.data)
-				processVideoData(frame.data, frame.size,
-						 frame.startTime);
-		}
-
-		if (frame.data)
-			bfree(frame.data);
-
-		if (frame.avFrame)
-			av_frame_free(&frame.avFrame);
-	}
+	exec();
 
 	m_stFunc->freeSticker();
 
-	unInitGL();
-
-	qDebug() << "STThread stopped...";
-}
-
-void STThread::addFrame(unsigned char *data, size_t size, long long startTime)
-{
-	if (!m_running)
-		return;
-	FrameInfo info;
-	info.size = size;
-	info.startTime = startTime;
-	info.data = (unsigned char *)bmalloc(size * sizeof(unsigned char *));
-	memcpy(info.data, data, size);
-	info.timestamp = QDateTime::currentMSecsSinceEpoch();
-	m_frameQueue.enqueue(info);
-}
-
-void STThread::addFrame(AVFrame *frame)
-{
-	if (!m_running)
-		return;
-	AVFrame *copyFrame = av_frame_alloc();
-	copyFrame->format = frame->format;
-	copyFrame->width = frame->width;
-	copyFrame->height = frame->height;
-	copyFrame->channels = frame->channels;
-	copyFrame->channel_layout = frame->channel_layout;
-	copyFrame->nb_samples = frame->nb_samples;
-	av_frame_get_buffer(copyFrame, 32);
-	av_frame_copy(copyFrame, frame);
-	av_frame_copy_props(copyFrame, frame);
-
-	FrameInfo info;
-	info.avFrame = copyFrame;
-	info.timestamp = QDateTime::currentMSecsSinceEpoch();
-	m_frameQueue.enqueue(info);
-}
-
-void STThread::stop()
-{
-	if (!m_running)
-		return;
-
-	m_running = false;
-	m_frameQueue.enqueue(FrameInfo());
-
-	FrameInfo info;
-	while (m_frameQueue.try_dequeue(info)) {
-		if (info.avFrame)
-			av_frame_free(&info.avFrame);
-
-		if (info.data)
-			bfree(info.data);
+	ctx->makeCurrent(surface);
+	delete m_fbo;
+	if (m_backgroundTexture) {
+		m_backgroundTexture->destroy();
+		delete m_backgroundTexture;
 	}
+	m_strawberryTexture->destroy();
+	delete m_strawberryTexture;
+	m_bombTexture->destroy();
+	delete m_bombTexture;
 
-	wait();
+	delete m_shader;
+	delete m_vao;
+	delete ctx;
+	surface->deleteLater();
+	qDebug() << "STThread stopped...";
 }
 
 bool STThread::needProcess()
 {
+	return true;
 	QMutexLocker locker(&m_stickerSetterMutex);
 	return !m_stickers.isEmpty() || m_gameStickerType != None;
 }
@@ -391,6 +154,100 @@ void STThread::updateGameInfo(GameStickerType type, int region)
 		m_curRegion = region;
 		m_gameStartTime = QDateTime::currentMSecsSinceEpoch();
 	}
+}
+
+void STThread::processImage(uint8_t **data, int *linesize)
+{
+	int ret = sws_scale(m_swsctx, (const uint8_t *const *)(data),
+			    (const int *)linesize, 0, m_curFrameHeight,
+			    m_swsRetFrame->data, m_swsRetFrame->linesize);
+
+	m_stFunc->doFaceDetect(m_swsRetFrame->data[0], m_curFrameWidth, m_curFrameHeight, flip);
+	bool drawMask = m_gameStickerType != None;
+
+	int x = 0;
+	int y = 0;
+
+	ctx->makeCurrent(surface);
+	bool sizeChanged = (m_curFrameWidth != m_fboWidth ||
+			    m_curFrameHeight != m_fboHeight);
+	if (sizeChanged) {
+		m_fboWidth = m_curFrameWidth;
+		m_fboHeight = m_curFrameHeight;
+	}
+
+	if (!m_fbo || sizeChanged) {
+		if (m_fbo)
+			delete m_fbo;
+
+		QOpenGLFramebufferObjectFormat format;
+		format.setInternalTextureFormat(GL_RGBA);
+		m_fbo = new QOpenGLFramebufferObject(m_fboWidth, m_fboHeight,
+						     format);
+	}
+
+	if (!m_backgroundTexture || sizeChanged) {
+		if (m_backgroundTexture) {
+			m_backgroundTexture->destroy();
+			delete m_backgroundTexture;
+		}
+
+		m_backgroundTexture =
+			new QOpenGLTexture(QOpenGLTexture::Target2D);
+		m_backgroundTexture->setSize(m_fboWidth, m_fboHeight);
+		m_backgroundTexture->setFormat(QOpenGLTexture::RGBA8_UNorm);
+		m_backgroundTexture->allocateStorage();
+	}
+
+	m_backgroundTexture->setData(QOpenGLTexture::RGBA,
+				     QOpenGLTexture::UInt8,
+				     m_swsRetFrame->data[0]);
+
+	float maskX = 2. * x / m_fboWidth - 1;
+	float maskY = 2. * y / m_fboHeight - 1;
+	float maskWidth = (float)m_strawberryTexture->width() / m_fboWidth * 2;
+	float maskHeight =
+		-(float)m_strawberryTexture->height() / m_fboHeight * 2;
+
+	m_fbo->bind();
+
+	glActiveTexture(GL_TEXTURE0);
+	m_backgroundTexture->bind();
+	glActiveTexture(GL_TEXTURE1);
+	m_strawberryTexture->bind();
+
+	glViewport(0, 0, m_fboWidth, m_fboHeight);
+	m_vao->bind();
+	m_shader->bind();
+	{
+		QMatrix4x4 model;
+		QMatrix4x4 flipMatrix;
+
+		if (m_dshowInput->flipH) {
+			model.scale(-1, 1);
+			flipMatrix.scale(-1, 1);
+			maskX = -maskX - maskWidth;
+		}
+
+		if (flip) {
+			model.scale(1, -1);
+			flipMatrix.scale(1, -1);
+			maskY = -maskY - maskHeight;
+		}
+
+		m_shader->setUniformValue("flipMatrix", flipMatrix);
+		m_shader->setUniformValue("model", model);
+		m_shader->setUniformValue("leftTop", QVector2D(maskX, maskY));
+		m_shader->setUniformValue("maskSize",
+					  QVector2D(maskWidth, maskHeight));
+		glDrawArrays(GL_TRIANGLES, 0, 6);
+	}
+
+	m_vao->release();
+	m_shader->release();
+	m_fbo->release();
+
+	ctx->doneCurrent();
 }
 
 void STThread::updateSticker(const QString &stickerId, bool isAdd)
@@ -453,143 +310,114 @@ void STThread::setFrameConfig(int w, int h, AVPixelFormat f)
 	}
 }
 
-void STThread::processVideoData(unsigned char *buffer, size_t size,
-				long long startTime)
-{
-	if (!m_swsctx)
-		return;
-
-	AVFrame *tempFrame = av_frame_alloc();
-	AVPicture *tempPicture = (AVPicture *)tempFrame;
-	int ret = avpicture_fill(tempPicture, buffer, m_curPixelFormat,
-				 m_curFrameWidth, m_curFrameHeight);
-	tempFrame->pts = startTime;
-
-	processVideoDataInternal(tempFrame);
-
-	av_frame_free(&tempFrame);
-}
-
-void STThread::processVideoData(AVFrame *frame)
-{
-	setFrameConfig(frame->width, frame->height,
-		       (AVPixelFormat)frame->format);
-
-	if (!m_swsctx)
-		return;
-
-	if (!frame)
-		return;
-	processVideoDataInternal(frame);
-}
-
-void STThread::processVideoDataInternal(AVFrame *frame)
-{
-	int linesize = 0;
-	int ret = sws_scale(m_swsctx, (const uint8_t *const *)(frame->data),
-			    frame->linesize, 0, m_curFrameHeight,
-			    m_swsRetFrame->data, m_swsRetFrame->linesize);
-	if (flip)
-		flipV();
-
-	if (m_dshowInput->flipH)
-		fliph();
-	if (m_stFunc->doFaceDetect(m_swsRetFrame->data[0], m_curFrameWidth,
-				   m_curFrameHeight)) {
-		if (m_gameStickerType != None) {
-			int s, h;
-			calcPosition(s, h);
-			qreal deltaTime = (QDateTime::currentMSecsSinceEpoch() -
-					   m_gameStartTime) /
-					  1000.;
-			qreal gvalue =
-				8 * h / (STRAWBERRY_TIME * STRAWBERRY_TIME);
-			int s1 = s / qSqrt(8 * h / gvalue) * deltaTime;
-			int h1 = qSqrt(2 * gvalue * h) * deltaTime -
-				 0.5 * gvalue * deltaTime * deltaTime;
-			QPoint center =
-				QPoint(s1 + m_curFrameWidth / 2 -
-					       m_strawberryOverlay.width() / 2,
-				       m_curFrameHeight - h1);
-			QRect strawberryRect =
-				QRect(center.x(), center.y(),
-				      m_strawberryOverlay.width(),
-				      m_strawberryOverlay.height());
-
-			bool hit = false;
-			auto detectResult = m_stFunc->detectResult();
-			if (detectResult.p_faces) {
-				auto faceAction =
-					detectResult.p_faces->face_action;
-				if (m_gameStickerType == Strawberry) {
-					bool mouseOpen = (faceAction &
-							  ST_MOBILE_MOUTH_AH) ==
-							 ST_MOBILE_MOUTH_AH;
-					if (mouseOpen) {
-						auto points =
-							detectResult.p_faces
-								->face106
-								.points_array;
-
-						QRect mouseRect = QRect(
-							QPoint(points[84].x,
-							       points[87].y),
-							QPoint(points[90].x,
-							       points[93].y));
-
-						hit = strawberryRect.intersects(
-							mouseRect);
-					}
-				} else if (m_gameStickerType == Bomb) {
-					auto r = detectResult.p_faces->face106
-							 .rect;
-					QRect fr = QRect(QPoint(r.left, r.top),
-							 QPoint(r.right,
-								r.bottom));
-					hit = fr.intersects(strawberryRect);
-				}
-			}
-
-			QRect w(0, 0, m_curFrameWidth, m_curFrameHeight);
-			if (hit || !w.intersects(strawberryRect)) {
-				updateGameInfo(None, -1);
-				qApp->postEvent(
-					qApp,
-					new QEvent((QEvent::Type)(
-						hit ? QEvent::User + 1024
-						    : QEvent::User + 1025)));
-			}
-
-			if (m_gameStickerType != None) {
-				VideoFrame vf = {
-					m_curFrameHeight * m_curFrameWidth * 4,
-					m_curFrameWidth, m_curFrameHeight,
-					m_swsRetFrame->data[0]};
-				blend_image_rgba(
-					&vf,
-					m_gameStickerType == Strawberry
-						? &m_strawberryFrameOverlay
-						: &m_bombFrameOverlay,
-					center.x(), center.y());
-			}
-		}
-
-		BindTexture(m_swsRetFrame->data[0], m_curFrameWidth,
-			    m_curFrameHeight, textureSrc);
-		BindTexture(NULL, m_curFrameWidth, m_curFrameHeight,
-			    textureDst);
-		bool b = m_stFunc->doFaceSticker(textureSrc, textureDst,
-						 m_curFrameWidth,
-						 m_curFrameHeight,
-						 m_stickerBuffer);
-		if (b)
-			m_dshowInput->OutputFrame(false, false,
-						  DShow::VideoFormat::NV12,
-						  m_stickerBuffer,
-						  m_stickerBufferSize,
-						  frame->pts, 0);
-	}
-}
+//
+//void STThread::processVideoDataInternal(AVFrame *frame)
+//{
+//	int linesize = 0;
+//	int ret = sws_scale(m_swsctx, (const uint8_t *const *)(frame->data),
+//			    frame->linesize, 0, m_curFrameHeight,
+//			    m_swsRetFrame->data, m_swsRetFrame->linesize);
+//	if (flip)
+//		flipV();
+//
+//	if (m_dshowInput->flipH)
+//		fliph();
+//	if (m_stFunc->doFaceDetect(m_swsRetFrame->data[0], m_curFrameWidth,
+//				   m_curFrameHeight)) {
+//		if (m_gameStickerType != None) {
+//			int s, h;
+//			calcPosition(s, h);
+//			qreal deltaTime = (QDateTime::currentMSecsSinceEpoch() -
+//					   m_gameStartTime) /
+//					  1000.;
+//			qreal gvalue =
+//				8 * h / (STRAWBERRY_TIME * STRAWBERRY_TIME);
+//			int s1 = s / qSqrt(8 * h / gvalue) * deltaTime;
+//			int h1 = qSqrt(2 * gvalue * h) * deltaTime -
+//				 0.5 * gvalue * deltaTime * deltaTime;
+//			QPoint center =
+//				QPoint(s1 + m_curFrameWidth / 2 -
+//					       m_strawberryOverlay.width() / 2,
+//				       m_curFrameHeight - h1);
+//			QRect strawberryRect =
+//				QRect(center.x(), center.y(),
+//				      m_strawberryOverlay.width(),
+//				      m_strawberryOverlay.height());
+//
+//			bool hit = false;
+//			auto detectResult = m_stFunc->detectResult();
+//			if (detectResult.p_faces) {
+//				auto faceAction =
+//					detectResult.p_faces->face_action;
+//				if (m_gameStickerType == Strawberry) {
+//					bool mouseOpen = (faceAction &
+//							  ST_MOBILE_MOUTH_AH) ==
+//							 ST_MOBILE_MOUTH_AH;
+//					if (mouseOpen) {
+//						auto points =
+//							detectResult.p_faces
+//								->face106
+//								.points_array;
+//
+//						QRect mouseRect = QRect(
+//							QPoint(points[84].x,
+//							       points[87].y),
+//							QPoint(points[90].x,
+//							       points[93].y));
+//
+//						hit = strawberryRect.intersects(
+//							mouseRect);
+//					}
+//				} else if (m_gameStickerType == Bomb) {
+//					auto r = detectResult.p_faces->face106
+//							 .rect;
+//					QRect fr = QRect(QPoint(r.left, r.top),
+//							 QPoint(r.right,
+//								r.bottom));
+//					hit = fr.intersects(strawberryRect);
+//				}
+//			}
+//
+//			QRect w(0, 0, m_curFrameWidth, m_curFrameHeight);
+//			if (hit || !w.intersects(strawberryRect)) {
+//				updateGameInfo(None, -1);
+//				qApp->postEvent(
+//					qApp,
+//					new QEvent((QEvent::Type)(
+//						hit ? QEvent::User + 1024
+//						    : QEvent::User + 1025)));
+//			}
+//
+//			if (m_gameStickerType != None) {
+//				VideoFrame vf = {
+//					m_curFrameHeight * m_curFrameWidth * 4,
+//					m_curFrameWidth, m_curFrameHeight,
+//					m_swsRetFrame->data[0]};
+//				blend_image_rgba(
+//					&vf,
+//					m_gameStickerType == Strawberry
+//						? &m_strawberryFrameOverlay
+//						: &m_bombFrameOverlay,
+//					center.x(), center.y());
+//			}
+//		}
+//
+//		BindTexture(m_swsRetFrame->data[0], m_curFrameWidth,
+//			    m_curFrameHeight, textureSrc);
+//		BindTexture(NULL, m_curFrameWidth, m_curFrameHeight,
+//			    textureDst);
+//		bool b = m_stFunc->doFaceSticker(textureSrc, textureDst,
+//						 m_curFrameWidth,
+//						 m_curFrameHeight,
+//						 m_stickerBuffer);
+//		if (b)
+//			m_dshowInput->OutputFrame(false, false,
+//						  DShow::VideoFormat::NV12,
+//						  m_stickerBuffer,
+//						  m_stickerBufferSize,
+//						  frame->pts, 0);
+//	}
+//}
 
 void STThread::calcPosition(int &width, int &height)
 {
@@ -609,42 +437,112 @@ void STThread::calcPosition(int &width, int &height)
 	height = m_curFrameHeight - (y_r + 0.5) * stepy;
 }
 
-void STThread::fliph()
+void STThread::initShader()
 {
-	int y;
-	int x;
-	int l, r;
-	char tmp;
+	auto m_vertexShader = new QOpenGLShader(QOpenGLShader::Vertex);
+	auto m_fragmentShader = new QOpenGLShader(QOpenGLShader::Fragment);
+	bool b = m_vertexShader->compileSourceCode(R"(
+                                               #version 330 core
+                                               layout (location = 0) in vec4 vertex; // <vec2 position, vec2 texCoords>
 
-	uchar *data = m_swsRetFrame->data[0];
-	for (y = 0; y < m_curFrameHeight; ++y) {
-		for (l = 0, r = m_curFrameWidth - 1; l < r; ++l, --r) {
-			for (int d = 0; d < 4; ++d) {
-				tmp = data[(y * m_curFrameWidth + l) * 4 + d];
-				data[(y * m_curFrameWidth + l) * 4 + d] =
-					data[(y * m_curFrameWidth + r) * 4 + d];
-				data[(y * m_curFrameWidth + r) * 4 + d] = tmp;
-			}
-		}
-	}
+                                               out vec2 TexCoords;
+                                               out vec4 mainPosition;
+
+                                               uniform mat4 model;
+                                               uniform mat4 projection;
+
+                                               void main()
+                                               {
+                                                   TexCoords = vertex.zw;
+                                                   mainPosition = vec4(vertex.xy, 0.0, 1.0);
+                                                   gl_Position = model * mainPosition;
+                                               }
+                                               )");
+
+	b = m_fragmentShader->compileSourceCode(R"(
+                                            #version 330 core
+                                            in vec2 TexCoords;
+                                            in vec4 mainPosition;
+                                            out vec4 color;
+
+                                            uniform sampler2D image;
+                                            uniform sampler2D maskImage;
+                                            uniform vec2 leftTop;
+                                            uniform vec2 maskSize;
+                                            uniform mat4 flipMatrix;
+                                            void main()
+                                            {
+                                                vec4 imageColor = texture(image, TexCoords);
+
+                                                if (mainPosition.x >= leftTop.x && mainPosition.y <= leftTop.y && mainPosition.x <= leftTop.x + maskSize.x && mainPosition.y >= leftTop.y + maskSize.y) {
+                                                    vec4 maskCoords = flipMatrix * vec4((mainPosition.x - leftTop.x) / maskSize.x, (mainPosition.y - leftTop.y) / maskSize.y, 1.0, 1.0);
+                                                    vec4 maskColor = texture(maskImage, maskCoords.xy);
+
+                                                    vec4 outputColor;
+                                                    float a = maskColor.a + imageColor.a * (1.0 - maskColor.a);
+                                                    float alphaDivisor = a + step(a, 0.0);
+                                                    outputColor.r = (maskColor.r * maskColor.a + imageColor.r * imageColor.a * (1.0 - maskColor.a))/alphaDivisor;
+                                                    outputColor.g = (maskColor.g * maskColor.a + imageColor.g * imageColor.a * (1.0 - maskColor.a))/alphaDivisor;
+                                                    outputColor.b = (maskColor.b * maskColor.a + imageColor.b * imageColor.a * (1.0 - maskColor.a))/alphaDivisor;
+                                                    outputColor.a = a;
+                                                    color = outputColor;
+                                                }
+                                                else {
+                                                    color = imageColor;
+                                                }
+                                            }
+                                            )");
+	m_shader = new QOpenGLShaderProgram;
+	m_shader->addShader(m_vertexShader);
+	m_shader->addShader(m_fragmentShader);
+	m_shader->link();
+
+	m_shader->bind();
+	m_shader->setUniformValue("image", 0);
+	m_shader->setUniformValue("maskImage", 1);
+	m_shader->release();
 }
 
-void STThread::flipV()
+void STThread::initOpenGLContext()
 {
-	int y;
-	int x;
-	int l, r;
-	char tmp;
+	ctx = new QOpenGLContext;
+	ctx->create();
+	ctx->makeCurrent(surface);
+	initializeOpenGLFunctions();
 
-	uchar *data = m_swsRetFrame->data[0];
-	for (y = 0; y < m_curFrameWidth; ++y) {
-		for (l = 0, r = m_curFrameHeight - 1; l < r; ++l, --r) {
-			for (int d = 0; d < 4; ++d) {
-				tmp = data[(y + l * m_curFrameWidth) * 4 + d];
-				data[(y + l * m_curFrameWidth) * 4 + d] =
-					data[(y + m_curFrameWidth * r) * 4 + d];
-				data[(y + m_curFrameWidth * r) * 4 + d] = tmp;
-			}
-		}
-	}
+	glClearColor(1.0f, 0.0f, 0.0f, 0.0f);
+	glEnable(GL_BLEND);
+	glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_SRC_ALPHA,
+			    GL_ONE_MINUS_SRC_ALPHA);
+}
+
+void STThread::initVertexData()
+{
+	m_vao = new QOpenGLVertexArrayObject;
+	m_vao->create();
+	m_vao->bind();
+
+	auto m_vertexBuffer = new QOpenGLBuffer;
+	m_vertexBuffer->setUsagePattern(QOpenGLBuffer::StaticDraw);
+	m_vertexBuffer->create();
+	m_vertexBuffer->bind();
+	float vertices[] = {-1.0f, 1.0f,  0.0f, 0.0f, 1.0f,  -1.0f, 1.0f, 1.0f,
+			    -1.0f, -1.0f, 0.0f, 1.0f, -1.0f, 1.0f,  0.0f, 0.0f,
+			    1.0f,  -1.0f, 1.0f, 1.0f, 1.0f,  1.0f,  1.0f, 0.0f};
+
+	m_vertexBuffer->allocate(sizeof(vertices));
+	m_vertexBuffer->write(0, vertices, sizeof(vertices));
+	glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, 4 * sizeof(float),
+			      (void *)0);
+	glEnableVertexAttribArray(0);
+	m_vertexBuffer->release();
+	m_vao->release();
+}
+
+void STThread::initTexture()
+{
+	m_strawberryTexture =
+		new QOpenGLTexture(QImage(":/mark/image/main/strawberry2.png"));
+	m_bombTexture =
+		new QOpenGLTexture(QImage(":/mark/image/main/bomb2.png"));
 }

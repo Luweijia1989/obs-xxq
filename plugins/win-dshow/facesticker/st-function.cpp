@@ -1,4 +1,4 @@
-﻿#include "st-function.h"
+#include "st-function.h"
 #include <QOpenGLFunctions>
 #include <QDebug>
 #include "st-helper.h"
@@ -76,11 +76,11 @@ bool STFunction::doFaceSticker(unsigned int input, unsigned int output,
 	return ret == ST_OK;
 }
 
-bool STFunction::doFaceDetect(unsigned char *inputBuffer, int width, int height)
+bool STFunction::doFaceDetect(unsigned char *inputBuffer, int width, int height, bool flipv)
 {
 	int ret = st_mobile_human_action_detect(
 		m_stHandler, inputBuffer, ST_PIX_FMT_RGBA8888, width, height,
-		width * 4, ST_CLOCKWISE_ROTATE_0,
+		width * 4, flipv ? ST_CLOCKWISE_ROTATE_180 : ST_CLOCKWISE_ROTATE_0,
 		ST_MOBILE_FACE_DETECT | ST_MOBILE_MOUTH_AH, &m_result);
 	return ret == ST_OK;
 }

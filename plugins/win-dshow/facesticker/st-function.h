@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include "st_mobile_sticker.h"
 #include <map>
@@ -12,7 +12,7 @@ public:
 
 	bool doFaceSticker(unsigned int input, unsigned int output, int width,
 			   int height, unsigned char *outputBuffer);
-	bool doFaceDetect(unsigned char *inputBuffer, int width, int height);
+	bool doFaceDetect(unsigned char *inputBuffer, int width, int height, bool flipv);
 	bool initSenseTimeEnv();
 	bool stInited() { return m_stInited; }
 	void freeSticker();
