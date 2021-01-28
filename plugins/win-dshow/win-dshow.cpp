@@ -114,7 +114,7 @@ DShowInput::~DShowInput()
 
 	if (stThread) {
 		stThread->quitThread();
-		delete stThread;
+		stThread->deleteLater();
 		stThread = nullptr;
 	}
 }
@@ -347,7 +347,13 @@ void DShowInput::OnVideoData(const VideoConfig &config, unsigned char *data,
 
 	if (stThread && stThread->stInited() && stThread->needProcess())
 	{
+		if (encodeFrameFormatChanged) {
+			stThread->setFrameConfig(videoConfig);
+			encodeFrameFormatChanged = false;
+		}
 
+		/*stThread->videoDataReceived(avFrame->data, avFrame->linesize,
+					    ts);*/
 	}
 	else
 		OutputFrame((videoConfig.format == VideoFormat::XRGB ||

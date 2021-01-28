@@ -68,9 +68,6 @@ STThread::STThread(DShowInput *dsInput) : m_dshowInput(dsInput)
 
 STThread::~STThread()
 {
-	if (m_stickerBuffer)
-		bfree(m_stickerBuffer);
-
 	if (m_swsctx)
 		sws_freeContext(m_swsctx);
 
@@ -159,7 +156,8 @@ void STThread::updateInfo(const char *data)
 }
 
 void STThread::updateGameInfo(GameStickerType type, int region)
-{QMutexLocker locker(&m_stickerSetterMutex);
+{
+	QMutexLocker locker(&m_stickerSetterMutex);
 	m_gameStickerType = type;
 	if (type == Bomb || type == Strawberry) {
 		m_curRegion = region;
@@ -183,12 +181,8 @@ void STThread::videoDataReceived(uint8_t **data, int *linesize, quint64 ts)
 
 void STThread::processImage(uint8_t **data, int *linesize, quint64 ts)
 {
-	QElapsedTimer t;
-	t.start();
-
-
 	int ret = sws_scale(m_swsctx, (const uint8_t *const *)(data),
-			    (const int *)linesize, 0, m_curFrameHeight,
+			    (const int *)linesize, 0, m_frameHeight,
 			    m_swsRetFrame->data, m_swsRetFrame->linesize);
 	
 	bool drawMask = m_gameStickerType != None;
@@ -197,24 +191,18 @@ void STThread::processImage(uint8_t **data, int *linesize, quint64 ts)
 	int y = 400;
 
 	ctx->makeCurrent(surface);
-	bool sizeChanged = (m_curFrameWidth != m_fboWidth ||
-			    m_curFrameHeight != m_fboHeight);
-	if (sizeChanged) {
-		m_fboWidth = m_curFrameWidth;
-		m_fboHeight = m_curFrameHeight;
-	}
 
-	if (!m_fbo || sizeChanged) {
+	if (!m_fbo || m_videoFrameSizeChanged) {
 		if (m_fbo)
 			delete m_fbo;
 
 		QOpenGLFramebufferObjectFormat format;
 		format.setInternalTextureFormat(GL_RGBA);
-		m_fbo = new QOpenGLFramebufferObject(m_fboWidth, m_fboHeight,
+		m_fbo = new QOpenGLFramebufferObject(m_frameWidth, m_frameHeight,
 						     format);
 	}
 
-	if (!m_backgroundTexture || sizeChanged) {
+	if (!m_backgroundTexture || m_videoFrameSizeChanged) {
 		if (m_backgroundTexture) {
 			m_backgroundTexture->destroy();
 			delete m_backgroundTexture;
@@ -222,7 +210,7 @@ void STThread::processImage(uint8_t **data, int *linesize, quint64 ts)
 
 		m_backgroundTexture =
 			new QOpenGLTexture(QOpenGLTexture::Target2D);
-		m_backgroundTexture->setSize(m_fboWidth, m_fboHeight);
+		m_backgroundTexture->setSize(m_frameWidth, m_frameHeight);
 		m_backgroundTexture->setFormat(QOpenGLTexture::RGBA8_UNorm);
 		m_backgroundTexture->allocateStorage();
 
@@ -233,24 +221,26 @@ void STThread::processImage(uint8_t **data, int *linesize, quint64 ts)
 
 		m_outputTexture =
 			new QOpenGLTexture(QOpenGLTexture::Target2D);
-		m_outputTexture->setSize(m_fboWidth, m_fboHeight);
+		m_outputTexture->setSize(m_frameWidth, m_frameHeight);
 		m_outputTexture->setFormat(QOpenGLTexture::RGBA8_UNorm);
 		m_outputTexture->allocateStorage();
 	}
+
+	m_videoFrameSizeChanged = false;
 
 	m_backgroundTexture->setData(QOpenGLTexture::RGBA,
 				     QOpenGLTexture::UInt8,
 				     m_swsRetFrame->data[0]);
 
-	m_stFunc->doFaceDetect(m_swsRetFrame->data[0], m_curFrameWidth,
-			       m_curFrameHeight, flip);
-	m_stFunc->doFaceSticker(m_backgroundTexture->textureId(), m_outputTexture->textureId(), m_fboWidth, m_fboHeight, m_stickerBuffer);
+	m_stFunc->doFaceDetect(m_swsRetFrame->data[0], m_frameWidth,
+			       m_frameHeight, flip);
+	m_stFunc->doFaceSticker(m_backgroundTexture->textureId(), m_outputTexture->textureId(), m_frameWidth, m_frameHeight);
 
-	float maskX = 2. * x / m_fboWidth - 1;
-	float maskY = 2. * y / m_fboHeight - 1;
-	float maskWidth = (float)m_strawberryTexture->width() / m_fboWidth * 2;
+	float maskX = 2. * x / m_frameWidth - 1;
+	float maskY = 2. * y / m_frameHeight - 1;
+	float maskWidth = (float)m_strawberryTexture->width() / m_frameWidth * 2;
 	float maskHeight =
-		-(float)m_strawberryTexture->height() / m_fboHeight * 2;
+		-(float)m_strawberryTexture->height() / m_frameHeight * 2;
 
 	m_fbo->bind();
 
@@ -259,7 +249,7 @@ void STThread::processImage(uint8_t **data, int *linesize, quint64 ts)
 	glActiveTexture(GL_TEXTURE1);
 	m_strawberryTexture->bind();
 
-	glViewport(0, 0, m_fboWidth, m_fboHeight);
+	glViewport(0, 0, m_frameWidth, m_frameHeight);
 	m_vao->bind();
 	m_shader->bind();
 	{
@@ -285,7 +275,7 @@ void STThread::processImage(uint8_t **data, int *linesize, quint64 ts)
 					  QVector2D(maskWidth, maskHeight));
 		glDrawArrays(GL_TRIANGLES, 0, 6);
 	}
-	//glReadPixels(0, 0, m_fboWidth, m_fboHeight, GL_UNSIGNED_BYTE, GL_RGBA, m_stickerBuffer);
+
 	QImage i = m_fbo->toImage();
 	m_dshowInput->OutputFrame(false, false, DShow::VideoFormat::ARGB,
 				  (unsigned char *)i.constBits(),
@@ -295,18 +285,7 @@ void STThread::processImage(uint8_t **data, int *linesize, quint64 ts)
 	m_shader->release();
 	m_fbo->release();
 
-	//bool b = m_stFunc->doFaceSticker(m_fbo->texture(), m_outputTexture->textureId(),
-	//			m_curFrameWidth, m_curFrameHeight,
-	//			m_stickerBuffer);
-	//if (b)
-	//	m_dshowInput->OutputFrame(false, false,
-	//				  DShow::VideoFormat::NV12,
-	//				  m_stickerBuffer, m_stickerBufferSize,
-	//				  0, 0);
-
-
 	ctx->doneCurrent();
-	qDebug() << "AAAAAAAA " << t.elapsed();
 }
 
 void STThread::updateSticker(const QString &stickerId, bool isAdd)
@@ -336,8 +315,11 @@ void STThread::setFrameConfig(const DShow::VideoConfig &cg)
 
 void STThread::setFrameConfig(int w, int h, int f)
 {
-	if (m_curFrameWidth != w || m_curFrameHeight != h ||
-	    m_curPixelFormat != f) {
+	m_stFunc->addSticker("E:/miss.zip");
+	if (m_frameWidth != w || m_frameHeight != h || m_curPixelFormat != f) {
+		if (m_frameWidth != w || m_frameHeight != h)
+			m_videoFrameSizeChanged = true;
+
 		if (m_swsRetFrame)
 			av_frame_free(&m_swsRetFrame);
 		m_swsRetFrame = av_frame_alloc();
@@ -349,23 +331,12 @@ void STThread::setFrameConfig(int w, int h, int f)
 			m_swsctx = NULL;
 		}
 
-		if (m_stickerBuffer) {
-			bfree(m_stickerBuffer);
-			m_stickerBuffer = nullptr;
-		}
-		m_stickerBufferSize = sizeof(unsigned char) *
-				      avpicture_get_size(AV_PIX_FMT_NV12, w, h);
-		m_stickerBuffer = (unsigned char *)bmalloc(m_stickerBufferSize);
-
 		m_curPixelFormat = (AVPixelFormat)f;
 		flip = AV_PIX_FMT_BGRA == m_curPixelFormat;
-		m_curFrameWidth = w;
-		m_curFrameHeight = h;
+		m_frameWidth = w;
+		m_frameHeight = h;
 		if (m_curPixelFormat != AV_PIX_FMT_NONE)
-			m_swsctx =
-				sws_getContext(w, h, m_curPixelFormat, w, h,
-					       AVPixelFormat::AV_PIX_FMT_RGBA,
-					       SWS_BICUBIC, NULL, NULL, NULL);
+			m_swsctx = sws_getContext(w, h, m_curPixelFormat, w, h, AVPixelFormat::AV_PIX_FMT_RGBA, SWS_BICUBIC, NULL, NULL, NULL);
 	}
 }
 
@@ -496,13 +467,13 @@ void STThread::calcPosition(int &width, int &height)
 
 	int totalCount = 15;
 
-	int stepx = m_curFrameWidth / 5;
-	int stepy = m_curFrameHeight / 3;
+	int stepx = m_frameWidth / 5;
+	int stepy = m_frameHeight / 3;
 	int x_r = m_curRegion % 5;
 	int y_r = m_curRegion / 5;
 
 	width = (x_r < 2 ? (x_r - 2.5) * stepx : (x_r - 1.5) * stepx);
-	height = m_curFrameHeight - (y_r + 0.5) * stepy;
+	height = m_frameHeight - (y_r + 0.5) * stepy;
 }
 
 void STThread::initShader()

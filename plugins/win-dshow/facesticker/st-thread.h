@@ -64,15 +64,13 @@ private:
 	DShowInput *m_dshowInput = nullptr;
 	STFunction *m_stFunc = nullptr;
 	bool m_running = false;
-	std::map<GLuint, std::vector<int>> gTextures;
 	struct SwsContext *m_swsctx = NULL;
 	AVPixelFormat m_curPixelFormat = AV_PIX_FMT_NONE;
 	bool flip = false;
-	int m_curFrameWidth = 0;
-	int m_curFrameHeight = 0;
+	int m_frameWidth = 0;
+	int m_frameHeight = 0;
+	bool m_videoFrameSizeChanged = false;
 	AVFrame *m_swsRetFrame = nullptr;
-	unsigned char *m_stickerBuffer = nullptr;
-	size_t m_stickerBufferSize = 0;
 	QMap<QString, int> m_stickers;
 	QMutex m_stickerSetterMutex;
 	GameStickerType m_gameStickerType = None;
@@ -88,8 +86,6 @@ private:
 	QOpenGLTexture *m_strawberryTexture = nullptr;
 	QOpenGLTexture *m_bombTexture = nullptr;
 	QOpenGLTexture *m_outputTexture = nullptr;
-	int m_fboWidth = 0;
-	int m_fboHeight = 0;
 
 	QMutex m_producerMutex;
 	QWaitCondition m_producerCondition;
