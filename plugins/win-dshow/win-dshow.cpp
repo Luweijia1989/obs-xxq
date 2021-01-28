@@ -102,13 +102,6 @@ DShowInput::DShowInput(obs_source_t *source_, obs_data_t *settings)
 
 DShowInput::~DShowInput()
 {
-	if (stThread) {
-		stThread->quit();
-		stThread->wait();
-		delete stThread;
-		stThread = nullptr;
-	}
-
 	{
 		CriticalScope scope(mutex);
 		actions.resize(1);
@@ -118,6 +111,12 @@ DShowInput::~DShowInput()
 	ReleaseSemaphore(semaphore, 1, nullptr);
 
 	WaitForSingleObject(thread, INFINITE);
+
+	if (stThread) {
+		stThread->quitThread();
+		delete stThread;
+		stThread = nullptr;
+	}
 }
 
 void DShowInput::updateInfo(const char *data)
@@ -325,21 +324,11 @@ void DShowInput::OnEncodedVideoData(enum AVCodecID id, unsigned char *data,
 		{
 			if (encodeFrameFormatChanged)
 			{
-				QMetaObject::invokeMethod(
-					stThread, "setFrameConfig",
-					Qt::BlockingQueuedConnection,
-					Q_ARG(int, videoConfig.cx),
-					Q_ARG(int, videoConfig.cy),
-					Q_ARG(int, avFrame->format));
+				stThread->setFrameConfig(videoConfig.cx, videoConfig.cy, avFrame->format);
 				encodeFrameFormatChanged = false;
 			}
 
-			QMetaObject::invokeMethod(
-				stThread, "processImage",
-				Qt::BlockingQueuedConnection,
-				Q_ARG(uint8_t **, avFrame->data),
-				Q_ARG(int *, avFrame->linesize),
-				Q_ARG(quint64, QDateTime::currentMSecsSinceEpoch()));
+			stThread->videoDataReceived(avFrame->data, avFrame->linesize, ts);
 		}
 		else {
 			obs_source_output_video2(source, &frame);
@@ -358,14 +347,7 @@ void DShowInput::OnVideoData(const VideoConfig &config, unsigned char *data,
 
 	if (stThread && stThread->stInited() && stThread->needProcess())
 	{
-		//if (encodeFrameFormatChanged) {
-		//	QMetaObject::invokeMethod(stThread, "setFrameConfig",
-		//				  Qt::BlockingQueuedConnection,
-		//				  Q_ARG(int, videoConfig.cx),
-		//				  Q_ARG(int, videoConfig.cy),
-		//				  Q_ARG(int, videoConfig.internalFormat));
-		//	encodeFrameFormatChanged = false;
-		//}
+
 	}
 	else
 		OutputFrame((videoConfig.format == VideoFormat::XRGB ||
@@ -795,8 +777,6 @@ bool DShowInput::UpdateVideoConfig(obs_data_t *settings)
 			return false;
 		}
 	}
-	if (stThread)
-		stThread->setFrameConfig(videoConfig);
 
 	DStr formatName = GetVideoFormatName(videoConfig.internalFormat);
 

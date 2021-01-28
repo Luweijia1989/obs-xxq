@@ -101,7 +101,18 @@ void STThread::run()
 		return;
 	}
 
-	exec();
+	while (m_running)
+	{
+		m_producerMutex.lock();
+		m_producerCondition.wait(&m_producerMutex);
+		if (m_running)
+			processImage(m_data, m_linesize, m_ts);
+		m_producerMutex.unlock();
+
+		m_consumerMutex.lock();
+		m_consumerCondition.notify_one();
+		m_consumerMutex.unlock();
+	}
 
 	m_stFunc->freeSticker();
 
@@ -156,9 +167,22 @@ void STThread::updateGameInfo(GameStickerType type, int region)
 	}
 }
 
+void STThread::videoDataReceived(uint8_t **data, int *linesize, quint64 ts)
+{
+	m_producerMutex.lock();
+	m_data = data;
+	m_linesize = linesize;
+	m_ts = ts;
+	m_producerCondition.notify_one();
+	m_producerMutex.unlock();
+
+	m_consumerMutex.lock();
+	m_consumerCondition.wait(&m_consumerMutex);
+	m_consumerMutex.unlock();
+}
+
 void STThread::processImage(uint8_t **data, int *linesize, quint64 ts)
 {
-	qDebug() << "FFFFFF " << QDateTime::currentMSecsSinceEpoch() - ts;
 	QElapsedTimer t;
 	t.start();
 
@@ -282,7 +306,7 @@ void STThread::processImage(uint8_t **data, int *linesize, quint64 ts)
 
 
 	ctx->doneCurrent();
-	//qDebug() << "AAAAAAAA " << t.elapsed();
+	qDebug() << "AAAAAAAA " << t.elapsed();
 }
 
 void STThread::updateSticker(const QString &stickerId, bool isAdd)
@@ -343,6 +367,15 @@ void STThread::setFrameConfig(int w, int h, int f)
 					       AVPixelFormat::AV_PIX_FMT_RGBA,
 					       SWS_BICUBIC, NULL, NULL, NULL);
 	}
+}
+
+void STThread::quitThread()
+{
+	m_running = false;
+	m_producerMutex.lock();
+	m_producerCondition.notify_one();
+	m_producerMutex.unlock();
+	wait();
 }
 
 //
