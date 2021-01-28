@@ -2,6 +2,7 @@
 #include "facesticker/st-thread.h"
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QDateTime>
 
 extern enum AVPixelFormat obs_to_ffmpeg_video_format(enum video_format format);
 
@@ -301,7 +302,6 @@ void DShowInput::OnEncodedVideoData(enum AVCodecID id, unsigned char *data,
 			blog(LOG_WARNING, "Could not initialize video decoder");
 			return;
 		}
-		encodeFrameFormatChanged = true;
 	}
 
 	bool got_output;
@@ -338,7 +338,8 @@ void DShowInput::OnEncodedVideoData(enum AVCodecID id, unsigned char *data,
 				stThread, "processImage",
 				Qt::BlockingQueuedConnection,
 				Q_ARG(uint8_t **, avFrame->data),
-				Q_ARG(int *, avFrame->linesize));
+				Q_ARG(int *, avFrame->linesize),
+				Q_ARG(quint64, QDateTime::currentMSecsSinceEpoch()));
 		}
 		else {
 			obs_source_output_video2(source, &frame);
@@ -357,6 +358,14 @@ void DShowInput::OnVideoData(const VideoConfig &config, unsigned char *data,
 
 	if (stThread && stThread->stInited() && stThread->needProcess())
 	{
+		//if (encodeFrameFormatChanged) {
+		//	QMetaObject::invokeMethod(stThread, "setFrameConfig",
+		//				  Qt::BlockingQueuedConnection,
+		//				  Q_ARG(int, videoConfig.cx),
+		//				  Q_ARG(int, videoConfig.cy),
+		//				  Q_ARG(int, videoConfig.internalFormat));
+		//	encodeFrameFormatChanged = false;
+		//}
 	}
 	else
 		OutputFrame((videoConfig.format == VideoFormat::XRGB ||
@@ -684,6 +693,7 @@ static DStr GetVideoFormatName(VideoFormat format);
 
 bool DShowInput::UpdateVideoConfig(obs_data_t *settings)
 {
+	encodeFrameFormatChanged = true;
 	string video_device_id = obs_data_get_string(settings, VIDEO_DEVICE_ID);
 	deactivateWhenNotShowing = obs_data_get_bool(settings, DEACTIVATE_WNS);
 	flip = obs_data_get_bool(settings, FLIP_IMAGE);

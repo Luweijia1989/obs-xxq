@@ -59,6 +59,7 @@ enum AVPixelFormat obs_to_ffmpeg_video_format(enum video_format format)
 
 STThread::STThread(DShowInput *dsInput) : m_dshowInput(dsInput)
 {
+	setPriority(QThread::HighestPriority);
 	surface = new QOffscreenSurface;
 	surface->create();
 	m_stFunc = new STFunction;
@@ -147,8 +148,7 @@ void STThread::updateInfo(const char *data)
 }
 
 void STThread::updateGameInfo(GameStickerType type, int region)
-{
-	QMutexLocker locker(&m_stickerSetterMutex);
+{QMutexLocker locker(&m_stickerSetterMutex);
 	m_gameStickerType = type;
 	if (type == Bomb || type == Strawberry) {
 		m_curRegion = region;
@@ -156,13 +156,17 @@ void STThread::updateGameInfo(GameStickerType type, int region)
 	}
 }
 
-void STThread::processImage(uint8_t **data, int *linesize)
+void STThread::processImage(uint8_t **data, int *linesize, quint64 ts)
 {
+	qDebug() << "FFFFFF " << QDateTime::currentMSecsSinceEpoch() - ts;
+	QElapsedTimer t;
+	t.start();
+
+
 	int ret = sws_scale(m_swsctx, (const uint8_t *const *)(data),
 			    (const int *)linesize, 0, m_curFrameHeight,
 			    m_swsRetFrame->data, m_swsRetFrame->linesize);
-
-	m_stFunc->doFaceDetect(m_swsRetFrame->data[0], m_curFrameWidth, m_curFrameHeight, flip);
+	
 	bool drawMask = m_gameStickerType != None;
 
 	int x = 400;
@@ -214,6 +218,10 @@ void STThread::processImage(uint8_t **data, int *linesize)
 				     QOpenGLTexture::UInt8,
 				     m_swsRetFrame->data[0]);
 
+	m_stFunc->doFaceDetect(m_swsRetFrame->data[0], m_curFrameWidth,
+			       m_curFrameHeight, flip);
+	m_stFunc->doFaceSticker(m_backgroundTexture->textureId(), m_outputTexture->textureId(), m_fboWidth, m_fboHeight, m_stickerBuffer);
+
 	float maskX = 2. * x / m_fboWidth - 1;
 	float maskY = 2. * y / m_fboHeight - 1;
 	float maskWidth = (float)m_strawberryTexture->width() / m_fboWidth * 2;
@@ -223,7 +231,7 @@ void STThread::processImage(uint8_t **data, int *linesize)
 	m_fbo->bind();
 
 	glActiveTexture(GL_TEXTURE0);
-	m_backgroundTexture->bind();
+	m_outputTexture->bind();
 	glActiveTexture(GL_TEXTURE1);
 	m_strawberryTexture->bind();
 
@@ -253,24 +261,28 @@ void STThread::processImage(uint8_t **data, int *linesize)
 					  QVector2D(maskWidth, maskHeight));
 		glDrawArrays(GL_TRIANGLES, 0, 6);
 	}
+	//glReadPixels(0, 0, m_fboWidth, m_fboHeight, GL_UNSIGNED_BYTE, GL_RGBA, m_stickerBuffer);
+	QImage i = m_fbo->toImage();
+	m_dshowInput->OutputFrame(false, false, DShow::VideoFormat::ARGB,
+				  (unsigned char *)i.constBits(),
+				  i.sizeInBytes(), ts, 0);
 
 	m_vao->release();
 	m_shader->release();
 	m_fbo->release();
 
-	m_outputTexture->bind();
-	bool b = m_stFunc->doFaceSticker(m_fbo->texture(), m_outputTexture->textureId(),
-				m_curFrameWidth, m_curFrameHeight,
-				nullptr);
-	if (b)
-		m_dshowInput->OutputFrame(false, false,
-					  DShow::VideoFormat::NV12,
-					  m_stickerBuffer, m_stickerBufferSize,
-					  0, 0);
-	//QImage i = m_fbo->toImage();
-	//m_dshowInput->OutputFrame(false, false, DShow::VideoFormat::ARGB, (unsigned char *)i.constBits(), i.sizeInBytes(), 0, 0);
+	//bool b = m_stFunc->doFaceSticker(m_fbo->texture(), m_outputTexture->textureId(),
+	//			m_curFrameWidth, m_curFrameHeight,
+	//			m_stickerBuffer);
+	//if (b)
+	//	m_dshowInput->OutputFrame(false, false,
+	//				  DShow::VideoFormat::NV12,
+	//				  m_stickerBuffer, m_stickerBufferSize,
+	//				  0, 0);
+
 
 	ctx->doneCurrent();
+	//qDebug() << "AAAAAAAA " << t.elapsed();
 }
 
 void STThread::updateSticker(const QString &stickerId, bool isAdd)

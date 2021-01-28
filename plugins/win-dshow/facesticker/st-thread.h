@@ -44,7 +44,7 @@ public:
 	void updateSticker(const QString &stickerId, bool isAdd);
 	void updateGameInfo(GameStickerType type, int region);
 
-	Q_INVOKABLE void processImage(uint8_t **data, int *linesize);
+	Q_INVOKABLE void processImage(uint8_t **data, int *linesize, quint64 ts);
 	Q_INVOKABLE void setFrameConfig(int w, int h, int f);
 
 protected:
