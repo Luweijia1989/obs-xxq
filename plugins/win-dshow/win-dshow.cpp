@@ -6,6 +6,49 @@
 
 extern enum AVPixelFormat obs_to_ffmpeg_video_format(enum video_format format);
 
+static void fillFrameDataInfo(VideoFormat vf, uint8_t **outdata, uint32_t *linesize, int cx, int cy, unsigned char *data)
+{
+	if (vf == VideoFormat::XRGB || vf == VideoFormat::ARGB) {
+		outdata[0] = data;
+		linesize[0] = cx * 4;
+
+	} else if (vf == VideoFormat::YVYU || vf == VideoFormat::YUY2 ||
+		   vf == VideoFormat::HDYC || vf == VideoFormat::UYVY) {
+		outdata[0] = data;
+		linesize[0] = cx * 2;
+
+	} else if (vf == VideoFormat::I420) {
+		outdata[0] = data;
+		outdata[1] = outdata[0] + (cx * cy);
+		outdata[2] = outdata[1] + (cx * cy / 4);
+		linesize[0] = cx;
+		linesize[1] = cx / 2;
+		linesize[2] = cx / 2;
+
+	} else if (vf == VideoFormat::YV12) {
+		outdata[0] = data;
+		outdata[2] = outdata[0] + (cx * cy);
+		outdata[1] = outdata[2] + (cx * cy / 4);
+		linesize[0] = cx;
+		linesize[1] = cx / 2;
+		linesize[2] = cx / 2;
+
+	} else if (vf == VideoFormat::NV12) {
+		outdata[0] = data;
+		outdata[1] = outdata[0] + (cx * cy);
+		linesize[0] = cx;
+		linesize[1] = cx;
+
+	} else if (vf == VideoFormat::Y800) {
+		outdata[0] = data;
+		linesize[0] = cx;
+
+	} else {
+		/* TODO: other formats */
+		return;
+	}
+}
+
 void ffmpeg_log(void *bla, int level, const char *msg, va_list args)
 {
 	DStr str;
@@ -351,9 +394,10 @@ void DShowInput::OnVideoData(const VideoConfig &config, unsigned char *data,
 			stThread->setFrameConfig(videoConfig);
 			encodeFrameFormatChanged = false;
 		}
-
-		/*stThread->videoDataReceived(avFrame->data, avFrame->linesize,
-					    ts);*/
+		uint8_t *outdata[MAX_AV_PLANES];
+		uint32_t linesize[MAX_AV_PLANES];
+		fillFrameDataInfo(videoConfig.format, outdata, linesize, videoConfig.cx, videoConfig.cy, data);
+		stThread->videoDataReceived(outdata, (int *)linesize, startTime);
 	}
 	else
 		OutputFrame((videoConfig.format == VideoFormat::XRGB ||
@@ -379,45 +423,7 @@ void DShowInput::OutputFrame(bool f, bool fh, VideoFormat vf,
 	if (flip)
 		frame.flip = !frame.flip;
 
-	if (vf == VideoFormat::XRGB || vf == VideoFormat::ARGB) {
-		frame.data[0] = data;
-		frame.linesize[0] = cx * 4;
-
-	} else if (vf == VideoFormat::YVYU || vf == VideoFormat::YUY2 ||
-		   vf == VideoFormat::HDYC || vf == VideoFormat::UYVY) {
-		frame.data[0] = data;
-		frame.linesize[0] = cx * 2;
-
-	} else if (vf == VideoFormat::I420) {
-		frame.data[0] = data;
-		frame.data[1] = frame.data[0] + (cx * cy);
-		frame.data[2] = frame.data[1] + (cx * cy / 4);
-		frame.linesize[0] = cx;
-		frame.linesize[1] = cx / 2;
-		frame.linesize[2] = cx / 2;
-
-	} else if (vf == VideoFormat::YV12) {
-		frame.data[0] = data;
-		frame.data[2] = frame.data[0] + (cx * cy);
-		frame.data[1] = frame.data[2] + (cx * cy / 4);
-		frame.linesize[0] = cx;
-		frame.linesize[1] = cx / 2;
-		frame.linesize[2] = cx / 2;
-
-	} else if (vf == VideoFormat::NV12) {
-		frame.data[0] = data;
-		frame.data[1] = frame.data[0] + (cx * cy);
-		frame.linesize[0] = cx;
-		frame.linesize[1] = cx;
-
-	} else if (vf == VideoFormat::Y800) {
-		frame.data[0] = data;
-		frame.linesize[0] = cx;
-
-	} else {
-		/* TODO: other formats */
-		return;
-	}
+	fillFrameDataInfo(vf, frame.data, frame.linesize, cx, cy, data);
 
 	obs_source_output_video2(source, &frame);
 

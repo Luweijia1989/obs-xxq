@@ -133,7 +133,6 @@ void STThread::run()
 
 bool STThread::needProcess()
 {
-	return true;
 	QMutexLocker locker(&m_stickerSetterMutex);
 	return !m_stickers.isEmpty() || m_gameStickerType != None;
 }
@@ -181,17 +180,14 @@ void STThread::videoDataReceived(uint8_t **data, int *linesize, quint64 ts)
 
 void STThread::processImage(uint8_t **data, int *linesize, quint64 ts)
 {
+	bool needMask = m_gameStickerType != None;
+	bool needSticker = !m_stickers.isEmpty();
+
 	int ret = sws_scale(m_swsctx, (const uint8_t *const *)(data),
 			    (const int *)linesize, 0, m_frameHeight,
 			    m_swsRetFrame->data, m_swsRetFrame->linesize);
-	
-	bool drawMask = m_gameStickerType != None;
-
-	int x = 400;
-	int y = 400;
 
 	ctx->makeCurrent(surface);
-
 	if (!m_fbo || m_videoFrameSizeChanged) {
 		if (m_fbo)
 			delete m_fbo;
@@ -228,26 +224,69 @@ void STThread::processImage(uint8_t **data, int *linesize, quint64 ts)
 
 	m_videoFrameSizeChanged = false;
 
-	m_backgroundTexture->setData(QOpenGLTexture::RGBA,
-				     QOpenGLTexture::UInt8,
-				     m_swsRetFrame->data[0]);
+	m_backgroundTexture->setData(QOpenGLTexture::RGBA,QOpenGLTexture::UInt8,m_swsRetFrame->data[0]);
 
-	m_stFunc->doFaceDetect(m_swsRetFrame->data[0], m_frameWidth,
-			       m_frameHeight, flip);
-	m_stFunc->doFaceSticker(m_backgroundTexture->textureId(), m_outputTexture->textureId(), m_frameWidth, m_frameHeight);
+	m_stFunc->doFaceDetect(m_swsRetFrame->data[0], m_frameWidth,  m_frameHeight, flip);
+	if (needSticker)
+		m_stFunc->doFaceSticker(m_backgroundTexture->textureId(), m_outputTexture->textureId(), m_frameWidth, m_frameHeight, m_dshowInput->flipH, flip);
 
-	float maskX = 2. * x / m_frameWidth - 1;
-	float maskY = 2. * y / m_frameHeight - 1;
+	m_stFunc->flipFaceDetect(flip, m_dshowInput->flipH, m_frameWidth, m_frameHeight);
+
+	float maskX = 0.;
+	float maskY = 0.;
 	float maskWidth = (float)m_strawberryTexture->width() / m_frameWidth * 2;
-	float maskHeight =
-		-(float)m_strawberryTexture->height() / m_frameHeight * 2;
+	float maskHeight = -(float)m_strawberryTexture->height() / m_frameHeight * 2;
+	if (needMask) {
+		int s, h;
+		calcPosition(s, h);
+		qreal deltaTime = (QDateTime::currentMSecsSinceEpoch() - m_gameStartTime) / 1000.;
+		qreal gvalue = 8 * h / (STRAWBERRY_TIME * STRAWBERRY_TIME);
+		int s1 = s / qSqrt(8 * h / gvalue) * deltaTime;
+		int h1 = qSqrt(2 * gvalue * h) * deltaTime - 0.5 * gvalue * deltaTime * deltaTime;
+		QPoint center = QPoint(s1 + m_frameWidth / 2 - m_strawberryTexture->width() / 2, m_strawberryTexture->height() + h1);
+		QRect strawberryRect = QRect(center.x(), m_frameHeight - center.y(), m_strawberryTexture->width(), m_strawberryTexture->height());
+		maskX = 2. * center.x() / m_frameWidth - 1;
+		maskY = 2. * center.y() / m_frameHeight - 1;
+	
+		bool hit = false;
+		auto detectResult = m_stFunc->detectResult();
+		if (detectResult.p_faces) {
+			auto faceAction = detectResult.p_faces->face_action;
+			if (m_gameStickerType == Strawberry) {
+				bool mouseOpen = (faceAction & ST_MOBILE_MOUTH_AH) == ST_MOBILE_MOUTH_AH;
+				if (mouseOpen) {
+					auto points = detectResult.p_faces ->face106.points_array;
+					QRect mouseRect = QRect(QPoint(points[84].x, points[87].y), QPoint(points[90].x, points[93].y));
+					hit = strawberryRect.intersects(mouseRect);
+				}
+			} else if (m_gameStickerType == Bomb) {
+				auto r = detectResult.p_faces->face106.rect;
+				QRect fr = QRect(QPoint(r.left, r.top), QPoint(r.right, r.bottom));
+				hit = fr.intersects(strawberryRect);
+			}
+		}
+	
+		QRect w(0, 0, m_frameWidth, m_frameHeight);
+		if (hit || !w.intersects(strawberryRect)) {
+			updateGameInfo(None, -1);
+			needMask = false;
+			qApp->postEvent(qApp, new QEvent((QEvent::Type)(hit ? QEvent::User + 1024 : QEvent::User + 1025)));
+		}
+	}
 
 	m_fbo->bind();
 
 	glActiveTexture(GL_TEXTURE0);
-	m_outputTexture->bind();
+	if (needSticker)
+		m_outputTexture->bind();
+	else
+		m_backgroundTexture->bind();
+
 	glActiveTexture(GL_TEXTURE1);
-	m_strawberryTexture->bind();
+	if (m_gameStickerType == Strawberry)
+		m_strawberryTexture->bind();
+	else if (m_gameStickerType == Bomb)
+		m_bombTexture->bind();
 
 	glViewport(0, 0, m_frameWidth, m_frameHeight);
 	m_vao->bind();
@@ -268,6 +307,7 @@ void STThread::processImage(uint8_t **data, int *linesize, quint64 ts)
 			maskY = -maskY - maskHeight;
 		}
 
+		m_shader->setUniformValue("needMask", needMask);
 		m_shader->setUniformValue("flipMatrix", flipMatrix);
 		m_shader->setUniformValue("model", model);
 		m_shader->setUniformValue("leftTop", QVector2D(maskX, maskY));
@@ -315,7 +355,6 @@ void STThread::setFrameConfig(const DShow::VideoConfig &cg)
 
 void STThread::setFrameConfig(int w, int h, int f)
 {
-	m_stFunc->addSticker("E:/miss.zip");
 	if (m_frameWidth != w || m_frameHeight != h || m_curPixelFormat != f) {
 		if (m_frameWidth != w || m_frameHeight != h)
 			m_videoFrameSizeChanged = true;
@@ -348,115 +387,6 @@ void STThread::quitThread()
 	m_producerMutex.unlock();
 	wait();
 }
-
-//
-//void STThread::processVideoDataInternal(AVFrame *frame)
-//{
-//	int linesize = 0;
-//	int ret = sws_scale(m_swsctx, (const uint8_t *const *)(frame->data),
-//			    frame->linesize, 0, m_curFrameHeight,
-//			    m_swsRetFrame->data, m_swsRetFrame->linesize);
-//	if (flip)
-//		flipV();
-//
-//	if (m_dshowInput->flipH)
-//		fliph();
-//	if (m_stFunc->doFaceDetect(m_swsRetFrame->data[0], m_curFrameWidth,
-//				   m_curFrameHeight)) {
-//		if (m_gameStickerType != None) {
-//			int s, h;
-//			calcPosition(s, h);
-//			qreal deltaTime = (QDateTime::currentMSecsSinceEpoch() -
-//					   m_gameStartTime) /
-//					  1000.;
-//			qreal gvalue =
-//				8 * h / (STRAWBERRY_TIME * STRAWBERRY_TIME);
-//			int s1 = s / qSqrt(8 * h / gvalue) * deltaTime;
-//			int h1 = qSqrt(2 * gvalue * h) * deltaTime -
-//				 0.5 * gvalue * deltaTime * deltaTime;
-//			QPoint center =
-//				QPoint(s1 + m_curFrameWidth / 2 -
-//					       m_strawberryOverlay.width() / 2,
-//				       m_curFrameHeight - h1);
-//			QRect strawberryRect =
-//				QRect(center.x(), center.y(),
-//				      m_strawberryOverlay.width(),
-//				      m_strawberryOverlay.height());
-//
-//			bool hit = false;
-//			auto detectResult = m_stFunc->detectResult();
-//			if (detectResult.p_faces) {
-//				auto faceAction =
-//					detectResult.p_faces->face_action;
-//				if (m_gameStickerType == Strawberry) {
-//					bool mouseOpen = (faceAction &
-//							  ST_MOBILE_MOUTH_AH) ==
-//							 ST_MOBILE_MOUTH_AH;
-//					if (mouseOpen) {
-//						auto points =
-//							detectResult.p_faces
-//								->face106
-//								.points_array;
-//
-//						QRect mouseRect = QRect(
-//							QPoint(points[84].x,
-//							       points[87].y),
-//							QPoint(points[90].x,
-//							       points[93].y));
-//
-//						hit = strawberryRect.intersects(
-//							mouseRect);
-//					}
-//				} else if (m_gameStickerType == Bomb) {
-//					auto r = detectResult.p_faces->face106
-//							 .rect;
-//					QRect fr = QRect(QPoint(r.left, r.top),
-//							 QPoint(r.right,
-//								r.bottom));
-//					hit = fr.intersects(strawberryRect);
-//				}
-//			}
-//
-//			QRect w(0, 0, m_curFrameWidth, m_curFrameHeight);
-//			if (hit || !w.intersects(strawberryRect)) {
-//				updateGameInfo(None, -1);
-//				qApp->postEvent(
-//					qApp,
-//					new QEvent((QEvent::Type)(
-//						hit ? QEvent::User + 1024
-//						    : QEvent::User + 1025)));
-//			}
-//
-//			if (m_gameStickerType != None) {
-//				VideoFrame vf = {
-//					m_curFrameHeight * m_curFrameWidth * 4,
-//					m_curFrameWidth, m_curFrameHeight,
-//					m_swsRetFrame->data[0]};
-//				blend_image_rgba(
-//					&vf,
-//					m_gameStickerType == Strawberry
-//						? &m_strawberryFrameOverlay
-//						: &m_bombFrameOverlay,
-//					center.x(), center.y());
-//			}
-//		}
-//
-//		BindTexture(m_swsRetFrame->data[0], m_curFrameWidth,
-//			    m_curFrameHeight, textureSrc);
-//		BindTexture(NULL, m_curFrameWidth, m_curFrameHeight,
-//			    textureDst);
-//		bool b = m_stFunc->doFaceSticker(textureSrc, textureDst,
-//						 m_curFrameWidth,
-//						 m_curFrameHeight,
-//						 m_stickerBuffer);
-//		if (b)
-//			m_dshowInput->OutputFrame(false, false,
-//						  DShow::VideoFormat::NV12,
-//						  m_stickerBuffer,
-//						  m_stickerBufferSize,
-//						  frame->pts, 0);
-//	}
-//}
 
 void STThread::calcPosition(int &width, int &height)
 {
@@ -509,11 +439,12 @@ void STThread::initShader()
                                             uniform vec2 leftTop;
                                             uniform vec2 maskSize;
                                             uniform mat4 flipMatrix;
+					    uniform bool needMask;
                                             void main()
                                             {
                                                 vec4 imageColor = texture(image, TexCoords);
 
-                                                if (mainPosition.x >= leftTop.x && mainPosition.y <= leftTop.y && mainPosition.x <= leftTop.x + maskSize.x && mainPosition.y >= leftTop.y + maskSize.y) {
+                                                if (needMask && mainPosition.x >= leftTop.x && mainPosition.y <= leftTop.y && mainPosition.x <= leftTop.x + maskSize.x && mainPosition.y >= leftTop.y + maskSize.y) {
                                                     vec4 maskCoords = flipMatrix * vec4((mainPosition.x - leftTop.x) / maskSize.x, (mainPosition.y - leftTop.y) / maskSize.y, 1.0, 1.0);
                                                     vec4 maskColor = texture(maskImage, maskCoords.xy);
 
@@ -580,12 +511,12 @@ void STThread::initVertexData()
 
 void STThread::initTexture()
 {
-	//m_strawberryTexture =
-	//	new QOpenGLTexture(QImage(":/mark/image/main/strawberry2.png"));
-	//m_bombTexture =
-	//	new QOpenGLTexture(QImage(":/mark/image/main/bomb2.png"));
-	m_strawberryTexture = new QOpenGLTexture(
-		QImage("C:/Users/luweijia.YUPAOPAO/Desktop/strawberry2.png"));
-	m_bombTexture = new QOpenGLTexture(
-		QImage("C:/Users/luweijia.YUPAOPAO/Desktop/bomb2.png"));
+	m_strawberryTexture =
+		new QOpenGLTexture(QImage(":/mark/image/main/strawberry2.png"));
+	m_bombTexture =
+		new QOpenGLTexture(QImage(":/mark/image/main/bomb2.png"));
+	//m_strawberryTexture = new QOpenGLTexture(
+	//	QImage("C:/Users/luweijia.YUPAOPAO/Desktop/strawberry2.png"));
+	//m_bombTexture = new QOpenGLTexture(
+	//	QImage("C:/Users/luweijia.YUPAOPAO/Desktop/bomb2.png"));
 }

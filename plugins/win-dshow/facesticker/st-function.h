@@ -10,9 +10,9 @@ public:
 	STFunction();
 	~STFunction();
 
-	bool doFaceSticker(unsigned int input, unsigned int output, int width,
-			   int height);
+	bool doFaceSticker(unsigned int input, unsigned int output, int width, int height, bool fliph, bool flipv);
 	bool doFaceDetect(unsigned char *inputBuffer, int width, int height, bool flipv);
+	void flipFaceDetect(bool flipv, bool fliph, int width, int height);
 	bool initSenseTimeEnv();
 	bool stInited() { return m_stInited; }
 	void freeSticker();

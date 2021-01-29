@@ -64,12 +64,19 @@ bool STFunction::clearSticker()
 	return true;
 }
 
-bool STFunction::doFaceSticker(unsigned int input, unsigned int output,
-			       int width, int height)
+bool STFunction::doFaceSticker(unsigned int input, unsigned int output, int width, int height, bool fliph, bool flipv)
 {
 	int ret = st_mobile_sticker_process_texture(
-		m_handleSticker, input, width, height, ST_CLOCKWISE_ROTATE_0,
-		ST_CLOCKWISE_ROTATE_0, false, &m_result, nullptr, output);
+		m_handleSticker,
+		input,
+		width,
+		height,
+		flipv ? ST_CLOCKWISE_ROTATE_180 : ST_CLOCKWISE_ROTATE_0,
+		ST_CLOCKWISE_ROTATE_0,
+		flipv ^ fliph,
+		&m_result,
+		nullptr,
+		output);
 
 	return ret == ST_OK;
 }
@@ -77,8 +84,26 @@ bool STFunction::doFaceSticker(unsigned int input, unsigned int output,
 bool STFunction::doFaceDetect(unsigned char *inputBuffer, int width, int height, bool flipv)
 {
 	int ret = st_mobile_human_action_detect(
-		m_stHandler, inputBuffer, ST_PIX_FMT_RGBA8888, width, height,
-		width * 4, flipv ? ST_CLOCKWISE_ROTATE_180 : ST_CLOCKWISE_ROTATE_0,
-		ST_MOBILE_FACE_DETECT | ST_MOBILE_MOUTH_AH, &m_result);
+		m_stHandler,
+		inputBuffer,
+		ST_PIX_FMT_RGBA8888,
+		width,
+		height,
+		width * 4,
+		flipv ? ST_CLOCKWISE_ROTATE_180 : ST_CLOCKWISE_ROTATE_0,
+		ST_MOBILE_FACE_DETECT | ST_MOBILE_MOUTH_AH,
+		&m_result);
 	return ret == ST_OK;
+}
+
+void STFunction::flipFaceDetect(bool flipv, bool fliph, int width, int height)
+{
+	if (flipv)
+	{
+		st_mobile_human_action_rotate(width, height, ST_CLOCKWISE_ROTATE_180, false, &m_result);
+		st_mobile_human_action_mirror(width, &m_result);
+	}
+
+	if (fliph)
+		st_mobile_human_action_mirror(width, &m_result);
 }
