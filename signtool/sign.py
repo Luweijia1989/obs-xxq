@@ -34,18 +34,7 @@ for file in glob.glob(os.path.join(sys.argv[1]+'/plugins/obs-plugins/32bit', '*.
     if filename not in excludeSet:
         print("signed: "+file)
         sign(file) 
-                 
-for file in glob.glob(os.path.join(sys.argv[1]+'/plugins/data/obs-plugins/win-capture', '*.exe')):
-    filepath,filename = os.path.split(file)
-    if filename not in excludeSet:
-        print("signed: "+file)
-        sign(file)
-for file in glob.glob(os.path.join(sys.argv[1]+'/plugins/data/obs-plugins/win-capture', '*.dll')):
-    filepath,filename = os.path.split(file)
-    if filename not in excludeSet:
-        print("signed: "+file)
-        sign(file) 
-        
+
 for file in glob.glob(os.path.join(sys.argv[1]+'/plugins/data/obs-plugins/enc-amf', '*.exe')):
     filepath,filename = os.path.split(file)
     if filename not in excludeSet:
