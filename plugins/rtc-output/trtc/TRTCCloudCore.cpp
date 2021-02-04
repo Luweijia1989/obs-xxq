@@ -81,17 +81,21 @@ void TRTCCloudCore::Uninit()
 	m_pCloud->setLogCallback(nullptr);
 }
 
-void TRTCCloudCore::PreUninit()
+void TRTCCloudCore::PreUninit(bool isVideoLink)
 {
-	m_pCloud->stopPublishing();
-	m_pCloud->stopPublishCDNStream();
-	stopCloudMixStream();
-	m_pCloud->enableCustomAudioCapture(false);
-	m_pCloud->enableCustomVideoCapture(false);
-	m_pCloud->stopAllRemoteView();
-	m_pCloud->stopLocalPreview();
-	m_pCloud->muteLocalVideo(true);
-	m_pCloud->muteLocalAudio(true);
+	if (isVideoLink)
+	{
+		m_pCloud->stopPublishing();
+		m_pCloud->stopPublishCDNStream();
+		stopCloudMixStream();
+		m_pCloud->enableCustomAudioCapture(false);
+		m_pCloud->enableCustomVideoCapture(false);
+		m_pCloud->stopAllRemoteView();
+		m_pCloud->muteLocalVideo(true);
+		m_pCloud->muteLocalAudio(true);
+	}
+	else
+		m_pCloud->stopLocalAudio();
 }
 
 ITRTCCloud *TRTCCloudCore::getTRTCCloud()
@@ -177,13 +181,14 @@ void TRTCCloudCore::onUserAudioAvailable(const char *userId, bool available)
 void TRTCCloudCore::onFirstAudioFrame(const char *userId)
 {
 	blog(LOG_INFO, "onFirstAudioFrame userId[%s]", userId);
+	emit trtcEvent(RTC_EVENT_FIRST_AUDIO, QJsonObject());
 }
 
 void TRTCCloudCore::onFirstVideoFrame(const char *userId,
 				      const TRTCVideoStreamType streamType,
 				      const int width, const int height)
 {
-	blog(LOG_INFO, "onFirstAudioFrame userId[%s]", userId);
+	blog(LOG_INFO, "onFirstVideoFrame userId[%s]", userId);
 	emit trtcEvent(RTC_EVENT_FIRST_VIDEO, QJsonObject());
 }
 
@@ -191,7 +196,20 @@ void TRTCCloudCore::onUserVoiceVolume(TRTCVolumeInfo *userVolumes,
 				      uint32_t userVolumesCount,
 				      uint32_t totalVolume)
 {
-	//更新远端音量信息，暂时不需要
+	QJsonObject obj;
+	for (int i=0; i<userVolumesCount; i++)
+	{
+		TRTCVolumeInfo info = userVolumes[i];
+		if (strcmp(info.userId, "") == 0)
+		{
+			obj["self"] = true;
+		}
+		else
+		{
+			obj["remote"] = true;
+		}
+	}
+	emit trtcEvent(RTC_EVENT_USER_VOLUME, obj);
 }
 
 void TRTCCloudCore::onNetworkQuality(TRTCQualityInfo localQuality,

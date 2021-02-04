@@ -12,11 +12,46 @@ extern "C" QINIU_EXPORT_DLL int GetRoomToken_s(
 	const int time_out_,
 	std::string& token_);
 
+#define VOLUMEMAX 32767
+#define VOLUMEMIN -32768
+
+#ifndef core_min
+#define core_min(a, b) ((a) < (b) ? (a) : (b))
+#endif
+
+// 获取音频分贝值
+static uint32_t ProcessAudioLevel(const int16_t* data, const int32_t& data_size)
+{
+	uint32_t ret = 0;
+
+	if (data_size > 0) {
+		int32_t sum = 0;
+		int16_t* pos = (int16_t *)data;
+		for (int i = 0; i < data_size; i++) {
+			sum += abs(*pos);
+			pos++;
+		}
+
+		ret = sum * 500.0 / (data_size * VOLUMEMAX);
+		ret = core_min(ret, 100);
+	}
+
+	return ret;
+}
+
 unsigned long long QNRtc::s_startTimeStamp = 0;
 QNRtc::QNRtc(QObject *parent)
     : QObject(parent)
 {
-    init();
+	init();
+	m_speakerTimer.setInterval(3000);
+	m_speakerTimer.setSingleShot(false);
+	connect(&m_speakerTimer, &QTimer::timeout, this, [=](){
+		QJsonObject obj;
+		obj["self"] = m_selfSpeak;
+		obj["remote"] = m_otherSpeak;
+		emit speakerEvent(obj);
+	});
 }
 
 QNRtc::~QNRtc()
@@ -178,7 +213,7 @@ void QNRtc::setUserId(const QString &userId)
 
 void QNRtc::PushExternalVideoData(const uint8_t *data, unsigned long long reference_time)
 {
-    if(!m_rtcVideoInterface || !capture_started_)
+    if(!m_rtcVideoInterface || !capture_started_ || !m_isVideoLink)
         return;
 
     if (s_startTimeStamp == 0) {
@@ -195,7 +230,7 @@ void QNRtc::PushExternalVideoData(const uint8_t *data, unsigned long long refere
 
 void QNRtc::PushExternalAudioData(const uint8_t *data, int frames)
 {
-    if(!m_rtcAudioInterface || !capture_started_)
+    if(!m_rtcAudioInterface || !capture_started_ || !m_isVideoLink)
         return;
     m_rtcAudioInterface->InputAudioFrame(data, frames * 2 * 2, 16, 44100, 2, frames);
 }
@@ -220,19 +255,22 @@ void QNRtc::StartPublish()
     qiniu_v2::TrackInfoList track_list;
     track_list.emplace_back(audio_track);
 
-    // 视频流
-    auto video_track_ptr = qiniu_v2::QNTrackInfo::CreateVideoTrackInfo(
-        "",
-        EXTERNAL_TAG,
-        nullptr,
-        m_vedioFormat.width,
-        m_vedioFormat.height,
-        20,
-        1000 * 1000,
-        qiniu_v2::tst_ExternalYUV,
-        false,
-        false);
-    track_list.emplace_back(video_track_ptr);
+    if (m_isVideoLink)
+    {
+	    // 视频流
+	    auto video_track_ptr = qiniu_v2::QNTrackInfo::CreateVideoTrackInfo(
+		"",
+		EXTERNAL_TAG,
+		nullptr,
+		m_vedioFormat.width,
+		m_vedioFormat.height,
+		20,
+		1000 * 1000,
+		qiniu_v2::tst_ExternalYUV,
+		false,
+		false);
+	    track_list.emplace_back(video_track_ptr);
+    }
 
     auto ret2 = m_rtcRoomInterface->PublishTracks(track_list);
     qiniu_v2::QNTrackInfo::ReleaseList(track_list);
@@ -261,7 +299,7 @@ void QNRtc::setIsAdmin(bool admin)
 
 void QNRtc::setSei(const QJsonObject &data, int insetType)
 {
-    if(m_rtcVideoInterface)
+    if(m_rtcVideoInterface && m_isVideoLink)
     {
         lock_guard< recursive_mutex > lck(m_mutex);
 	QJsonDocument jd(data);
@@ -324,6 +362,85 @@ void QNRtc::SetVideoInfo(int a, int v, int fps, int w, int h)
 	m_pushInterval = 1.0 / 20 * 1000000000;
 	m_vedioFormat.width = w;
 	m_vedioFormat.height = h;
+}
+
+void QNRtc::setMicMute(bool mute)
+{
+	m_rtcAudioInterface->SetAudioMuteFlag(qiniu_v2::AudioDeviceInfo::adt_record, mute);
+}
+
+void QNRtc::setMicVolume(int v)
+{
+	m_rtcAudioInterface->SetAudioVolume(qiniu_v2::AudioDeviceInfo::adt_record, v);
+}
+
+void QNRtc::setMicDevice(const QString &deviceId)
+{
+	bool set2default = deviceId == "default";
+	int count = m_rtcAudioInterface->GetAudioDeviceCount(qiniu_v2::AudioDeviceInfo::adt_record);
+	qiniu_v2::AudioDeviceSetting setting;
+	for (int i=0; i<count; i++)
+	{
+		qiniu_v2::AudioDeviceInfo info;
+		m_rtcAudioInterface->GetAudioDeviceInfo(qiniu_v2::AudioDeviceInfo::adt_record, i, info);
+		if (info.is_default && set2default)
+		{
+			setting.device_index = info.device_index;
+			m_rtcAudioInterface->SetRecordingDevice(setting);
+			break;
+		}
+		else
+		{
+			if (deviceId == info.device_id)
+			{
+				setting.device_index = info.device_index;
+				m_rtcAudioInterface->SetRecordingDevice(setting);
+				break;
+			}
+		}
+	}
+}
+
+void QNRtc::setPlayoutDevice(const QString &deviceId)
+{
+	bool set2default = deviceId == "default";
+	int count = m_rtcAudioInterface->GetAudioDeviceCount(qiniu_v2::AudioDeviceInfo::adt_playout);
+	qiniu_v2::AudioDeviceSetting setting;
+	for (int i = 0; i < count; i++)
+	{
+		qiniu_v2::AudioDeviceInfo info;
+		m_rtcAudioInterface->GetAudioDeviceInfo(qiniu_v2::AudioDeviceInfo::adt_playout, i, info);
+		if (info.is_default && set2default)
+		{
+			setting.device_index = info.device_index;
+			m_rtcAudioInterface->SetPlayoutDevice(setting);
+			break;
+		}
+		else
+		{
+			if (deviceId == info.device_id)
+			{
+				setting.device_index = info.device_index;
+				m_rtcAudioInterface->SetPlayoutDevice(setting);
+				break;
+			}
+		}
+	}
+}
+
+void QNRtc::setIsVideoLink(bool b)
+{
+	m_isVideoLink = b;
+}
+
+void QNRtc::setUid(const QString &uid)
+{
+	m_selfUid = uid;
+}
+
+void QNRtc::startSpeakTimer()
+{
+	m_speakerTimer.start();
 }
 
 ////////////////////////SDK回调///////////////////////////////////////////////
@@ -453,7 +570,7 @@ void QNRtc::OnPublishTracksResult(
         }
         qDebug() << "OnPublishTracksResult trackId:" << QString::fromStdString(itor->GetTrackId()) << endl;
         m_localTracksList.emplace_back(qiniu_v2::QNTrackInfo::Copy(itor));
-        m_rtcAudioInterface->EnableAudioFakeInput(true);
+        m_rtcAudioInterface->EnableAudioFakeInput(m_isVideoLink);
         if(itor->GetSourceType() == qiniu_v2::tst_ExternalYUV)
         {
             capture_started_       = true;
@@ -722,13 +839,14 @@ void QNRtc::OnAudioPCMFrame(
     size_t               number_of_frames_,
     const std::string &  user_id_)
 {
-    //if(user_id_ != m_userId.toStdString())
-    //{
-    //    if(bits_per_sample_ / 8 == sizeof(int16_t))
-    //    {
-    //        //file2.write((char *)audio_data_, bits_per_sample_ / 8 * number_of_channels_ * number_of_frames_);
-    //    }
-    //}
+	if (bits_per_sample_ / 8 == sizeof(int16_t)) {
+		// ASSERT(bits_per_sample_ / 8 == sizeof(int16_t));
+		// 可以借助以下代码计算音量的实时分贝值
+		auto level = ProcessAudioLevel((int16_t*)audio_data_, bits_per_sample_ / 8 * number_of_channels_ * number_of_frames_ / sizeof(int16_t));
+		bool self = QString::fromStdString(user_id_) == m_selfUid;
+		bool &ret = self ? m_selfSpeak : m_otherSpeak;
+		ret = level > 0;
+	}
 }
 
 // 音频设备插拔事件通知

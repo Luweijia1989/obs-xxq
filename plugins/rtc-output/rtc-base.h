@@ -4,9 +4,11 @@
 #include <QObject>
 #include <QJsonObject>
 #include <QJsonDocument>
+#include <QJsonArray>
 #include <QRect>
 #include <QEventLoop>
 #include <QTimer>
+#include "rtc-define.h"
 
 typedef std::function< void(int type, QJsonObject data) > RtcEventCallback;
 
@@ -36,6 +38,10 @@ public:
 	virtual void sendAudio(struct audio_data *data) = 0;
 	virtual void sendVideo(struct video_data *data) = 0;
 	virtual void setSei(const QJsonObject &data, int insetType) = 0;
+	virtual void setAudioInputDevice(const QString &deviceId) = 0;
+	virtual void setAudioInputMute(bool mute) = 0;
+	virtual void setAudioInputVolume(float volume) = 0;
+	virtual void setAudioOutputDevice(const QString &deviceId) = 0;
 	void setCropInfo(int x, int cropWidth)
 	{
 		m_cropInfo = QRect(x, 0, cropWidth, m_vinfo.height);
@@ -58,8 +64,10 @@ public:
 	{
 		QJsonDocument jd = QJsonDocument::fromJson(str.toUtf8());
 		QJsonObject obj = jd.object();
-		link_uid = obj["rtcUserId"].toString();
-		link_otherUid = obj["rtcOtherUserId"].toString();
+		link_rtc_uid = obj["rtcUserId"].toString();
+		link_rtc_otherUid = obj["rtcOtherUserId"].toString();
+		link_uid = obj["uid"].toString();
+		link_otherUid = obj["otherUid"].toString();
 		link_rtcRoomId = obj["rtcRoomId"].toString();
 		link_streamUrl = obj["streamUrl"].toString();
 		link_streamId = obj["streamId"].toString();
@@ -69,8 +77,19 @@ public:
 		link_rtcAPPID = obj["rtcAppId"].toString().toInt();
 		link_cdnAPPID = obj["cdnAppId"].toString().toInt();
 		link_cdnBizID = obj["cdnBizId"].toString().toInt();
-		link_std_rtcUid = link_uid.toStdString();
+		link_std_rtcUid = link_rtc_uid.toStdString();
 		link_std_rtcRoomToken = link_rtcRoomToken.toStdString();
+		link_type = obj["linkType"].toInt();
+		is_video_link = link_type == 0;
+	}
+
+	void setMicInfo(QString str)
+	{
+		QJsonDocument jd = QJsonDocument::fromJson(str.toUtf8());
+		QJsonObject obj = jd.object();
+		setAudioInputDevice(obj["device"].toString());
+		setAudioInputMute(obj["mute"].toBool());
+		setAudioInputVolume(obj["volume"].toDouble());
 	}
 
 	void setRtcEventCallback(RtcEventCallback cb)
@@ -86,6 +105,22 @@ public:
 		m_rtccb(type, data);
 	}
 
+public slots:
+	void onSpeakerEvent(const QJsonObject &data)
+	{
+		QJsonObject ret;
+		QJsonArray arr;
+		bool self = data["self"].toBool();
+		bool remote = data["remote"].toBool();
+		if (self)
+			arr.append(link_uid);
+		if (remote)
+			arr.append(link_otherUid);
+
+		ret["speakers"] = arr;
+		sendEvent(RTC_EVENT_USER_VOLUME, ret);
+	}
+
 private:
 	QRect m_cropInfo = QRect(0, 0, 1920, 1080);
 	VideoInfo m_vinfo;
@@ -93,6 +128,8 @@ private:
 	RtcEventCallback m_rtccb = nullptr;
 
 public:
+	QString link_rtc_uid;
+	QString link_rtc_otherUid;
 	QString link_uid;
 	QString link_otherUid;
 	QString link_rtcRoomId;
@@ -106,6 +143,9 @@ public:
 	std::string link_std_rtcRoomId;
 	std::string link_std_rtcUid;
 	std::string link_std_rtcRoomToken;
+	int link_type;
+	bool is_video_link;
+	QString last_audio_input_device;
 };
 
 class QNRtc;
@@ -121,6 +161,10 @@ public:
 	virtual void sendAudio(struct audio_data *data);
 	virtual void sendVideo(struct video_data *data);
 	virtual void setSei(const QJsonObject &data, int insetType);
+	virtual void setAudioInputDevice(const QString &deviceId);
+	virtual void setAudioInputMute(bool mute);
+	virtual void setAudioInputVolume(float volume);
+	virtual void setAudioOutputDevice(const QString &deviceId);
 
 private:
 	QNRtc *m_rtc;
@@ -141,6 +185,10 @@ public:
 	virtual void sendAudio(struct audio_data *data);
 	virtual void sendVideo(struct video_data *data);
 	virtual void setSei(const QJsonObject &data, int insetType);
+	virtual void setAudioInputDevice(const QString &deviceId);
+	virtual void setAudioInputMute(bool mute);
+	virtual void setAudioInputVolume(float volume);
+	virtual void setAudioOutputDevice(const QString &deviceId);
 
 private:
 	void internalEnterRoom();

@@ -34,7 +34,7 @@ public:
 public:
 	void Init();
 	void Uninit();
-	void PreUninit();
+	void PreUninit(bool isVideoLink);
 	ITRTCCloud *getTRTCCloud();
 	ITRTCCloudCallback *GetITRTCCloudCallback();
 

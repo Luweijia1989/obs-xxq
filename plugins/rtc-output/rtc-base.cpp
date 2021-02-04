@@ -1,8 +1,7 @@
-﻿#include "rtc-base.h"
+#include "rtc-base.h"
 #include "trtc/TRTCCloudCore.h"
 #include "qnrtc/qiniurtc.h"
 #include "TXLiteAVBase.h"
-#include "rtc-define.h"
 #include "rtc-output.h"
 #include <QDebug>
 #include <QTimer>
@@ -92,6 +91,12 @@ TRTC::TRTC()
 				}
 			}
 		}
+		else if (type == RTC_EVENT_FIRST_AUDIO)
+			sendEvent(RTC_EVENT_SUCCESS, QJsonObject());
+		else if (type == RTC_EVENT_USER_VOLUME)
+		{
+			onSpeakerEvent(data);
+		}
 	}, Qt::DirectConnection);
 }
 
@@ -128,10 +133,18 @@ void TRTC::enterRoom()
 	TRTCCloudCore::GetInstance()->getTRTCCloud()->setNetworkQosParam(CDataCenter::GetInstance()->m_qosParams);
 
 	TRTCCloudCore::GetInstance()->getTRTCCloud()->stopLocalPreview();
-	TRTCCloudCore::GetInstance()->getTRTCCloud()->stopLocalAudio();
-	m_bStartCustomCapture = true;
-	TRTCCloudCore::GetInstance()->getTRTCCloud()->enableCustomAudioCapture(true);
-	TRTCCloudCore::GetInstance()->getTRTCCloud()->enableCustomVideoCapture(true);
+	if (is_video_link)
+	{
+		TRTCCloudCore::GetInstance()->getTRTCCloud()->stopLocalAudio();
+		m_bStartCustomCapture = true;
+		TRTCCloudCore::GetInstance()->getTRTCCloud()->enableCustomAudioCapture(true);
+		TRTCCloudCore::GetInstance()->getTRTCCloud()->enableCustomVideoCapture(true);
+	}
+	else
+	{
+		TRTCCloudCore::GetInstance()->getTRTCCloud()->enableAudioVolumeEvaluation(3000);
+		TRTCCloudCore::GetInstance()->getTRTCCloud()->startLocalAudio();
+	}
 
 	qDebug() << QString(u8"正在进入[%1]房间, sceneType[%3]").arg(link_rtcRoomId).arg(u8"视频互动直播");
 }
@@ -141,7 +154,7 @@ void TRTC::exitRoom()
 	if (m_seiTimer.isActive())
 		m_seiTimer.stop();
 	m_bStartCustomCapture = false;
-	TRTCCloudCore::GetInstance()->PreUninit();
+	TRTCCloudCore::GetInstance()->PreUninit(is_video_link);
 	TRTCCloudCore::GetInstance()->getTRTCCloud()->exitRoom();
 
 	if (!CDataCenter::GetInstance()->m_bIsEnteredRoom)
@@ -163,7 +176,7 @@ void TRTC::setRemoteViewHwnd(long window)
 
 void TRTC::sendAudio(struct audio_data *data)
 {
-	if (!m_bStartCustomCapture)
+	if (!m_bStartCustomCapture || !is_video_link)
 		return;
 
 	TRTCAudioFrame frame;
@@ -217,7 +230,7 @@ static void cropYUV(struct video_data *data, char *dst, int px, int py, int w, i
 
 void TRTC::sendVideo(struct video_data *data)
 {
-	if (!m_bStartCustomCapture)
+	if (!m_bStartCustomCapture || !is_video_link)
 		return;
 
 	if (!m_yuvBuffer)
@@ -236,10 +249,48 @@ void TRTC::sendVideo(struct video_data *data)
 
 void TRTC::setSei(const QJsonObject &data, int insetType)
 {
+	if (!is_video_link)
+		return;
+
 	m_seiData = QJsonDocument(data).toJson(QJsonDocument::Compact);
 	m_seiData = m_uuid + m_seiData;
 	if (!m_seiTimer.isActive())
 		m_seiTimer.start();
+}
+
+void TRTC::setAudioInputDevice(const QString &deviceId)
+{
+	if (is_video_link)
+		return;
+
+	if (last_audio_input_device != deviceId)
+	{
+		std::string id = deviceId.toStdString();
+		TRTCCloudCore::GetInstance()->getTRTCCloud()->setCurrentMicDevice(id.c_str());
+		last_audio_input_device = deviceId;
+	}
+}
+
+void TRTC::setAudioInputMute(bool mute)
+{
+	if (is_video_link)
+		return;
+
+	TRTCCloudCore::GetInstance()->getTRTCCloud()->setCurrentMicDeviceMute(mute);
+}
+
+void TRTC::setAudioInputVolume(float volume)
+{
+	if (is_video_link)
+		return;
+
+	TRTCCloudCore::GetInstance()->getTRTCCloud()->setAudioCaptureVolume(volume * 100);
+}
+
+void TRTC::setAudioOutputDevice(const QString &deviceId)
+{
+	std::string id = deviceId.toStdString();
+	TRTCCloudCore::GetInstance()->getTRTCCloud()->setCurrentSpeakerDevice(id.c_str());
 }
 
 void TRTC::internalEnterRoom()
@@ -272,10 +323,13 @@ void TRTC::onEnterRoom(int result)
 
 		qDebug() << QString(u8"进入[%1]房间成功,耗时:%2ms").arg(link_rtcRoomId).arg(result);
 
-		std::string strOtherUid = link_otherUid.toStdString();
-		TRTCCloudCore::GetInstance()->getTRTCCloud()->setRemoteViewFillMode(strOtherUid.c_str(), TRTCVideoFillMode_Fill);
-		TRTCCloudCore::GetInstance()->getTRTCCloud()->startRemoteView(strOtherUid.c_str(), (HWND)m_remoteView);
-		TRTCCloudCore::GetInstance()->startCloudMixStream(link_std_rtcRoomId.c_str(), link_cdnAPPID, link_cdnBizID);
+		std::string strOtherUid = link_rtc_otherUid.toStdString();
+		if (is_video_link)
+		{
+			TRTCCloudCore::GetInstance()->getTRTCCloud()->setRemoteViewFillMode(strOtherUid.c_str(), TRTCVideoFillMode_Fill);
+			TRTCCloudCore::GetInstance()->getTRTCCloud()->startRemoteView(strOtherUid.c_str(), (HWND)m_remoteView);
+			TRTCCloudCore::GetInstance()->startCloudMixStream(link_std_rtcRoomId.c_str(), link_cdnAPPID, link_cdnBizID);
+		}
 	}
 	else
 	{
@@ -369,7 +423,15 @@ QINIURTC::QINIURTC()
 			}
 
 			if (m_joinSucess && m_subscibeSucess && m_publishSucess)
-				m_rtc->doLinkMerge(link_streamUrl);
+			{
+				if (is_video_link)
+					m_rtc->doLinkMerge(link_streamUrl);
+				else
+				{
+					sendEvent(RTC_EVENT_SUCCESS, QJsonObject());
+					m_rtc->startSpeakTimer();
+				}
+			}
 		}
 		break;
 		case QNRtc::MergeSucess:
@@ -403,6 +465,8 @@ QINIURTC::QINIURTC()
 			break;
 		}
 	});
+
+	connect(m_rtc, &QNRtc::speakerEvent, this, &QINIURTC::onSpeakerEvent);
 }
 
  QINIURTC::~QINIURTC() {}
@@ -411,9 +475,10 @@ void QINIURTC::init() {}
 
 void QINIURTC::enterRoom()
 {
+	m_rtc->setIsVideoLink(is_video_link);
 	m_rtc->SetVideoInfo(videoInfo().audioBitrate, videoInfo().videoBitrate, videoInfo().fps, videoInfo().width, videoInfo().height);
 	m_rtc->setCropInfo(cropInfo().x(), 0, cropInfo().width(), cropInfo().height());
-	m_rtc->setUserId(link_uid);
+	m_rtc->setUserId(link_rtc_uid);
 	m_rtc->startLink(link_rtcRoomToken);
 }
 
@@ -443,4 +508,24 @@ void QINIURTC::sendVideo(struct video_data *data)
 void QINIURTC::setSei(const QJsonObject &data, int insetType)
 {
 	m_rtc->setSei(data, insetType);
+}
+
+void QINIURTC::setAudioInputDevice(const QString &deviceId)
+{
+	m_rtc->setMicDevice(deviceId);
+}
+
+void QINIURTC::setAudioInputMute(bool mute)
+{
+	m_rtc->setMicMute(mute);
+}
+
+void QINIURTC::setAudioInputVolume(float volume)
+{
+	m_rtc->setMicVolume(volume * 100);
+}
+
+void QINIURTC::setAudioOutputDevice(const QString &deviceId)
+{
+	m_rtc->setPlayoutDevice(deviceId);
 }

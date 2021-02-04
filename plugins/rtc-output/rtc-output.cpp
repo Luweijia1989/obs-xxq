@@ -15,6 +15,8 @@ static void *rtc_output_create(obs_data_t *settings, obs_output_t *output)
 	context->m_rtcBase->setLinkInfo(obs_data_get_string(settings, "linkInfo"));
 	context->m_rtcBase->setCropInfo(obs_data_get_int(settings, "cropX"), obs_data_get_int(settings, "cropWidth"));
 	context->m_rtcBase->setRemoteViewHwnd(obs_data_get_int(settings, "hwnd"));
+	context->m_rtcBase->setMicInfo(obs_data_get_string(settings, "micInfo"));
+	context->m_rtcBase->setAudioOutputDevice(obs_data_get_string(settings, "playout_device"));
 	audio_convert_info info;
 	info.format = AUDIO_FORMAT_16BIT;
 	info.samples_per_sec = 44100;
@@ -137,6 +139,28 @@ RTCOutput::RTCOutput(RTC_TYPE type, obs_output_t *output)
 		m_rtcBase = new QINIURTC();
 
 	m_rtcBase->setRtcEventCallback(std::bind(&RTCOutput::sigEvent, this, std::placeholders::_1, std::placeholders::_2));
+
+	obs_source_t *mic = obs_get_output_source(3); //主麦克风
+	if (mic)
+	{
+		connectMicSignals(mic);
+		obs_source_release(mic);
+	}
+
+	auto channelChange = [](void *data, calldata_t *param) {
+		auto     self = static_cast<RTCOutput *>(data);
+		auto     source = static_cast<obs_source_t *>(calldata_ptr(param, "source"));
+		uint32_t channel = (uint32_t)calldata_int(param, "channel");
+
+		if (!source)
+			return;
+
+		if (channel != 3 || !(obs_source_get_output_flags(source) & OBS_SOURCE_AUDIO))
+			return;
+
+		self->connectMicSignals(source);
+	};
+	channelChangeSignal.Connect(obs_get_signal_handler(), "channel_change", channelChange, this);
 }
 
 RTCOutput::~RTCOutput()
@@ -157,4 +181,34 @@ void RTCOutput::sigEvent(int type, QJsonObject data)
 	signal_handler_signal(obs_output_get_signal_handler(m_output), "sig_event", &params);
 	obs_data_release(p);
 	calldata_free(&params);
+}
+
+void RTCOutput::muteChanged(void *param, calldata_t *calldata)
+{
+	RTCOutput *output = (RTCOutput *)param;
+	bool mute = calldata_bool(calldata, "muted");
+	output->m_rtcBase->setAudioInputMute(mute);
+}
+
+void RTCOutput::volumeChanged(void *param, calldata_t *calldata)
+{
+	RTCOutput *output = (RTCOutput *)param;
+	float volume = (float)calldata_float(calldata, "volume");
+	output->m_rtcBase->setAudioInputVolume(volume);
+}
+
+void RTCOutput::settingChanged(void *param, calldata_t *calldata)
+{
+	obs_source_t *source = (obs_source_t *)calldata_ptr(calldata, "source");
+	RTCOutput *output = (RTCOutput *)param;
+	obs_data_t *settings = obs_source_get_settings(source);
+	output->m_rtcBase->setAudioInputDevice(QString(obs_data_get_string(settings, "device_id")));
+	obs_data_release(settings);
+}
+
+void RTCOutput::connectMicSignals(obs_source_t *source)
+{
+	micMuteSignal.Connect(obs_source_get_signal_handler(source), "mute", muteChanged, this);
+	micVolumeSignal.Connect(obs_source_get_signal_handler(source), "volume", volumeChanged, this);
+	micSettingSignal.Connect(obs_source_get_signal_handler(source), "settings_update", settingChanged, this);
 }

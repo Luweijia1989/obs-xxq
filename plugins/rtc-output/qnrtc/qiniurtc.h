@@ -2,6 +2,7 @@
 #include "windows.h"
 #include <QObject>
 #include <QString>
+#include <QJsonObject>
 #include <string>
 #include <list>
 #include "QNVideoInterface.h"
@@ -85,6 +86,13 @@ public:
     void PushExternalAudioData(const uint8_t *data, int frames);
     void CreateCustomMerge();
     void SetVideoInfo(int a, int v, int fps, int w, int h);
+    void setMicMute(bool mute);
+    void setMicVolume(int v);
+    void setMicDevice(const QString &deviceId);
+    void setPlayoutDevice(const QString &deviceId);
+    void setIsVideoLink(bool b);
+    void setUid(const QString &uid);
+    void startSpeakTimer();
 public slots:
     void leaveRoom();
     void setCropInfo(int posX, int posY, int width, int height);
@@ -97,6 +105,7 @@ public slots:
     void doLinkMerge(QString url);
 signals:
     void linkStateResult(ResultCode code, int erorrCode = 0, QString errorStr = "");
+    void speakerEvent(QJsonObject obj);
 
 private:
     // 下面为 SDK 回调接口实现
@@ -279,4 +288,9 @@ protected:
     bool		      m_inRoom = false;
     recursive_mutex           m_mutex;
     static unsigned long long s_startTimeStamp;
+    bool		      m_isVideoLink = true;
+    QString		      m_selfUid;
+    bool		      m_selfSpeak = false;
+    bool		      m_otherSpeak = false;
+    QTimer		      m_speakerTimer;
 };
