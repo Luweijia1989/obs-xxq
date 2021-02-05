@@ -8,6 +8,7 @@
 #include <QRect>
 #include <QEventLoop>
 #include <QTimer>
+#include <QDebug>
 #include "rtc-define.h"
 
 typedef std::function< void(int type, QJsonObject data) > RtcEventCallback;
@@ -109,15 +110,13 @@ public slots:
 	void onSpeakerEvent(const QJsonObject &data)
 	{
 		QJsonObject ret;
-		QJsonArray arr;
 		bool self = data["self"].toBool();
 		bool remote = data["remote"].toBool();
 		if (self)
-			arr.append(link_uid);
+			ret["self"] = link_uid;
 		if (remote)
-			arr.append(link_otherUid);
+			ret["other"] = link_otherUid;
 
-		ret["speakers"] = arr;
 		sendEvent(RTC_EVENT_USER_VOLUME, ret);
 	}
 

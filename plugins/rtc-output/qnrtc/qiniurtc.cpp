@@ -51,6 +51,8 @@ QNRtc::QNRtc(QObject *parent)
 		obj["self"] = m_selfSpeak;
 		obj["remote"] = m_otherSpeak;
 		emit speakerEvent(obj);
+		m_selfSpeak = false;
+		m_otherSpeak = false;
 	});
 }
 
@@ -844,8 +846,13 @@ void QNRtc::OnAudioPCMFrame(
 		// 可以借助以下代码计算音量的实时分贝值
 		auto level = ProcessAudioLevel((int16_t*)audio_data_, bits_per_sample_ / 8 * number_of_channels_ * number_of_frames_ / sizeof(int16_t));
 		bool self = QString::fromStdString(user_id_) == m_selfUid;
-		bool &ret = self ? m_selfSpeak : m_otherSpeak;
-		ret = level > 0;
+		if (level > 0)
+		{
+			if (self)
+				m_selfSpeak = true;
+			else
+				m_otherSpeak = true;
+		}
 	}
 }
 
