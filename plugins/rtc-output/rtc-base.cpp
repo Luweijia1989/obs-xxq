@@ -91,8 +91,6 @@ TRTC::TRTC()
 				}
 			}
 		}
-		else if (type == RTC_EVENT_FIRST_AUDIO)
-			sendEvent(RTC_EVENT_SUCCESS, QJsonObject());
 		else if (type == RTC_EVENT_USER_VOLUME)
 		{
 			onSpeakerEvent(data);
@@ -330,6 +328,8 @@ void TRTC::onEnterRoom(int result)
 			TRTCCloudCore::GetInstance()->getTRTCCloud()->startRemoteView(strOtherUid.c_str(), (HWND)m_remoteView);
 			TRTCCloudCore::GetInstance()->startCloudMixStream(link_std_rtcRoomId.c_str(), link_cdnAPPID, link_cdnBizID);
 		}
+		else
+			sendEvent(RTC_EVENT_SUCCESS, QJsonObject());
 	}
 	else
 	{

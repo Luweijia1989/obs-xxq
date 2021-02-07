@@ -181,7 +181,6 @@ void TRTCCloudCore::onUserAudioAvailable(const char *userId, bool available)
 void TRTCCloudCore::onFirstAudioFrame(const char *userId)
 {
 	blog(LOG_INFO, "onFirstAudioFrame userId[%s]", userId);
-	emit trtcEvent(RTC_EVENT_FIRST_AUDIO, QJsonObject());
 }
 
 void TRTCCloudCore::onFirstVideoFrame(const char *userId,
