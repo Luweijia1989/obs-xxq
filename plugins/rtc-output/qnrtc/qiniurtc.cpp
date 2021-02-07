@@ -368,6 +368,7 @@ void QNRtc::SetVideoInfo(int a, int v, int fps, int w, int h)
 
 void QNRtc::setMicMute(bool mute)
 {
+	m_mute = mute;
 	m_rtcRoomInterface->MuteAudio(mute);
 }
 
@@ -434,11 +435,6 @@ void QNRtc::setPlayoutDevice(const QString &deviceId)
 void QNRtc::setIsVideoLink(bool b)
 {
 	m_isVideoLink = b;
-}
-
-void QNRtc::setUid(const QString &uid)
-{
-	m_selfUid = uid;
 }
 
 void QNRtc::startSpeakTimer()
@@ -842,11 +838,13 @@ void QNRtc::OnAudioPCMFrame(
     size_t               number_of_frames_,
     const std::string &  user_id_)
 {
-	if (bits_per_sample_ / 8 == sizeof(int16_t)) {
+	if (bits_per_sample_ / 8 == sizeof(int16_t) && user_id_.length() > 0) {
 		// ASSERT(bits_per_sample_ / 8 == sizeof(int16_t));
 		// 可以借助以下代码计算音量的实时分贝值
 		auto level = ProcessAudioLevel((int16_t*)audio_data_, bits_per_sample_ / 8 * number_of_channels_ * number_of_frames_ / sizeof(int16_t));
-		bool self = QString::fromStdString(user_id_) == m_selfUid;
+		bool self = QString::fromStdString(user_id_) == m_userId;
+		if (self && m_mute)
+			level = 0;
 		if (level > 0)
 		{
 			if (self)

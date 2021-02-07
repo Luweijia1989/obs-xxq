@@ -91,7 +91,6 @@ public:
     void setMicDevice(const QString &deviceId);
     void setPlayoutDevice(const QString &deviceId);
     void setIsVideoLink(bool b);
-    void setUid(const QString &uid);
     void startSpeakTimer();
 public slots:
     void leaveRoom();
@@ -289,8 +288,8 @@ protected:
     recursive_mutex           m_mutex;
     static unsigned long long s_startTimeStamp;
     bool		      m_isVideoLink = true;
-    QString		      m_selfUid;
     bool		      m_selfSpeak = false;
     bool		      m_otherSpeak = false;
     QTimer		      m_speakerTimer;
+    bool		      m_mute = false;
 };
