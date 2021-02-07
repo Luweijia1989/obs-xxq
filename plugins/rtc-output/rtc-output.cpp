@@ -147,6 +147,12 @@ RTCOutput::RTCOutput(RTC_TYPE type, obs_output_t *output)
 		obs_source_release(mic);
 	}
 
+	obs_source_t *playout = obs_get_output_source(1); //主扬声器
+	if (playout) {
+		connectPlayoutSignals(playout);
+		obs_source_release(playout);
+	}
+
 	auto channelChange = [](void *data, calldata_t *param) {
 		auto     self = static_cast<RTCOutput *>(data);
 		auto     source = static_cast<obs_source_t *>(calldata_ptr(param, "source"));
@@ -155,10 +161,13 @@ RTCOutput::RTCOutput(RTC_TYPE type, obs_output_t *output)
 		if (!source)
 			return;
 
-		if (channel != 3 || !(obs_source_get_output_flags(source) & OBS_SOURCE_AUDIO))
+		if ((channel != 3 && channel != 1) || !(obs_source_get_output_flags(source) & OBS_SOURCE_AUDIO))
 			return;
 
-		self->connectMicSignals(source);
+		if (channel == 3)
+			self->connectMicSignals(source);
+		else
+			self->connectPlayoutSignals(source);
 	};
 	channelChangeSignal.Connect(obs_get_signal_handler(), "channel_change", channelChange, this);
 }
@@ -206,9 +215,23 @@ void RTCOutput::settingChanged(void *param, calldata_t *calldata)
 	obs_data_release(settings);
 }
 
+void RTCOutput::playoutSettingChanged(void *param, calldata_t *calldata)
+{
+	obs_source_t *source = (obs_source_t *)calldata_ptr(calldata, "source");
+	RTCOutput *output = (RTCOutput *)param;
+	obs_data_t *settings = obs_source_get_settings(source);
+	output->m_rtcBase->setAudioOutputDevice(QString(obs_data_get_string(settings, "device_id")));
+	obs_data_release(settings);
+}
+
 void RTCOutput::connectMicSignals(obs_source_t *source)
 {
 	micMuteSignal.Connect(obs_source_get_signal_handler(source), "mute", muteChanged, this);
 	micVolumeSignal.Connect(obs_source_get_signal_handler(source), "volume", volumeChanged, this);
 	micSettingSignal.Connect(obs_source_get_signal_handler(source), "settings_update", settingChanged, this);
+}
+
+void RTCOutput::connectPlayoutSignals(obs_source_t *source)
+{
+	playoutSettingSignal.Connect(obs_source_get_signal_handler(source), "settings_update", playoutSettingChanged, this);
 }

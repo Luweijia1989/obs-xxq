@@ -201,11 +201,11 @@ void TRTCCloudCore::onUserVoiceVolume(TRTCVolumeInfo *userVolumes,
 		TRTCVolumeInfo info = userVolumes[i];
 		if (strcmp(info.userId, "") == 0)
 		{
-			obj["self"] = true;
+			obj["self"] = info.volume > 0;
 		}
 		else
 		{
-			obj["remote"] = true;
+			obj["remote"] = info.volume > 0;
 		}
 	}
 	emit trtcEvent(RTC_EVENT_USER_VOLUME, obj);

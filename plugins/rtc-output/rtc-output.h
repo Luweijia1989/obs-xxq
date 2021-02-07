@@ -19,7 +19,9 @@ public:
 	static void muteChanged(void *param, calldata_t *calldata);
 	static void volumeChanged(void *param, calldata_t *calldata);
 	static void settingChanged(void *param, calldata_t *calldata);
+	static void playoutSettingChanged(void *param, calldata_t *calldata);
 	void connectMicSignals(obs_source_t *source);
+	void connectPlayoutSignals(obs_source_t *source);
 
 public:
 	obs_output_t *m_output = nullptr;
@@ -27,6 +29,7 @@ public:
 	OBSSignal micMuteSignal;
 	OBSSignal micSettingSignal;
 	OBSSignal channelChangeSignal;
+	OBSSignal playoutSettingSignal;
 	pthread_t stop_thread;
 	bool stop_thread_active = false;
 	RTCBase *m_rtcBase = nullptr;
