@@ -368,12 +368,13 @@ void QNRtc::SetVideoInfo(int a, int v, int fps, int w, int h)
 
 void QNRtc::setMicMute(bool mute)
 {
-	m_rtcAudioInterface->SetAudioMuteFlag(qiniu_v2::AudioDeviceInfo::adt_record, mute);
+	m_rtcRoomInterface->MuteAudio(mute);
 }
 
 void QNRtc::setMicVolume(int v)
 {
-	m_rtcAudioInterface->SetAudioVolume(qiniu_v2::AudioDeviceInfo::adt_record, v);
+	std::string uid = m_userId.toStdString();
+	m_rtcAudioInterface->SetAudioVolume(uid, (float)v / 100.f);
 }
 
 void QNRtc::setMicDevice(const QString &deviceId)

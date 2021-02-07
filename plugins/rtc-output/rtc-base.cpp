@@ -276,7 +276,7 @@ void TRTC::setAudioInputMute(bool mute)
 	if (is_video_link)
 		return;
 
-	TRTCCloudCore::GetInstance()->getTRTCCloud()->setCurrentMicDeviceMute(mute);
+	TRTCCloudCore::GetInstance()->getTRTCCloud()->muteLocalAudio(mute);
 }
 
 void TRTC::setAudioInputVolume(float volume)
