@@ -549,16 +549,22 @@ void QINIURTC::setSei(const QJsonObject &data, int insetType)
 
 void QINIURTC::setAudioInputDevice(const QString &deviceId)
 {
+	if (is_video_link)
+		return;
 	m_rtc->setMicDevice(deviceId);
 }
 
 void QINIURTC::setAudioInputMute(bool mute)
 {
+	if (is_video_link)
+		return;
 	m_rtc->setMicMute(mute);
 }
 
 void QINIURTC::setAudioInputVolume(float volume)
 {
+	if (is_video_link)
+		return;
 	m_rtc->setMicVolume(volume * 100);
 }
 

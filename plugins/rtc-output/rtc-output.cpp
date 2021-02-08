@@ -157,15 +157,27 @@ RTCOutput::RTCOutput(RTC_TYPE type, obs_output_t *output)
 		auto     self = static_cast<RTCOutput *>(data);
 		auto     source = static_cast<obs_source_t *>(calldata_ptr(param, "source"));
 		uint32_t channel = (uint32_t)calldata_int(param, "channel");
+		bool isMic = channel == 3;
 
-		if (!source)
+		if (channel != 3 && channel != 1)
 			return;
 
-		if ((channel != 3 && channel != 1) || !(obs_source_get_output_flags(source) & OBS_SOURCE_AUDIO))
-			return;
-
-		if (channel == 3)
-			self->connectMicSignals(source);
+		if (isMic)
+		{
+			if (!source)
+			{
+				self->m_rtcBase->setAudioInputMute(true);
+			}
+			else
+			{
+				self->m_rtcBase->setAudioInputMute(obs_source_muted(source));
+				self->m_rtcBase->setAudioInputVolume(obs_source_get_volume(source));
+				obs_data_t *s = obs_source_get_settings(source);
+				self->m_rtcBase->setAudioInputDevice(obs_data_get_string(s, "device_id"));
+				obs_data_release(s);
+				self->connectMicSignals(source);
+			}
+		}
 		else
 			self->connectPlayoutSignals(source);
 	};
