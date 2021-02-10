@@ -41,7 +41,7 @@ public:
 	virtual void setSei(const QJsonObject &data, int insetType) = 0;
 	virtual void setAudioInputDevice(const QString &deviceId) = 0;
 	virtual void setAudioInputMute(bool mute) = 0;
-	virtual void setAudioInputVolume(float volume) = 0;
+	virtual void setAudioInputVolume(int volume) = 0;
 	virtual void setAudioOutputDevice(const QString &deviceId) = 0;
 	void setCropInfo(int x, int cropWidth)
 	{
@@ -90,7 +90,7 @@ public:
 		QJsonObject obj = jd.object();
 		setAudioInputDevice(obj["device"].toString());
 		setAudioInputMute(obj["mute"].toBool());
-		setAudioInputVolume(obj["volume"].toDouble());
+		setAudioInputVolume(obj["volume"].toInt());
 	}
 
 	void setRtcEventCallback(RtcEventCallback cb)
@@ -162,7 +162,7 @@ public:
 	virtual void setSei(const QJsonObject &data, int insetType);
 	virtual void setAudioInputDevice(const QString &deviceId);
 	virtual void setAudioInputMute(bool mute);
-	virtual void setAudioInputVolume(float volume);
+	virtual void setAudioInputVolume(int volume);
 	virtual void setAudioOutputDevice(const QString &deviceId);
 
 private:
@@ -186,7 +186,7 @@ public:
 	virtual void setSei(const QJsonObject &data, int insetType);
 	virtual void setAudioInputDevice(const QString &deviceId);
 	virtual void setAudioInputMute(bool mute);
-	virtual void setAudioInputVolume(float volume);
+	virtual void setAudioInputVolume(int volume);
 	virtual void setAudioOutputDevice(const QString &deviceId);
 
 private:

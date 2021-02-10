@@ -261,6 +261,13 @@ void TRTC::setAudioInputDevice(const QString &deviceId)
 	if (is_video_link)
 		return;
 
+	if (deviceId == "disabled")
+	{
+		setAudioInputMute(true);
+		return;
+	}
+
+	setAudioInputMute(false);
 	std:string strdid = deviceId.toStdString();
 	if (last_audio_input_device != deviceId)
 	{
@@ -297,12 +304,12 @@ void TRTC::setAudioInputMute(bool mute)
 	TRTCCloudCore::GetInstance()->getTRTCCloud()->muteLocalAudio(mute);
 }
 
-void TRTC::setAudioInputVolume(float volume)
+void TRTC::setAudioInputVolume(int volume)
 {
 	if (is_video_link)
 		return;
 
-	TRTCCloudCore::GetInstance()->getTRTCCloud()->setAudioCaptureVolume(volume * 100);
+	TRTCCloudCore::GetInstance()->getTRTCCloud()->setAudioCaptureVolume(volume);
 }
 
 void TRTC::setAudioOutputDevice(const QString &deviceId)
@@ -561,11 +568,11 @@ void QINIURTC::setAudioInputMute(bool mute)
 	m_rtc->setMicMute(mute);
 }
 
-void QINIURTC::setAudioInputVolume(float volume)
+void QINIURTC::setAudioInputVolume(int volume)
 {
 	if (is_video_link)
 		return;
-	m_rtc->setMicVolume(volume * 100);
+	m_rtc->setMicVolume(volume);
 }
 
 void QINIURTC::setAudioOutputDevice(const QString &deviceId)

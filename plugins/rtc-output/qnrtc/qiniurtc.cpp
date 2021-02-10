@@ -380,6 +380,12 @@ void QNRtc::setMicVolume(int v)
 
 void QNRtc::setMicDevice(const QString &deviceId)
 {
+	if (deviceId == "disabled")
+	{
+		setMicMute(true);
+		return;
+	}
+	setMicMute(false);
 	bool set2default = deviceId == "default";
 	int count = m_rtcAudioInterface->GetAudioDeviceCount(qiniu_v2::AudioDeviceInfo::adt_record);
 	qiniu_v2::AudioDeviceSetting setting;
