@@ -512,10 +512,10 @@ void QNRtc::OnJoinResult(
         switch(error_code_)
         {
             case Err_Token_Error:
-                emit linkStateResult(ReConnect, error_code_, errorStr);
+                emit linkStateResult(ReJoin, error_code_, errorStr);
                 break;
             case Err_Token_Expired:
-                emit linkStateResult(ReConnect, error_code_, errorStr);
+                emit linkStateResult(ReJoin, error_code_, errorStr);
                 break;
             case Err_Room_Closed:
                 emit linkStateResult(JoinFailture, error_code_, errorStr);
@@ -527,7 +527,7 @@ void QNRtc::OnJoinResult(
                 emit linkStateResult(JoinFailture, error_code_, errorStr);
                 break;
             case Err_ReconnToken_Error:
-                emit linkStateResult(ReConnect, error_code_, errorStr);
+                emit linkStateResult(ReJoin, error_code_, errorStr);
                 break;
             case Err_Room_Not_Exist:
                 emit linkStateResult(JoinFailture, error_code_, errorStr);
