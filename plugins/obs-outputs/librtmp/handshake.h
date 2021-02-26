@@ -890,7 +890,7 @@ HandShake(RTMP * r, int FP9HandShake)
             dhposClient = getdh(clientsig, RTMP_SIG_SIZE);
             RTMP_Log(RTMP_LOGDEBUG, "%s: DH pubkey position: %d", __FUNCTION__, dhposClient);
 
-            if (!DHGenerateKey(r->Link.dh))
+            if (!DHGenerateKey(r))
             {
                 RTMP_Log(RTMP_LOGERROR, "%s: Couldn't generate Diffie-Hellmann public key!",
                          __FUNCTION__);
@@ -919,11 +919,6 @@ HandShake(RTMP * r, int FP9HandShake)
 #ifdef _DEBUG
     RTMP_Log(RTMP_LOGDEBUG, "Clientsig: ");
     RTMP_LogHex(RTMP_LOGDEBUG, clientsig, RTMP_SIG_SIZE);
-#endif
-
-#if RTMP_OUTLOG
-    RTMP_Log(RTMP_LOGDEBUG, "Clientsig: ");
-    RTMP_LogHexString(RTMP_LOGDEBUG, clientsig, RTMP_SIG_SIZE);
 #endif
 
     if (!WriteN(r, (char *)clientsig-1, RTMP_SIG_SIZE + 1))
@@ -955,11 +950,6 @@ HandShake(RTMP * r, int FP9HandShake)
 #ifdef _DEBUG
     RTMP_Log(RTMP_LOGDEBUG, "Server signature:");
     RTMP_LogHex(RTMP_LOGDEBUG, serversig, RTMP_SIG_SIZE);
-#endif
-
-#if RTMP_OUTLOG
-    RTMP_Log(RTMP_LOGDEBUG, "Server signature:");
-    RTMP_LogHexString(RTMP_LOGDEBUG, serversig, RTMP_SIG_SIZE);
 #endif
 
     if (FP9HandShake)
@@ -1095,11 +1085,6 @@ HandShake(RTMP * r, int FP9HandShake)
 #ifdef _DEBUG
     RTMP_Log(RTMP_LOGDEBUG, "%s: 2nd handshake: ", __FUNCTION__);
     RTMP_LogHex(RTMP_LOGDEBUG, serversig, RTMP_SIG_SIZE);
-#endif
-
-#if RTMP_OUTLOG
-    RTMP_Log(RTMP_LOGDEBUG, "%s: 2nd handshake: ", __FUNCTION__);
-    RTMP_LogHexString(RTMP_LOGDEBUG, serversig, RTMP_SIG_SIZE);
 #endif
 
     if (FP9HandShake)

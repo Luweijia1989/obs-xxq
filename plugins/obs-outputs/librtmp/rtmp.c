@@ -87,7 +87,6 @@ static const char *my_dhm_G = "4";
 #include <openssl/buffer.h>
 #endif
 
-TLS_CTX RTMP_TLS_ctx = NULL;
 #endif
 
 #define RTMP_SIG_SIZE 1536
@@ -285,9 +284,9 @@ RTMP_LibVersion()
 }
 
 void
-RTMP_TLS_LoadCerts() {
+RTMP_TLS_LoadCerts(RTMP *r) {
 #ifdef USE_MBEDTLS
-    mbedtls_x509_crt *chain = RTMP_TLS_ctx->cacert = calloc(1, sizeof(struct mbedtls_x509_crt));
+    mbedtls_x509_crt *chain = r->RTMP_TLS_ctx->cacert = calloc(1, sizeof(struct mbedtls_x509_crt));
     mbedtls_x509_crt_init(chain);
 
 #if defined(_WIN32)
@@ -349,35 +348,35 @@ RTMP_TLS_LoadCerts() {
     }
 #endif
 
-    mbedtls_ssl_conf_ca_chain(&RTMP_TLS_ctx->conf, chain, NULL);
+    mbedtls_ssl_conf_ca_chain(&r->RTMP_TLS_ctx->conf, chain, NULL);
     return;
 
 error:
     mbedtls_x509_crt_free(chain);
     free(chain);
-    RTMP_TLS_ctx->cacert = NULL;
+    r->RTMP_TLS_ctx->cacert = NULL;
 #endif /* USE_MBEDTLS */
 }
 
 void
-RTMP_TLS_Init()
+RTMP_TLS_Init(RTMP *r)
 {
 #ifdef CRYPTO
 #if defined(USE_MBEDTLS)
     const char * pers = "RTMP_TLS";
-    RTMP_TLS_ctx = calloc(1,sizeof(struct tls_ctx));
+    r->RTMP_TLS_ctx = calloc(1,sizeof(struct tls_ctx));
 
-    mbedtls_ssl_config_init(&RTMP_TLS_ctx->conf);
-    mbedtls_ctr_drbg_init(&RTMP_TLS_ctx->ctr_drbg);
-    mbedtls_entropy_init(&RTMP_TLS_ctx->entropy);
+    mbedtls_ssl_config_init(&r->RTMP_TLS_ctx->conf);
+    mbedtls_ctr_drbg_init(&r->RTMP_TLS_ctx->ctr_drbg);
+    mbedtls_entropy_init(&r->RTMP_TLS_ctx->entropy);
 
-    mbedtls_ctr_drbg_seed(&RTMP_TLS_ctx->ctr_drbg,
+    mbedtls_ctr_drbg_seed(&r->RTMP_TLS_ctx->ctr_drbg,
                           mbedtls_entropy_func,
-                          &RTMP_TLS_ctx->entropy,
+                          &r->RTMP_TLS_ctx->entropy,
                           (const unsigned char *)pers,
                           strlen(pers));
 
-    RTMP_TLS_LoadCerts();
+    RTMP_TLS_LoadCerts(r);
 #elif defined(USE_POLARSSL)
     /* Do this regardless of NO_SSL, we use havege for rtmpe too */
     RTMP_TLS_ctx = calloc(1,sizeof(struct tls_ctx));
@@ -407,24 +406,28 @@ RTMP_TLS_Init()
 }
 
 void
-RTMP_TLS_Free() {
+RTMP_TLS_Free(RTMP *r) {
 #ifdef USE_MBEDTLS
-    mbedtls_ssl_config_free(&RTMP_TLS_ctx->conf);
-    mbedtls_ctr_drbg_free(&RTMP_TLS_ctx->ctr_drbg);
-    mbedtls_entropy_free(&RTMP_TLS_ctx->entropy);
 
-    if (RTMP_TLS_ctx->cacert) {
-        mbedtls_x509_crt_free(RTMP_TLS_ctx->cacert);
-        free(RTMP_TLS_ctx->cacert);
-        RTMP_TLS_ctx->cacert = NULL;
+    if (!r->RTMP_TLS_ctx)
+        return;
+    mbedtls_ssl_config_free(&r->RTMP_TLS_ctx->conf);
+    mbedtls_ctr_drbg_free(&r->RTMP_TLS_ctx->ctr_drbg);
+    mbedtls_entropy_free(&r->RTMP_TLS_ctx->entropy);
+
+    if (r->RTMP_TLS_ctx->cacert) {
+        mbedtls_x509_crt_free(r->RTMP_TLS_ctx->cacert);
+        free(r->RTMP_TLS_ctx->cacert);
+        r->RTMP_TLS_ctx->cacert = NULL;
     }
 
     // NO mbedtls_net_free() BECAUSE WE SET IT UP BY HAND!
-    free(RTMP_TLS_ctx);
-    RTMP_TLS_ctx = NULL;
+    free(r->RTMP_TLS_ctx);
+    r->RTMP_TLS_ctx = NULL;
 #endif
 }
 
+#if 0
 void *
 RTMP_TLS_AllocServerContext(const char* cert, const char* key)
 {
@@ -517,6 +520,7 @@ RTMP_TLS_FreeServerContext(void *ctx)
     (void)ctx;
 #endif
 }
+#endif
 
 RTMP *
 RTMP_Alloc()
@@ -528,8 +532,8 @@ void
 RTMP_Free(RTMP *r)
 {
 #if defined(CRYPTO) && defined(USE_MBEDTLS)
-  if (RTMP_TLS_ctx)
-    RTMP_TLS_Free();
+  if (r->RTMP_TLS_ctx)
+    RTMP_TLS_Free(r);
 #endif
     free(r);
 }
@@ -537,13 +541,19 @@ RTMP_Free(RTMP *r)
 void
 RTMP_Init(RTMP *r)
 {
-#ifdef CRYPTO
-    if (!RTMP_TLS_ctx)
-        RTMP_TLS_Init();
-#endif
-
     memset(r, 0, sizeof(RTMP));
     r->m_sb.sb_socket = -1;
+    RTMP_Reset(r);
+
+#ifdef CRYPTO
+    RTMP_TLS_Init(r);
+#endif
+
+}
+
+void
+RTMP_Reset(RTMP *r)
+{
     r->m_inChunkSize = RTMP_DEFAULT_CHUNKSIZE;
     r->m_outChunkSize = RTMP_DEFAULT_CHUNKSIZE;
     r->m_bSendChunkSizeInfo = 1;
@@ -780,8 +790,12 @@ int RTMP_SetupURL(RTMP *r, char *url)
 
 #ifdef CRYPTO
     if ((r->Link.lFlags & RTMP_LF_SWFV) && r->Link.swfUrl.av_len)
+#ifdef USE_HASHSWF
         RTMP_HashSWF(r->Link.swfUrl.av_val, &r->Link.SWFSize,
         (unsigned char *)r->Link.SWFHash, r->Link.swfAge);
+#else
+        return FALSE;
+#endif
 #endif
 
     SocksSetup(r, &r->Link.sockshost);
@@ -1008,6 +1022,7 @@ RTMP_Connect0(RTMP *r, struct sockaddr * service, socklen_t addrlen)
     return TRUE;
 }
 
+#if 0
 int
 RTMP_TLS_Accept(RTMP *r, void *ctx)
 {
@@ -1037,6 +1052,7 @@ RTMP_TLS_Accept(RTMP *r, void *ctx)
     return FALSE;
 #endif
 }
+#endif
 
 int
 RTMP_Connect1(RTMP *r, RTMPPacket *cp)
@@ -1044,10 +1060,10 @@ RTMP_Connect1(RTMP *r, RTMPPacket *cp)
     if (r->Link.protocol & RTMP_FEATURE_SSL)
     {
 #if defined(CRYPTO) && !defined(NO_SSL)
-        TLS_client(RTMP_TLS_ctx, r->m_sb.sb_ssl);
+        TLS_client(r->RTMP_TLS_ctx, r->m_sb.sb_ssl);
 
 #if defined(USE_MBEDTLS)
-        mbedtls_net_context *server_fd = &RTMP_TLS_ctx->net;
+        mbedtls_net_context *server_fd = &r->RTMP_TLS_ctx->net;
         server_fd->fd = r->m_sb.sb_socket;
         TLS_setfd(r->m_sb.sb_ssl, server_fd);
 
@@ -1070,10 +1086,9 @@ RTMP_Connect1(RTMP *r, RTMPPacket *cp)
         if (connect_return < 0)
         {
 #if defined(USE_MBEDTLS)
+            r->last_error_code = connect_return;
             if (connect_return == MBEDTLS_ERR_X509_CERT_VERIFY_FAILED)
             {
-                r->last_error_code = connect_return;
-
                 // show a more detailed error in the log if possible
                 int verify_result = mbedtls_ssl_get_verify_result(r->m_sb.sb_ssl);
                 if (verify_result)
@@ -3875,10 +3890,6 @@ RTMP_ReadPacket(RTMP *r, RTMPPacket *packet)
         return FALSE;
     }
 
-#if RTMP_OUTLOG
-    RTMP_Log(RTMP_LOGDEBUG, "%s: read 1 byte: %0x", __FUNCTION__, hbuf[0]);
-#endif 
-
     packet->m_headerType = (hbuf[0] & 0xc0) >> 6;
     packet->m_nChannel = (hbuf[0] & 0x3f);
     header++;
@@ -3890,11 +3901,6 @@ RTMP_ReadPacket(RTMP *r, RTMPPacket *packet)
                      __FUNCTION__);
             return FALSE;
         }
-
-#if RTMP_OUTLOG
-        RTMP_Log(RTMP_LOGDEBUG, "%s: read 2 byte: %0x", __FUNCTION__, hbuf[1]);
-#endif
-
         packet->m_nChannel = hbuf[1];
         packet->m_nChannel += 64;
         header++;
@@ -3908,11 +3914,6 @@ RTMP_ReadPacket(RTMP *r, RTMPPacket *packet)
                      __FUNCTION__);
             return FALSE;
         }
-
-#if RTMP_OUTLOG
-        RTMP_Log(RTMP_LOGDEBUG, "%s: read 2-3 bytes: %0x%0x", __FUNCTION__, hbuf[1], hbuf[2]);
-#endif
-
         tmp = (hbuf[2] << 8) + hbuf[1];
         packet->m_nChannel = tmp + 64;
         RTMP_Log(RTMP_LOGDEBUG, "%s, m_nChannel: %0x", __FUNCTION__, packet->m_nChannel);
@@ -3949,22 +3950,8 @@ RTMP_ReadPacket(RTMP *r, RTMPPacket *packet)
     {
         /* using values from the last message of this channel */
         if (r->m_vecChannelsIn[packet->m_nChannel])
-        {
-#if RTMP_OUTLOG
-            RTMP_Log(RTMP_LOGDEBUG, "%s: using values from the last message of this channel: %0x, header type: %0x, bytes: %d",
-                __FUNCTION__, packet->m_nChannel,packet->m_headerType,
-                r->m_vecChannelsIn[packet->m_nChannel]->m_nBodySize);
-            RTMP_LogHexString(RTMP_LOGDEBUG, (uint8_t *)r->m_vecChannelsIn[packet->m_nChannel]->m_body,
-                r->m_vecChannelsIn[packet->m_nChannel]->m_nBodySize);
-#endif
             memcpy(packet, r->m_vecChannelsIn[packet->m_nChannel],
-                sizeof(RTMPPacket));
-#if RTMP_OUTLOG
-            RTMP_Log(RTMP_LOGDEBUG, "memcpy last message chunk: header type:%0x of %d bytes",
-                packet->m_headerType, packet->m_nBodySize);
-            RTMP_LogHexString(RTMP_LOGDEBUG, (uint8_t *)packet->m_body, packet->m_nBodySize);
-#endif
-        }
+                   sizeof(RTMPPacket));
     }
 
     nSize--;
@@ -3975,10 +3962,6 @@ RTMP_ReadPacket(RTMP *r, RTMPPacket *packet)
                  __FUNCTION__, (unsigned int)hbuf[0]);
         return FALSE;
     }
-
-#if RTMP_OUTLOG
-    RTMP_Log(RTMP_LOGDEBUG, "%s: read header %d bytes: %s", __FUNCTION__, nSize, header);
-#endif
 
     hSize = nSize + (header - (char *)hbuf);
 
@@ -4012,20 +3995,13 @@ RTMP_ReadPacket(RTMP *r, RTMPPacket *packet)
                          __FUNCTION__);
                 return FALSE;
             }
-#if RTMP_OUTLOG
-            RTMP_Log(RTMP_LOGDEBUG2, "%s, %d:", __FUNCTION__, __LINE__);
-            RTMP_LogHexString(RTMP_LOGDEBUG2, (uint8_t *)header + nSize, 4);
-#endif
-
             packet->m_nTimeStamp = AMF_DecodeInt32(header + nSize);
             hSize += 4;
         }
     }
 
-#if RTMP_OUTLOG
-    RTMP_Log(RTMP_LOGDEBUG2, "%s, %d: ", __FUNCTION__, __LINE__);
-#endif
-	RTMP_LogHexString(RTMP_LOGDEBUG2, (uint8_t *)hbuf, hSize);
+    RTMP_LogHexString(RTMP_LOGDEBUG2, (uint8_t *)hbuf, hSize);
+
     if (packet->m_nBodySize > 0 && packet->m_body == NULL)
     {
         if (!RTMPPacket_Alloc(packet, packet->m_nBodySize))
@@ -4046,18 +4022,7 @@ RTMP_ReadPacket(RTMP *r, RTMPPacket *packet)
     if (packet->m_chunk)
     {
         packet->m_chunk->c_headerSize = hSize;
-#if RTMP_OUTLOG
-        RTMP_Log(RTMP_LOGDEBUG, "%s: Does the caller want the raw chunk: %d bytes",
-            __FUNCTION__, hSize);
-        RTMP_LogHexString(RTMP_LOGDEBUG, (uint8_t *)hbuf, hSize);
-#endif
         memcpy(packet->m_chunk->c_header, hbuf, hSize);
-
-#if RTMP_OUTLOG
-        RTMP_Log(RTMP_LOGDEBUG, "memcpy chunk header: %d bytes:", hSize);
-        RTMP_LogHexString(RTMP_LOGDEBUG, (uint8_t *)packet->m_chunk->c_header, hSize);
-#endif
-
         packet->m_chunk->c_chunk = packet->m_body + packet->m_nBytesRead;
         packet->m_chunk->c_chunkSize = nChunk;
     }
@@ -4069,9 +4034,6 @@ RTMP_ReadPacket(RTMP *r, RTMPPacket *packet)
         return FALSE;
     }
 
-#if RTMP_OUTLOG
-    RTMP_Log(RTMP_LOGDEBUG2, "%s, %d: %s",__FUNCTION__, __LINE__, packet->m_body + packet->m_nBytesRead);
-#endif
     RTMP_LogHexString(RTMP_LOGDEBUG2, (uint8_t *)packet->m_body + packet->m_nBytesRead, nChunk);
 
     packet->m_nBytesRead += nChunk;
@@ -4079,19 +4041,7 @@ RTMP_ReadPacket(RTMP *r, RTMPPacket *packet)
     /* keep the packet as ref for other packets on this channel */
     if (!r->m_vecChannelsIn[packet->m_nChannel])
         r->m_vecChannelsIn[packet->m_nChannel] = malloc(sizeof(RTMPPacket));
-
-#if RTMP_OUTLOG
-    RTMP_Log(RTMP_LOGDEBUG, "%s: keep the packet as ref for other packets on this channel: %0x of %d bytes",
-        __FUNCTION__, packet->m_nChannel, packet->m_nBodySize);
-    RTMP_LogHexString(RTMP_LOGDEBUG, (uint8_t *)packet->m_body, packet->m_nBodySize);
-#endif
     memcpy(r->m_vecChannelsIn[packet->m_nChannel], packet, sizeof(RTMPPacket));
-#if RTMP_OUTLOG
-    RTMP_Log(RTMP_LOGDEBUG, "memcpy packet %d sizes:",
-        r->m_vecChannelsIn[packet->m_nChannel]->m_nBodySize);
-    RTMP_LogHexString(RTMP_LOGDEBUG, (uint8_t *)r->m_vecChannelsIn[packet->m_nChannel]->m_body, r->m_vecChannelsIn[packet->m_nChannel]->m_nBodySize);
-#endif
-
     if (extendedTimestamp)
         r->m_vecChannelsIn[packet->m_nChannel]->m_nTimeStamp = 0xffffff;
 
@@ -4399,10 +4349,8 @@ RTMP_SendPacket(RTMP *r, RTMPPacket *packet, int queue)
     buffer = packet->m_body;
     nChunkSize = r->m_outChunkSize;
 
-#if !RTMP_OUTLOG
     RTMP_Log(RTMP_LOGDEBUG2, "%s: fd=%d, size=%d", __FUNCTION__, (int)r->m_sb.sb_socket,
              nSize);
-#endif
     /* send all chunks in one HTTP request */
     if (r->Link.protocol & RTMP_FEATURE_HTTP)
     {
@@ -4492,11 +4440,13 @@ RTMP_SendPacket(RTMP *r, RTMPPacket *packet, int queue)
     return TRUE;
 }
 
+#if 0
 int
 RTMP_Serve(RTMP *r)
 {
     return SHandShake(r);
 }
+#endif
 
 void
 RTMP_Close(RTMP *r)
@@ -4670,12 +4620,6 @@ RTMPSockBuf_Fill(RTMPSockBuf *sb)
 #endif
         {
             nBytes = recv(sb->sb_socket, sb->sb_start + sb->sb_size, nBytes, MSG_NOSIGNAL);
-
-#if RTMP_OUTLOG
-            RTMP_Log(RTMP_LOGDEBUG, "%s: recv %d bytes:", __FUNCTION__, nBytes);
-            RTMP_LogHex(RTMP_LOGDEBUG, (uint8_t *)sb->sb_start + sb->sb_size, nBytes);
-#endif
-
         }
         if (nBytes > 0)
         {

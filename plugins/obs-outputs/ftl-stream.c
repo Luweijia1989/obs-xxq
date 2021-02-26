@@ -886,6 +886,9 @@ static enum ret_type ftl_event(struct ftl_stream *stream,
 	//tell OBS and it will trigger a reconnection
 	blog(LOG_WARNING, "Reconnecting to Ingest");
 	obs_output_signal_stop(stream->output, OBS_OUTPUT_DISCONNECTED);
+
+	// fix ftl-stream: Fix reconnect loop on FTL ingest disconnect
+	reset_semaphore(stream);
 	return RET_EXIT;
 }
 

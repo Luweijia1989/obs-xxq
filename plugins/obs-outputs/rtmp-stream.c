@@ -43,10 +43,9 @@ static const char *rtmp_stream_getname(void *unused)
 
 static void log_rtmp(int level, const char *format, va_list args)
 {
-#if !RTMP_OUTLOG
 	if (level > RTMP_LOGWARNING)
 		return;
-#endif
+
 	blogva(LOG_INFO, format, args);
 }
 
@@ -111,7 +110,7 @@ static void rtmp_stream_destroy(void *data)
 		}
 	}
 
-	RTMP_TLS_Free();
+	RTMP_TLS_Free(&stream->rtmp);
 	free_packets(stream);
 	dstr_free(&stream->path);
 	dstr_free(&stream->key);
@@ -146,8 +145,8 @@ static void *rtmp_stream_create(obs_data_t *settings, obs_output_t *output)
 	stream->output = output;
 	pthread_mutex_init_value(&stream->packets_mutex);
 
-	RTMP_Init(&stream->rtmp);
 	RTMP_LogSetCallback(log_rtmp);
+	RTMP_Init(&stream->rtmp);
 	RTMP_LogSetLevel(RTMP_LOGWARNING);
 
 	if (pthread_mutex_init(&stream->packets_mutex, NULL) != 0)
@@ -518,7 +517,8 @@ static void set_output_error(struct rtmp_stream *stream)
 		}
 	}
 
-	obs_output_set_last_error(stream->output, msg);
+	if (msg)
+		obs_output_set_last_error(stream->output, msg);
 }
 
 static void dbr_add_frame(struct rtmp_stream *stream, struct dbr_frame *back)
@@ -935,7 +935,16 @@ static int try_connect(struct rtmp_stream *stream)
 
 	info("Connecting to RTMP URL %s...", stream->path.array);
 
-	RTMP_Init(&stream->rtmp);
+	// on reconnect we need to reset the internal variables of librtmp
+	// otherwise the data sent/received will not parse correctly on the other end
+	RTMP_Reset(&stream->rtmp);
+
+	// since we don't call RTMP_Init above, there's no other good place
+	// to reset this as doing it in RTMP_Close breaks the ugly RTMP
+	// authentication system
+	memset(&stream->rtmp.Link, 0, sizeof(stream->rtmp.Link));
+	stream->rtmp.last_error_code = 0;
+
 	if (!RTMP_SetupURL(&stream->rtmp, stream->path.array))
 		return OBS_OUTPUT_BAD_PATH;
 
@@ -1347,7 +1356,7 @@ static void check_to_drop_frames(struct rtmp_stream *stream, bool pframes)
 			return;
 		}
 
-		if (buffer_duration_usec >= DBR_TRIGGER_USEC) {
+		if ((uint64_t)buffer_duration_usec >= DBR_TRIGGER_USEC) {
 			pthread_mutex_lock(&stream->dbr_mutex);
 			bitrate_changed = dbr_bitrate_lowered(stream);
 			pthread_mutex_unlock(&stream->dbr_mutex);
