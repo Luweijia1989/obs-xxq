@@ -2687,11 +2687,11 @@ void obs_source_create_xxqsource(int type /*1=privacy 2=leave*/,
 			obs_source_activate(data->leave_source, MAIN_VIEW);
 		}
 	} else if (type == 3) {
-		if (!data->audiowave_source) {
-			data->audiowave_source = obs_source_create_private(
-				"quickaudiowave_source", AUDIOWAVE_ID,
+		if (!data->h5_source) {
+			data->h5_source = obs_source_create_private(
+				"window_capture", H5_ID,
 				settings);
-			obs_source_activate(data->audiowave_source, MAIN_VIEW);
+			obs_source_activate(data->h5_source, MAIN_VIEW);
 		}
 	} else if (type == 4) {
 		if (!data->sticker_source) {
@@ -2720,7 +2720,7 @@ void obs_source_update_xxqsource(int type /*1=privacy 2=leave*/,
 		obs_source_update(data->leave_source, settings);
 		break;
 	case 3:
-		obs_source_update(data->audiowave_source, settings);
+		obs_source_update(data->h5_source, settings);
 		break;
 	case 5:
 		obs_source_update(data->mask_source, settings);
@@ -2740,8 +2740,8 @@ void obs_source_destroy_xxqsource(int type)
 		obs_source_release(data->leave_source);
 		data->leave_source = NULL;
 	} else if (type == 3) {
-		obs_source_release(data->audiowave_source);
-		data->audiowave_source = NULL;
+		obs_source_release(data->h5_source);
+		data->h5_source = NULL;
 	} else if (type == 4) {
 		obs_source_release(data->sticker_source);
 		data->sticker_source = NULL;

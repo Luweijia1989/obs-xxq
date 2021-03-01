@@ -169,8 +169,8 @@ void obs_view_render(obs_view_t *view, void *output_order)
 	if (core_data->leave_source)
 		obs_source_default_render(core_data->leave_source);
 
-	if (core_data->audiowave_source)
-		obs_source_default_render(core_data->audiowave_source);
+	if (core_data->h5_source)
+		obs_source_default_render(core_data->h5_source);
 
 	if (core_data->mask_source)
 		obs_source_default_render(core_data->mask_source);
