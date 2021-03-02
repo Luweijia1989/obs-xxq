@@ -13,7 +13,7 @@ enum window_search_mode {
 	EXCLUDE_MINIMIZED,
 };
 
-extern bool get_window_exe(struct dstr *name, HWND window);
+extern bool get_window_exe(struct dstr *name, HWND window, bool isPrivate);
 extern void get_window_title(struct dstr *name, HWND hwnd);
 extern void get_window_class(struct dstr *class, HWND hwnd);
 extern bool is_uwp_window(HWND hwnd);
@@ -30,4 +30,4 @@ extern void build_window_strings(const char *str, char **class, char **title,
 
 extern HWND find_window(enum window_search_mode mode,
 			enum window_priority priority, const char *class,
-			const char *title, const char *exe);
+			const char *title, const char *exe, bool isPrivate);

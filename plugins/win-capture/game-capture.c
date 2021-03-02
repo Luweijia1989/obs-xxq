@@ -994,12 +994,12 @@ static bool init_hook(struct game_capture *gc)
 	bool blacklisted_process = false;
 
 	if (gc->config.mode == CAPTURE_MODE_ANY) {
-		if (get_window_exe(&exe, gc->next_window)) {
+		if (get_window_exe(&exe, gc->next_window, false)) {
 			info("attempting to hook fullscreen process: %s",
 			     exe.array);
 		}
 	} else {
-		if (get_window_exe(&exe, gc->next_window)) {
+		if (get_window_exe(&exe, gc->next_window, false)) {
 			info("attempting to hook process: %s", exe.array);
 		}
 	}
@@ -1141,7 +1141,7 @@ static void get_selected_window(struct game_capture *gc)
 	} else {
 		window = find_window(INCLUDE_MINIMIZED, gc->priority,
 				     gc->class.array, gc->title.array,
-				     gc->executable.array);
+				     gc->executable.array, false);
 	}
 
 	if (window) {
@@ -1660,7 +1660,7 @@ static void game_capture_tick(void *data, float seconds)
 		if (is_uwp_window(hwnd))
 			hwnd = get_uwp_actual_window(hwnd);
 
-		if (get_window_exe(&gc->executable, hwnd)) {
+		if (get_window_exe(&gc->executable, hwnd, false)) {
 			get_window_title(&gc->title, hwnd);
 			get_window_class(&gc->class, hwnd);
 

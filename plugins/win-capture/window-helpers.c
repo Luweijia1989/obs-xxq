@@ -65,7 +65,7 @@ static inline HANDLE open_process(DWORD desired_access, bool inherit_handle,
 	return open_process_proc(desired_access, inherit_handle, process_id);
 }
 
-bool get_window_exe(struct dstr *name, HWND window)
+bool get_window_exe(struct dstr *name, HWND window, bool isPrivate)
 {
 	wchar_t wname[MAX_PATH];
 	struct dstr temp = {0};
@@ -75,7 +75,7 @@ bool get_window_exe(struct dstr *name, HWND window)
 	DWORD id;
 
 	GetWindowThreadProcessId(window, &id);
-	if (id == GetCurrentProcessId())
+	if (!isPrivate && id == GetCurrentProcessId())
 		return false;
 
 	process = open_process(PROCESS_QUERY_LIMITED_INFORMATION, false, id);
@@ -161,7 +161,7 @@ static void add_window(obs_property_t *p, HWND hwnd, add_window_cb callback)
 	struct dstr encoded = {0};
 	struct dstr desc = {0};
 
-	if (!get_window_exe(&exe, hwnd))
+	if (!get_window_exe(&exe, hwnd, false))
 		return;
 	if (is_microsoft_internal_window_exe(exe.array)) {
 		dstr_free(&exe);
@@ -344,14 +344,14 @@ void fill_window_list(obs_property_t *p, enum window_search_mode mode,
 
 static int window_rating(HWND window, enum window_priority priority,
 			 const char *class, const char *title, const char *exe,
-			 bool uwp_window)
+			 bool uwp_window, bool isPrivate)
 {
 	struct dstr cur_class = {0};
 	struct dstr cur_title = {0};
 	struct dstr cur_exe = {0};
 	int val = 0x7FFFFFFF;
 
-	if (!get_window_exe(&cur_exe, window))
+	if (!get_window_exe(&cur_exe, window, isPrivate))
 		return 0x7FFFFFFF;
 	get_window_title(&cur_title, window);
 	get_window_class(&cur_class, window);
@@ -387,7 +387,7 @@ static int window_rating(HWND window, enum window_priority priority,
 }
 
 HWND find_window(enum window_search_mode mode, enum window_priority priority,
-		 const char *class, const char *title, const char *exe)
+		 const char *class, const char *title, const char *exe, bool isPrivate)
 {
 	HWND parent;
 	bool use_findwindowex = false;
@@ -403,7 +403,7 @@ HWND find_window(enum window_search_mode mode, enum window_priority priority,
 
 	while (window) {
 		int rating = window_rating(window, priority, class, title, exe,
-					   uwp_window);
+					   uwp_window, isPrivate);
 		if (rating < best_rating) {
 			best_rating = rating;
 			best_window = window;

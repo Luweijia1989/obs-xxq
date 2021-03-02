@@ -157,6 +157,12 @@ static void wc_tick(void *data, float seconds)
 	RECT rect;
 	bool reset_capture = false;
 
+	obs_data_t* tt = obs_source_get_settings(wc->source);
+	bool isPrivate = obs_data_get_bool(tt, "isPrivate");
+	int cropTop = obs_data_get_int(tt, "cropTop");
+	int cropBottom = obs_data_get_int(tt, "cropBottom");
+	obs_data_release(tt);
+
 	if (!obs_source_showing(wc->source))
 		return;
 
@@ -175,7 +181,7 @@ static void wc_tick(void *data, float seconds)
 		wc->check_window_timer = 0.0f;
 
 		wc->window = find_window(EXCLUDE_MINIMIZED, wc->priority,
-					 wc->class, wc->title, wc->executable);
+					 wc->class, wc->title, wc->executable, isPrivate);
 		if (!wc->window) {
 			if (wc->capture.valid)
 				dc_capture_free(&wc->capture);
@@ -229,8 +235,12 @@ static void wc_tick(void *data, float seconds)
 		wc->resize_timer = 0.0f;
 		wc->last_rect = rect;
 		dc_capture_free(&wc->capture);
-		dc_capture_init(&wc->capture, 0, 0, rect.right, rect.bottom,
+		if (isPrivate)
+			dc_capture_init(&wc->capture, 0, cropTop, rect.right, rect.bottom - cropTop - cropBottom,
 				wc->cursor, wc->compatibility);
+		else
+			dc_capture_init(&wc->capture, 0, 0, rect.right,
+					rect.bottom, wc->cursor, wc->compatibility);
 	}
 
 	dc_capture_capture(&wc->capture, wc->window);
