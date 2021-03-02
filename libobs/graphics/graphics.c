@@ -1,4 +1,4 @@
-/******************************************************************************
+﻿/******************************************************************************
     Copyright (C) 2013 by Hugh Bailey <obs.jim@gmail.com>
 
     This program is free software: you can redistribute it and/or modify
@@ -1012,6 +1012,23 @@ static inline void build_sprite_rect(struct gs_vb_data *data, gs_texture_t *tex,
 	build_sprite(data, fcx, fcy, start_u, end_u, start_v, end_v);
 }
 
+void gs_draw_text(const char *text, uint32_t x, uint32_t y, uint32_t cx,
+		  uint32_t cy)
+{
+	graphics_t *graphics = thread_graphics;
+	graphics->exports.device_draw_text(graphics->device, text, x, y, cx,
+					   cy);
+}
+
+void gs_draw_text_and_markline(const char *text, uint32_t x, uint32_t y,
+			       uint32_t cx, uint32_t cy, uint32_t length,
+			       bool vertical)
+{
+	graphics_t *graphics = thread_graphics;
+	graphics->exports.device_draw_text_and_markline(
+		graphics->device, text, x, y, cx, cy, length, vertical);
+}
+
 void gs_draw_sprite(gs_texture_t *tex, uint32_t flip, uint32_t width,
 		    uint32_t height)
 {
@@ -1268,6 +1285,12 @@ const char *gs_preprocessor_name(void)
 		return NULL;
 
 	return graphics->exports.device_preprocessor_name();
+}
+
+void gs_font_set(const char *face, int fontSize)
+{
+	graphics_t *graphics = thread_graphics;
+	graphics->exports.device_font_set(graphics->device, face, fontSize);
 }
 
 gs_swapchain_t *gs_swapchain_create(const struct gs_init_data *data)

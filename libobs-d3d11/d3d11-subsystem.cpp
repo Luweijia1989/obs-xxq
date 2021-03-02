@@ -1,4 +1,4 @@
-/******************************************************************************
+﻿/******************************************************************************
     Copyright (C) 2013 by Hugh Bailey <obs.jim@gmail.com>
 
     This program is free software: you can redistribute it and/or modify
@@ -234,6 +234,467 @@ const static D3D_FEATURE_LEVEL featureLevels[] = {
 	D3D_FEATURE_LEVEL_9_3,
 };
 
+////////////////gs_font_manager////////////////////
+gs_font_manager::gs_font_manager()
+	: hdc(CreateCompatibleDC(nullptr)), graphics(hdc)
+{
+}
+
+gs_font_manager::~gs_font_manager()
+{
+	font.reset(nullptr);
+}
+
+void gs_font_manager::init(const wchar_t *face_name, int size)
+{
+	face = face_name;
+	face_size = size;
+
+	hfont = nullptr;
+	font.reset(nullptr);
+	if (wcscmp(face.c_str(), L"阿里汉仪智能黑体") == 0 ||
+	    wcscmp(face.c_str(), L"DIN Condensed") == 0 ||
+	    wcscmp(face.c_str(), L"阿里巴巴普惠体 R") == 0 ||
+	    wcscmp(face.c_str(), L"阿里巴巴普惠体 M") == 0 ||
+	    wcscmp(face.c_str(), L"DIN-BoldItalic") == 0 ||
+	    wcscmp(face.c_str(), L"DIN Alternate") == 0) {
+		wstring fontpath = FontPath(face.c_str());
+		if (fontpath == L"")
+			return;
+		PrivateFontCollection fontCollection;
+		wchar_t cwd[MAX_PATH];
+		GetModuleFileNameW(nullptr, cwd, _countof(cwd) - 1);
+		wchar_t *p = wcsrchr(cwd, '\\');
+		if (p)
+			*p = 0;
+		wstring path = cwd;
+		path = path + fontpath;
+		Status result = fontCollection.AddFontFile(path.c_str());
+		if (result != Ok)
+			goto Normal_Set;
+
+		int numFamilies;
+		fontCollection.GetFamilies(1, families, &numFamilies);
+		int style = FontStyleRegular;
+		font_set = new Font(&families[0], face_size * 2.0f / 2.7f,
+				    style, UnitPixel);
+		font.reset(font_set);
+		return;
+	}
+
+Normal_Set:
+	LOGFONT lf = {};
+	lf.lfHeight = face_size;
+	lf.lfWeight = FW_DONTCARE;
+	lf.lfQuality = ANTIALIASED_QUALITY;
+	lf.lfCharSet = DEFAULT_CHARSET;
+
+	if (!face.empty()) {
+		wcscpy(lf.lfFaceName, face.c_str());
+		hfont = CreateFontIndirect(&lf);
+	}
+
+	if (!hfont) {
+		wcscpy(lf.lfFaceName, L"Arial");
+		hfont = CreateFontIndirect(&lf);
+	}
+
+	if (hfont) {
+		font.reset(new Font(hdc, hfont));
+		font->GetFamily(&families[0]);
+	}
+}
+
+void gs_font_manager::RemoveNewlinePadding(const StringFormat &format,
+					   RectF &box)
+{
+	RectF before;
+	RectF after;
+	Status stat;
+
+	stat = graphics.MeasureString(L"W", 2, font.get(), PointF(0.0f, 0.0f),
+				      &format, &before);
+
+	stat = graphics.MeasureString(L"W\n", 3, font.get(), PointF(0.0f, 0.0f),
+				      &format, &after);
+
+	float offset_cx = after.Width - before.Width;
+	float offset_cy = after.Height - before.Height;
+
+	if (!vertical) {
+		if (offset_cx >= 1.0f)
+			offset_cx -= 1.0f;
+
+		if (valign == VAlign::Center)
+			box.Y -= offset_cy * 0.5f;
+		else if (valign == VAlign::Bottom)
+			box.Y -= offset_cy;
+	} else {
+		if (offset_cy >= 1.0f)
+			offset_cy -= 1.0f;
+
+		if (align == Align::Center)
+			box.X -= offset_cx * 0.5f;
+		else if (align == Align::Right)
+			box.X -= offset_cx;
+	}
+	box.Width -= offset_cx;
+	box.Height -= offset_cy;
+}
+
+void gs_font_manager::CalculateTextSizes(const wstring &text,
+					 const StringFormat &format,
+					 RectF &bounding_box, SIZE &text_size)
+{
+	RectF layout_box;
+	RectF temp_box;
+	Status stat;
+
+	if (!text.empty()) {
+
+		stat = graphics.MeasureString(text.c_str(),
+					      (int)text.size() + 1, font.get(),
+					      PointF(0.0f, 0.0f), &format,
+					      &bounding_box);
+		temp_box = bounding_box;
+		bounding_box.X = 0.0f;
+		bounding_box.Y = 0.0f;
+		RemoveNewlinePadding(format, bounding_box);
+	}
+
+	if (vertical) {
+		if (bounding_box.Width < face_size) {
+			text_size.cx = face_size;
+			bounding_box.Width = float(face_size);
+		} else {
+			text_size.cx = LONG(bounding_box.Width + EPSILON);
+		}
+		text_size.cy = LONG(bounding_box.Height + EPSILON);
+	} else {
+		if (bounding_box.Height < face_size) {
+			text_size.cy = face_size;
+			bounding_box.Height = float(face_size);
+		} else {
+			text_size.cy = LONG(bounding_box.Height + EPSILON);
+		}
+		text_size.cx = LONG(bounding_box.Width + EPSILON);
+	}
+
+	text_size.cx += text_size.cx % 2;
+	text_size.cy += text_size.cy % 2;
+
+	int64_t total_size = int64_t(text_size.cx) * int64_t(text_size.cy);
+
+	/* GPUs typically have texture size limitations */
+	clamp(text_size.cx, MIN_SIZE_CX, MAX_SIZE_CX);
+	clamp(text_size.cy, MIN_SIZE_CY, MAX_SIZE_CY);
+
+	/* avoid taking up too much VRAM */
+	if (total_size > MAX_AREA) {
+		if (text_size.cx > text_size.cy)
+			text_size.cx = (LONG)MAX_AREA / text_size.cy;
+		else
+			text_size.cy = (LONG)MAX_AREA / text_size.cx;
+	}
+
+	/* the internal text-rendering bounding box for is reset to
+	 * its internal value in case the texture gets cut off */
+	bounding_box.Width = temp_box.Width + 16;
+	bounding_box.Height = temp_box.Height + 4;
+	text_size.cx = text_size.cx + 16;
+	text_size.cy = text_size.cy + 4;
+}
+
+void gs_font_manager::GetStringFormat(StringFormat &format)
+{
+	UINT flags = StringFormatFlagsNoFitBlackBox |
+		     StringFormatFlagsMeasureTrailingSpaces;
+
+	if (vertical)
+		flags |= StringFormatFlagsDirectionVertical |
+			 StringFormatFlagsDirectionRightToLeft;
+
+	format.SetFormatFlags(flags);
+	format.SetTrimming(StringTrimmingWord);
+
+	switch (align) {
+	case Align::Left:
+		if (vertical)
+			format.SetLineAlignment(StringAlignmentFar);
+		else
+			format.SetAlignment(StringAlignmentNear);
+		break;
+	case Align::Center:
+		if (vertical)
+			format.SetLineAlignment(StringAlignmentCenter);
+		else
+			format.SetAlignment(StringAlignmentCenter);
+		break;
+	case Align::Right:
+		if (vertical)
+			format.SetLineAlignment(StringAlignmentNear);
+		else
+			format.SetAlignment(StringAlignmentFar);
+	}
+
+	switch (valign) {
+	case VAlign::Top:
+		if (vertical)
+			format.SetAlignment(StringAlignmentNear);
+		else
+			format.SetLineAlignment(StringAlignmentNear);
+		break;
+	case VAlign::Center:
+		if (vertical)
+			format.SetAlignment(StringAlignmentCenter);
+		else
+			format.SetLineAlignment(StringAlignmentCenter);
+		break;
+	case VAlign::Bottom:
+		if (vertical)
+			format.SetAlignment(StringAlignmentFar);
+		else
+			format.SetLineAlignment(StringAlignmentFar);
+	}
+}
+
+void gs_font_manager::addTextAndMarkline(const char *actext, uint32_t x,
+					 uint32_t y, uint32_t width,
+					 uint32_t height, uint32_t length,
+					 bool verticalDir)
+{
+	StringFormat format(StringFormat::GenericTypographic());
+	Status stat;
+
+	RectF box;
+	SIZE size;
+
+	wstring text = to_wide(actext);
+	GetStringFormat(format);
+	CalculateTextSizes(text, format, box, size);
+
+	// 绘制线
+	bool shortType = false;
+	if (verticalDir) {
+		cx = size.cx + 12;
+		if (length > size.cy)
+			cy = length;
+		else {
+			cy = size.cy;
+			shortType = true;
+		}
+	} else {
+		if (length > size.cx)
+			cx = length;
+		else {
+			cx = size.cx;
+			shortType = true;
+		}
+		cy = size.cx + 12;
+	}
+
+	unique_ptr<uint8_t> bits(new uint8_t[cx * cy * 4]);
+	Bitmap bitmap(cx, cy, 4 * cx, PixelFormat32bppARGB, bits.get());
+	Graphics graphics_bitmap(&bitmap);
+	DWORD full_bk_color = bk_color & 0xFFFFFF;
+	full_bk_color |= get_alpha_val(bk_opacity);
+
+	stat = graphics_bitmap.Clear(Color(0));
+	SolidBrush bk_brush = Color(full_bk_color);
+
+	LinearGradientBrush brush(RectF(0, 0, (float)size.cx, (float)size.cy),
+				  Color(calc_color(color, opacity)),
+				  Color(calc_color(color2, opacity2)),
+				  gradient_dir, 1);
+	Pen pen(full_bk_color);
+	pen.SetWidth(1.0f);
+	if (verticalDir) {
+		stat = graphics_bitmap.FillRectangle(
+			&bk_brush, 0.0f,
+			shortType ? 0.0f : (length - box.Height) / 2, box.Width,
+			box.Height);
+
+		graphics_bitmap.DrawLine(
+			&pen,
+			PointF(box.Width,
+			       shortType ? (box.Height - length) / 2 : 0.0f),
+			PointF(box.Width + 12.0f,
+			       shortType ? (box.Height - length) / 2 : 0.0f));
+		//pen.SetWidth(2.0f);
+		graphics_bitmap.DrawLine(
+			&pen,
+			PointF(shortType ? box.Width + 5.0f : box.Width + 6.0f,
+			       shortType ? (box.Height - length) / 2 : 0.0f),
+			PointF(shortType ? box.Width + 5.0f : box.Width + 6.0f,
+			       shortType ? (box.Height + length) / 2
+					 : length - 1.0f));
+		//pen.SetWidth(1.0f);
+		graphics_bitmap.DrawLine(
+			&pen,
+			PointF(box.Width, shortType ? (box.Height + length) / 2
+						    : (length - 1.0f)),
+			PointF(box.Width + 12.0f,
+			       shortType ? (box.Height + length) / 2
+					 : length - 1.0f));
+
+		if (!text.empty()) {
+			stat = graphics_bitmap.DrawString(
+				text.c_str(), (int)text.size(), font.get(),
+				RectF(0.0f,
+				      shortType ? 0.0f
+						: (length - box.Height) / 2.0f,
+				      box.Width, box.Height),
+				&format, &brush);
+		}
+	} else {
+		stat = graphics_bitmap.FillRectangle(
+			&bk_brush,
+			shortType ? 0.0f : (length - box.Width) / 2.0f, 0.0f,
+			box.Width, box.Height);
+		graphics_bitmap.DrawLine(
+			&pen,
+			PointF(shortType ? (box.Width - length) / 2.0f : 0.0f,
+			       box.Height),
+			PointF(shortType ? (box.Width - length) / 2.0f : 0.0f,
+			       box.Height + 12.0f));
+		//pen.SetWidth(2.0f);
+		graphics_bitmap.DrawLine(
+			&pen,
+			PointF(shortType ? (box.Width - length) / 2.0f : 0.0f,
+			       box.Height + 6.0f),
+			PointF(shortType ? (box.Width + length) / 2.0f - 1.0f
+					 : length,
+			       box.Height + 6.0f));
+		//pen.SetWidth(1.0f);
+		graphics_bitmap.DrawLine(
+			&pen,
+			PointF(shortType ? (box.Width + length) / 2.0f
+					 : length - 1.0f,
+			       box.Height),
+			PointF(shortType ? (box.Width + length) / 2.0f
+					 : length - 1.0f,
+			       box.Height + 12));
+
+		if (!text.empty()) {
+			stat = graphics_bitmap.DrawString(
+				text.c_str(), (int)text.size(), font.get(),
+				RectF(shortType ? 0.0f
+						: (length - box.Width) / 2.0f,
+				      0.0f, box.Width, box.Height),
+				&format, &brush);
+		}
+	}
+
+	if (!text.empty()) {
+		gs_texture_t *tex = nullptr;
+		if (!tex) {
+			const uint8_t *data = (uint8_t *)bits.get();
+			tex = gs_texture_create(cx, cy, GS_BGRA, 1, &data,
+						GS_DYNAMIC);
+			if (!tex)
+				return;
+
+			gs_effect_t *effect =
+				obs_get_base_effect(OBS_EFFECT_DEFAULT);
+			gs_technique_t *tech =
+				gs_effect_get_technique(effect, "Draw");
+
+			gs_set_viewport(x, y, width, height);
+			gs_technique_begin(tech);
+			gs_technique_begin_pass(tech, 0);
+
+			gs_effect_set_texture(
+				gs_effect_get_param_by_name(effect, "image"),
+				tex);
+			gs_draw_sprite(tex, 0, cx, cy);
+			gs_technique_end_pass(tech);
+			gs_technique_end(tech);
+			if (tex) {
+				gs_texture_destroy(tex);
+			}
+		}
+	}
+}
+
+void gs_font_manager::addFontTex(const char *actext, uint32_t x, uint32_t y,
+				 uint32_t width, uint32_t height)
+{
+	StringFormat format(StringFormat::GenericTypographic());
+	Status stat;
+
+	RectF box;
+	SIZE size;
+
+	wstring text = to_wide(actext);
+	GetStringFormat(format);
+	CalculateTextSizes(text, format, box, size);
+
+	unique_ptr<uint8_t> bits(new uint8_t[size.cx * size.cy * 4]);
+	Bitmap bitmap(size.cx, size.cy, 4 * size.cx, PixelFormat32bppARGB,
+		      bits.get());
+
+	Graphics graphics_bitmap(&bitmap);
+	LinearGradientBrush brush(RectF(0, 0, (float)size.cx, (float)size.cy),
+				  Color(calc_color(color, opacity)),
+				  Color(calc_color(color2, opacity2)),
+				  gradient_dir, 1);
+	DWORD full_bk_color = bk_color & 0xFFFFFF;
+
+	full_bk_color |= get_alpha_val(bk_opacity);
+
+	if (size.cx > box.Width || size.cy > box.Height) {
+		stat = graphics_bitmap.Clear(Color(0));
+
+		SolidBrush bk_brush = Color(full_bk_color);
+		stat = graphics_bitmap.FillRectangle(&bk_brush, box);
+	} else {
+		stat = graphics_bitmap.Clear(Color(full_bk_color));
+	}
+
+	graphics_bitmap.SetTextRenderingHint(TextRenderingHintAntiAlias);
+	graphics_bitmap.SetCompositingMode(CompositingModeSourceOver);
+	graphics_bitmap.SetSmoothingMode(SmoothingModeAntiAlias);
+
+	if (!text.empty()) {
+		stat = graphics_bitmap.DrawString(text.c_str(),
+						  (int)text.size(), font.get(),
+						  box, &format, &brush);
+		gs_texture_t *tex = nullptr;
+		if (!tex || (LONG)cx != size.cx || (LONG)cy != size.cy) {
+			const uint8_t *data = (uint8_t *)bits.get();
+			tex = gs_texture_create(size.cx, size.cy, GS_BGRA, 1,
+						&data, GS_DYNAMIC);
+			cx = (uint32_t)size.cx;
+			cy = (uint32_t)size.cy;
+
+			if (!tex)
+				return;
+
+			gs_effect_t *effect =
+				obs_get_base_effect(OBS_EFFECT_DEFAULT);
+			gs_technique_t *tech =
+				gs_effect_get_technique(effect, "Draw");
+
+			gs_set_viewport(x, y, width, height);
+			gs_technique_begin(tech);
+			gs_technique_begin_pass(tech, 0);
+
+			gs_effect_set_texture(
+				gs_effect_get_param_by_name(effect, "image"),
+				tex);
+			gs_draw_sprite(tex, 0, cx, cy);
+			gs_technique_end_pass(tech);
+			gs_technique_end(tech);
+			if (tex) {
+				gs_texture_destroy(tex);
+			}
+
+		} /*else if (tex) {
+			gs_texture_set_image(tex, bits.get(), size.cx * 4,
+					     false);
+		}*/
+	}
+}
 /* ------------------------------------------------------------------------- */
 
 #define VERT_IN_OUT \
@@ -729,6 +1190,10 @@ gs_device::gs_device(uint32_t adapterIdx)
 
 gs_device::~gs_device()
 {
+	if (fontMgr) {
+		delete fontMgr;
+		fontMgr = nullptr;
+	}
 	context->ClearState();
 }
 
@@ -1634,6 +2099,34 @@ void device_stage_texture(gs_device_t *device, gs_stagesurf_t *dst,
 void device_begin_scene(gs_device_t *device)
 {
 	clear_textures(device);
+}
+
+void device_font_set(gs_device_t *device, const char *face, int size)
+{
+	if (!device->fontMgr) {
+		device->fontMgr = new gs_font_manager;
+		device->fontMgr->init(to_wide(face).c_str(), size);
+	} else {
+		device->fontMgr->init(to_wide(face).c_str(), size);
+	}
+}
+
+void device_draw_text_and_markline(gs_device_t *device, const char *actext,
+				   uint32_t x, uint32_t y, uint32_t cx,
+				   uint32_t cy, uint32_t length, bool vertical)
+{
+	if (!device->fontMgr)
+		return;
+	device->fontMgr->addTextAndMarkline(actext, x, y, cx, cy, length,
+					    vertical);
+}
+
+void device_draw_text(gs_device_t *device, const char *actext, uint32_t x,
+		      uint32_t y, uint32_t cx, uint32_t cy)
+{
+	if (!device->fontMgr)
+		return;
+	device->fontMgr->addFontTex(actext, x, y, cx, cy);
 }
 
 void device_draw(gs_device_t *device, enum gs_draw_mode draw_mode,
