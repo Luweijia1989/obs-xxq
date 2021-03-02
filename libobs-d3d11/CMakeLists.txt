@@ -1,4 +1,4 @@
-project(libobs-d3d11)
+﻿project(libobs-d3d11)
 
 include_directories(SYSTEM "${CMAKE_SOURCE_DIR}/libobs")
 
@@ -34,7 +34,9 @@ set(libobs-d3d11_SOURCES
 set(libobs-d3d11_HEADERS
 	${CMAKE_CURRENT_BINARY_DIR}/d3d11-config.h
 	d3d11-shaderprocessor.hpp
-	d3d11-subsystem.hpp)
+	d3d11-subsystem.hpp
+	common.h
+	)
 
 add_library(libobs-d3d11 MODULE
 	${libobs-d3d11_SOURCES}
@@ -47,6 +49,7 @@ target_link_libraries(libobs-d3d11
 	libobs
 	d3d9
 	d3d11
-	dxgi)
+	dxgi
+	gdiplus)
 
 install_obs_core(libobs-d3d11)

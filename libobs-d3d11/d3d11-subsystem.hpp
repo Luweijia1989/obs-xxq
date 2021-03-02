@@ -1,4 +1,4 @@
-/******************************************************************************
+﻿/******************************************************************************
     Copyright (C) 2013 by Hugh Bailey <obs.jim@gmail.com>
 
     This program is free software: you can redistribute it and/or modify
@@ -21,6 +21,7 @@
 #include <util/windows/win-version.h>
 
 #include <vector>
+#include <list>
 #include <string>
 #include <memory>
 
@@ -36,7 +37,8 @@
 #include <graphics/device-exports.h>
 #include <util/windows/ComPtr.hpp>
 #include <util/windows/HRError.hpp>
-
+#include <gdiplus.h>
+#include "common.h"
 // #define DISASSEMBLE_SHADERS
 
 struct shader_var;
@@ -851,6 +853,50 @@ struct mat4float {
 	float mat[16];
 };
 
+///////////gdi plus字体相关///////////////////////////
+struct fontTextInfo {
+	gs_texture_t *tex;
+	RectF rect;
+	string fontId;
+};
+struct gs_font_manager {
+	wstring face;
+	int face_size;
+	list<fontTextInfo *> texs;
+	HFONTObj hfont;
+	HDCObj hdc;
+	Graphics graphics;
+	unique_ptr<Font> font;
+	FontFamily families[1];
+	Font *font_set;
+	bool vertical = false;
+	Align align = Align::Center;
+	VAlign valign = VAlign::Center;
+
+	uint32_t color = 0xFFFFFF;
+	uint32_t color2 = 0xFFFFFF;
+	float gradient_dir = 0;
+	uint32_t opacity = 100;
+	uint32_t opacity2 = 100;
+	uint32_t bk_color = 0x3999FF;
+	uint32_t bk_opacity = 100;
+	uint32_t cx = 0;
+	uint32_t cy = 0;
+
+	gs_font_manager();
+	~gs_font_manager();
+	void init(const wchar_t *face_name, int size);
+	void addFontTex(const char *actext, uint32_t x, uint32_t y,
+			uint32_t width, uint32_t height);
+	void addTextAndMarkline(const char *actext, uint32_t x, uint32_t y,
+				uint32_t width, uint32_t height,
+				uint32_t length, bool verticalDir);
+	void GetStringFormat(StringFormat &format);
+	void CalculateTextSizes(const wstring &text, const StringFormat &format,
+				RectF &bounding_box, SIZE &text_size);
+	void RemoveNewlinePadding(const StringFormat &format, RectF &box);
+};
+
 struct gs_device {
 	ComPtr<IDXGIFactory1> factory;
 	ComPtr<IDXGIAdapter1> adapter;
@@ -872,6 +918,7 @@ struct gs_device {
 
 	gs_vertex_buffer *lastVertexBuffer = nullptr;
 	gs_vertex_shader *lastVertexShader = nullptr;
+	gs_font_manager *fontMgr = nullptr;
 
 	bool zstencilStateChanged = true;
 	bool rasterStateChanged = true;

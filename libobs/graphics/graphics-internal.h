@@ -1,4 +1,4 @@
-/******************************************************************************
+﻿/******************************************************************************
     Copyright (C) 2013 by Hugh Bailey <obs.jim@gmail.com>
 
     This program is free software: you can redistribute it and/or modify
@@ -118,6 +118,16 @@ struct gs_exports {
 	void (*device_begin_scene)(gs_device_t *device);
 	void (*device_draw)(gs_device_t *device, enum gs_draw_mode draw_mode,
 			    uint32_t start_vert, uint32_t num_verts);
+	void (*device_font_set)(gs_device_t *device, const char *face,
+				int size);
+	void (*device_draw_text)(gs_device_t *device, const char *actext,
+				 uint32_t x, uint32_t y, uint32_t cx,
+				 uint32_t cy);
+	void (*device_draw_text_and_markline)(gs_device_t *device,
+					      const char *actext, uint32_t x,
+					      uint32_t y, uint32_t cx,
+					      uint32_t cy, uint32_t length,
+					      bool vertical);
 	void (*device_end_scene)(gs_device_t *device);
 	void (*device_load_swapchain)(gs_device_t *device,
 				      gs_swapchain_t *swaphchain);

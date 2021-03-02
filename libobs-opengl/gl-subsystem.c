@@ -1,4 +1,4 @@
-/******************************************************************************
+﻿/******************************************************************************
     Copyright (C) 2013 by Hugh Bailey <obs.jim@gmail.com>
     Copyright (C) 2014 by Zachary Lund <admin@computerquip.com>
 
@@ -1531,4 +1531,17 @@ bool gs_timer_range_get_data(gs_timer_range_t *range, bool *disjoint,
 	*disjoint = false;
 	*frequency = 1000000000;
 	return true;
+}
+
+void device_font_set(gs_device_t *device, const char *face, int size) {}
+
+void device_draw_text(gs_device_t *device, const char *actext, float cx,
+		      float cy, float width, float height)
+{
+}
+
+void device_draw_text_and_markline(gs_device_t *device, const char *actext,
+				   float cx, float cy, float width,
+				   float height, uint32_t length, bool vertical)
+{
 }
