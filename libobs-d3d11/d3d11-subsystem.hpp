@@ -879,6 +879,7 @@ struct gs_font_manager {
 	uint32_t opacity = 100;
 	uint32_t opacity2 = 100;
 	uint32_t bk_color = 0x3999FF;
+	uint32_t bk_color1 = 0x424449;
 	uint32_t bk_opacity = 100;
 	uint32_t cx = 0;
 	uint32_t cy = 0;
@@ -893,7 +894,8 @@ struct gs_font_manager {
 				uint32_t length, bool verticalDir);
 	void GetStringFormat(StringFormat &format);
 	void CalculateTextSizes(const wstring &text, const StringFormat &format,
-				RectF &bounding_box, SIZE &text_size);
+				RectF &bounding_box, SIZE &text_size,
+				bool onlyText = false);
 	void RemoveNewlinePadding(const StringFormat &format, RectF &box);
 };
 

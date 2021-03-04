@@ -344,7 +344,8 @@ void gs_font_manager::RemoveNewlinePadding(const StringFormat &format,
 
 void gs_font_manager::CalculateTextSizes(const wstring &text,
 					 const StringFormat &format,
-					 RectF &bounding_box, SIZE &text_size)
+					 RectF &bounding_box, SIZE &text_size,
+					 bool onlyText)
 {
 	RectF layout_box;
 	RectF temp_box;
@@ -399,10 +400,18 @@ void gs_font_manager::CalculateTextSizes(const wstring &text,
 
 	/* the internal text-rendering bounding box for is reset to
 	 * its internal value in case the texture gets cut off */
-	bounding_box.Width = temp_box.Width + 16;
-	bounding_box.Height = temp_box.Height + 4;
-	text_size.cx = text_size.cx + 16;
-	text_size.cy = text_size.cy + 4;
+	if (onlyText) {
+		bounding_box.Y = 0.0f;
+		bounding_box.Width = temp_box.Width + 8.0f;
+		bounding_box.Height = temp_box.Height + 4.0f;
+		text_size.cx = text_size.cx + 8.0f;
+		text_size.cy = text_size.cy + 4.0f;
+	} else {
+		bounding_box.Width = temp_box.Width + 16.0f;
+		bounding_box.Height = temp_box.Height + 4.0f;
+		text_size.cx = text_size.cx + 16.0f;
+		text_size.cy = text_size.cy + 4.0f;
+	}
 }
 
 void gs_font_manager::GetStringFormat(StringFormat &format)
@@ -627,8 +636,7 @@ void gs_font_manager::addFontTex(const char *actext, uint32_t x, uint32_t y,
 
 	wstring text = to_wide(actext);
 	GetStringFormat(format);
-	CalculateTextSizes(text, format, box, size);
-
+	CalculateTextSizes(text, format, box, size, true);
 	unique_ptr<uint8_t> bits(new uint8_t[size.cx * size.cy * 4]);
 	Bitmap bitmap(size.cx, size.cy, 4 * size.cx, PixelFormat32bppARGB,
 		      bits.get());
@@ -638,10 +646,9 @@ void gs_font_manager::addFontTex(const char *actext, uint32_t x, uint32_t y,
 				  Color(calc_color(color, opacity)),
 				  Color(calc_color(color2, opacity2)),
 				  gradient_dir, 1);
-	DWORD full_bk_color = bk_color & 0xFFFFFF;
+	DWORD full_bk_color = bk_color1 & 0xFFFFFF;
 
 	full_bk_color |= get_alpha_val(bk_opacity);
-
 	if (size.cx > box.Width || size.cy > box.Height) {
 		stat = graphics_bitmap.Clear(Color(0));
 
