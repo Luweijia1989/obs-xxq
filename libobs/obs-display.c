@@ -26,7 +26,7 @@ bool obs_display_init(struct obs_display *display,
 	pthread_mutex_init_value(&display->draw_info_mutex);
 
 	if (graphics_data) {
-		gs_font_set(u8"阿里巴巴普惠体 R", 17);
+		gs_font_set(u8"阿里巴巴普惠体 R", 12);
 		display->swap = gs_swapchain_create(graphics_data);
 		if (!display->swap) {
 			blog(LOG_ERROR, "obs_display_init: Failed to "

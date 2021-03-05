@@ -520,30 +520,32 @@ void gs_font_manager::addTextAndMarkline(const char *actext, uint32_t x,
 	if (verticalDir) {
 		stat = graphics_bitmap.FillRectangle(
 			&bk_brush, 0.0f,
-			shortType ? 0.0f : (length - box.Height) / 2, box.Width,
-			box.Height);
+			shortType ? 0.0f : (length - box.Height) / 2.0f,
+			box.Width, box.Height);
 
 		graphics_bitmap.DrawLine(
 			&pen,
 			PointF(box.Width,
-			       shortType ? (box.Height - length) / 2 : 0.0f),
+			       shortType ? (box.Height - length) / 2.0f : 0.0f),
 			PointF(box.Width + 12.0f,
-			       shortType ? (box.Height - length) / 2 : 0.0f));
+			       shortType ? (box.Height - length) / 2.0f
+					 : 0.0f));
 		//pen.SetWidth(2.0f);
 		graphics_bitmap.DrawLine(
 			&pen,
 			PointF(shortType ? box.Width + 5.0f : box.Width + 6.0f,
-			       shortType ? (box.Height - length) / 2 : 0.0f),
+			       shortType ? (box.Height - length) / 2.0f : 0.0f),
 			PointF(shortType ? box.Width + 5.0f : box.Width + 6.0f,
-			       shortType ? (box.Height + length) / 2
+			       shortType ? (box.Height + length) / 2.0f
 					 : length - 1.0f));
 		//pen.SetWidth(1.0f);
 		graphics_bitmap.DrawLine(
 			&pen,
-			PointF(box.Width, shortType ? (box.Height + length) / 2
-						    : (length - 1.0f)),
+			PointF(box.Width, shortType
+						  ? (box.Height + length) / 2.0f
+						  : (length - 1.0f)),
 			PointF(box.Width + 12.0f,
-			       shortType ? (box.Height + length) / 2
+			       shortType ? (box.Height + length) / 2.0f
 					 : length - 1.0f));
 
 		if (!text.empty()) {
