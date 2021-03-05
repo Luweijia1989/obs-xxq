@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include <obs.hpp>
 #include <graphics/vec2.h>
@@ -79,6 +79,9 @@ private:
 					 obs_sceneitem_t *item, void *param);
 	static bool DrawSelectedItem(obs_scene_t *scene, obs_sceneitem_t *item,
 				     void *param);
+
+	static bool DrawResizeItem(obs_scene_t *scene, obs_sceneitem_t *item,
+				   void *param);
 	static bool DrawSelectionBox(float x1, float y1, float x2, float y2,
 				     gs_vertbuffer_t *box);
 
