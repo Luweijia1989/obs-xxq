@@ -37,46 +37,45 @@ static void bonjourCheckInstall()
 			auto res_data = LockResource(res_handle);
 			auto res_size = SizeofResource(NULL, res);
 
-			WriteFile(hFile, res_data, res_size, NULL, NULL);
+			DWORD written = 0;
+			WriteFile(hFile, res_data, res_size, &written, NULL);
 			CloseHandle(hFile);
-
-			STARTUPINFO si;
-			PROCESS_INFORMATION pi;
-
-			ZeroMemory(&si, sizeof(si));
-			si.cb = sizeof(si);
-			ZeroMemory(&pi, sizeof(pi));
-
-			TCHAR cmd[512] ={0};
-
-			_stprintf_s(cmd, L"msiexec /i %s /qn", path);
-
-			// Start the child process.
-			if (!CreateProcess(
-				    NULL,  // No module name (use command line)
-				    cmd,   // Command line
-				    NULL,  // Process handle not inheritable
-				    NULL,  // Thread handle not inheritable
-				    FALSE, // Set handle inheritance to FALSE
-				    0,     // No creation flags
-				    NULL,  // Use parent's environment block
-				    NULL,  // Use parent's starting directory
-				    &si,   // Pointer to STARTUPINFO structure
-				    &pi) // Pointer to PROCESS_INFORMATION structure
-			) {
-				printf("CreateProcess failed (%d).\n",
-				       GetLastError());
-				return;
-			}
-
-			// Wait until child process exits.
-			WaitForSingleObject(pi.hProcess, INFINITE);
-
-			// Close process and thread handles.
-			CloseHandle(pi.hProcess);
-			CloseHandle(pi.hThread);
 		}
 	}
+
+	STARTUPINFO si;
+	PROCESS_INFORMATION pi;
+
+	ZeroMemory(&si, sizeof(si));
+	si.cb = sizeof(si);
+	ZeroMemory(&pi, sizeof(pi));
+
+	TCHAR cmd[512] = {0};
+
+	_stprintf_s(cmd, L"msiexec /i %s /qn", path);
+
+	// Start the child process.
+	if (!CreateProcess(NULL,  // No module name (use command line)
+			   cmd,   // Command line
+			   NULL,  // Process handle not inheritable
+			   NULL,  // Thread handle not inheritable
+			   FALSE, // Set handle inheritance to FALSE
+			   0,     // No creation flags
+			   NULL,  // Use parent's environment block
+			   NULL,  // Use parent's starting directory
+			   &si,   // Pointer to STARTUPINFO structure
+			   &pi)   // Pointer to PROCESS_INFORMATION structure
+	) {
+		printf("CreateProcess failed (%d).\n", GetLastError());
+		return;
+	}
+
+	// Wait until child process exits.
+	WaitForSingleObject(pi.hProcess, INFINITE);
+
+	// Close process and thread handles.
+	CloseHandle(pi.hProcess);
+	CloseHandle(pi.hThread);
 }
 
 int main(int argv, char *argc[])
