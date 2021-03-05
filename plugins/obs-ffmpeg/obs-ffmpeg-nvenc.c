@@ -1,4 +1,4 @@
-﻿/******************************************************************************
+/******************************************************************************
     Copyright (C) 2016 by Hugh Bailey <obs.jim@gmail.com>
 
     This program is free software: you can redistribute it and/or modify
@@ -233,24 +233,8 @@ static bool nvenc_update(void *data, obs_data_t *settings)
 
 static bool nvenc_reconfigure(void *data, obs_data_t *settings)
 {
-	struct nvenc_encoder *enc = data;
-
-	const char *sei = obs_data_get_string(settings, "cus_sei");
-	int sei_len = obs_data_get_int(settings, "cus_sei_size");
-
-	if (sei_len != 0) {
-		if (sei_len > 0) {
-			enc->custom_sei_size = sei_len > 102400 ? 102400
-								: sei_len;
-			memcpy(enc->custom_sei, sei, enc->custom_sei_size);
-		} else {
-			memset(enc->custom_sei, 0, enc->custom_sei_size);
-			enc->custom_sei_size = 0;
-		}
-
-		return true;
-	}
 #if LIBAVCODEC_VERSION_INT >= AV_VERSION_INT(58, 19, 101)
+	struct nvenc_encoder *enc = data;
 	int bitrate = (int)obs_data_get_int(settings, "bitrate");
 	const char *rc = obs_data_get_string(settings, "rate_control");
 	bool cbr = astrcmpi(rc, "CBR") == 0;
@@ -580,6 +564,20 @@ static bool nvenc_sei_data(void *data, uint8_t **extra_data, size_t *size)
 	return true;
 }
 
+static void nvenc_set_sei(void *data, char *sei, int len)
+{
+	struct nvenc_encoder *enc = data;
+	enc->custom_sei_size = len > 102400 ? 102400 : len;
+	memcpy(enc->custom_sei, sei, enc->custom_sei_size);
+}
+
+static void nvenc_clear_sei(void *data)
+{
+	struct nvenc_encoder *enc = data;
+	memset(enc->custom_sei, 0, enc->custom_sei_size);
+	enc->custom_sei_size = 0;
+}
+
 struct obs_encoder_info nvenc_encoder_info = {
 	.id = "ffmpeg_nvenc",
 	.type = OBS_ENCODER_VIDEO,
@@ -595,4 +593,6 @@ struct obs_encoder_info nvenc_encoder_info = {
 	.get_sei_data = nvenc_sei_data,
 	.get_video_info = nvenc_video_info,
 	.caps = OBS_ENCODER_CAP_DYN_BITRATE,
+	.set_sei = nvenc_set_sei,
+	.clear_sei = nvenc_clear_sei,
 };

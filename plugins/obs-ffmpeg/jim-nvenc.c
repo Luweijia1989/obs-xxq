@@ -1,4 +1,4 @@
-﻿#include "jim-nvenc.h"
+#include "jim-nvenc.h"
 #include <util/circlebuf.h>
 #include <util/darray.h>
 #include <util/dstr.h>
@@ -232,23 +232,6 @@ static inline int nv_get_cap(struct nvenc_data *enc, NV_ENC_CAPS cap)
 static bool nvenc_update(void *data, obs_data_t *settings)
 {
 	struct nvenc_data *enc = data;
-
-	const char *sei = obs_data_get_string(settings, "cus_sei");
-	int sei_len = obs_data_get_int(settings, "cus_sei_size");
-
-	if (sei_len != 0) {
-		if (sei_len > 0) {
-			enc->custom_sei_size = sei_len > 102400 ? 102400
-								: sei_len;
-			memcpy(enc->custom_sei, sei, enc->custom_sei_size);
-		} else {
-			memset(enc->custom_sei, 0, enc->custom_sei_size);
-			enc->custom_sei_size = 0;
-		}
-
-		return true;
-	}
-
 	/* Only support reconfiguration of CBR bitrate */
 	if (enc->can_change_bitrate) {
 		int bitrate = (int)obs_data_get_int(settings, "bitrate");
@@ -953,6 +936,20 @@ static bool nvenc_sei_data(void *data, uint8_t **sei, size_t *size)
 	return true;
 }
 
+static void nvenc_set_sei(void *data, char *sei, int len)
+{
+	struct nvenc_data *enc = data;
+	enc->custom_sei_size = len > 102400 ? 102400 : len;
+	memcpy(enc->custom_sei, sei, enc->custom_sei_size);
+}
+
+static void nvenc_clear_sei(void *data)
+{
+	struct nvenc_data *enc = data;
+	memset(enc->custom_sei, 0, enc->custom_sei_size);
+	enc->custom_sei_size = 0;
+}
+
 struct obs_encoder_info nvenc_info = {
 	.id = "jim_nvenc",
 	.codec = "h264",
@@ -967,4 +964,6 @@ struct obs_encoder_info nvenc_info = {
 	.get_properties = nvenc_properties,
 	.get_extra_data = nvenc_extra_data,
 	.get_sei_data = nvenc_sei_data,
+	.set_sei = nvenc_set_sei,
+	.clear_sei = nvenc_clear_sei,
 };

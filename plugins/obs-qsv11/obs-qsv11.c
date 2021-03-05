@@ -1,4 +1,4 @@
-﻿/*
+/*
 
 This file is provided under a dual BSD/GPLv2 license.  When using or
 redistributing this file, you may do so under either license.
@@ -478,24 +478,6 @@ static void load_headers(struct obs_qsv *obsqsv)
 static bool obs_qsv_update(void *data, obs_data_t *settings)
 {
 	struct obs_qsv *obsqsv = data;
-
-	const char *sei = obs_data_get_string(settings, "cus_sei");
-	int sei_len = obs_data_get_int(settings, "cus_sei_size");
-
-	if (sei_len != 0) {
-		if (sei_len > 0) {
-			obsqsv->custom_sei_size = sei_len > 102400 ? 102400
-								   : sei_len;
-			memcpy(obsqsv->custom_sei, sei,
-			       obsqsv->custom_sei_size);
-		} else {
-			memset(obsqsv->custom_sei, 0, obsqsv->custom_sei_size);
-			obsqsv->custom_sei_size = 0;
-		}
-
-		return true;
-	}
-
 	bool success = update_settings(obsqsv, settings);
 	int ret;
 
@@ -787,6 +769,20 @@ static bool obs_qsv_encode(void *data, struct encoder_frame *frame,
 	return true;
 }
 
+static void obs_qsv_set_sei(void *data, char *sei, int len)
+{
+	struct obs_qsv *obsqsv = data;
+	obsqsv->custom_sei_size = len > 102400 ? 102400 : len;
+	memcpy(obsqsv->custom_sei, sei, obsqsv->custom_sei_size);
+}
+
+static void obs_qsv_clear_sei(void *data)
+{
+	struct obs_qsv *obsqsv = data;
+	memset(obsqsv->custom_sei, 0, obsqsv->custom_sei_size);
+	obsqsv->custom_sei_size = 0;
+}
+
 struct obs_encoder_info obs_qsv_encoder = {
 	.id = "obs_qsv11",
 	.type = OBS_ENCODER_VIDEO,
@@ -802,4 +798,6 @@ struct obs_encoder_info obs_qsv_encoder = {
 	.get_sei_data = obs_qsv_sei,
 	.get_video_info = obs_qsv_video_info,
 	.caps = OBS_ENCODER_CAP_DYN_BITRATE,
+	.set_sei = obs_qsv_set_sei,
+	.clear_sei = obs_qsv_clear_sei,
 };

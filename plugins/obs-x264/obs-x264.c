@@ -1,4 +1,4 @@
-﻿/******************************************************************************
+/******************************************************************************
     Copyright (C) 2014 by Hugh Bailey <obs.jim@gmail.com>
 
     This program is free software: you can redistribute it and/or modify
@@ -591,25 +591,6 @@ static bool update_settings(struct obs_x264 *obsx264, obs_data_t *settings,
 static bool obs_x264_update(void *data, obs_data_t *settings)
 {
 	struct obs_x264 *obsx264 = data;
-
-	const char *sei = obs_data_get_string(settings, "cus_sei");
-	int sei_len = obs_data_get_int(settings, "cus_sei_size");
-
-	if (sei_len != 0) {
-		if (sei_len > 0) {
-			obsx264->custom_sei_size = sei_len > 102400 ? 102400
-								    : sei_len;
-			memcpy(obsx264->custom_sei, sei,
-			       obsx264->custom_sei_size);
-		} else {
-			memset(obsx264->custom_sei, 0,
-			       obsx264->custom_sei_size);
-			obsx264->custom_sei_size = 0;
-		}
-
-		return true;
-	}
-
 	bool success = update_settings(obsx264, settings, true);
 	int ret;
 
@@ -801,6 +782,20 @@ static void obs_x264_video_info(void *data, struct video_scale_info *info)
 	info->format = pref_format;
 }
 
+static void obs_x264_set_sei(void *data, char *sei, int len)
+{
+	struct obs_x264 *obsx264 = data;
+	obsx264->custom_sei_size = len > 102400 ? 102400 : len;
+	memcpy(obsx264->custom_sei, sei, obsx264->custom_sei_size);
+}
+
+static void obs_x264_clear_sei(void *data)
+{
+	struct obs_x264 *obsx264 = data;
+	memset(obsx264->custom_sei, 0, obsx264->custom_sei_size);
+	obsx264->custom_sei_size = 0;
+}
+
 struct obs_encoder_info obs_x264_encoder = {
 	.id = "obs_x264",
 	.type = OBS_ENCODER_VIDEO,
@@ -816,4 +811,6 @@ struct obs_encoder_info obs_x264_encoder = {
 	.get_sei_data = obs_x264_sei,
 	.get_video_info = obs_x264_video_info,
 	.caps = OBS_ENCODER_CAP_DYN_BITRATE,
+	.set_sei = obs_x264_set_sei,
+	.clear_sei = obs_x264_clear_sei,
 };
