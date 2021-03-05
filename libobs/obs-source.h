@@ -1,4 +1,4 @@
-﻿/******************************************************************************
+/******************************************************************************
     Copyright (C) 2013-2014 by Hugh Bailey <obs.jim@gmail.com>
 
     This program is free software: you can redistribute it and/or modify
@@ -50,6 +50,13 @@ enum obs_source_mirror_status {
 	OBS_SOURCE_MIRROR_START,
 	OBS_SOURCE_MIRROR_STOP,
 	OBS_SOURCE_MIRROR_OUTPUT,
+};
+
+enum obs_source_game_status {
+	OBS_SOURCE_GAME_ERROR,
+	OBS_SOURCE_GAME_START,
+	OBS_SOURCE_GAME_STOP,
+	OBS_SOURCE_GAME_OUTPUT,
 };
 
 /**
