@@ -1,4 +1,4 @@
-﻿/******************************************************************************
+/******************************************************************************
     Copyright (C) 2013-2014 by Hugh Bailey <obs.jim@gmail.com>
 
     This program is free software: you can redistribute it and/or modify
@@ -1509,4 +1509,23 @@ bool obs_encoder_paused(const obs_encoder_t *encoder)
 	return obs_encoder_valid(encoder, "obs_encoder_paused")
 		       ? os_atomic_load_bool(&encoder->paused)
 		       : false;
+}
+
+void *obs_encoder_set_sei(const obs_encoder_t *encoder, char *sei,
+				 int len)
+{
+	if (!obs_encoder_valid(encoder, "obs_encoder_set_sei"))
+		return;
+
+	if(encoder->info.set_sei)
+		encoder->info.set_sei(encoder, sei, len);
+}
+
+void *obs_encoder_clear_sei(const obs_encoder_t *encoder)
+{
+	if (!obs_encoder_valid(encoder, "obs_encoder_clear_sei"))
+		return;
+
+	if(encoder->info.clear_sei)
+		encoder->info.clear_sei(encoder);
 }

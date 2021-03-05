@@ -2072,6 +2072,9 @@ EXPORT const char *obs_encoder_get_id(const obs_encoder_t *encoder);
 EXPORT uint32_t obs_get_encoder_caps(const char *encoder_id);
 EXPORT uint32_t obs_encoder_get_caps(const obs_encoder_t *encoder);
 
+EXPORT void *obs_encoder_set_sei(const obs_encoder_t *encoder, char *sei, int len);
+EXPORT void *obs_encoder_clear_sei(const obs_encoder_t *encoder);
+
 #ifndef SWIG
 /** Duplicates an encoder packet */
 DEPRECATED
