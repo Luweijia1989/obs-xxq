@@ -1511,7 +1511,7 @@ bool obs_encoder_paused(const obs_encoder_t *encoder)
 		       : false;
 }
 
-void *obs_encoder_set_sei(const obs_encoder_t *encoder, char *sei,
+void obs_encoder_set_sei(const obs_encoder_t *encoder, char *sei,
 				 int len)
 {
 	if (!obs_encoder_valid(encoder, "obs_encoder_set_sei"))
@@ -1521,11 +1521,11 @@ void *obs_encoder_set_sei(const obs_encoder_t *encoder, char *sei,
 		encoder->info.set_sei(encoder->context.data, sei, len);
 }
 
-void *obs_encoder_clear_sei(const obs_encoder_t *encoder)
+void obs_encoder_clear_sei(const obs_encoder_t *encoder)
 {
 	if (!obs_encoder_valid(encoder, "obs_encoder_clear_sei"))
 		return;
-
+	 
 	if(encoder->info.clear_sei)
 		encoder->info.clear_sei(encoder->context.data);
 }
