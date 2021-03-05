@@ -95,7 +95,7 @@ bool CAirServer::start()
 	memset(hostName, 0, sizeof(hostName));
 	getHostName(hostName);
 	char serverName[1024] = {0};
-	sprintf_s(serverName, 1024, u8"鱼耳直播[%s]", hostName);
+	sprintf_s(serverName, 1024, "yuerzhibo[%s]", hostName);
 	m_pServer = fgServerStart(serverName, 5001, 7001, m_pCallback);
 	return m_pServer != NULL;
 }

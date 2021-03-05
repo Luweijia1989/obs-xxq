@@ -149,6 +149,7 @@ struct game_capture {
 	bool convert_16bit;
 	bool is_app;
 	bool cursor_hidden;
+	bool startCapturing;
 
 	struct game_capture_config config;
 
@@ -184,6 +185,20 @@ struct game_capture {
 
 struct graphics_offsets offsets32 = {0};
 struct graphics_offsets offsets64 = {0};
+
+static inline void game_status_func(struct game_capture *gc, int status) {
+	obs_data_t *event = obs_data_create();
+	obs_data_set_string(event, "eventType", "GameStatus");
+	obs_data_set_int(event, "value", status);
+	auto handler = obs_source_get_signal_handler(gc->source);
+	struct calldata cd;
+	uint8_t stack[128];
+	calldata_init_fixed(&cd, stack, sizeof(stack));
+	calldata_set_ptr(&cd, "source", gc->source);
+	calldata_set_ptr(&cd, "event", event);
+	signal_handler_signal(handler, "signal_event", &cd);
+	obs_data_release(event);
+}
 
 static inline bool use_anticheat(struct game_capture *gc)
 {
@@ -1739,6 +1754,11 @@ static void game_capture_tick(void *data, float seconds)
 	gc->retry_time += seconds;
 
 	if (!gc->active) {
+		if (!gc->startCapturing)
+		{
+			game_status_func(gc, 11);
+		}
+
 		if (!gc->error_acquiring &&
 		    gc->retry_time > gc->retry_interval) {
 			if (gc->config.mode == CAPTURE_MODE_ANY ||
@@ -1748,6 +1768,11 @@ static void game_capture_tick(void *data, float seconds)
 			}
 		}
 	} else {
+		if (!gc->startCapturing) {
+			gc->startCapturing = true;
+			game_status_func(gc, 22);
+		}
+
 		if (!capture_valid(gc)) {
 			info("capture window no longer exists, "
 			     "terminating capture");
