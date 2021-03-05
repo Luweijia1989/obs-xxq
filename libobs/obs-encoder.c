@@ -1518,7 +1518,7 @@ void *obs_encoder_set_sei(const obs_encoder_t *encoder, char *sei,
 		return;
 
 	if(encoder->info.set_sei)
-		encoder->info.set_sei(encoder, sei, len);
+		encoder->info.set_sei(encoder->context.data, sei, len);
 }
 
 void *obs_encoder_clear_sei(const obs_encoder_t *encoder)
@@ -1527,5 +1527,5 @@ void *obs_encoder_clear_sei(const obs_encoder_t *encoder)
 		return;
 
 	if(encoder->info.clear_sei)
-		encoder->info.clear_sei(encoder);
+		encoder->info.clear_sei(encoder->context.data);
 }
