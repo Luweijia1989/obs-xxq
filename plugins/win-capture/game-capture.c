@@ -149,8 +149,8 @@ struct game_capture {
 	bool convert_16bit;
 	bool is_app;
 	bool cursor_hidden;
-	bool startCapturing;
-
+	bool game_setup;
+	enum obs_source_game_status status;
 	struct game_capture_config config;
 
 	ipc_pipe_server_t pipe;
@@ -198,6 +198,8 @@ static inline void game_status_func(struct game_capture *gc, int status) {
 	calldata_set_ptr(&cd, "event", event);
 	signal_handler_signal(handler, "signal_event", &cd);
 	obs_data_release(event);
+
+	info("game capture status:%d", status);
 }
 
 static inline bool use_anticheat(struct game_capture *gc)
@@ -319,6 +321,9 @@ static inline float hook_rate_to_float(enum hook_rate rate)
 
 static void stop_capture(struct game_capture *gc)
 {
+	gc->status = OBS_SOURCE_GAME_STOP;
+	game_status_func(gc, gc->status);
+
 	ipc_pipe_server_free(&gc->pipe);
 
 	if (gc->hook_stop) {
@@ -1010,11 +1015,13 @@ static bool init_hook(struct game_capture *gc)
 
 	if (gc->config.mode == CAPTURE_MODE_ANY) {
 		if (get_window_exe(&exe, gc->next_window, false)) {
+			gc->game_setup = true;
 			info("attempting to hook fullscreen process: %s",
 			     exe.array);
 		}
 	} else {
 		if (get_window_exe(&exe, gc->next_window, false)) {
+			gc->game_setup = true;
 			info("attempting to hook process: %s", exe.array);
 		}
 	}
@@ -1683,6 +1690,7 @@ static void game_capture_tick(void *data, float seconds)
 			gc->retry_time = 10.0f * hook_rate_to_float(
 							 gc->config.hook_rate);
 			gc->activate_hook = true;
+			gc->game_setup = true;
 		} else {
 			deactivate = false;
 			activate_now = false;
@@ -1754,10 +1762,20 @@ static void game_capture_tick(void *data, float seconds)
 	gc->retry_time += seconds;
 
 	if (!gc->active) {
-		if (!gc->startCapturing)
+		if (gc->activate_hook && gc->game_setup)
 		{
-			game_status_func(gc, 11);
+			if (gc->status != OBS_SOURCE_GAME_HOOK) {
+				gc->status = OBS_SOURCE_GAME_HOOK;
+				game_status_func(gc, gc->status);
+			}
 		}
+		else {
+			if (gc->status != OBS_SOURCE_GAME_SETUP) {
+				gc->status = OBS_SOURCE_GAME_SETUP;
+				game_status_func(gc, gc->status);
+			}
+		}
+		
 
 		if (!gc->error_acquiring &&
 		    gc->retry_time > gc->retry_interval) {
@@ -1768,16 +1786,17 @@ static void game_capture_tick(void *data, float seconds)
 			}
 		}
 	} else {
-		if (!gc->startCapturing) {
-			gc->startCapturing = true;
-			game_status_func(gc, 22);
-		}
-
 		if (!capture_valid(gc)) {
 			info("capture window no longer exists, "
 			     "terminating capture");
 			stop_capture(gc);
 		} else {
+
+			if (gc->status != OBS_SOURCE_GAME_START) {
+				gc->status = OBS_SOURCE_GAME_START;
+				game_status_func(gc, gc->status);
+			}
+
 			if (gc->copy_texture) {
 				obs_enter_graphics();
 				gc->copy_texture(gc);
