@@ -54,9 +54,10 @@ enum obs_source_mirror_status {
 
 enum obs_source_game_status {
 	OBS_SOURCE_GAME_ERROR,
+	OBS_SOURCE_GAME_SETUP,
+	OBS_SOURCE_GAME_HOOK,
 	OBS_SOURCE_GAME_START,
-	OBS_SOURCE_GAME_STOP,
-	OBS_SOURCE_GAME_OUTPUT,
+	OBS_SOURCE_GAME_STOP
 };
 
 /**
