@@ -267,10 +267,6 @@ void TRTCCloudCore::onSetMixTranscodingConfig(int errCode, const char *errMsg)
 void TRTCCloudCore::onStartPublishing(int err, const char *errMsg)
 {
 	blog(LOG_INFO, "onStartPublishing err[%d], errMsg[%s]", err, errMsg);
-	QJsonObject data;
-	data["errCode"] = err;
-	data["errMsg"] = errMsg;
-	emit trtcEvent(RTC_EVENT_PUBLISH_CDN, data);
 }
 
 void TRTCCloudCore::onStopPublishing(int err, const char *errMsg)

@@ -71,24 +71,26 @@ TRTC::TRTC()
 		else if (type == RTC_EVENT_MIX_STREAM)
 		{
 			int err = data["errCode"].toInt();
-			if (err == 0 && !m_hasMixStream)
+			if (!m_hasMixStream)
 			{
-				m_hasMixStream = true;
-				bool isTencentCdn = link_cdnSupplier == "TENCENT";
-				if (isTencentCdn)
+				if (err == 0)
 				{
-					std::string sid = link_streamId.toStdString();
-					TRTCCloudCore::GetInstance()->getTRTCCloud()->startPublishing(sid.c_str(), TRTCVideoStreamTypeBig);
+					m_hasMixStream = true;
+					bool isTencentCdn = link_cdnSupplier == "TENCENT";
+					if (isTencentCdn)
+						sendEvent(RTC_EVENT_SUCCESS, QJsonObject());
+					else
+					{
+						TRTCPublishCDNParam p;
+						p.appId = link_cdnAPPID;
+						p.bizId = link_cdnBizID;
+						std::string str = link_streamUrl.toStdString();
+						p.url = str.c_str();
+						TRTCCloudCore::GetInstance()->getTRTCCloud()->startPublishCDNStream(p);
+					}
 				}
 				else
-				{
-					TRTCPublishCDNParam p;
-					p.appId = link_cdnAPPID;
-					p.bizId = link_cdnBizID;
-					std::string str = link_streamUrl.toStdString();
-					p.url = str.c_str();
-					TRTCCloudCore::GetInstance()->getTRTCCloud()->startPublishCDNStream(p);
-				}
+					sendEvent(RTC_EVENT_FAIL, data);
 			}
 		}
 		else if (type == RTC_EVENT_USER_VOLUME)
@@ -348,6 +350,11 @@ void TRTC::internalEnterRoom()
 	std::string privMapEncrypt = "";
 	params.privateMapKey = (char*)privMapEncrypt.c_str();
 	params.role = CDataCenter::GetInstance()->m_roleType;
+	if (is_video_link && link_cdnSupplier == "TENCENT")
+	{
+		std::string std_streamId = link_streamId.toStdString();
+		params.streamId = std_streamId.c_str();
+	}
 
 	// TRTCCloudCore::GetInstance()->getTRTCCloud()->setEncodedDataProcessingListener();
 	char api_str[128] = { 0 };
