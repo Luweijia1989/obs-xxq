@@ -1,4 +1,4 @@
-﻿#include <QGuiApplication>
+#include <QGuiApplication>
 #include <QMouseEvent>
 
 #include <algorithm>
@@ -1741,7 +1741,7 @@ bool OBSBasicPreview::DrawResizeItem(obs_scene_t *scene, obs_sceneitem_t *item,
 			if (boxTransform.y.y < 0)
 				y = y + boxTransform.y.y * main->previewScale;
 
-			gs_draw_text_and_markline(
+			/*gs_draw_text_and_markline(
 				QString::number(int(sourceWidth))
 					.toStdString()
 					.data(),
@@ -1768,7 +1768,7 @@ bool OBSBasicPreview::DrawResizeItem(obs_scene_t *scene, obs_sceneitem_t *item,
 				main->previewY + int(prev->mousePos.y) *
 							 main->previewScale,
 				right / main->previewScale,
-				bottom / main->previewScale);
+				bottom / main->previewScale);*/
 		} else {
 			obs_transform_info baseInfo;
 			obs_sceneitem_get_info(prev->stretchItem, &baseInfo);
@@ -1789,7 +1789,7 @@ bool OBSBasicPreview::DrawResizeItem(obs_scene_t *scene, obs_sceneitem_t *item,
 				baseHeight = baseInfo.bounds.y;
 			}
 
-			if (int(baseWidth) == int(sourceWidth))
+			/*if (int(baseWidth) == int(sourceWidth))
 				gs_draw_text_and_markline(
 					QString::number(int(sourceWidth))
 						.toStdString()
@@ -1813,7 +1813,7 @@ bool OBSBasicPreview::DrawResizeItem(obs_scene_t *scene, obs_sceneitem_t *item,
 					main->previewY +
 						int(info.pos.y) *
 							main->previewScale,
-					right, bottom, int(sourceHeight), true);
+					right, bottom, int(sourceHeight), true);*/
 		}
 	}
 
