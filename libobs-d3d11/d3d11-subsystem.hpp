@@ -888,15 +888,17 @@ struct gs_font_manager {
 	~gs_font_manager();
 	void init(const wchar_t *face_name, int size);
 	void addFontTex(const char *actext, uint32_t x, uint32_t y,
-			uint32_t width, uint32_t height);
+			uint32_t width, uint32_t height, float scale);
 	void addTextAndMarkline(const char *actext, uint32_t x, uint32_t y,
 				uint32_t width, uint32_t height,
-				uint32_t length, bool verticalDir);
+				uint32_t length, bool verticalDir, float scale);
 	void GetStringFormat(StringFormat &format);
 	void CalculateTextSizes(const wstring &text, const StringFormat &format,
 				RectF &bounding_box, SIZE &text_size,
-				bool onlyText = false);
+				float scale, bool onlyText = false);
 	void RemoveNewlinePadding(const StringFormat &format, RectF &box);
+	void CaculateSizeByScale(RectF &bounding_box, SIZE &text_size,
+				 float scale);
 };
 
 struct gs_device {

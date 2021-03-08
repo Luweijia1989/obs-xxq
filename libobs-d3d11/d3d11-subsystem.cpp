@@ -345,7 +345,7 @@ void gs_font_manager::RemoveNewlinePadding(const StringFormat &format,
 void gs_font_manager::CalculateTextSizes(const wstring &text,
 					 const StringFormat &format,
 					 RectF &bounding_box, SIZE &text_size,
-					 bool onlyText)
+					 float scale, bool onlyText)
 {
 	if (text.empty()) {
 		text_size.cx = 0.0f;
@@ -409,15 +409,15 @@ void gs_font_manager::CalculateTextSizes(const wstring &text,
 	 * its internal value in case the texture gets cut off */
 	if (onlyText) {
 		bounding_box.Y = 0.0f;
-		bounding_box.Width = temp_box.Width + 8.0f;
-		bounding_box.Height = temp_box.Height + 4.0f;
-		text_size.cx = text_size.cx + 8.0f;
-		text_size.cy = text_size.cy + 4.0f;
+		bounding_box.Width = temp_box.Width + 8.0f * scale;
+		bounding_box.Height = temp_box.Height + 4.0f * scale;
+		text_size.cx = text_size.cx + 8.0f * scale;
+		text_size.cy = text_size.cy + 4.0f * scale;
 	} else {
-		bounding_box.Width = temp_box.Width + 16.0f;
-		bounding_box.Height = temp_box.Height + 4.0f;
-		text_size.cx = text_size.cx + 16.0f;
-		text_size.cy = text_size.cy + 4.0f;
+		bounding_box.Width = temp_box.Width + 16.0f * scale;
+		bounding_box.Height = temp_box.Height + 4.0f * scale;
+		text_size.cx = text_size.cx + 16.0f * scale;
+		text_size.cy = text_size.cy + 4.0f * scale;
 	}
 }
 
@@ -477,7 +477,7 @@ void gs_font_manager::GetStringFormat(StringFormat &format)
 void gs_font_manager::addTextAndMarkline(const char *actext, uint32_t x,
 					 uint32_t y, uint32_t width,
 					 uint32_t height, uint32_t length,
-					 bool verticalDir)
+					 bool verticalDir, float scale)
 {
 	StringFormat format(StringFormat::GenericTypographic());
 	Status stat;
@@ -487,11 +487,11 @@ void gs_font_manager::addTextAndMarkline(const char *actext, uint32_t x,
 
 	wstring text = to_wide(actext);
 	GetStringFormat(format);
-	CalculateTextSizes(text, format, box, size);
+	CalculateTextSizes(text, format, box, size, scale);
 	// 绘制线
 	bool shortType = false;
 	if (verticalDir) {
-		cx = size.cx + 12;
+		cx = int((size.cx + 12) / scale);
 		if (length > size.cy)
 			cy = length;
 		else {
@@ -505,7 +505,7 @@ void gs_font_manager::addTextAndMarkline(const char *actext, uint32_t x,
 			cx = size.cx;
 			shortType = true;
 		}
-		cy = size.cx + 12;
+		cy = int((size.cy + 12) / scale);
 	}
 
 	unique_ptr<uint8_t> bits(new uint8_t[cx * cy * 4]);
@@ -630,8 +630,19 @@ void gs_font_manager::addTextAndMarkline(const char *actext, uint32_t x,
 	}
 }
 
+void gs_font_manager::CaculateSizeByScale(RectF &bounding_box, SIZE &text_size,
+					  float scale)
+{
+	text_size.cx = text_size.cx / scale;
+	text_size.cy = text_size.cy / scale;
+	bounding_box.X = bounding_box.X / scale;
+	bounding_box.Y = bounding_box.Y / scale;
+	bounding_box.Width = bounding_box.Width / scale;
+	bounding_box.Height = bounding_box.Height / scale;
+}
+
 void gs_font_manager::addFontTex(const char *actext, uint32_t x, uint32_t y,
-				 uint32_t width, uint32_t height)
+				 uint32_t width, uint32_t height, float scale)
 {
 	StringFormat format(StringFormat::GenericTypographic());
 	Status stat;
@@ -641,7 +652,9 @@ void gs_font_manager::addFontTex(const char *actext, uint32_t x, uint32_t y,
 
 	wstring text = to_wide(actext);
 	GetStringFormat(format);
-	CalculateTextSizes(text, format, box, size, true);
+	CalculateTextSizes(text, format, box, size, scale, true);
+	//CaculateSizeByScale(box, size, scale);
+
 	unique_ptr<uint8_t> bits(new uint8_t[size.cx * size.cy * 4]);
 	Bitmap bitmap(size.cx, size.cy, 4 * size.cx, PixelFormat32bppARGB,
 		      bits.get());
@@ -674,11 +687,10 @@ void gs_font_manager::addFontTex(const char *actext, uint32_t x, uint32_t y,
 		gs_texture_t *tex = nullptr;
 		if (!tex || (LONG)cx != size.cx || (LONG)cy != size.cy) {
 			const uint8_t *data = (uint8_t *)bits.get();
-			tex = gs_texture_create(size.cx, size.cy, GS_BGRA, 1,
-						&data, GS_DYNAMIC);
-			cx = (uint32_t)size.cx;
-			cy = (uint32_t)size.cy;
-
+			cx = (uint32_t)(size.cx);
+			cy = (uint32_t)(size.cy);
+			tex = gs_texture_create(cx, cy, GS_BGRA, 1, &data,
+						GS_DYNAMIC);
 			if (!tex)
 				return;
 
@@ -2125,20 +2137,21 @@ void device_font_set(gs_device_t *device, const char *face, int size)
 
 void device_draw_text_and_markline(gs_device_t *device, const char *actext,
 				   uint32_t x, uint32_t y, uint32_t cx,
-				   uint32_t cy, uint32_t length, bool vertical)
+				   uint32_t cy, uint32_t length, bool vertical,
+				   float scale)
 {
 	if (!device->fontMgr)
 		return;
 	device->fontMgr->addTextAndMarkline(actext, x, y, cx, cy, length,
-					    vertical);
+					    vertical, scale);
 }
 
 void device_draw_text(gs_device_t *device, const char *actext, uint32_t x,
-		      uint32_t y, uint32_t cx, uint32_t cy)
+		      uint32_t y, uint32_t cx, uint32_t cy, float scale)
 {
 	if (!device->fontMgr)
 		return;
-	device->fontMgr->addFontTex(actext, x, y, cx, cy);
+	device->fontMgr->addFontTex(actext, x, y, cx, cy, scale);
 }
 
 void device_draw(gs_device_t *device, enum gs_draw_mode draw_mode,

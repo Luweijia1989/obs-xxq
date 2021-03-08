@@ -1013,20 +1013,20 @@ static inline void build_sprite_rect(struct gs_vb_data *data, gs_texture_t *tex,
 }
 
 void gs_draw_text(const char *text, uint32_t x, uint32_t y, uint32_t cx,
-		  uint32_t cy)
+		  uint32_t cy, float scale)
 {
 	graphics_t *graphics = thread_graphics;
-	graphics->exports.device_draw_text(graphics->device, text, x, y, cx,
-					   cy);
+	graphics->exports.device_draw_text(graphics->device, text, x, y, cx, cy,
+					   scale);
 }
 
 void gs_draw_text_and_markline(const char *text, uint32_t x, uint32_t y,
 			       uint32_t cx, uint32_t cy, uint32_t length,
-			       bool vertical)
+			       bool vertical, float scale)
 {
 	graphics_t *graphics = thread_graphics;
 	graphics->exports.device_draw_text_and_markline(
-		graphics->device, text, x, y, cx, cy, length, vertical);
+		graphics->device, text, x, y, cx, cy, length, vertical, scale);
 }
 
 void gs_draw_sprite(gs_texture_t *tex, uint32_t flip, uint32_t width,
