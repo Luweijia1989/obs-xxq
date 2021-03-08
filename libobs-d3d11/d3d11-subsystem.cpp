@@ -347,6 +347,13 @@ void gs_font_manager::CalculateTextSizes(const wstring &text,
 					 RectF &bounding_box, SIZE &text_size,
 					 bool onlyText)
 {
+	if (text.empty()) {
+		text_size.cx = 0.0f;
+		text_size.cy = 0.0f;
+		bounding_box = RectF(0.0f, 0.0f, 0.0f, 0.0f);
+		return;
+	}
+
 	RectF layout_box;
 	RectF temp_box;
 	Status stat;
@@ -481,7 +488,6 @@ void gs_font_manager::addTextAndMarkline(const char *actext, uint32_t x,
 	wstring text = to_wide(actext);
 	GetStringFormat(format);
 	CalculateTextSizes(text, format, box, size);
-
 	// 绘制线
 	bool shortType = false;
 	if (verticalDir) {
@@ -518,11 +524,12 @@ void gs_font_manager::addTextAndMarkline(const char *actext, uint32_t x,
 	Pen pen(full_bk_color);
 	pen.SetWidth(1.0f);
 	if (verticalDir) {
-		stat = graphics_bitmap.FillRectangle(
-			&bk_brush, 0.0f,
-			shortType ? 0.0f : (length - box.Height) / 2.0f,
-			box.Width, box.Height);
-
+		if (!text.empty()) {
+			stat = graphics_bitmap.FillRectangle(
+				&bk_brush, 0.0f,
+				shortType ? 0.0f : (length - box.Height) / 2.0f,
+				box.Width, box.Height);
+		}
 		graphics_bitmap.DrawLine(
 			&pen,
 			PointF(box.Width,
@@ -558,10 +565,12 @@ void gs_font_manager::addTextAndMarkline(const char *actext, uint32_t x,
 				&format, &brush);
 		}
 	} else {
-		stat = graphics_bitmap.FillRectangle(
-			&bk_brush,
-			shortType ? 0.0f : (length - box.Width) / 2.0f, 0.0f,
-			box.Width, box.Height);
+		if (!text.empty()) {
+			stat = graphics_bitmap.FillRectangle(
+				&bk_brush,
+				shortType ? 0.0f : (length - box.Width) / 2.0f,
+				0.0f, box.Width, box.Height);
+		}
 		graphics_bitmap.DrawLine(
 			&pen,
 			PointF(shortType ? (box.Width - length) / 2.0f : 0.0f,
@@ -596,33 +605,27 @@ void gs_font_manager::addTextAndMarkline(const char *actext, uint32_t x,
 		}
 	}
 
-	if (!text.empty()) {
-		gs_texture_t *tex = nullptr;
-		if (!tex) {
-			const uint8_t *data = (uint8_t *)bits.get();
-			tex = gs_texture_create(cx, cy, GS_BGRA, 1, &data,
-						GS_DYNAMIC);
-			if (!tex)
-				return;
+	if (cx > 0 && cy > 0) {
+		const uint8_t *data = (uint8_t *)bits.get();
+		gs_texture_t *tex = gs_texture_create(cx, cy, GS_BGRA, 1, &data,
+						      GS_DYNAMIC);
+		if (!tex)
+			return;
 
-			gs_effect_t *effect =
-				obs_get_base_effect(OBS_EFFECT_DEFAULT);
-			gs_technique_t *tech =
-				gs_effect_get_technique(effect, "Draw");
+		gs_effect_t *effect = obs_get_base_effect(OBS_EFFECT_DEFAULT);
+		gs_technique_t *tech = gs_effect_get_technique(effect, "Draw");
 
-			gs_set_viewport(x, y, width, height);
-			gs_technique_begin(tech);
-			gs_technique_begin_pass(tech, 0);
+		gs_set_viewport(x, y, width, height);
+		gs_technique_begin(tech);
+		gs_technique_begin_pass(tech, 0);
 
-			gs_effect_set_texture(
-				gs_effect_get_param_by_name(effect, "image"),
-				tex);
-			gs_draw_sprite(tex, 0, cx, cy);
-			gs_technique_end_pass(tech);
-			gs_technique_end(tech);
-			if (tex) {
-				gs_texture_destroy(tex);
-			}
+		gs_effect_set_texture(
+			gs_effect_get_param_by_name(effect, "image"), tex);
+		gs_draw_sprite(tex, 0, cx, cy);
+		gs_technique_end_pass(tech);
+		gs_technique_end(tech);
+		if (tex) {
+			gs_texture_destroy(tex);
 		}
 	}
 }
