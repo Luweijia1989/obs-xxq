@@ -77,6 +77,7 @@ using namespace Gdiplus;
 #define S_VALIGN_TOP "top"
 #define S_VALIGN_CENTER S_ALIGN_CENTER
 #define S_VALIGN_BOTTOM "bottom"
+#define S_SUBTYPE "subtype"
 
 #define S_TRANSFORM_NONE 0
 #define S_TRANSFORM_UPPERCASE 1
@@ -124,6 +125,8 @@ using namespace Gdiplus;
 #define T_TRANSFORM_NONE T_("Transform.None")
 #define T_TRANSFORM_UPPERCASE T_("Transform.Uppercase")
 #define T_TRANSFORM_LOWERCASE T_("Transform.Lowercase")
+
+enum TextSourceType { NormalText, RewardText, FollowText, TimerText };
 
 //////////////////////文字轮播源新增属性///////////////////////////
 #define S_DIRECTION "direction"

@@ -56,7 +56,7 @@ struct TextSource {
 
 	FontFamily families[1];
 	Font *font_set;
-
+	bool special_source = false;
 	/* --------------------------- */
 
 	inline TextSource(obs_source_t *source_, obs_data_t *settings)
@@ -353,6 +353,17 @@ void TextSource::CalculateTextSizes(const StringFormat &format,
 	 * its internal value in case the texture gets cut off */
 	bounding_box.Width = temp_box.Width;
 	bounding_box.Height = temp_box.Height;
+
+	if (special_source) {
+		RectF rectFont;
+		Status stat;
+		stat = graphics.MeasureString(L"大", 2, font.get(),
+					      PointF(0.0f, 0.0f), &format,
+					      &rectFont);
+		float diff = bounding_box.Width - text_size.cx;
+		text_size.cx = rectFont.Width * 10;
+		bounding_box.Width = text_size.cx + diff;
+	}
 }
 
 void TextSource::RenderOutlineText(Graphics &graphics, const GraphicsPath &path,
@@ -525,7 +536,11 @@ inline void TextSource::Update(obs_data_t *s)
 
 	uint32_t new_bk_color = obs_data_get_uint32(s, S_BKCOLOR);
 	uint32_t new_bk_opacity = obs_data_get_uint32(s, S_BKOPACITY);
-
+	int subtype = obs_data_get_int(s, "subtype");
+	if (subtype == RewardText || subtype == FollowText)
+		special_source = true;
+	else
+		special_source = false;
 	/* ----------------------------- */
 
 	wstring new_face = to_wide(font_face);
