@@ -187,6 +187,10 @@ struct graphics_offsets offsets32 = {0};
 struct graphics_offsets offsets64 = {0};
 
 static inline void game_status_func(struct game_capture *gc, int status) {
+	obs_data_t *setting = obs_source_get_settings(gc->source);
+	obs_data_release(setting);
+	obs_data_set_int(setting, "status", status);
+
 	obs_data_t *event = obs_data_create();
 	obs_data_set_string(event, "eventType", "GameStatus");
 	obs_data_set_int(event, "value", status);
@@ -1787,6 +1791,7 @@ static void game_capture_tick(void *data, float seconds)
 		}
 	} else {
 		if (!capture_valid(gc)) {
+			gc->game_setup = false;
 			info("capture window no longer exists, "
 			     "terminating capture");
 			stop_capture(gc);
@@ -1909,6 +1914,8 @@ static void game_capture_defaults(obs_data_t *settings)
 	obs_data_set_default_bool(settings, SETTING_ANTI_CHEAT_HOOK, true);
 	obs_data_set_default_int(settings, SETTING_HOOK_RATE,
 				 (int)HOOK_RATE_NORMAL);
+
+	obs_data_set_int(settings, "status", 3);
 }
 
 static bool mode_callback(obs_properties_t *ppts, obs_property_t *p,
