@@ -1517,7 +1517,7 @@ void obs_encoder_set_sei(const obs_encoder_t *encoder, char *sei,
 	if (!obs_encoder_valid(encoder, "obs_encoder_set_sei"))
 		return;
 
-	if(encoder->info.set_sei)
+	if(encoder->info.set_sei && encoder->context.data)
 		encoder->info.set_sei(encoder->context.data, sei, len);
 }
 
