@@ -581,6 +581,7 @@ static void game_capture_update(void *data, obs_data_t *settings)
 	if (!gc->initial_config) {
 		if (reset_capture) {
 			stop_capture(gc);
+			gc->game_setup = false;
 		}
 	} else {
 		gc->initial_config = false;
@@ -1791,10 +1792,10 @@ static void game_capture_tick(void *data, float seconds)
 		}
 	} else {
 		if (!capture_valid(gc)) {
-			gc->game_setup = false;
 			info("capture window no longer exists, "
 			     "terminating capture");
 			stop_capture(gc);
+			gc->game_setup = false;
 		} else {
 
 			if (gc->status != OBS_SOURCE_GAME_START) {
