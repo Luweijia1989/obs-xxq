@@ -1526,6 +1526,6 @@ void obs_encoder_clear_sei(const obs_encoder_t *encoder)
 	if (!obs_encoder_valid(encoder, "obs_encoder_clear_sei"))
 		return;
 	 
-	if(encoder->info.clear_sei)
+	if(encoder->info.clear_sei && encoder->context.data)
 		encoder->info.clear_sei(encoder->context.data);
 }
