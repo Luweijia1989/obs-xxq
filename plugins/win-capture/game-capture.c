@@ -194,7 +194,13 @@ static inline void game_status_func(struct game_capture *gc, int status) {
 	obs_data_t *event = obs_data_create();
 	obs_data_set_string(event, "eventType", "GameStatus");
 	obs_data_set_int(event, "value", status);
-	obs_source_signal_event(gc->source, event);
+	auto handler = obs_source_get_signal_handler(gc->source);
+	struct calldata cd;
+	uint8_t stack[128];
+	calldata_init_fixed(&cd, stack, sizeof(stack));
+	calldata_set_ptr(&cd, "source", gc->source);
+	calldata_set_ptr(&cd, "event", event);
+	signal_handler_signal(handler, "signal_event", &cd);
 	obs_data_release(event);
 
 	info("game capture status:%d", status);

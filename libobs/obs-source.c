@@ -4790,17 +4790,6 @@ void obs_source_do_custom_command(const obs_source_t *source,
 		source->info.make_command(source->context.data, command);
 }
 
-void obs_source_signal_event(const obs_source_t *source, obs_data_t *event_data)
-{
-	auto handler = obs_source_get_signal_handler(source);
-	struct calldata cd;
-	uint8_t stack[128];
-	calldata_init_fixed(&cd, stack, sizeof(stack));
-	calldata_set_ptr(&cd, "source", source);
-	calldata_set_ptr(&cd, "event", event_data);
-	signal_handler_signal(handler, "signal_event", &cd);
-}
-
 void obs_source_set_videoframe(obs_source_t *source,
 			       const struct obs_source_frame2 *frame)
 {

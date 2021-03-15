@@ -1347,8 +1347,6 @@ EXPORT uint32_t obs_source_get_last_obs_version(const obs_source_t *source);
 EXPORT void obs_source_do_custom_command(const obs_source_t *source,
 					 obs_data_t *command);
 
-EXPORT void obs_source_signal_event(const obs_source_t *source, obs_data_t *event_data);
-
 /* ------------------------------------------------------------------------- */
 /* Transition-specific functions */
 enum obs_transition_target {
