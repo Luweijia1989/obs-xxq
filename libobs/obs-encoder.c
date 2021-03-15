@@ -1056,7 +1056,10 @@ static void receive_video(void *param, struct video_data *frame)
 	}
 
 	if (video_pause_check(&encoder->pause, frame->timestamp))
+	{
+		encoder->cur_pts += encoder->timebase_num;
 		goto wait_for_audio;
+	}
 
 	memset(&enc_frame, 0, sizeof(struct encoder_frame));
 
