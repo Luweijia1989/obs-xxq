@@ -350,9 +350,9 @@ void TRTC::internalEnterRoom()
 	std::string privMapEncrypt = "";
 	params.privateMapKey = (char*)privMapEncrypt.c_str();
 	params.role = CDataCenter::GetInstance()->m_roleType;
+	std::string std_streamId = link_streamId.toStdString();
 	if (is_video_link && link_cdnSupplier == "TENCENT")
 	{
-		std::string std_streamId = link_streamId.toStdString();
 		params.streamId = std_streamId.c_str();
 	}
 
