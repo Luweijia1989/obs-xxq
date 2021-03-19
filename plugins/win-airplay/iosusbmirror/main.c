@@ -713,119 +713,128 @@ int main(void)
 	pthread_t socket_t = create_socket_thread();
 	usb_init(); /* initialize the library */
 
-	while (true) {
-		if (!usb_device_discover())
-			break;
-		else {
-			send_status(ipc_client, MIRROR_START);
-			usb_get_string_simple(
-				app_device.device_handle,
-				app_device.device->descriptor.iSerialNumber,
-				app_device.serial, sizeof(app_device.serial));
+	
+	if (usb_device_discover())
+	{
+Retry:
+		send_status(ipc_client, MIRROR_START);
+		usb_get_string_simple(
+			app_device.device_handle,
+			app_device.device->descriptor.iSerialNumber,
+			app_device.serial, sizeof(app_device.serial));
 
-			int muxConfigIndex = -1;
-			int qtConfigIndex = -1;
+		int muxConfigIndex = -1;
+		int qtConfigIndex = -1;
 
-			findConfigurations(&app_device.device->descriptor,
-					   app_device.device, &muxConfigIndex,
-					   &qtConfigIndex);
+		findConfigurations(&app_device.device->descriptor,
+					app_device.device, &muxConfigIndex,
+					&qtConfigIndex);
 
-			if (qtConfigIndex == -1) {
-				int res = usb_control_msg(
-					app_device.device_handle, 0x40, 0x52,
-					0x00, 0x02, NULL, 0,
-					5000 /* LIBUSB_DEFAULT_TIMEOUT */);
-				Sleep(400);
-				continue;
-			}
-
-			byte config = -1;
+		if (qtConfigIndex == -1) {
 			int res = usb_control_msg(
-				app_device.device_handle,
-				USB_RECIP_DEVICE | USB_ENDPOINT_IN,
-				USB_REQ_GET_CONFIGURATION, 0, 0, &config, 1,
+				app_device.device_handle, 0x40, 0x52,
+				0x00, 0x02, NULL, 0,
 				5000 /* LIBUSB_DEFAULT_TIMEOUT */);
-			if (config != qtConfigIndex) {
-				usb_set_configuration(app_device.device_handle,
-						      qtConfigIndex);
+			int tryCount = 0;
+			while (true) {
+				Sleep(100);
+				if (usb_device_discover())
+					goto Retry;
+				else {
+					tryCount++;
+					if (tryCount > 20)
+						goto End;
+					else
+						continue;
+				}
 			}
+		}
 
-			for (int m = 0; m < app_device.device->descriptor.bNumConfigurations; m++) {
-				struct usb_config_descriptor config = app_device.device->config[m];
-				for (int n = 0; n < config.bNumInterfaces; n++) {
-					struct usb_interface_descriptor intf = config.interface[n].altsetting[0];
-					if (intf.bInterfaceClass == INTERFACE_CLASS
-						&& intf.bInterfaceSubClass == INTERFACE_SUBCLASS
-						&& intf.bInterfaceProtocol == INTERFACE_PROTOCOL) {
-						if (intf.bNumEndpoints != 2) {
-							continue;
-						}
-						if ((intf.endpoint[0].bEndpointAddress & 0x80) == USB_ENDPOINT_OUT
-							&& (intf.endpoint[1].bEndpointAddress & 0x80) == USB_ENDPOINT_IN) {
-							app_device.interface = intf.bInterfaceNumber;
-							app_device.ep_out = intf.endpoint[0].bEndpointAddress;
-							app_device.wMaxPacketSize = intf.endpoint[0].wMaxPacketSize;
-							app_device.ep_in = intf.endpoint[1].bEndpointAddress;
-						} else if ((intf.endpoint[1].bEndpointAddress & 0x80) == USB_ENDPOINT_OUT
-							&& (intf.endpoint[0].bEndpointAddress & 0x80) == USB_ENDPOINT_IN) {
-							app_device.interface = intf.bInterfaceNumber;
-							app_device.ep_out = intf.endpoint[1].bEndpointAddress;
-							app_device.wMaxPacketSize = intf.endpoint[1].wMaxPacketSize;
-							app_device.ep_in = intf.endpoint[0].bEndpointAddress;
-						} else {
-						}
+		byte config = -1;
+		int res = usb_control_msg(
+			app_device.device_handle,
+			USB_RECIP_DEVICE | USB_ENDPOINT_IN,
+			USB_REQ_GET_CONFIGURATION, 0, 0, &config, 1,
+			5000 /* LIBUSB_DEFAULT_TIMEOUT */);
+		if (config != qtConfigIndex) {
+			usb_set_configuration(app_device.device_handle,
+						qtConfigIndex);
+		}
+
+		for (int m = 0; m < app_device.device->descriptor.bNumConfigurations; m++) {
+			struct usb_config_descriptor config = app_device.device->config[m];
+			for (int n = 0; n < config.bNumInterfaces; n++) {
+				struct usb_interface_descriptor intf = config.interface[n].altsetting[0];
+				if (intf.bInterfaceClass == INTERFACE_CLASS
+					&& intf.bInterfaceSubClass == INTERFACE_SUBCLASS
+					&& intf.bInterfaceProtocol == INTERFACE_PROTOCOL) {
+					if (intf.bNumEndpoints != 2) {
+						continue;
 					}
+					if ((intf.endpoint[0].bEndpointAddress & 0x80) == USB_ENDPOINT_OUT
+						&& (intf.endpoint[1].bEndpointAddress & 0x80) == USB_ENDPOINT_IN) {
+						app_device.interface = intf.bInterfaceNumber;
+						app_device.ep_out = intf.endpoint[0].bEndpointAddress;
+						app_device.wMaxPacketSize = intf.endpoint[0].wMaxPacketSize;
+						app_device.ep_in = intf.endpoint[1].bEndpointAddress;
+					} else if ((intf.endpoint[1].bEndpointAddress & 0x80) == USB_ENDPOINT_OUT
+						&& (intf.endpoint[0].bEndpointAddress & 0x80) == USB_ENDPOINT_IN) {
+						app_device.interface = intf.bInterfaceNumber;
+						app_device.ep_out = intf.endpoint[1].bEndpointAddress;
+						app_device.wMaxPacketSize = intf.endpoint[1].wMaxPacketSize;
+						app_device.ep_in = intf.endpoint[0].bEndpointAddress;
+					} else {
+					}
+				}
 
-					if (intf.bInterfaceClass == INTERFACE_CLASS &&
-					    intf.bInterfaceSubClass == INTERFACE_QUICKTIMECLASS) {
-						if (intf.bNumEndpoints != 2) {
-							continue;
-						}
-						if ((intf.endpoint[0].bEndpointAddress & 0x80) == USB_ENDPOINT_OUT &&
-						    (intf.endpoint[1].bEndpointAddress & 0x80) == USB_ENDPOINT_IN) {
-							app_device.interface_fa = intf.bInterfaceNumber;
-							app_device.ep_out_fa = intf.endpoint[0].bEndpointAddress;
-							app_device.wMaxPacketSize_fa = intf.endpoint[0].wMaxPacketSize;
-							app_device.ep_in_fa = intf.endpoint[1].bEndpointAddress;
-						} else if (
-							(intf.endpoint[1].bEndpointAddress & 0x80) == USB_ENDPOINT_OUT &&
-							(intf.endpoint[0].bEndpointAddress & 0x80) == USB_ENDPOINT_IN) {
-							app_device.interface_fa = intf.bInterfaceNumber;
-							app_device.ep_out_fa = intf.endpoint[1].bEndpointAddress;
-							app_device.wMaxPacketSize_fa = intf.endpoint[1].wMaxPacketSize;
-							app_device.ep_in_fa = intf.endpoint[0].bEndpointAddress;
-						} else {
-						}
+				if (intf.bInterfaceClass == INTERFACE_CLASS &&
+					intf.bInterfaceSubClass == INTERFACE_QUICKTIMECLASS) {
+					if (intf.bNumEndpoints != 2) {
+						continue;
+					}
+					if ((intf.endpoint[0].bEndpointAddress & 0x80) == USB_ENDPOINT_OUT &&
+						(intf.endpoint[1].bEndpointAddress & 0x80) == USB_ENDPOINT_IN) {
+						app_device.interface_fa = intf.bInterfaceNumber;
+						app_device.ep_out_fa = intf.endpoint[0].bEndpointAddress;
+						app_device.wMaxPacketSize_fa = intf.endpoint[0].wMaxPacketSize;
+						app_device.ep_in_fa = intf.endpoint[1].bEndpointAddress;
+					} else if (
+						(intf.endpoint[1].bEndpointAddress & 0x80) == USB_ENDPOINT_OUT &&
+						(intf.endpoint[0].bEndpointAddress & 0x80) == USB_ENDPOINT_IN) {
+						app_device.interface_fa = intf.bInterfaceNumber;
+						app_device.ep_out_fa = intf.endpoint[1].bEndpointAddress;
+						app_device.wMaxPacketSize_fa = intf.endpoint[1].wMaxPacketSize;
+						app_device.ep_in_fa = intf.endpoint[0].bEndpointAddress;
+					} else {
 					}
 				}
 			}
+		}
 
-			res = usb_claim_interface(app_device.device_handle, app_device.interface);
-			res = usb_claim_interface(app_device.device_handle, app_device.interface_fa);
+		res = usb_claim_interface(app_device.device_handle, app_device.interface);
+		res = usb_claim_interface(app_device.device_handle, app_device.interface_fa);
 
-			device_add(app_device.device, app_device.device_handle, app_device.ep_out, app_device.serial);
+		device_add(app_device.device, app_device.device_handle, app_device.ep_out, app_device.serial);
 
-			pthread_t th;
-			pthread_create(&th, NULL, usb_read_lock_down_thread, NULL);
+		pthread_t th;
+		pthread_create(&th, NULL, usb_read_lock_down_thread, NULL);
 
-			WaitForSingleObject(lock_down_event, INFINITE);
-			app_device.lock_down_read_exit = true;
-			pthread_join(th, NULL);
+		WaitForSingleObject(lock_down_event, INFINITE);
+		app_device.lock_down_read_exit = true;
+		pthread_join(th, NULL);
 
-			in_progress = true;
-			int perr = pthread_create(&app_device.thread_handle, NULL, usb_read_thread, NULL);
-			if (perr != 0) {
-				usbmuxd_log(
-					LL_ERROR,
-					"ERROR: failed to start usb read thread for device %s: %s (%d)",
-					app_device.serial, strerror(perr),
-					perr);
-			}
-
-			break;
+		in_progress = true;
+		int perr = pthread_create(&app_device.thread_handle, NULL, usb_read_thread, NULL);
+		if (perr != 0) {
+			usbmuxd_log(
+				LL_ERROR,
+				"ERROR: failed to start usb read thread for device %s: %s (%d)",
+				app_device.serial, strerror(perr),
+				perr);
 		}
 	}
 
+End:
 	if (in_progress)
 	{
 		stdin_read_thread(NULL);
