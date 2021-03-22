@@ -136,7 +136,6 @@ void TRTC::enterRoom()
 	if (is_video_link)
 	{
 		TRTCCloudCore::GetInstance()->getTRTCCloud()->stopLocalAudio();
-		m_bStartCustomCapture = true;
 		TRTCCloudCore::GetInstance()->getTRTCCloud()->enableCustomAudioCapture(true);
 		TRTCCloudCore::GetInstance()->getTRTCCloud()->enableCustomVideoCapture(true);
 	}
@@ -352,9 +351,7 @@ void TRTC::internalEnterRoom()
 	params.role = CDataCenter::GetInstance()->m_roleType;
 	std::string std_streamId = link_streamId.toStdString();
 	if (is_video_link && link_cdnSupplier == "TENCENT")
-	{
 		params.streamId = std_streamId.c_str();
-	}
 
 	// TRTCCloudCore::GetInstance()->getTRTCCloud()->setEncodedDataProcessingListener();
 	char api_str[128] = { 0 };
@@ -370,6 +367,7 @@ void TRTC::onEnterRoom(int result)
 		CDataCenter::GetInstance()->m_bIsEnteredRoom = true;
 		qDebug() << QString(u8"进入[%1]房间成功,耗时:%2ms").arg(link_rtcRoomId).arg(result);
 
+		m_bStartCustomCapture = true;
 		std::string strOtherUid = link_rtc_otherUid.toStdString();
 		if (is_video_link)
 		{ 

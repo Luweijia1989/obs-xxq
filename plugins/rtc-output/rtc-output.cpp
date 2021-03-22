@@ -163,8 +163,10 @@ RTCOutput::~RTCOutput()
 {
 	m_rtcBase->setRtcEventCallback(nullptr);
 
-	if (m_rtcBase)
-		m_rtcBase->deleteLater();
+	if (m_rtcBase) {
+		delete m_rtcBase;
+		m_rtcBase = nullptr;
+	}
 }
 
 void RTCOutput::sigEvent(int type, QJsonObject data)
