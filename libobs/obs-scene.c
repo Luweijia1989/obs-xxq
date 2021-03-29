@@ -1709,6 +1709,35 @@ static obs_sceneitem_t *obs_scene_add_internal(obs_scene_t *scene,
 	item->is_group = source->info.id == group_info.id;
 	item->private_settings = obs_data_create();
 	item->toggle_visibility = OBS_INVALID_HOTKEY_PAIR_ID;
+
+	obs_data_t* settings =  obs_source_get_settings(source);
+	if (settings)
+	{
+		obs_data_t *need2crop = obs_data_get_obj(settings, "need2crop");
+		if (need2crop)
+		{
+			struct obs_sceneitem_crop crop;
+			crop.left = obs_data_get_int(need2crop, "left");
+			crop.right = obs_data_get_int(need2crop, "right");
+			crop.top = obs_data_get_int(need2crop, "top");
+			crop.bottom = obs_data_get_int(need2crop, "bottom");
+
+			memcpy(&item->crop, &crop, sizeof(crop));
+
+			if (item->crop.left < 0)
+				item->crop.left = 0;
+			if (item->crop.right < 0)
+				item->crop.right = 0;
+			if (item->crop.top < 0)
+				item->crop.top = 0;
+			if (item->crop.bottom < 0)
+				item->crop.bottom = 0;
+
+			obs_data_release(need2crop);
+		}
+		obs_data_release(settings);
+	}
+
 	os_atomic_set_long(&item->active_refs, 1);
 	vec2_set(&item->scale, 1.0f, 1.0f);
 	matrix4_identity(&item->draw_transform);
