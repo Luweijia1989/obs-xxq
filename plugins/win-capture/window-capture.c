@@ -33,6 +33,7 @@ struct window_capture {
 	float check_window_timer;
 	float cursor_check_time;
 
+	LONG hwnd_type;
 	HWND window;
 	RECT last_rect;
 };
@@ -60,6 +61,7 @@ static void update_settings(struct window_capture *wc, obs_data_t *s)
 	wc->cursor = obs_data_get_bool(s, "cursor");
 	wc->use_wildcards = obs_data_get_bool(s, "use_wildcards");
 	wc->compatibility = obs_data_get_bool(s, "compatibility");
+	wc->hwnd_type = obs_data_get_int(s, "hwndType");
 }
 
 /* ------------------------------------------------------------------------- */
@@ -73,6 +75,7 @@ static const char *wc_getname(void *unused)
 static void *wc_create(obs_data_t *settings, obs_source_t *source)
 {
 	struct window_capture *wc = bzalloc(sizeof(struct window_capture));
+	wc->hwnd_type = 0;
 	wc->source = source;
 
 	update_settings(wc, settings);
@@ -180,8 +183,17 @@ static void wc_tick(void *data, float seconds)
 
 		wc->check_window_timer = 0.0f;
 
-		wc->window = find_window(EXCLUDE_MINIMIZED, wc->priority,
-					 wc->class, wc->title, wc->executable, isPrivate);
+		if (!isPrivate) {
+			wc->window = find_window(EXCLUDE_MINIMIZED,
+						 wc->priority, wc->class,
+						 wc->title, wc->executable,
+						 isPrivate);
+		}
+		else {
+			if (wc->hwnd_type > 0)
+				wc->window = xxq_find_window(EXCLUDE_MINIMIZED, wc->hwnd_type);
+		}
+
 		if (!wc->window) {
 			if (wc->capture.valid)
 				dc_capture_free(&wc->capture);
@@ -189,6 +201,7 @@ static void wc_tick(void *data, float seconds)
 		}
 
 		reset_capture = true;
+
 
 	} else if (IsIconic(wc->window)) {
 		return;
