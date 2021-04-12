@@ -962,6 +962,8 @@ struct obs_output {
 	char *last_error_message;
 
 	float audio_data[MAX_AUDIO_CHANNELS][AUDIO_OUTPUT_FRAMES];
+
+	uint32_t sei_count_per_second;
 };
 
 static inline void do_output_signal(struct obs_output *output,
@@ -1067,6 +1069,8 @@ struct obs_encoder {
 	struct pause_data pause;
 
 	const char *profile_encoder_encode_name;
+
+	uint32_t sei_rate; 
 };
 
 extern struct obs_encoder_info *find_encoder(const char *id);

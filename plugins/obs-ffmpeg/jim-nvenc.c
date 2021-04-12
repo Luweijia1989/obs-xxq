@@ -74,6 +74,7 @@ struct nvenc_data {
 
 	uint8_t *custom_sei;
 	size_t custom_sei_size;
+	uint64_t sei_counting;
 };
 
 /* ------------------------------------------------------------------------- */
@@ -889,9 +890,13 @@ static bool nvenc_encode_tex(void *data, uint32_t handle, int64_t pts,
 		if (enc->bframes)
 			dts -= packet->timebase_num;
 
-		if (enc->custom_sei_size > 0)
-			da_push_back_array(enc->packet_data, enc->custom_sei,
-					   enc->custom_sei_size);
+		uint32_t rate = obs_encoder_get_sei_rate(enc->encoder);
+		if (++enc->sei_counting % rate == 0) {
+			if (enc->custom_sei_size > 0)
+				da_push_back_array(enc->packet_data,
+						   enc->custom_sei,
+						   enc->custom_sei_size);
+		}
 
 		*received_packet = true;
 		packet->data = enc->packet_data.array;

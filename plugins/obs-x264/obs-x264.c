@@ -55,6 +55,7 @@ struct obs_x264 {
 
 	uint8_t *custom_sei;
 	size_t custom_sei_size;
+	uint64_t sei_counting;
 
 	os_performance_token_t *performance_token;
 };
@@ -675,9 +676,13 @@ static void parse_packet(struct obs_x264 *obsx264,
 				   nal->i_payload);
 	}
 
-	if (obsx264->custom_sei_size > 0)
-		da_push_back_array(obsx264->packet_data, obsx264->custom_sei,
-				   obsx264->custom_sei_size);
+	uint32_t rate = obs_encoder_get_sei_rate(obsx264->encoder);
+	if (++obsx264->sei_counting % rate == 0) {
+		if (obsx264->custom_sei_size > 0)
+			da_push_back_array(obsx264->packet_data,
+					   obsx264->custom_sei,
+					   obsx264->custom_sei_size);
+	}
 
 	packet->data = obsx264->packet_data.array;
 	packet->size = obsx264->packet_data.num;

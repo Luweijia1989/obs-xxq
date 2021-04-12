@@ -91,6 +91,7 @@ struct obs_qsv {
 
 	uint8_t *custom_sei;
 	size_t custom_sei_size;
+	uint64_t sei_counting;
 
 	size_t extra_data_size;
 	size_t sei_size;
@@ -641,9 +642,13 @@ static void parse_packet(struct obs_qsv *obsqsv, struct encoder_packet *packet,
 	da_push_back_array(obsqsv->packet_data, &pBS->Data[pBS->DataOffset],
 			   pBS->DataLength);
 
-	if (obsqsv->custom_sei_size > 0)
-		da_push_back_array(obsqsv->packet_data, obsqsv->custom_sei,
-				   obsqsv->custom_sei_size);
+	uint32_t rate = obs_encoder_get_sei_rate(obsqsv->encoder);
+	if (++obsqsv->sei_counting % rate == 0) {
+		if (obsqsv->custom_sei_size > 0)
+			da_push_back_array(obsqsv->packet_data,
+					   obsqsv->custom_sei,
+					   obsqsv->custom_sei_size);
+	}
 
 	packet->data = obsqsv->packet_data.array;
 	packet->size = obsqsv->packet_data.num;

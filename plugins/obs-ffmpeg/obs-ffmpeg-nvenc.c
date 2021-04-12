@@ -54,6 +54,7 @@ struct nvenc_encoder {
 
 	uint8_t *custom_sei;
 	size_t custom_sei_size;
+	uint64_t sei_counting;
 
 	int height;
 	bool first_packet;
@@ -394,9 +395,12 @@ static bool nvenc_encode(void *data, struct encoder_frame *frame,
 			da_copy_array(enc->buffer, av_pkt.data, av_pkt.size);
 		}
 
-		if (enc->custom_sei_size > 0)
-			da_push_back_array(enc->buffer, enc->custom_sei,
-					   enc->custom_sei_size);
+		uint32_t rate = obs_encoder_get_sei_rate(enc->encoder);
+		if (++enc->sei_counting % rate == 0) {
+			if (enc->custom_sei_size > 0)
+				da_push_back_array(enc->buffer, enc->custom_sei,
+						   enc->custom_sei_size);
+		}
 
 		packet->pts = av_pkt.pts;
 		packet->dts = av_pkt.dts;

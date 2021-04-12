@@ -1653,6 +1653,7 @@ EXPORT void obs_sceneitem_defer_group_resize_end(obs_sceneitem_t *item);
 
 EXPORT const char *obs_output_get_display_name(const char *id);
 
+EXPORT void obs_output_set_sei_count_per_second(obs_output_t *output, uint32_t freq);
 /**
  * Creates an output.
  *
@@ -2104,6 +2105,8 @@ EXPORT void obs_encoder_remove_encoded_callback(
 
 /** Returns whether encoder is paused */
 EXPORT bool obs_encoder_paused(const obs_encoder_t *output);
+
+EXPORT uint32_t obs_encoder_get_sei_rate(const obs_encoder_t *encoder);
 
 /* ------------------------------------------------------------------------- */
 /* Stream Services */

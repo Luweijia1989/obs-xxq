@@ -624,7 +624,7 @@ void obs_encoder_start(obs_encoder_t *encoder,
 		return;
 	if (!obs_ptr_valid(new_packet, "obs_encoder_start"))
 		return;
-
+	
 	pthread_mutex_lock(&encoder->init_mutex);
 	obs_encoder_start_internal(encoder, new_packet, param);
 	pthread_mutex_unlock(&encoder->init_mutex);
@@ -1531,4 +1531,12 @@ void obs_encoder_clear_sei(const obs_encoder_t *encoder)
 	 
 	if(encoder->info.clear_sei && encoder->context.data)
 		encoder->info.clear_sei(encoder->context.data);
+}
+
+uint32_t obs_encoder_get_sei_rate(const obs_encoder_t *encoder)
+{
+	if (!obs_encoder_valid(encoder, "obs_encoder_get_sei_rate"))
+		return 6;
+
+	return encoder->sei_rate;
 }
