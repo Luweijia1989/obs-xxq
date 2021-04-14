@@ -204,7 +204,6 @@ private:
 	long m_remoteView;
 	char *m_yuvBuffer = nullptr;
 	QEventLoop m_exitRoomLoop;
-	QTimer m_seiTimer;
 	QByteArray m_seiData;
 	QByteArray m_uuid;
 	bool m_hasMixStream = false;

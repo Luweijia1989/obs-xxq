@@ -23,13 +23,6 @@ TRTC::TRTC()
 	auto str = QUuid::createUuid().toString(QUuid::Id128);
 	m_uuid = hexstrTobyte(str);
 
-	m_seiTimer.setInterval(50);
-	m_seiTimer.setSingleShot(false);
-
-	connect(&m_seiTimer, &QTimer::timeout, this, [=](){
-		TRTCCloudCore::GetInstance()->getTRTCCloud()->sendSEIMsg((uint8_t *)m_seiData.data(), m_seiData.size(), 1);
-	});
-
 	connect(TRTCCloudCore::GetInstance(), &TRTCCloudCore::trtcEvent, this, [=](int type, QJsonObject data){
 		if (type == RTC_EVENT_ENTERROOM_RESULT)
 		{
@@ -150,8 +143,6 @@ void TRTC::enterRoom()
 
 void TRTC::exitRoom()
 {
-	if (m_seiTimer.isActive())
-		m_seiTimer.stop();
 	m_bStartCustomCapture = false;
 	TRTCCloudCore::GetInstance()->PreUninit(is_video_link);
 	TRTCCloudCore::GetInstance()->getTRTCCloud()->exitRoom();
@@ -253,8 +244,7 @@ void TRTC::setSei(const QJsonObject &data, int insetType)
 
 	m_seiData = QJsonDocument(data).toJson(QJsonDocument::Compact);
 	m_seiData = m_uuid + m_seiData;
-	if (!m_seiTimer.isActive())
-		m_seiTimer.start();
+	TRTCCloudCore::GetInstance()->getTRTCCloud()->sendSEIMsg((uint8_t *)m_seiData.data(), m_seiData.size(), insetType);
 }
 
 void TRTC::setAudioInputDevice(const QString &deviceId)
