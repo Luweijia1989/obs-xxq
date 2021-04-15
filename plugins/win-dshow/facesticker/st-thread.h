@@ -48,6 +48,7 @@ public:
 	void setFrameConfig(int w, int h, int f);
 	void setFrameConfig(const DShow::VideoConfig &cg);
 	void quitThread();
+	void freeResource();
 
 protected:
 	virtual void run() override;

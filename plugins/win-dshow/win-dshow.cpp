@@ -157,7 +157,7 @@ DShowInput::~DShowInput()
 
 	if (stThread) {
 		stThread->quitThread();
-		stThread->deleteLater();
+		delete stThread;
 		stThread = nullptr;
 	}
 }

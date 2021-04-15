@@ -59,8 +59,7 @@ enum AVPixelFormat obs_to_ffmpeg_video_format(enum video_format format)
 
 STThread::STThread(DShowInput *dsInput) : m_dshowInput(dsInput)
 {
-	setPriority(QThread::HighestPriority);
-	surface = new QOffscreenSurface;
+	surface = new QOffscreenSurface(nullptr, this);
 	surface->create();
 	m_stFunc = new STFunction;
 	moveToThread(this);
@@ -68,20 +67,14 @@ STThread::STThread(DShowInput *dsInput) : m_dshowInput(dsInput)
 
 STThread::~STThread()
 {
-	if (m_swsctx)
-		sws_freeContext(m_swsctx);
 
-	if (m_swsRetFrame)
-		av_frame_free(&m_swsRetFrame);
-
-	m_stFunc->freeFaceHandler();
-	delete m_stFunc;
 }
 
 void STThread::run()
 {
 	m_running = true;
 	if (!g_st_checkpass) {
+		freeResource();
 		m_running = false;
 		return;
 	}
@@ -94,6 +87,7 @@ void STThread::run()
 	m_stFunc->initSenseTimeEnv();
 	qDebug() << "SenseTime init result: " << m_stFunc->stInited();
 	if (!m_stFunc->stInited()) {
+		freeResource();
 		m_running = false;
 		return;
 	}
@@ -111,8 +105,6 @@ void STThread::run()
 		m_consumerMutex.unlock();
 	}
 
-	m_stFunc->freeSticker();
-
 	ctx->makeCurrent(surface);
 	delete m_fbo;
 	if (m_backgroundTexture) {
@@ -127,12 +119,13 @@ void STThread::run()
 	delete m_shader;
 	delete m_vao;
 	delete ctx;
-	surface->deleteLater();
+	freeResource();
 	qDebug() << "STThread stopped...";
 }
 
 bool STThread::needProcess()
 {
+	return true;
 	QMutexLocker locker(&m_stickerSetterMutex);
 	return !m_stickers.isEmpty() || m_gameStickerType != None;
 }
@@ -386,6 +379,19 @@ void STThread::quitThread()
 	m_producerCondition.notify_one();
 	m_producerMutex.unlock();
 	wait();
+}
+
+void STThread::freeResource()
+{
+	if (m_swsctx)
+		sws_freeContext(m_swsctx);
+
+	if (m_swsRetFrame)
+		av_frame_free(&m_swsRetFrame);
+
+	m_stFunc->freeSticker();
+	m_stFunc->freeFaceHandler();
+	delete m_stFunc;
 }
 
 void STThread::calcPosition(int &width, int &height)
