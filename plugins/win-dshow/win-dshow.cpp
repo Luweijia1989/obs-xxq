@@ -1,4 +1,4 @@
-﻿#include "win-dshow.h"
+#include "win-dshow.h"
 #include "facesticker/st-thread.h"
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -152,18 +152,41 @@ void DShowInput::DShowLoop()
 
 			obs_data_t *settings;
 			settings = obs_source_get_settings(source);
-			if (!Activate(settings)) {
-				obs_source_output_video2(source, nullptr);
+			QString curDevice = obs_data_get_string(settings, VIDEO_DEVICE_ID);
+			if (lastDeviceId != curDevice) {
+				triggerDeviceFail = false;
 			}
+			lastDeviceId = curDevice;
+
+			{
+				CriticalScope scope(deviceActivatedMutex);
+				if (!Activate(settings)) {
+					if (!triggerDeviceFail) {
+						obs_data_t *event = obs_data_create();
+						obs_data_set_string(event, "eventType", "cameraOpenStatus");
+						obs_data_set_int(event, "value", 0);
+						obs_source_signal_event(source, event);
+						obs_data_release(event);
+						triggerDeviceFail = true;
+					}
+					deviceActivated = false;
+					obs_source_output_video2(source,
+								 nullptr);
+				} else
+					deviceActivated = true;
+			}
+
 			if (block)
 				SetEvent(activated_event);
 			obs_data_release(settings);
 			break;
 		}
 
-		case Action::Deactivate:
+		case Action::Deactivate: {
+			CriticalScope scope(deviceActivatedMutex);
+			deviceActivated = false;
 			Deactivate();
-			break;
+		} break;
 
 		case Action::Shutdown:
 			device.ShutdownGraph();
@@ -1819,6 +1842,20 @@ static void ShowDShowInput(void *data)
 		input->QueueAction(Action::Activate);
 }
 
+static void DShowInputTick(void *data, float seconds)
+{
+	DShowInput *input = reinterpret_cast<DShowInput *>(data);
+	input->timeElapsed += seconds;
+	if (input->timeElapsed > 2) {
+		if (input->active) {
+			CriticalScope scope(input->deviceActivatedMutex);
+			if (!input->deviceActivated)
+				input->QueueAction(Action::Activate);
+		}
+		input->timeElapsed = 0.f;
+	}
+}
+
 void RegisterDShowSource()
 {
 	SetLogCallback(DShowModuleLogCallback, nullptr);
@@ -1836,5 +1873,6 @@ void RegisterDShowSource()
 	info.update = UpdateDShowInput;
 	info.get_defaults = GetDShowDefaults;
 	info.get_properties = GetDShowProperties;
+	info.video_tick = DShowInputTick;
 	obs_register_source(&info);
 }

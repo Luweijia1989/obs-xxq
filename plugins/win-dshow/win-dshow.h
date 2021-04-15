@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include <objbase.h>
 
@@ -149,6 +149,11 @@ public:
 	bool flip = false;
 	bool flipH = false;
 	bool active = false;
+	bool deviceActivated = false;
+	bool triggerDeviceFail = false;
+	QString lastDeviceId;
+	CriticalSection deviceActivatedMutex;
+	float timeElapsed = 0.f;
 
 	STThread *stThread = nullptr;
 
