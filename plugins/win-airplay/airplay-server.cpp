@@ -1,4 +1,4 @@
-#include <obs-module.h>
+﻿#include <obs-module.h>
 #include "airplay-server.h"
 #include "resource.h"
 #include <cstdio>
@@ -371,13 +371,7 @@ void ScreenMirrorServer::handleMirrorStatus(int status)
 		obs_data_t *event = obs_data_create();
 		obs_data_set_string(event, "eventType", "MirrorStatus");
 		obs_data_set_int(event, "value", mirror_status);
-		auto handler = obs_source_get_signal_handler(m_source);
-		struct calldata cd;
-		uint8_t stack[128];
-		calldata_init_fixed(&cd, stack, sizeof(stack));
-		calldata_set_ptr(&cd, "source", m_source);
-		calldata_set_ptr(&cd, "event", event);
-		signal_handler_signal(handler, "signal_event", &cd);
+		obs_source_signal_event(m_source, event);
 		obs_data_release(event);
 	};
 
