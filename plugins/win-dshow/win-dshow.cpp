@@ -161,7 +161,7 @@ void DShowInput::DShowLoop()
 			{
 				CriticalScope scope(deviceActivatedMutex);
 				if (!Activate(settings)) {
-					if (!triggerDeviceFail) {
+					if (!triggerDeviceFail && !curDevice.isEmpty()) {
 						obs_data_t *event = obs_data_create();
 						obs_data_set_string(event, "eventType", "cameraOpenStatus");
 						obs_data_set_int(event, "value", 0);
