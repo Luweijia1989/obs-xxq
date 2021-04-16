@@ -215,66 +215,66 @@ obs_output_t *outputttt;
 OBSBasic::OBSBasic(QWidget *parent)
 	: OBSMainWindow(parent), ui(new Ui::OBSBasic)
 {
-	QWidget *w = new QWidget;
-	w->show();
-	w->setFixedSize(200, 40);
-	QPushButton *btn = new QPushButton("start", w);
-	btn->setVisible(true);
+	//QWidget *w = new QWidget;
+	//w->show();
+	//w->setFixedSize(200, 40);
+	//QPushButton *btn = new QPushButton("start", w);
+	//btn->setVisible(true);
 
-	RTCView *view = new RTCView;
-	view->setFixedSize(640, 480);
-	view->setVisible(true);
-	connect(btn, &QPushButton::clicked, this, [=](){
-		obs_output_pause(outputHandler->streamOutput, true);
-		obs_data_t *setting = obs_data_create();
-		obs_data_set_int(setting, "rtc_type", 0);
-		obs_data_set_int(setting, "audiobitrate", config_get_uint(basicConfig, "SimpleOutput", "ABitrate"));
-		obs_data_set_int(setting, "videobitrate", config_get_uint(basicConfig, "SimpleOutput", "VBitrate"));
-		obs_data_set_int(setting, "fps", 30);
-		obs_data_set_int(setting, "hwnd", view->winId());
-		obs_data_set_int(setting, "cropX", 600);
-		QJsonObject obj;
-		obj["userId"] = "333333";
-		obj["roomId"] = 333333;
-		obj["userSig"] = "";
-		obs_data_set_string(setting, "linkInfo", QJsonDocument(obj).toJson(QJsonDocument::Compact).data());
-		outputttt = obs_output_create("rtc_output", "rtc_output", setting, NULL);
-		signal_handler_connect(obs_output_get_signal_handler(outputttt),
-			"sig_event", [](void *data, calldata_t *params){
-			obs_data_t *eventData = (obs_data_t *)calldata_ptr(params, "data");
-			blog(LOG_DEBUG, "AAAAAAA %lld", obs_data_get_int(eventData, "event_type"));
-		},
-			this);
-		obs_data_release(setting);
-		obs_output_start(outputttt);
-		blog(LOG_INFO, "output start complete");
-	});
+	//RTCView *view = new RTCView;
+	//view->setFixedSize(640, 480);
+	//view->setVisible(true);
+	//connect(btn, &QPushButton::clicked, this, [=](){
+	//	obs_output_pause(outputHandler->streamOutput, true);
+	//	obs_data_t *setting = obs_data_create();
+	//	obs_data_set_int(setting, "rtc_type", 0);
+	//	obs_data_set_int(setting, "audiobitrate", config_get_uint(basicConfig, "SimpleOutput", "ABitrate"));
+	//	obs_data_set_int(setting, "videobitrate", config_get_uint(basicConfig, "SimpleOutput", "VBitrate"));
+	//	obs_data_set_int(setting, "fps", 30);
+	//	obs_data_set_int(setting, "hwnd", view->winId());
+	//	obs_data_set_int(setting, "cropX", 600);
+	//	QJsonObject obj;
+	//	obj["userId"] = "333333";
+	//	obj["roomId"] = 333333;
+	//	obj["userSig"] = "";
+	//	obs_data_set_string(setting, "linkInfo", QJsonDocument(obj).toJson(QJsonDocument::Compact).data());
+	//	outputttt = obs_output_create("rtc_output", "rtc_output", setting, NULL);
+	//	signal_handler_connect(obs_output_get_signal_handler(outputttt),
+	//		"sig_event", [](void *data, calldata_t *params){
+	//		obs_data_t *eventData = (obs_data_t *)calldata_ptr(params, "data");
+	//		blog(LOG_DEBUG, "AAAAAAA %lld", obs_data_get_int(eventData, "event_type"));
+	//	},
+	//		this);
+	//	obs_data_release(setting);
+	//	obs_output_start(outputttt);
+	//	blog(LOG_INFO, "output start complete");
+	//});
 
-	QPushButton *btn1 = new QPushButton("stop", w);
-	btn1->move(100, 0);
-	btn1->setVisible(true);
-	connect(btn1, &QPushButton::clicked, this, [=]() {
-		//obs_output_force_stop(outputttt);
-		obs_output_pause(outputHandler->streamOutput, false);
-		obs_output_release(outputttt);
-	});
+	//QPushButton *btn1 = new QPushButton("stop", w);
+	//btn1->move(100, 0);
+	//btn1->setVisible(true);
+	//connect(btn1, &QPushButton::clicked, this, [=]() {
+	//	//obs_output_force_stop(outputttt);
+	//	obs_output_pause(outputHandler->streamOutput, false);
+	//	obs_output_release(outputttt);
+	//});
 
-	QPushButton *btn2 = new QPushButton("connect", w);
-	btn2->move(0, 20);
-	btn2->setVisible(true);
-	connect(btn2, &QPushButton::clicked, this, [=]() {
-		QJsonObject obj;
-		obj["roomId"] = 222222;
-		obj["userId"] = "222222";
+	//QPushButton *btn2 = new QPushButton("connect", w);
+	//btn2->move(0, 20);
+	//btn2->setVisible(true);
+	//connect(btn2, &QPushButton::clicked, this, [=]() {
+	//	QJsonObject obj;
+	//	obj["roomId"] = 222222;
+	//	obj["userId"] = "222222";
 
-		obs_data_t *data = obs_data_create();
-		obs_data_set_string(data, "func", "connectOtherRoom");
-		obs_data_set_string(data, "param",
-				    QJsonDocument(obj).toJson().data());
-		QString dd = obs_data_get_string(data, "param");
-		obs_output_call_function(outputttt, data);
-		obs_data_release(data);
-	});
+	//	obs_data_t *data = obs_data_create();
+	//	obs_data_set_string(data, "func", "connectOtherRoom");
+	//	obs_data_set_string(data, "param",
+	//			    QJsonDocument(obj).toJson().data());
+	//	QString dd = obs_data_get_string(data, "param");
+	//	obs_output_call_function(outputttt, data);
+	//	obs_data_release(data);
+	//});
 
 	obs_source_set_destroy_handler(source_destroy_handler);
 	obs_sceneitem_set_destroy_handler(sceneitem_destroy_handler);

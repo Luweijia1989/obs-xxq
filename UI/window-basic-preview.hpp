@@ -79,9 +79,6 @@ private:
 					 obs_sceneitem_t *item, void *param);
 	static bool DrawSelectedItem(obs_scene_t *scene, obs_sceneitem_t *item,
 				     void *param);
-
-	static bool DrawResizeItem(obs_scene_t *scene, obs_sceneitem_t *item,
-				   void *param);
 	static bool DrawSelectionBox(float x1, float y1, float x2, float y2,
 				     gs_vertbuffer_t *box);
 
@@ -106,6 +103,10 @@ private:
 	void BoxItems(const vec2 &startPos, const vec2 &pos);
 
 	void ProcessClick(const vec2 &pos);
+	bool needProcessMouse();
+
+protected:
+	bool nativeEvent(const QByteArray &eventType, void *message, long *result) override;
 
 public:
 	OBSBasicPreview(QWidget *parent, Qt::WindowFlags flags = 0);

@@ -519,6 +519,9 @@ void OBSBasicPreview::wheelEvent(QWheelEvent *event)
 
 void OBSBasicPreview::mousePressEvent(QMouseEvent *event)
 {
+	if (!needProcessMouse())
+		return;
+
 	if (scrollMode && IsFixedScaling() &&
 	    event->button() == Qt::LeftButton) {
 		setCursor(Qt::ClosedHandCursor);
@@ -636,6 +639,9 @@ void OBSBasicPreview::ProcessClick(const vec2 &pos)
 
 void OBSBasicPreview::mouseReleaseEvent(QMouseEvent *event)
 {
+	if (!needProcessMouse())
+		return;
+
 	if (scrollMode)
 		setCursor(Qt::OpenHandCursor);
 
@@ -1419,6 +1425,9 @@ void OBSBasicPreview::StretchItem(const vec2 &pos)
 
 void OBSBasicPreview::mouseMoveEvent(QMouseEvent *event)
 {
+	if (!needProcessMouse())
+		return;
+
 	if (scrollMode && event->buttons() == Qt::LeftButton) {
 		scrollingOffset.x += event->x() - scrollingFrom.x;
 		scrollingOffset.y += event->y() - scrollingFrom.y;
@@ -1663,174 +1672,7 @@ bool OBSBasicPreview::DrawSelectedOverflow(obs_scene_t *scene,
 	UNUSED_PARAMETER(scene);
 	return true;
 }
-bool OBSBasicPreview::DrawResizeItem(obs_scene_t *scene, obs_sceneitem_t *item,
-				     void *param)
-{
 
-	OBSBasicPreview *prev = reinterpret_cast<OBSBasicPreview *>(param);
-
-	/*if (prev->resizable)*/ {
-		OBSBasic *main = OBSBasic::Get();
-		obs_transform_info info;
-		obs_sceneitem_get_info(item, &info);
-
-		float x = info.pos.x;
-		float y = info.pos.y;
-
-		obs_scene_t *currentScene = obs_sceneitem_get_scene(item);
-		if (currentScene) {
-			obs_sceneitem_t *groupItem =
-				obs_sceneitem_get_group(scene, item);
-			if (groupItem) {
-				obs_transform_info infoTop;
-				obs_sceneitem_get_info(groupItem, &infoTop);
-				x += infoTop.pos.x;
-				y += infoTop.pos.y;
-			}
-		}
-
-		// 尺寸
-		float sourceWidth = 0.0;
-		float sourceHeight = 0.0;
-		if (info.bounds_type == OBS_BOUNDS_NONE) {
-			obs_source_t *source = obs_sceneitem_get_source(item);
-
-			sourceWidth = abs(info.scale.x *
-					  float(obs_source_get_width(source)));
-			sourceHeight =
-				abs(info.scale.x *
-				    float(obs_source_get_height(source)));
-		} else {
-			sourceWidth = info.bounds.x;
-			sourceHeight = info.bounds.y;
-		}
-
-		uint32_t viewWidth, viewHeight;
-		obs_display_size(prev->GetDisplay(), &viewWidth, &viewHeight);
-		float right = float(viewWidth) - main->previewX;
-		float bottom = float(viewHeight) - main->previewY;
-		gs_ortho(0, right, 0, bottom, -100.0f, 100.0f);
-
-		if (obs_sceneitem_selected(item)) {
-			matrix4 boxTransform;
-			obs_sceneitem_get_box_transform(item, &boxTransform);
-
-			vec4 green;
-			vec4_set(&green, 0.0f, 1.0f, 0.0f, 1.0f);
-
-			GS_DEBUG_MARKER_BEGIN(GS_DEBUG_COLOR_DEFAULT,
-					      "DrawResizeItem2");
-
-			matrix4 curTransform;
-			vec2 boxScale;
-			gs_matrix_get(&curTransform);
-			obs_sceneitem_get_box_scale(item, &boxScale);
-			boxScale.x *= curTransform.x.x;
-			boxScale.y *= curTransform.y.y;
-
-			vec2 lastBoxScale;
-			obs_sceneitem_get_box_scale(prev->stretchItem,
-						    &lastBoxScale);
-			lastBoxScale.x *= curTransform.x.x;
-			lastBoxScale.y *= curTransform.y.y;
-
-			obs_transform_info info;
-			obs_sceneitem_get_info(item, &info);
-
-			gs_matrix_push();
-			gs_matrix_mul(&boxTransform);
-			gs_matrix_pop();
-			float x = main->previewX +
-				  int(info.pos.x) * main->previewScale;
-
-			float y = main->previewY +
-				  int(info.pos.y) * main->previewScale;
-			if (boxTransform.x.x < 0)
-				x = x + boxTransform.x.x * main->previewScale;
-
-			if (boxTransform.y.y < 0)
-				y = y + boxTransform.y.y * main->previewScale;
-
-			/*gs_draw_text_and_markline(
-				QString::number(int(sourceWidth))
-					.toStdString()
-					.data(),
-				x, y - 36.0f, right / main->previewScale,
-				bottom / main->previewScale,
-				int(sourceWidth) * main->previewScale, false);
-
-			gs_draw_text_and_markline(
-				QString::number(int(sourceHeight))
-					.toStdString()
-					.data(),
-				x - 62.0f, y, right / main->previewScale,
-				bottom / main->previewScale,
-				int(sourceHeight) * main->previewScale, true);
-
-			gs_draw_text(
-				QString("%1*%2")
-					.arg(int(sourceWidth))
-					.arg(int(sourceHeight))
-					.toStdString()
-					.data(),
-				main->previewX + int(prev->mousePos.x) *
-							 main->previewScale,
-				main->previewY + int(prev->mousePos.y) *
-							 main->previewScale,
-				right / main->previewScale,
-				bottom / main->previewScale);*/
-		} else {
-			obs_transform_info baseInfo;
-			obs_sceneitem_get_info(prev->stretchItem, &baseInfo);
-			float baseWidth = 0.0;
-			float baseHeight = 0.0;
-			if (baseInfo.bounds_type == OBS_BOUNDS_NONE) {
-				obs_source_t *src = obs_sceneitem_get_source(
-					prev->stretchItem);
-
-				baseWidth =
-					abs(baseInfo.scale.x *
-					    float(obs_source_get_width(src)));
-				baseHeight =
-					abs(baseInfo.scale.x *
-					    float(obs_source_get_height(src)));
-			} else {
-				baseWidth = baseInfo.bounds.x;
-				baseHeight = baseInfo.bounds.y;
-			}
-
-			/*if (int(baseWidth) == int(sourceWidth))
-				gs_draw_text_and_markline(
-					QString::number(int(sourceWidth))
-						.toStdString()
-						.data(),
-					main->previewX +
-						int(info.pos.x) *
-							main->previewScale,
-					main->previewY +
-						int(info.pos.y - 36.0) *
-							main->previewScale,
-					right, bottom, int(sourceWidth), false);
-
-			if (int(baseHeight) == int(sourceHeight))
-				gs_draw_text_and_markline(
-					QString::number(int(sourceHeight))
-						.toStdString()
-						.data(),
-					main->previewX +
-						int(info.pos.x - 62) *
-							main->previewScale,
-					main->previewY +
-						int(info.pos.y) *
-							main->previewScale,
-					right, bottom, int(sourceHeight), true);*/
-		}
-	}
-
-	UNUSED_PARAMETER(scene);
-	UNUSED_PARAMETER(param);
-	return true;
-}
 bool OBSBasicPreview::DrawSelectedItem(obs_scene_t *scene,
 				       obs_sceneitem_t *item, void *param)
 {
@@ -2065,7 +1907,6 @@ void OBSBasicPreview::DrawSceneEditing()
 		gs_matrix_push();
 		gs_matrix_scale3f(main->previewScale, main->previewScale, 1.0f);
 		obs_scene_enum_items(scene, DrawSelectedItem, this);
-		obs_scene_enum_items(scene, DrawResizeItem, this);
 		gs_matrix_pop();
 	}
 
@@ -2128,6 +1969,8 @@ void OBSBasicPreview::initIMGui(void *device, void *context, void *data)
 	IMGUI_CHECKVERSION();
 	ImGui::CreateContext();
 	ImGuiIO &io = ImGui::GetIO();
+	io.WantCaptureMouse = true;
+	io.WantCaptureKeyboard = true;
 	(void)io;
 	//io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
 	//io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
@@ -2152,4 +1995,25 @@ void OBSBasicPreview::DrawTest()
 	// Rendering
 	ImGui::Render();
 	ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
+}
+#include <windows.h>
+#include <QDebug>
+extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
+bool OBSBasicPreview::nativeEvent(const QByteArray &eventType, void *message, long *result)
+{
+	if (eventType == "windows_generic_MSG") {
+		MSG *msg = static_cast<MSG *>(message);
+		ImGui_ImplWin32_WndProcHandler(msg->hwnd, msg->message, msg->wParam, msg->lParam);
+	}
+
+	return OBSQTDisplay::nativeEvent(eventType, message, result);
+}
+
+bool OBSBasicPreview::needProcessMouse()
+{
+	if (ImGui::GetCurrentContext() == NULL)
+		return true;
+
+	ImGuiIO &io = ImGui::GetIO();
+	return !io.WantCaptureMouse;
 }
