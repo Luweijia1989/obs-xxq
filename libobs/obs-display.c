@@ -1,4 +1,4 @@
-﻿/******************************************************************************
+/******************************************************************************
     Copyright (C) 2013 by Hugh Bailey <obs.jim@gmail.com>
 
     This program is free software: you can redistribute it and/or modify
@@ -52,7 +52,7 @@ bool obs_display_init(struct obs_display *display,
 }
 
 obs_display_t *obs_display_create(const struct gs_init_data *graphics_data,
-				  uint32_t background_color)
+				  uint32_t background_color, void(*imgui_init)(void *device, void *context, void *data), void *p)
 {
 	struct obs_display *display = bzalloc(sizeof(struct obs_display));
 
@@ -72,6 +72,8 @@ obs_display_t *obs_display_create(const struct gs_init_data *graphics_data,
 			display->next->prev_next = &display->next;
 		pthread_mutex_unlock(&obs->data.displays_mutex);
 	}
+
+	gs_init_imgui(imgui_init, p);
 
 	gs_leave_context();
 

@@ -3542,7 +3542,7 @@ void OBSBasic::RenderMain(void *data, uint32_t cx, uint32_t cy)
 	gs_viewport_pop();
 
 	GS_DEBUG_MARKER_END();
-
+	window->ui->preview->DrawTest();
 	UNUSED_PARAMETER(cx);
 	UNUSED_PARAMETER(cy);
 }

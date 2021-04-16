@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include <obs.hpp>
 #include <graphics/vec2.h>
@@ -112,6 +112,7 @@ public:
 	~OBSBasicPreview();
 
 	static OBSBasicPreview *Get();
+	static void initIMGui(void *device, void *context, void *data);
 
 	virtual void keyPressEvent(QKeyEvent *event) override;
 	virtual void keyReleaseEvent(QKeyEvent *event) override;
@@ -125,6 +126,7 @@ public:
 
 	void DrawOverflow();
 	void DrawSceneEditing();
+	void DrawTest();
 
 	inline void SetLocked(bool newLockedVal) { locked = newLockedVal; }
 	inline void ToggleLocked() { locked = !locked; }

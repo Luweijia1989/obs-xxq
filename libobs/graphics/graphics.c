@@ -1,4 +1,4 @@
-﻿/******************************************************************************
+/******************************************************************************
     Copyright (C) 2013 by Hugh Bailey <obs.jim@gmail.com>
 
     This program is free software: you can redistribute it and/or modify
@@ -2740,6 +2740,15 @@ void gs_debug_marker_end(void)
 
 	thread_graphics->exports.device_debug_marker_end(
 		thread_graphics->device);
+}
+
+void gs_init_imgui(void(*callback)(void *device, void *context, void *data), void *p)
+{
+	if (!gs_valid("gs_init_imgui"))
+		return;
+
+	if (thread_graphics->exports.device_init_imgui)
+		thread_graphics->exports.device_init_imgui(thread_graphics->device, callback, p);
 }
 
 #ifdef __APPLE__

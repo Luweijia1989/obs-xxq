@@ -790,7 +790,7 @@ EXPORT void obs_view_render(obs_view_t *view, void *output_order);
  */
 EXPORT obs_display_t *
 obs_display_create(const struct gs_init_data *graphics_data,
-		   uint32_t backround_color);
+		   uint32_t backround_color, void(*imgui_init)(void *device, void *context, void *data), void *p);
 
 /** Destroys a display context */
 EXPORT void obs_display_destroy(obs_display_t *display);
@@ -1490,7 +1490,7 @@ EXPORT bool obs_scene_reorder_items(obs_scene_t *scene,
 				    obs_sceneitem_t *const *item_order,
 				    size_t item_order_size);
 
-EXPORT bool obs_scene_remove_items(obs_scene_t *scene);
+EXPORT void obs_scene_remove_items(obs_scene_t *scene);
 
 struct obs_sceneitem_order_info {
 	obs_sceneitem_t *group;

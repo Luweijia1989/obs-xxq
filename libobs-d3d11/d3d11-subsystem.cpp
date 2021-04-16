@@ -1,4 +1,4 @@
-﻿/******************************************************************************
+/******************************************************************************
     Copyright (C) 2013 by Hugh Bailey <obs.jim@gmail.com>
 
     This program is free software: you can redistribute it and/or modify
@@ -2975,6 +2975,14 @@ extern "C" EXPORT void device_debug_marker_begin(gs_device_t *,
 extern "C" EXPORT void device_debug_marker_end(gs_device_t *)
 {
 	D3DPERF_EndEvent();
+}
+
+extern "C" EXPORT void device_init_imgui(gs_device_t *device, void(*callback)(void *, void *, void *), void *p)
+{
+	if (!callback)
+		return;
+
+	callback(device->device, device->context, p);
 }
 
 extern "C" EXPORT gs_texture_t *

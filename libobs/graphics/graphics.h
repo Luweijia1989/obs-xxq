@@ -1,4 +1,4 @@
-﻿/******************************************************************************
+/******************************************************************************
     Copyright (C) 2013 by Hugh Bailey <obs.jim@gmail.com>
 
     This program is free software: you can redistribute it and/or modify
@@ -824,6 +824,7 @@ EXPORT void gs_debug_marker_begin_format(const float color[4],
 					 const char *format, ...);
 EXPORT void gs_debug_marker_end(void);
 
+EXPORT void gs_init_imgui(void(*callback)(void *device, void *context, void *data), void *p);
 #ifdef __APPLE__
 
 /** platform specific function for creating (GL_TEXTURE_RECTANGLE) textures

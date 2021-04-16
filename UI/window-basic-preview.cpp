@@ -11,6 +11,10 @@
 #include "obs-app.hpp"
 #include "platform.hpp"
 
+#include "imgui.h"
+#include "imgui_impl_win32.h"
+#include "imgui_impl_dx11.h"
+
 #define HANDLE_RADIUS 4.0f
 #define HANDLE_SEL_RADIUS (HANDLE_RADIUS * 1.5f)
 #if QT_VERSION >= QT_VERSION_CHECK(5, 6, 0)
@@ -22,6 +26,7 @@
 OBSBasicPreview::OBSBasicPreview(QWidget *parent, Qt::WindowFlags flags)
 	: OBSQTDisplay(parent, flags)
 {
+	setImGUICallback(&OBSBasicPreview::initIMGui);
 	ResetScrollingOffset();
 	setMouseTracking(true);
 }
@@ -36,6 +41,11 @@ OBSBasicPreview::~OBSBasicPreview()
 		gs_vertexbuffer_destroy(rectFill);
 
 	obs_leave_graphics();
+
+	// Cleanup
+	ImGui_ImplDX11_Shutdown();
+	ImGui_ImplWin32_Shutdown();
+	ImGui::DestroyContext();
 }
 
 vec2 OBSBasicPreview::GetMouseEventPos(QMouseEvent *event)
@@ -2110,4 +2120,36 @@ void OBSBasicPreview::SetScalingAmount(float newScalingAmountVal)
 OBSBasicPreview *OBSBasicPreview::Get()
 {
 	return OBSBasic::Get()->ui->preview;
+}
+
+void OBSBasicPreview::initIMGui(void *device, void *context, void *data)
+{
+	auto view = static_cast<OBSBasicPreview *>(data);
+	IMGUI_CHECKVERSION();
+	ImGui::CreateContext();
+	ImGuiIO &io = ImGui::GetIO();
+	(void)io;
+	//io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
+	//io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
+
+	// Setup Dear ImGui style
+	ImGui::StyleColorsDark();
+	//ImGui::StyleColorsClassic();
+
+	// Setup Platform/Renderer backends
+	ImGui_ImplWin32_Init((HWND)(view->winId()));
+	ImGui_ImplDX11_Init((ID3D11Device *)device, (ID3D11DeviceContext*)context);
+}
+
+void OBSBasicPreview::DrawTest()
+{
+	// Start the Dear ImGui frame
+	ImGui_ImplDX11_NewFrame();
+	ImGui_ImplWin32_NewFrame();
+	ImGui::NewFrame();
+	bool show_demo_window = true;
+	ImGui::ShowDemoWindow(&show_demo_window);
+	// Rendering
+	ImGui::Render();
+	ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
 }

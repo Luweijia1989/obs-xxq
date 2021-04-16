@@ -2377,7 +2377,7 @@ void obs_scene_atomic_update(obs_scene_t *scene,
 	obs_scene_release(scene);
 }
 
-bool obs_scene_remove_items(obs_scene_t *scene)
+void obs_scene_remove_items(obs_scene_t *scene)
 {
 	if (!scene)
 		return;
