@@ -107,10 +107,7 @@ void STThread::run()
 
 	ctx->makeCurrent(surface);
 	delete m_fbo;
-	if (m_backgroundTexture) {
-		m_backgroundTexture->destroy();
-		delete m_backgroundTexture;
-	}
+	deleteTextures();
 	m_strawberryTexture->destroy();
 	delete m_strawberryTexture;
 	m_bombTexture->destroy();
@@ -192,10 +189,7 @@ void STThread::processImage(uint8_t **data, int *linesize, quint64 ts)
 	}
 
 	if (!m_backgroundTexture || m_videoFrameSizeChanged) {
-		if (m_backgroundTexture) {
-			m_backgroundTexture->destroy();
-			delete m_backgroundTexture;
-		}
+		deleteTextures();
 
 		m_backgroundTexture =
 			new QOpenGLTexture(QOpenGLTexture::Target2D);
@@ -203,16 +197,7 @@ void STThread::processImage(uint8_t **data, int *linesize, quint64 ts)
 		m_backgroundTexture->setFormat(QOpenGLTexture::RGBA8_UNorm);
 		m_backgroundTexture->allocateStorage();
 
-		if (m_outputTexture) {
-			m_outputTexture->destroy();
-			delete m_outputTexture;
-		}
-
-		m_outputTexture =
-			new QOpenGLTexture(QOpenGLTexture::Target2D);
-		m_outputTexture->setSize(m_frameWidth, m_frameHeight);
-		m_outputTexture->setFormat(QOpenGLTexture::RGBA8_UNorm);
-		m_outputTexture->allocateStorage();
+		createTextures(m_frameWidth, m_frameHeight);
 	}
 
 	m_videoFrameSizeChanged = false;
@@ -220,10 +205,15 @@ void STThread::processImage(uint8_t **data, int *linesize, quint64 ts)
 	m_backgroundTexture->setData(QOpenGLTexture::RGBA,QOpenGLTexture::UInt8,m_swsRetFrame->data[0]);
 
 	m_stFunc->doFaceDetect(m_swsRetFrame->data[0], m_frameWidth,  m_frameHeight, flip);
-	if (needSticker)
-		m_stFunc->doFaceSticker(m_backgroundTexture->textureId(), m_outputTexture->textureId(), m_frameWidth, m_frameHeight, m_dshowInput->flipH, flip);
 
-	m_stFunc->flipFaceDetect(flip, m_dshowInput->flipH, m_frameWidth, m_frameHeight);
+	QOpenGLTexture *nextSrc = m_backgroundTexture;
+	if (1) {//是否美颜
+		nextSrc = m_stFunc->doBeautify(m_backgroundTexture, m_beautify, m_makeup, m_filter, m_frameWidth, m_frameHeight, m_dshowInput->flipH, flip);
+	}
+	if (needSticker)
+		m_stFunc->doFaceSticker(nextSrc->textureId(), m_outputTexture->textureId(), m_frameWidth, m_frameHeight, m_dshowInput->flipH, flip);
+
+	m_stFunc->flipFaceDetect(flip, m_dshowInput->flipH, m_frameWidth, m_frameHeight); // 翻转得到实际的人脸关键点信息
 
 	float maskX = 0.;
 	float maskY = 0.;
@@ -273,7 +263,7 @@ void STThread::processImage(uint8_t **data, int *linesize, quint64 ts)
 	if (needSticker)
 		m_outputTexture->bind();
 	else
-		m_backgroundTexture->bind();
+		nextSrc->bind();
 
 	glActiveTexture(GL_TEXTURE1);
 	if (m_gameStickerType == Strawberry)
@@ -319,6 +309,58 @@ void STThread::processImage(uint8_t **data, int *linesize, quint64 ts)
 	m_fbo->release();
 
 	ctx->doneCurrent();
+}
+
+void STThread::deleteTextures()
+{
+	if (m_backgroundTexture) {
+		m_backgroundTexture->destroy();
+		delete m_backgroundTexture;
+		m_backgroundTexture = nullptr;
+	}
+	if (m_outputTexture) {
+		m_outputTexture->destroy();
+		delete m_outputTexture;
+		m_outputTexture = nullptr;
+	}
+	if (m_beautify) {
+		m_beautify->destroy();
+		delete m_beautify;
+		m_beautify = nullptr;
+	}
+	if (m_makeup) {
+		m_makeup->destroy();
+		delete m_makeup;
+		m_makeup = nullptr;
+	}
+	if (m_filter) {
+		m_filter->destroy();
+		delete m_filter;
+		m_filter = nullptr;
+	}
+}
+
+void STThread::createTextures(int w, int h)
+{
+	m_outputTexture = new QOpenGLTexture(QOpenGLTexture::Target2D);
+	m_outputTexture->setSize(m_frameWidth, m_frameHeight);
+	m_outputTexture->setFormat(QOpenGLTexture::RGBA8_UNorm);
+	m_outputTexture->allocateStorage();
+
+	m_beautify = new QOpenGLTexture(QOpenGLTexture::Target2D);
+	m_beautify->setSize(m_frameWidth, m_frameHeight);
+	m_beautify->setFormat(QOpenGLTexture::RGBA8_UNorm);
+	m_beautify->allocateStorage();
+
+	m_makeup = new QOpenGLTexture(QOpenGLTexture::Target2D);
+	m_makeup->setSize(m_frameWidth, m_frameHeight);
+	m_makeup->setFormat(QOpenGLTexture::RGBA8_UNorm);
+	m_makeup->allocateStorage();
+
+	m_filter = new QOpenGLTexture(QOpenGLTexture::Target2D);
+	m_filter->setSize(m_frameWidth, m_frameHeight);
+	m_filter->setFormat(QOpenGLTexture::RGBA8_UNorm);
+	m_filter->allocateStorage();
 }
 
 void STThread::updateSticker(const QString &stickerId, bool isAdd)
@@ -389,8 +431,7 @@ void STThread::freeResource()
 	if (m_swsRetFrame)
 		av_frame_free(&m_swsRetFrame);
 
-	m_stFunc->freeSticker();
-	m_stFunc->freeFaceHandler();
+	m_stFunc->freeStResource();
 	delete m_stFunc;
 }
 

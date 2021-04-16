@@ -60,6 +60,8 @@ private:
 	void initVertexData();
 	void initTexture();
 	void processImage(uint8_t **data, int *linesize, quint64 ts);
+	void deleteTextures();
+	void createTextures(int w, int h);
 
 private:
 	DShowInput *m_dshowInput = nullptr;
@@ -87,6 +89,9 @@ private:
 	QOpenGLTexture *m_strawberryTexture = nullptr;
 	QOpenGLTexture *m_bombTexture = nullptr;
 	QOpenGLTexture *m_outputTexture = nullptr;
+	QOpenGLTexture *m_beautify = nullptr;
+	QOpenGLTexture *m_makeup = nullptr;
+	QOpenGLTexture *m_filter = nullptr;
 
 	QMutex m_producerMutex;
 	QWaitCondition m_producerCondition;

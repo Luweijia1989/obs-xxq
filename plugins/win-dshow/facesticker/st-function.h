@@ -9,6 +9,7 @@
 #include <vector>
 #include <QString>
 #include <QMap>
+#include <QOpenGLTexture>
 
 typedef struct BeautifyParamData {
 	QString name;
@@ -31,10 +32,10 @@ public:
 	bool doFaceSticker(unsigned int input, unsigned int output, int width, int height, bool fliph, bool flipv);
 	bool doFaceDetect(unsigned char *inputBuffer, int width, int height, bool flipv);
 	void flipFaceDetect(bool flipv, bool fliph, int width, int height);
+	QOpenGLTexture *doBeautify(QOpenGLTexture *srcTexture, QOpenGLTexture *beautify, QOpenGLTexture *makeup, QOpenGLTexture *filter, int width, int height, bool fliph, bool flipv);
 	bool initSenseTimeEnv();
 	bool stInited() { return m_stInited; }
-	void freeSticker();
-	void freeFaceHandler();
+	void freeStResource();
 	int addSticker(QString sticker);
 	void removeSticker(int id);
 	bool clearSticker();
@@ -43,6 +44,7 @@ public:
 private:
 	void iterateBeautifyJsons();
 	void loadBeautifyParam(QString name);
+	void changeOutFit();
 
 private:
 	st_handle_t m_stHandler = NULL;

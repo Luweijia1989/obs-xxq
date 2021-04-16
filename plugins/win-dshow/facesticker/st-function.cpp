@@ -60,6 +60,12 @@ bool STFunction::initSenseTimeEnv()
 		assert(ret == ST_OK);
 	}
 
+	changeOutFit();
+
+	for (int i = 0; i < gMakeupParam.size(); i++) {
+		st_mobile_makeup_set_strength_for_type(h_makeup, gMakeupParam[i].type, gMakeupParam[i].value);
+	}
+
 	ret = st_mobile_sticker_create(&m_handleSticker);
 	if (ret != ST_OK) {
 		qDebug() << "fail to init sticker handle: " << ret;
@@ -69,16 +75,18 @@ bool STFunction::initSenseTimeEnv()
 	return true;
 }
 
-void STFunction::freeSticker()
-{
-	if (m_handleSticker)
-		st_mobile_sticker_destroy(m_handleSticker);
-}
-
-void STFunction::freeFaceHandler()
+void STFunction::freeStResource()
 {
 	if (m_stHandler)
 		st_mobile_human_action_destroy(m_stHandler);
+	if (m_handleSticker)
+		st_mobile_sticker_destroy(m_handleSticker);
+	if (h_beautify)
+		st_mobile_beautify_destroy(h_beautify);
+	if (h_makeup)
+		st_mobile_makeup_destroy(h_makeup);
+	if (h_filter)
+		st_mobile_gl_filter_destroy(h_filter);
 }
 
 int STFunction::addSticker(QString sticker)
@@ -162,6 +170,30 @@ void STFunction::loadBeautifyParam(QString name)
 	}
 }
 
+void STFunction::changeOutFit()
+{
+	//int package_id = 0
+	st_result_t ret = ST_OK;
+	for (int i = 0; i < gMakeupParam.size(); ++i) {
+		std::string path = gMakeupParam[i].path.toStdString();
+		ret = st_mobile_makeup_set_makeup_for_type(h_makeup, gMakeupParam[i].type, path.c_str(), nullptr);
+		assert(ret == ST_OK);
+	}
+	for (auto iter = m_filers.begin(); iter != m_filers.end(); iter++) {
+		std::string name = iter.key().toStdString();
+		ret = st_mobile_gl_filter_set_style(h_filter, name.c_str());
+		assert(ret == ST_OK);
+		ret = st_mobile_gl_filter_set_param(h_filter, ST_GL_FILTER_STRENGTH, iter.value());
+		assert(ret == ST_OK);
+	}
+	unsigned long long beau_config = 0, makeup_config = 0;
+	ret = st_mobile_beautify_get_detect_config(h_beautify, &beau_config);
+	assert(ret == ST_OK);
+	ret = st_mobile_makeup_get_trigger_action(h_makeup, &makeup_config);
+	assert(ret == ST_OK);
+	m_detectConfig = beau_config | makeup_config | ST_MOBILE_FACE_DETECT | ST_MOBILE_MOUTH_AH;
+}
+
 bool STFunction::doFaceSticker(unsigned int input, unsigned int output, int width, int height, bool fliph, bool flipv)
 {
 	int ret = st_mobile_sticker_process_texture(
@@ -189,7 +221,7 @@ bool STFunction::doFaceDetect(unsigned char *inputBuffer, int width, int height,
 		height,
 		width * 4,
 		flipv ? ST_CLOCKWISE_ROTATE_180 : ST_CLOCKWISE_ROTATE_0,
-		ST_MOBILE_FACE_DETECT | ST_MOBILE_MOUTH_AH,
+		m_detectConfig,
 		&m_result);
 	return ret == ST_OK;
 }
@@ -204,4 +236,43 @@ void STFunction::flipFaceDetect(bool flipv, bool fliph, int width, int height)
 
 	if (fliph)
 		st_mobile_human_action_mirror(width, &m_result);
+}
+
+QOpenGLTexture *STFunction::doBeautify(QOpenGLTexture *srcTexture, QOpenGLTexture *beautify, QOpenGLTexture *makeup, QOpenGLTexture *filter, int width,
+			    int height, bool fliph, bool flipv)
+{
+	QOpenGLTexture *tex = nullptr;
+	int ret = st_mobile_beautify_process_texture(h_beautify,
+		srcTexture->textureId(),
+		width,
+		height,
+		flipv ? ST_CLOCKWISE_ROTATE_180 : ST_CLOCKWISE_ROTATE_0,
+		&m_result,
+		beautify->textureId(),
+		&m_result);
+	if (m_filers.size() == 0) {
+		ret = st_mobile_makeup_process_texture(h_makeup,
+			beautify->textureId(),
+			width,
+			height,
+			flipv ? ST_CLOCKWISE_ROTATE_180 : ST_CLOCKWISE_ROTATE_0,
+			&m_result,
+			makeup->textureId());
+		tex = makeup;
+	} else {
+		ret = st_mobile_makeup_process_texture(h_makeup,
+			beautify->textureId(),
+			width,
+			height,
+			flipv ? ST_CLOCKWISE_ROTATE_180 : ST_CLOCKWISE_ROTATE_0,
+			&m_result,
+			makeup->textureId());
+		ret = st_mobile_gl_filter_process_texture(h_filter,
+			makeup->textureId(),
+			width,
+			height,
+			filter->textureId());
+		tex = filter;
+	}
+	return tex;
 }
