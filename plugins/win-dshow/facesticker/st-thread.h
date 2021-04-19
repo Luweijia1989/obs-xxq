@@ -25,6 +25,8 @@ class QOpenGLVertexArrayObject;
 class QOpenGLFramebufferObject;
 class QOpenGLTexture;
 
+extern bool g_st_checkpass;
+
 class DShowInput;
 class STThread : public QThread, protected QOpenGLFunctions {
 	Q_OBJECT
@@ -38,7 +40,7 @@ public:
 	};
 	STThread(DShowInput *dsInput);
 	~STThread();
-	bool stInited() { return m_stFunc->stInited(); }
+	bool stInited() { return m_stFunc->stInited() && g_st_checkpass; }
 	bool needProcess();
 	void updateInfo(const char *data);
 	void updateSticker(const QString &stickerId, bool isAdd);
