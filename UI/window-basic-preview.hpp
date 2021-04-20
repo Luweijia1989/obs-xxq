@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include <obs.hpp>
 #include <graphics/vec2.h>
@@ -11,6 +11,8 @@
 
 class OBSBasic;
 class QMouseEvent;
+struct ID3D11Device;
+struct ID3D11ShaderResourceView;
 
 #define ITEM_LEFT (1 << 0)
 #define ITEM_RIGHT (1 << 1)
@@ -68,6 +70,9 @@ private:
 	int32_t scalingLevel = 0;
 	float scalingAmount = 1.0f;
 
+	ID3D11Device *m_d3dDevice = nullptr;
+	QMap<QString, ID3D11ShaderResourceView*> m_textures;
+
 	std::vector<obs_sceneitem_t *> hoveredPreviewItems;
 	std::vector<obs_sceneitem_t *> selectedItems;
 	std::mutex selectMutex;
@@ -79,9 +84,6 @@ private:
 					 obs_sceneitem_t *item, void *param);
 	static bool DrawSelectedItem(obs_scene_t *scene, obs_sceneitem_t *item,
 				     void *param);
-
-	static bool DrawResizeItem(obs_scene_t *scene, obs_sceneitem_t *item,
-				   void *param);
 	static bool DrawSelectionBox(float x1, float y1, float x2, float y2,
 				     gs_vertbuffer_t *box);
 
@@ -106,12 +108,17 @@ private:
 	void BoxItems(const vec2 &startPos, const vec2 &pos);
 
 	void ProcessClick(const vec2 &pos);
+	bool needProcessMouse();
+
+protected:
+	bool nativeEvent(const QByteArray &eventType, void *message, long *result) override;
 
 public:
 	OBSBasicPreview(QWidget *parent, Qt::WindowFlags flags = 0);
 	~OBSBasicPreview();
 
 	static OBSBasicPreview *Get();
+	static void initIMGui(void *device, void *context, void *data);
 
 	virtual void keyPressEvent(QKeyEvent *event) override;
 	virtual void keyReleaseEvent(QKeyEvent *event) override;
@@ -125,6 +132,9 @@ public:
 
 	void DrawOverflow();
 	void DrawSceneEditing();
+	void DrawTest();
+	void CreateImGuiTextures();
+	void ClearImGuiTextures();
 
 	inline void SetLocked(bool newLockedVal) { locked = newLockedVal; }
 	inline void ToggleLocked() { locked = !locked; }

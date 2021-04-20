@@ -191,6 +191,26 @@ set(obs_libffutil_HEADERS
 	../deps/libff/libff/ff-util.h
 	)
 
+include_directories(imgui)
+set(imgui_HEADERS
+    ./imgui/imconfig.h
+    ./imgui/imgui_impl_win32.h
+    ./imgui/imgui.h
+    ./imgui/imgui_internal.h
+    ./imgui/imstb_rectpack.h
+    ./imgui/imstb_textedit.h
+    ./imgui/imstb_truetype.h
+    ./imgui/imgui_impl_dx11.h)
+    
+set(imgui_SOURCES
+    ./imgui/imgui_impl_win32.cpp
+    ./imgui/imgui_demo.cpp
+    ./imgui/imgui_tables.cpp
+    ./imgui/imgui_widgets.cpp
+    ./imgui/imgui.cpp
+    ./imgui/imgui_draw.cpp
+    ./imgui/imgui_impl_dx11.cpp)
+
 if(MSVC)
 	set_source_files_properties(
 		../deps/libff/libff/ff-util.c
@@ -204,6 +224,7 @@ endif()
 set(obs_SOURCES
 	${obs_PLATFORM_SOURCES}
 	${obs_libffutil_SOURCES}
+	${imgui_SOURCES}
 	../deps/json11/json11.cpp
 	obs-app.cpp
 	window-dock.cpp
@@ -261,6 +282,7 @@ set(obs_SOURCES
 set(obs_HEADERS
 	${obs_PLATFORM_HEADERS}
 	${obs_libffutil_HEADERS}
+	${imgui_HEADERS}
 	../deps/json11/json11.hpp
 	obs-app.hpp
 	platform.hpp

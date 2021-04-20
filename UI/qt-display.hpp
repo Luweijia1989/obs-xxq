@@ -5,6 +5,8 @@
 
 #define GREY_COLOR_BACKGROUND 0xFF4C4C4C
 
+typedef void(*imgui_init_cb)(void *, void *, void *);
+
 class OBSQTDisplay : public QWidget {
 	Q_OBJECT
 	Q_PROPERTY(QColor displayBackgroundColor MEMBER backgroundColor READ
@@ -12,6 +14,7 @@ class OBSQTDisplay : public QWidget {
 				   SetDisplayBackgroundColor)
 
 	OBSDisplay display;
+	imgui_init_cb init_cb = nullptr;
 
 	void CreateDisplay();
 
@@ -35,4 +38,5 @@ public:
 	QColor GetDisplayBackgroundColor() const;
 	void SetDisplayBackgroundColor(const QColor &color);
 	void UpdateDisplayBackgroundColor();
+	void setImGUICallback(imgui_init_cb cb);
 };

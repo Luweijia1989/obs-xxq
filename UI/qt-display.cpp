@@ -76,6 +76,11 @@ void OBSQTDisplay::UpdateDisplayBackgroundColor()
 	obs_display_set_background_color(display, backgroundColor);
 }
 
+void OBSQTDisplay::setImGUICallback(imgui_init_cb cb)
+{
+	init_cb = cb;
+}
+
 void OBSQTDisplay::CreateDisplay()
 {
 	if (display || !windowHandle()->isExposed())
@@ -91,7 +96,7 @@ void OBSQTDisplay::CreateDisplay()
 
 	QTToGSWindow(winId(), info.window);
 
-	display = obs_display_create(&info, backgroundColor);
+	display = obs_display_create(&info, backgroundColor, init_cb, this);
 
 	emit DisplayCreated(this);
 }

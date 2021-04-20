@@ -1,4 +1,4 @@
-﻿/******************************************************************************
+/******************************************************************************
     Copyright (C) 2013 by Hugh Bailey <obs.jim@gmail.com>
 
     This program is free software: you can redistribute it and/or modify
@@ -275,6 +275,8 @@ struct gs_exports {
 					  const char *markername,
 					  const float color[4]);
 	void (*device_debug_marker_end)(gs_device_t *device);
+
+	void (*device_init_imgui)(gs_device_t *device, void(*callback)(void *, void *, void *), void *);
 
 #ifdef __APPLE__
 	/* OSX/Cocoa specific functions */
