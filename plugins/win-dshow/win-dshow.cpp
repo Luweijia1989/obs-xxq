@@ -170,10 +170,13 @@ void DShowInput::DShowLoop()
 						triggerDeviceFail = true;
 					}
 					deviceActivated = false;
+					obs_data_set_bool(settings, "deviceActivated", deviceActivated);
 					obs_source_output_video2(source,
 								 nullptr);
-				} else
+				} else {
 					deviceActivated = true;
+					obs_data_set_bool(settings, "deviceActivated", deviceActivated);
+				}
 			}
 
 			if (block)
@@ -185,6 +188,9 @@ void DShowInput::DShowLoop()
 		case Action::Deactivate: {
 			CriticalScope scope(deviceActivatedMutex);
 			deviceActivated = false;
+			obs_data_t *settings = obs_source_get_settings(source);
+			obs_data_set_bool(settings, "deviceActivated", deviceActivated);
+			obs_data_release(settings);
 			Deactivate();
 		} break;
 
