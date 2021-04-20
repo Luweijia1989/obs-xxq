@@ -11,6 +11,8 @@
 
 class OBSBasic;
 class QMouseEvent;
+struct ID3D11Device;
+struct ID3D11ShaderResourceView;
 
 #define ITEM_LEFT (1 << 0)
 #define ITEM_RIGHT (1 << 1)
@@ -67,6 +69,9 @@ private:
 	bool selectionBox = false;
 	int32_t scalingLevel = 0;
 	float scalingAmount = 1.0f;
+
+	ID3D11Device *m_d3dDevice = nullptr;
+	QMap<QString, ID3D11ShaderResourceView*> m_textures;
 
 	std::vector<obs_sceneitem_t *> hoveredPreviewItems;
 	std::vector<obs_sceneitem_t *> selectedItems;
@@ -128,6 +133,8 @@ public:
 	void DrawOverflow();
 	void DrawSceneEditing();
 	void DrawTest();
+	void CreateImGuiTextures();
+	void ClearImGuiTextures();
 
 	inline void SetLocked(bool newLockedVal) { locked = newLockedVal; }
 	inline void ToggleLocked() { locked = !locked; }

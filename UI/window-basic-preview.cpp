@@ -1,6 +1,9 @@
 #include <QGuiApplication>
 #include <QMouseEvent>
+#include <QDebug>
+#include <QScreen>
 
+#include <d3d11.h>
 #include <algorithm>
 #include <cmath>
 #include <string>
@@ -43,6 +46,8 @@ OBSBasicPreview::~OBSBasicPreview()
 	obs_leave_graphics();
 
 	// Cleanup
+	ClearImGuiTextures();
+
 	ImGui_ImplDX11_Shutdown();
 	ImGui_ImplWin32_Shutdown();
 	ImGui::DestroyContext();
@@ -1016,10 +1021,10 @@ static bool FindItemsInBox(obs_scene_t *scene, obs_sceneitem_t *item,
 	vec3 pos3;
 	vec3 pos3_;
 
-	float x1 = std::min(data->startPos.x, data->pos.x);
-	float x2 = std::max(data->startPos.x, data->pos.x);
-	float y1 = std::min(data->startPos.y, data->pos.y);
-	float y2 = std::max(data->startPos.y, data->pos.y);
+	float x1 = qMin(data->startPos.x, data->pos.x);
+	float x2 = qMax(data->startPos.x, data->pos.x);
+	float y1 = qMin(data->startPos.y, data->pos.y);
+	float y2 = qMax(data->startPos.y, data->pos.y);
 
 	if (!SceneItemHasVideo(item))
 		return true;
@@ -1963,6 +1968,61 @@ OBSBasicPreview *OBSBasicPreview::Get()
 	return OBSBasic::Get()->ui->preview;
 }
 
+void OBSBasicPreview::CreateImGuiTextures()
+{
+	auto func = [=](QString path) {
+		ID3D11ShaderResourceView *view = nullptr;
+		QImage or = QImage(path);
+		QImage img = or.convertToFormat(QImage::Format_RGBA8888);
+
+		D3D11_TEXTURE2D_DESC desc;
+		ZeroMemory(&desc, sizeof(desc));
+		desc.Width = 28;
+		desc.Height = 28;
+		desc.MipLevels = 1;
+		desc.ArraySize = 1;
+		desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+		desc.SampleDesc.Count = 1;
+		desc.Usage = D3D11_USAGE_DEFAULT;
+		desc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+		desc.CPUAccessFlags = 0;
+
+		ID3D11Texture2D *pTexture = NULL;
+		D3D11_SUBRESOURCE_DATA subResource;
+		subResource.pSysMem = img.constBits();
+		subResource.SysMemPitch = desc.Width * 4;
+		subResource.SysMemSlicePitch = 0;
+		m_d3dDevice->CreateTexture2D(&desc, &subResource, &pTexture);
+
+		// Create texture view
+		D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc;
+		ZeroMemory(&srvDesc, sizeof(srvDesc));
+		srvDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+		srvDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
+		srvDesc.Texture2D.MipLevels = desc.MipLevels;
+		srvDesc.Texture2D.MostDetailedMip = 0;
+		m_d3dDevice->CreateShaderResourceView(pTexture, &srvDesc,
+						      &view);
+		pTexture->Release();
+		return view;
+	};
+
+	m_textures.insert("deleteNormal", func("E:/delete.png"));
+	m_textures.insert("deleteHover", func("E:/delete_hover.png"));
+	m_textures.insert("editNormal", func("E:/edit.png"));
+	m_textures.insert("editHover", func("E:/edit_hover.png"));
+}
+
+void OBSBasicPreview::ClearImGuiTextures()
+{
+	for (auto iter = m_textures.begin(); iter != m_textures.end(); iter++) {
+		auto view = iter.value();
+		view->Release();
+	}
+
+	m_textures.clear();
+}
+
 void OBSBasicPreview::initIMGui(void *device, void *context, void *data)
 {
 	auto view = static_cast<OBSBasicPreview *>(data);
@@ -1971,39 +2031,97 @@ void OBSBasicPreview::initIMGui(void *device, void *context, void *data)
 	ImGuiIO &io = ImGui::GetIO();
 	io.WantCaptureMouse = true;
 	io.WantCaptureKeyboard = true;
-	(void)io;
 	//io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
 	//io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad;      // Enable Gamepad Controls
 
 	// Setup Dear ImGui style
-	ImGui::StyleColorsDark();
+	ImGuiStyle style;
+	ImGui::StyleColorsLight(&style);
 	//ImGui::StyleColorsClassic();
 
 	// Setup Platform/Renderer backends
 	ImGui_ImplWin32_Init((HWND)(view->winId()));
-	ImGui_ImplDX11_Init((ID3D11Device *)device, (ID3D11DeviceContext*)context);
+	ImGui_ImplDX11_Init((ID3D11Device *)device,
+			    (ID3D11DeviceContext *)context);
+	view->m_d3dDevice = (ID3D11Device *)device;
+
+	view->CreateImGuiTextures();
 }
 
 void OBSBasicPreview::DrawTest()
 {
+	auto ratio = screen()->devicePixelRatio();
 	// Start the Dear ImGui frame
 	ImGui_ImplDX11_NewFrame();
 	ImGui_ImplWin32_NewFrame();
 	ImGui::NewFrame();
-	bool show_demo_window = true;
-	ImGui::ShowDemoWindow(&show_demo_window);
+
+	ImGui::SetNextWindowPos(ImVec2(0, 0));
+	ImGui::SetNextWindowSize(ImVec2(76 * ratio, 28 * ratio));
+	ImGui::PushStyleColor(ImGuiCol_WindowBg,
+			      ImVec4(0.2588f, 0.2667f, 0.2863f, 1.0f));
+	ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
+	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, 0));
+	ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(0, 0));
+	ImGui::PushStyleVar(ImGuiStyleVar_WindowMinSize, ImVec2(0, 0));
+	ImGui::Begin("Hello, world!", nullptr,
+		     ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove |
+			     ImGuiWindowFlags_NoResize |
+			     ImGuiWindowFlags_NoScrollbar);
+
+	ImGui::SetCursorPos(ImVec2(8 * ratio, 0));
+	ImGui::Image(m_textures["deleteNormal"],
+		     ImVec2(28 * ratio, 28 * ratio));
+	ImGui::SetItemAllowOverlap();
+	if (ImGui::IsItemHovered(
+		    ImGuiHoveredFlags_AllowWhenBlockedByActiveItem)) {
+		ImGui::SetCursorPos(ImVec2(8 * ratio, 0));
+		if (ImGui::ImageButton(m_textures["deleteHover"],
+				       ImVec2(28 * ratio, 28 * ratio),
+				       ImVec2(0.0f, 0.0f), ImVec2(1.0f, 1.0f),
+				       0,
+				       ImVec4(0.2588f, 0.2667f, 0.2863f, 1.0f),
+				       ImVec4(1.0f, 1.0f, 1.0f, 1.0f))) {
+			qDebug() << "AAAAAAAAAAAA";
+		}
+	}
+
+	ImGui::SetCursorPos(ImVec2(40 * ratio, 0));
+	ImGui::Image(m_textures["editNormal"],
+		     ImVec2(28 * ratio, 28 * ratio));
+	ImGui::SetItemAllowOverlap();
+	if (ImGui::IsItemHovered(
+		    ImGuiHoveredFlags_AllowWhenBlockedByActiveItem)) {
+		ImGui::SetCursorPos(ImVec2(40 * ratio, 0));
+		if (ImGui::ImageButton(m_textures["editHover"],
+				       ImVec2(28 * ratio, 28 * ratio),
+				       ImVec2(0.0f, 0.0f), ImVec2(1.0f, 1.0f),
+				       0,
+				       ImVec4(0.2588f, 0.2667f, 0.2863f, 1.0f),
+				       ImVec4(1.0f, 1.0f, 1.0f, 1.0f))) {
+			qDebug() << "AAAAAAAAAAAA";
+		}
+	}
+
+	ImGui::PopStyleVar(4);
+	ImGui::PopStyleColor();
+	ImGui::End();
 	// Rendering
 	ImGui::Render();
 	ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
 }
 #include <windows.h>
-#include <QDebug>
-extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
-bool OBSBasicPreview::nativeEvent(const QByteArray &eventType, void *message, long *result)
+extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd,
+							     UINT msg,
+							     WPARAM wParam,
+							     LPARAM lParam);
+bool OBSBasicPreview::nativeEvent(const QByteArray &eventType, void *message,
+				  long *result)
 {
 	if (eventType == "windows_generic_MSG") {
 		MSG *msg = static_cast<MSG *>(message);
-		ImGui_ImplWin32_WndProcHandler(msg->hwnd, msg->message, msg->wParam, msg->lParam);
+		ImGui_ImplWin32_WndProcHandler(msg->hwnd, msg->message,
+					       msg->wParam, msg->lParam);
 	}
 
 	return OBSQTDisplay::nativeEvent(eventType, message, result);
