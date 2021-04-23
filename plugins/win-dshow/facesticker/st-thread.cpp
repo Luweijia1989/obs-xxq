@@ -489,7 +489,7 @@ void STThread::initShader()
 					    uniform bool needMask;
                                             void main()
                                             {
-                                                vec4 imageColor = texture(image, TexCoords);
+                                                vec4 imageColor = vec4(texture(image, TexCoords).rgb, 1);
 
                                                 if (needMask && mainPosition.x >= leftTop.x && mainPosition.y <= leftTop.y && mainPosition.x <= leftTop.x + maskSize.x && mainPosition.y >= leftTop.y + maskSize.y) {
                                                     vec4 maskCoords = flipMatrix * vec4((mainPosition.x - leftTop.x) / maskSize.x, (mainPosition.y - leftTop.y) / maskSize.y, 1.0, 1.0);
