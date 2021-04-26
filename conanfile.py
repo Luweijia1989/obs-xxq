@@ -184,6 +184,7 @@ class ObsXXQConan(ConanFile):
         self.copy("*.*", dst="plugins/data/obs-plugins/win-mf", src="plugins/win-mf/data", keep_path=True)
         self.copy("*.*", dst="plugins/data/obs-plugins/win-wasapi", src="plugins/win-wasapi/data", keep_path=True)
         self.copy("*.*", dst="plugins/data/obs-plugins/win-capture", src="win-capture-data", keep_path=True)
+        self.copy("*.*", dst="plugins/data/obs-plugins/enc-amf", src="plugins/enc-amf/resources", keep_path=True)
         
         if self.settings.build_type!="Debug":
             os.system("cd signtool && python sign.py " + self.package_folder)
