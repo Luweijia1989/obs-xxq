@@ -2320,7 +2320,7 @@ void OBSBasic::ClearHotkeys()
 }
 
 OBSBasic::~OBSBasic()
-{ 
+{
 	if (updateCheckThread && updateCheckThread->isRunning())
 		updateCheckThread->wait();
 
