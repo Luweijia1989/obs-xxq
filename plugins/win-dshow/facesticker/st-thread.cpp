@@ -19,6 +19,7 @@
 #include <QOpenGLShaderProgram>
 #include <QOpenGLTexture>
 #include <QOpenGLFramebufferObjectFormat>
+#include <QOpenGLExtraFunctions>
 #include "..\win-dshow.h"
 
 extern video_format ConvertVideoFormat(DShow::VideoFormat format);
@@ -113,6 +114,8 @@ void STThread::run()
 	m_bombTexture->destroy();
 	delete m_bombTexture;
 
+	deletePBO();
+
 	delete m_shader;
 	delete m_vao;
 	delete ctx;
@@ -178,26 +181,25 @@ void STThread::processImage(uint8_t **data, int *linesize, quint64 ts)
 			    m_swsRetFrame->data, m_swsRetFrame->linesize);
 
 	ctx->makeCurrent(surface);
-	if (!m_fbo || m_videoFrameSizeChanged) {
+	if (m_videoFrameSizeChanged) {
 		if (m_fbo)
 			delete m_fbo;
 
-		QOpenGLFramebufferObjectFormat format;
-		format.setInternalTextureFormat(GL_RGBA);
-		m_fbo = new QOpenGLFramebufferObject(m_frameWidth, m_frameHeight,
-						     format);
-	}
+		m_fbo = new QOpenGLFramebufferObject(m_frameWidth, m_frameHeight);
 
-	if (!m_backgroundTexture || m_videoFrameSizeChanged) {
 		deleteTextures();
 
-		m_backgroundTexture =
-			new QOpenGLTexture(QOpenGLTexture::Target2D);
+		m_backgroundTexture = new QOpenGLTexture(QOpenGLTexture::Target2D);
 		m_backgroundTexture->setSize(m_frameWidth, m_frameHeight);
 		m_backgroundTexture->setFormat(QOpenGLTexture::RGBA8_UNorm);
 		m_backgroundTexture->allocateStorage();
 
 		createTextures(m_frameWidth, m_frameHeight);
+
+		m_textureBufferSize = m_frameWidth * m_frameHeight * 4;
+
+		deletePBO();
+		createPBO();
 	}
 
 	m_videoFrameSizeChanged = false;
@@ -276,6 +278,8 @@ void STThread::processImage(uint8_t **data, int *linesize, quint64 ts)
 	m_shader->bind();
 	{
 		QMatrix4x4 model;
+		model.scale(1, -1);
+
 		QMatrix4x4 flipMatrix;
 
 		if (m_dshowInput->flipH) {
@@ -299,10 +303,24 @@ void STThread::processImage(uint8_t **data, int *linesize, quint64 ts)
 		glDrawArrays(GL_TRIANGLES, 0, 6);
 	}
 
-	QImage i = m_fbo->toImage();
-	m_dshowInput->OutputFrame(false, false, DShow::VideoFormat::ARGB,
-				  (unsigned char *)i.constBits(),
-				  i.sizeInBytes(), ts, 0);
+	static int index = 0;
+	int nextIndex = 0; // pbo index used for next frame
+	index = (index + 1) % 2;
+	nextIndex = (index + 1) % 2;
+
+	QOpenGLExtraFunctions *extraFuncs = ctx->extraFunctions();
+	extraFuncs->glReadBuffer(GL_COLOR_ATTACHMENT0);
+
+	m_pbos[index]->bind();
+	glReadPixels(0, 0, m_frameWidth, m_frameHeight, GL_BGRA, GL_UNSIGNED_BYTE, NULL);
+	m_pbos[index]->release();
+	m_pbos[nextIndex]->bind();
+	auto src = m_pbos[nextIndex]->map(QOpenGLBuffer::ReadOnly);
+	if (src) {
+		m_dshowInput->OutputFrame(false, false, DShow::VideoFormat::ARGB, (unsigned char *)src, m_textureBufferSize, ts, 0);
+		m_pbos[nextIndex]->unmap();
+	}
+	m_pbos[nextIndex]->release();
 
 	m_vao->release();
 	m_shader->release();
@@ -361,6 +379,30 @@ void STThread::createTextures(int w, int h)
 	m_filter->setSize(m_frameWidth, m_frameHeight);
 	m_filter->setFormat(QOpenGLTexture::RGBA8_UNorm);
 	m_filter->allocateStorage();
+}
+
+void STThread::createPBO()
+{
+	for (int i=0; i<2; i++)
+	{
+		QOpenGLBuffer *pbo = new QOpenGLBuffer(QOpenGLBuffer::PixelPackBuffer);
+		pbo->create();
+		pbo->bind();
+		pbo->allocate(m_textureBufferSize);
+		m_pbos.append(pbo);
+	}
+}
+
+void STThread::deletePBO()
+{
+	if (m_pbos.isEmpty())
+		return;
+
+	for (int i = 0; i < 2; i++) {
+		m_pbos[i]->destroy();
+		delete m_pbos[i];
+	}
+	m_pbos.clear();
 }
 
 void STThread::updateSticker(const QString &stickerId, bool isAdd)

@@ -24,6 +24,7 @@ class QOpenGLShaderProgram;
 class QOpenGLVertexArrayObject;
 class QOpenGLFramebufferObject;
 class QOpenGLTexture;
+class QOpenGLBuffer;
 
 extern bool g_st_checkpass;
 
@@ -64,6 +65,8 @@ private:
 	void processImage(uint8_t **data, int *linesize, quint64 ts);
 	void deleteTextures();
 	void createTextures(int w, int h);
+	void createPBO();
+	void deletePBO();
 
 private:
 	DShowInput *m_dshowInput = nullptr;
@@ -94,6 +97,8 @@ private:
 	QOpenGLTexture *m_beautify = nullptr;
 	QOpenGLTexture *m_makeup = nullptr;
 	QOpenGLTexture *m_filter = nullptr;
+	quint64 m_textureBufferSize;
+	QVector<QOpenGLBuffer*> m_pbos; 
 
 	QMutex m_producerMutex;
 	QWaitCondition m_producerCondition;
