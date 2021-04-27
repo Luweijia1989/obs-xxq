@@ -1,4 +1,4 @@
-﻿if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/libdshowcapture/dshowcapture.hpp")
+if(NOT EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/libdshowcapture/dshowcapture.hpp")
 	message(STATUS "libdshowcapture submodule not found!  Please fetch submodules.  win-dshow plugin disabled.")
 	return()
 endif()
@@ -9,7 +9,6 @@ find_package(FFmpeg REQUIRED COMPONENTS avcodec avutil swscale)
 find_package(Qt5Widgets REQUIRED)
 include_directories(${FFMPEG_INCLUDE_DIRS})
 include_directories(SYSTEM "${CMAKE_CURRENT_SOURCE_DIR}/facesticker/sensetime/include")
-include_directories(SYSTEM "${CMAKE_CURRENT_SOURCE_DIR}/facesticker/opengl/include")
 
 set(CMAKE_AUTOMOC TRUE)
 
@@ -30,8 +29,7 @@ set(win-dshow_SOURCES
 	dshow-plugin.cpp
 	ffmpeg-decode.c
 	facesticker/st-function.cpp
-	facesticker/st-thread.cpp
-	facesticker/st-thread-opengl.cpp)
+	facesticker/st-thread.cpp)
 
 set(libdshowcapture_SOURCES
 	libdshowcapture/source/capture-filter.cpp
@@ -75,8 +73,6 @@ target_link_libraries(win-dshow
 	ksuser
 	wmcodecdspuuid
 	"${CMAKE_CURRENT_SOURCE_DIR}/facesticker/sensetime/libs/st_mobile.lib"
-	"${CMAKE_CURRENT_SOURCE_DIR}/facesticker/opengl/libs/gl3w.lib"
-	"${CMAKE_CURRENT_SOURCE_DIR}/facesticker/opengl/libs/glfw3.lib"
 	${FFMPEG_LIBRARIES})
 
 install_obs_plugin_with_data(win-dshow data)

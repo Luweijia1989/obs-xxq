@@ -1,29 +1,44 @@
-﻿#ifndef ST_MOBILE_INCLUDE_HELPER_H_
+#ifndef ST_MOBILE_INCLUDE_HELPER_H_
 #define ST_MOBILE_INCLUDE_HELPER_H_
 #include <string.h>
 
-const char* face_model = "M_SenseME_Face_Video_5.3.3.model";
-const char* hand_model = "M_SenseME_Hand_5.4.0.model";
-const char* segment_model = "M_SenseME_Segment_1.5.0.model";
-const char* body14_model = "M_SenseME_Body_5.5.6.model";
-const char* body_contour_model = "M_SenseME_Body_Contour_77_1.2.2.model";
-const char* face_extra_model = "M_SenseME_Face_Extra_5.23.0.model";
-const char* eyeball_model = "M_SenseME_Iris_2.0.0.model";
-const char* body4_model = "M_SenseME_Body_Four_1.0.0.model";
-const char* body8_model = "body8.model";
-const char* hair_model = "M_Segment_4x_Hair_1.2.1.model";
-const char* tongue_model = "M_Align_DeepFace_Tongue_1.0.0.model";
-const char* avatar_helper_model = "M_SenseME_Avatar_Help_2.0.0.model";
-const char* avatar_model = "M_SenseME_Avatar_Core_2.0.0.model";
-const char* gaze_model = "M_Gaze_GazeTracking_Gray_2.1.3.model";
-const char* dynamic_gesture_model = "M_SenseME_Hand_Dynamic_Gesture_1.0.0.model";
-const char* hand_skeleton_model = "M_SenseME_Hand_Skeleton_2d_1.4.0.model";
-const char* multi_segment_model = "M_SenseME_Segment_Multiclass_1.0.0.model";
-const char* attribute_model = "M_SenseME_Attribute_2.2.0.model";
-const char* animal_model = "M_SenseME_CatFace_2.0.0.model";
+const char *face_model = "M_SenseME_Face_Video_5.3.4.model";
+const char *face_282_model = "M_SenseME_Face_Extra_5.23.4.model";
+const char *mouthocc_model = "M_SenseME_MouthOcclusion_1.1.1.model";
+
+const char *hand_model = "M_SenseME_Hand_6.0.8.model";
+const char *segment_model = "M_SenseME_Segment_4.12.8.model";
+const char *body14_model = "M_SenseME_Body_5.9.0.model";
+const char *body_contour_model = "M_SenseME_Body_Contour_77_1.2.2.model";
+const char *face_extra_model = "M_SenseME_Face_Extra_5.23.4.model";
+const char *eyeball_model = "M_SenseME_Iris_2.0.0.model";
+const char *ear_model = "M_Align_Deepface_Ear_1.1.1.model";
+const char *mouth_parse_model = "M_SenseME_MouthOcclusion_1.0.0.model";
+const char *body4_model = "M_SenseME_Body_Four_1.0.0.model";
+const char *body8_model = "body8.model";
+const char *hair_model = "M_SenseME_Segment_Hair_1.3.4.model";
+const char *tongue_model = "M_Align_DeepFace_Tongue_1.0.0.model";
+const char *face_mesh_model = "M_SenseAR_3DMesh_Face2106pt_FastV7_1.0.0.model";
+const char *avatar_helper_model = "M_SenseME_Avatar_Help_2.2.0.model";
+const char *avatar_model = "M_SenseME_Avatar_Core_2.0.0.model";
+const char *gaze_model = "M_SenseME_GazeTracking_2.1.3.model";
+const char *dynamic_gesture_model =
+	"M_SenseME_Hand_Dynamic_Gesture_1.0.0.model";
+const char *hand_skeleton_model = "M_SenseME_Hand_Skeleton_2d3d_1.0.0.model";
+const char *multi_segment_model = "M_SenseME_Segment_Multiclass_1.0.0.model";
+const char *attribute_model = "M_SenseME_Attribute_2.2.0.model";
+const char *animal_model = "M_SenseME_CatFace_3.0.0.model";
+const char *classify_model = "M_SenseME_Classify_3.4.10.model";
+const char *verify_model = "M_SenseME_Verify_3.91.0.model";
+const char *p_db_path = "M_SenseME_Classify_Table_1.0.7.db";
+const char *p_custom_db_path = "M_SenseME_Classify_Custom_Table_1.0.7.db";
+const char *upbody_model = "M_SenseME_Upper_Body_0.0.42.model";
 
 static std::string g_ModelDir = "./sensetime/models/";
 static std::string g_StickerDir = "./sensetime/stickers";
+static std::string g_JsonDir = "./sensetime/json";
+static std::string g_FilterDir = "./sensetime/filters";
+static std::string g_MakeupDir = "./sensetime/makeups";
 
 typedef enum {
 	PROCESS_TEXTURE = 0,

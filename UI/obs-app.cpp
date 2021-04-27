@@ -1,4 +1,4 @@
-﻿/******************************************************************************
+/******************************************************************************
     Copyright (C) 2013 by Hugh Bailey <obs.jim@gmail.com>
 
     This program is free software: you can redistribute it and/or modify
@@ -75,7 +75,7 @@ bool opt_start_recording = false;
 bool opt_studio_mode = false;
 bool opt_start_replaybuffer = false;
 bool opt_minimize_tray = false;
-bool opt_allow_opengl = false;
+bool opt_allow_opengl = true;
 bool opt_always_on_top = false;
 string opt_starting_collection;
 string opt_starting_profile;

@@ -2,8 +2,52 @@
 #include "facesticker/st-thread.h"
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QDateTime>
 
 extern enum AVPixelFormat obs_to_ffmpeg_video_format(enum video_format format);
+
+static void fillFrameDataInfo(VideoFormat vf, uint8_t **outdata, uint32_t *linesize, int cx, int cy, unsigned char *data)
+{
+	if (vf == VideoFormat::XRGB || vf == VideoFormat::ARGB) {
+		outdata[0] = data;
+		linesize[0] = cx * 4;
+
+	} else if (vf == VideoFormat::YVYU || vf == VideoFormat::YUY2 ||
+		   vf == VideoFormat::HDYC || vf == VideoFormat::UYVY) {
+		outdata[0] = data;
+		linesize[0] = cx * 2;
+
+	} else if (vf == VideoFormat::I420) {
+		outdata[0] = data;
+		outdata[1] = outdata[0] + (cx * cy);
+		outdata[2] = outdata[1] + (cx * cy / 4);
+		linesize[0] = cx;
+		linesize[1] = cx / 2;
+		linesize[2] = cx / 2;
+
+	} else if (vf == VideoFormat::YV12) {
+		outdata[0] = data;
+		outdata[2] = outdata[0] + (cx * cy);
+		outdata[1] = outdata[2] + (cx * cy / 4);
+		linesize[0] = cx;
+		linesize[1] = cx / 2;
+		linesize[2] = cx / 2;
+
+	} else if (vf == VideoFormat::NV12) {
+		outdata[0] = data;
+		outdata[1] = outdata[0] + (cx * cy);
+		linesize[0] = cx;
+		linesize[1] = cx;
+
+	} else if (vf == VideoFormat::Y800) {
+		outdata[0] = data;
+		linesize[0] = cx;
+
+	} else {
+		/* TODO: other formats */
+		return;
+	}
+}
 
 void ffmpeg_log(void *bla, int level, const char *msg, va_list args)
 {
@@ -66,6 +110,9 @@ void DShowInput::QueueActivate(obs_data_t *settings)
 DShowInput::DShowInput(obs_source_t *source_, obs_data_t *settings)
 	: source(source_), device(InitGraph::False)
 {
+	stThread = new STThread(this);
+	stThread->start(QThread::HighestPriority);
+
 	memset(&audio, 0, sizeof(audio));
 	memset(&frame, 0, sizeof(frame));
 
@@ -94,18 +141,10 @@ DShowInput::DShowInput(obs_source_t *source_, obs_data_t *settings)
 
 		active = true;
 	}
-	stThread = new STThread(this);
-	stThread->start(QThread::HighestPriority);
 }
 
 DShowInput::~DShowInput()
 {
-	if (stThread) {
-		stThread->stop();
-		delete stThread;
-		stThread = nullptr;
-	}
-
 	{
 		CriticalScope scope(mutex);
 		actions.resize(1);
@@ -115,6 +154,12 @@ DShowInput::~DShowInput()
 	ReleaseSemaphore(semaphore, 1, nullptr);
 
 	WaitForSingleObject(thread, INFINITE);
+
+	if (stThread) {
+		stThread->quitThread();
+		delete stThread;
+		stThread = nullptr;
+	}
 }
 
 void DShowInput::updateInfo(const char *data)
@@ -348,8 +393,15 @@ void DShowInput::OnEncodedVideoData(enum AVCodecID id, unsigned char *data,
 		blog(LOG_DEBUG, "video ts: %llu", frame.timestamp);
 #endif
 		if (stThread && stThread->stInited() && stThread->needProcess())
-			stThread->addFrame(avFrame);
+		{
+			if (encodeFrameFormatChanged)
+			{
+				stThread->setFrameConfig(videoConfig.cx, videoConfig.cy, avFrame->format);
+				encodeFrameFormatChanged = false;
+			}
 
+			stThread->videoDataReceived(avFrame->data, avFrame->linesize, ts);
+		}
 		else {
 			obs_source_output_video2(source, &frame);
 		}
@@ -366,7 +418,16 @@ void DShowInput::OnVideoData(const VideoConfig &config, unsigned char *data,
 	}
 
 	if (stThread && stThread->stInited() && stThread->needProcess())
-		stThread->addFrame(data, size, startTime);
+	{
+		if (encodeFrameFormatChanged) {
+			stThread->setFrameConfig(videoConfig);
+			encodeFrameFormatChanged = false;
+		}
+		uint8_t *outdata[MAX_AV_PLANES];
+		uint32_t linesize[MAX_AV_PLANES];
+		fillFrameDataInfo(videoConfig.format, outdata, linesize, videoConfig.cx, videoConfig.cy, data);
+		stThread->videoDataReceived(outdata, (int *)linesize, startTime);
+	}
 	else
 		OutputFrame((videoConfig.format == VideoFormat::XRGB ||
 			     videoConfig.format == VideoFormat::ARGB),
@@ -391,45 +452,7 @@ void DShowInput::OutputFrame(bool f, bool fh, VideoFormat vf,
 	if (flip)
 		frame.flip = !frame.flip;
 
-	if (vf == VideoFormat::XRGB || vf == VideoFormat::ARGB) {
-		frame.data[0] = data;
-		frame.linesize[0] = cx * 4;
-
-	} else if (vf == VideoFormat::YVYU || vf == VideoFormat::YUY2 ||
-		   vf == VideoFormat::HDYC || vf == VideoFormat::UYVY) {
-		frame.data[0] = data;
-		frame.linesize[0] = cx * 2;
-
-	} else if (vf == VideoFormat::I420) {
-		frame.data[0] = data;
-		frame.data[1] = frame.data[0] + (cx * cy);
-		frame.data[2] = frame.data[1] + (cx * cy / 4);
-		frame.linesize[0] = cx;
-		frame.linesize[1] = cx / 2;
-		frame.linesize[2] = cx / 2;
-
-	} else if (vf == VideoFormat::YV12) {
-		frame.data[0] = data;
-		frame.data[2] = frame.data[0] + (cx * cy);
-		frame.data[1] = frame.data[2] + (cx * cy / 4);
-		frame.linesize[0] = cx;
-		frame.linesize[1] = cx / 2;
-		frame.linesize[2] = cx / 2;
-
-	} else if (vf == VideoFormat::NV12) {
-		frame.data[0] = data;
-		frame.data[1] = frame.data[0] + (cx * cy);
-		frame.linesize[0] = cx;
-		frame.linesize[1] = cx;
-
-	} else if (vf == VideoFormat::Y800) {
-		frame.data[0] = data;
-		frame.linesize[0] = cx;
-
-	} else {
-		/* TODO: other formats */
-		return;
-	}
+	fillFrameDataInfo(vf, frame.data, frame.linesize, cx, cy, data);
 
 	obs_source_output_video2(source, &frame);
 
@@ -693,6 +716,7 @@ static DStr GetVideoFormatName(VideoFormat format);
 
 bool DShowInput::UpdateVideoConfig(obs_data_t *settings)
 {
+	encodeFrameFormatChanged = true;
 	string video_device_id = obs_data_get_string(settings, VIDEO_DEVICE_ID);
 	deactivateWhenNotShowing = obs_data_get_bool(settings, DEACTIVATE_WNS);
 	flip = obs_data_get_bool(settings, FLIP_IMAGE);
@@ -794,8 +818,6 @@ bool DShowInput::UpdateVideoConfig(obs_data_t *settings)
 			return false;
 		}
 	}
-	if (stThread)
-		stThread->setFrameConfig(videoConfig);
 
 	DStr formatName = GetVideoFormatName(videoConfig.internalFormat);
 

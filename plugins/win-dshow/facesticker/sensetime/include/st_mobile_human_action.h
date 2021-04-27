@@ -28,8 +28,10 @@
 #define ST_MOBILE_HAND_FIST                 0x00200000  ///< 拳头手势
 #define ST_MOBILE_HAND_666                  0x00400000  ///< 666
 #define ST_MOBILE_HAND_BLESS                0x00800000  ///< 双手合十
-#define ST_MOBILE_HAND_ILOVEYOU         0x010000000000  ///< 手势ILoveYou
-#define ST_MOBILE_HAND_SSH              0x400000000000  ///< 手势嘘（依赖于手势检测和106点检测）
+#define ST_MOBILE_HAND_ILOVEYOU             0x010000000000  ///< 手势ILoveYou
+#define ST_MOBILE_HAND_SSH                  0x400000000000  ///< 手势嘘（依赖于手势检测和106点检测）
+#define ST_MOBILE_HAND_THREE                0x10000000000000  ///< 三根手指
+#define ST_MOBILE_HAND_FOUR                 0x20000000000000  ///< 四根手指
 #define ST_MOBILE_SEG_BACKGROUND            0x00010000  ///< 检测前景背景分割
 #define ST_MOBILE_FACE_240_DETECT           0x01000000  ///< 检测人脸240关键点 (deprecated)
 #define ST_MOBILE_DETECT_EXTRA_FACE_POINTS  0x01000000  ///< 检测人脸240关键点
@@ -39,12 +41,12 @@
 #define ST_MOBILE_BODY_CONTOUR              0x10000000  ///< 检测肢体轮廓点
 #define ST_MOBILE_SEG_HAIR                  0x20000000    ///< 检测头发分割
 #define ST_MOBILE_DETECT_TONGUE             0x40000000  ///< 检测舌头关键点
-#define ST_MOBILE_BODY_ACTION1              0x0100000000    /// 龙拳 暂时不支持
-#define ST_MOBILE_BODY_ACTION2              0x0200000000    /// 一休 暂时不支持
+#define ST_MOBILE_SEG_HEAD                  0x0100000000    /// 检测头部分割
+#define ST_MOBILE_SEG_SKIN                  0x0200000000    /// 检测皮肤分割
 #define ST_MOBILE_BODY_ACTION3              0x0400000000    /// 摊手 暂时不支持
 #define ST_MOBILE_BODY_ACTION4              0x0800000000    /// 蜘蛛侠 暂时不支持
 #define ST_MOBILE_BODY_ACTION5              0x1000000000    /// 动感超人 暂时不支持
-#define ST_MOBILE_DETECT_HAND_SKELETON_KEYPOINTS    0x20000000000    /// 检测单手关键点
+#define ST_MOBILE_DETECT_HAND_SKELETON_KEYPOINTS    0x20000000000    /// 检测单手关键点, 最多支持两只手的关键点检测
 #define ST_MOBILE_DETECT_HAND_SKELETON_KEYPOINTS_3D 0x40000000000    /// 检测单手3d关键点
 #define ST_MOBILE_SEG_MULTI                         0x80000000000  ///< 检测多类分割
 #define ST_MOBILE_DETECT_GAZE                       0x100000000000 ///< 检测视线方向
@@ -54,9 +56,11 @@
 #define ST_MOBILE_BODY_KEYPOINTS_3D        0x2000000000000  ///< 检测肢体3d关键点
 #define ST_MOBILE_DETECT_EAR               0x4000000000000  ///< 检测耳朵关键点
 #define ST_MOBILE_DETECT_FOREHEAD          0x8000000000000  ///< 检测额头关键点
+#define ST_MOBILE_DETECT_FACE_MESH         0x40000000000000 ///< 检测3dmesh关键点
+#define ST_MOBILE_DETECT_MOUTH_PARSE       0x80000000000000 ///< 检测嘴部遮挡
 
 #define ST_MOBILE_FACE_DETECT_FULL        0x000000FF      ///< 检测所有脸部动作
-#define ST_MOBILE_HAND_DETECT_FULL        0x410000FEFF00  ///< 检测所有手势
+#define ST_MOBILE_HAND_DETECT_FULL        0x30410000FEFF00  ///< 检测所有手势, 如果手势分类和手部骨骼点(2d/3d)的config同时打开时, 对于恭贺（抱拳)/双手合十/手势ILoveYou等组合手势只能检测出一个组合手势．
 #define ST_MOBILE_BODY_DETECT_FULL        0x018000000     ///< 检测肢体关键点和肢体轮廓点
 
 /// 检测模式
@@ -105,18 +109,30 @@ typedef struct st_mobile_segment_t {
 	float max_threshold;	    ///< 前后背景最大阈值，同上
 } st_mobile_segment_t, *p_st_mobile_segment_t;
 
+/// @brief 嘴唇遮挡分割结果
+typedef struct st_mobile_mouth_parse_t {
+	st_image_t *p_mouth_mask;              ///< 嘴唇遮挡分割结果图片信息，遮挡部分为0，嘴唇部分为255
+	float min_threshold;	               ///< 嘴唇遮挡分割最小阈值，与模型相关，取值范围时0.0f-1.0f
+	float max_threshold;	               ///< 嘴唇遮挡分割最大阈值，同上
+	st_pointf_t offset;                    ///< 嘴唇遮挡分割结果与图像原点（左上角）的偏移量
+} st_mobile_mouth_parse_t, *p_st_mobile_mouth_parse_t;
+
 /// @brief human_action检测结果
 typedef struct st_mobile_human_action_t {
-    st_mobile_face_t *p_faces;  ///< 检测到的人脸信息
-    int face_count;             ///< 检测到的人脸数目
-    st_mobile_hand_t *p_hands;  ///< 检测到的手的信息
-    int hand_count;             ///< 检测到的手的数目
-    st_mobile_body_t *p_bodys;  ///< 检测到的肢体信息
-    int body_count;             ///< 检测到的肢体的数目
-    float camera_motion_score;  ///< 摄像头运动状态置信度
-	st_mobile_segment_t *p_figure;   ///< 检测到背景分割信息
-	st_mobile_segment_t *p_hair;     ///< 检测到头发分割信息
-	st_mobile_segment_t *p_multi;    ///< 检测到多类分割信息
+    st_mobile_face_t *p_faces;               ///< 检测到的人脸信息
+    int face_count;                          ///< 检测到的人脸数目
+    st_mobile_mouth_parse_t *p_mouth_parse;  ///< 检测到的嘴唇遮挡分割信息
+    int mouth_parse_count;                   ///< 检测到的嘴唇数目
+    st_mobile_hand_t *p_hands;               ///< 检测到的手的信息
+    int hand_count;                          ///< 检测到的手的数目
+    st_mobile_body_t *p_bodys;               ///< 检测到的肢体信息
+    int body_count;                          ///< 检测到的肢体的数目
+    float camera_motion_score;               ///< 摄像头运动状态置信度
+    st_mobile_segment_t *p_figure;           ///< 检测到背景分割信息
+    st_mobile_segment_t *p_hair;             ///< 检测到头发分割信息
+    st_mobile_segment_t *p_multi;            ///< 检测到多类分割信息
+    st_mobile_segment_t *p_head;             ///< 检测到头部分割信息
+    st_mobile_segment_t *p_skin;             ///< 检测到皮肤分割信息
 } st_mobile_human_action_t, *p_st_mobile_human_action_t;
 
 /// @defgroup st_mobile_human_action
@@ -148,6 +164,10 @@ typedef struct st_mobile_human_action_t {
 #define ST_MOBILE_ENABLE_AVATAR_HELPER          0x20000000  ///< 检测avatar辅助信息开关
 #define ST_MOBILE_ENABLE_BODY_3D		        0x40000000  ///< 肢体3d点开关
 #define ST_MOBILE_ENABLE_EAR                    0x80000000  ///< 耳朵关键点开关
+#define ST_MOBILE_ENABLE_FACE_MESH_DETECT       0x100000000 ///< 3dmesh关键点开关
+#define ST_MOBILE_ENABLE_HEAD_SEGMENT           0x200000000 ///< 检测头部分割
+#define ST_MOBILE_ENABLE_SKIN_SEGMENT           0x400000000 ///< 检测皮肤分割
+#define ST_MOBILE_ENABLE_MOUTH_PARSE_DETECT     0x800000000 ///< 嘴部遮挡开关
 
 /// 检测模式
 #define ST_MOBILE_DETECT_MODE_VIDEO             0x00020000  ///< 视频检测
@@ -294,7 +314,7 @@ typedef enum {
     ST_HUMAN_ACTION_PARAM_BACKGROUND_BLUR_STRENGTH = 2,
     /// 设置检测到的最大人脸数目N(默认值32, 最大值32),持续track已检测到的N个人脸直到人脸数小于N再继续做detect.值越大,检测到的人脸数目越多,但相应耗时越长. 如果当前人脸数目达到上限，检测线程将休息
     ST_HUMAN_ACTION_PARAM_FACELIMIT = 3,
-    /// 设置tracker每多少帧进行一次detect(默认值有人脸时30,无人脸时30/3=10). 值越大,cpu占用率越低, 但检测出新人脸的时间越长.
+    /// 设置tracker每多少帧进行一次detect(默认值有人脸时24,无人脸时24/3=8). 值越大,cpu占用率越低, 但检测出新人脸的时间越长.
     ST_HUMAN_ACTION_PARAM_FACE_DETECT_INTERVAL = 4,
     /// 设置106点平滑的阈值[0.0,1.0](默认值0.5), 值越大, 点越稳定,但相应点会有滞后.
     ST_HUMAN_ACTION_PARAM_SMOOTH_THRESHOLD = 5,
@@ -342,6 +362,11 @@ typedef enum {
     /// 设置背景分割边界区域下限阈值
     ST_HUMAN_ACTION_PARAM_SEGMENT_MIN_THRESHOLD = 27,
     ST_HUMAN_ACTION_PARAM_STATURE = 28,   // 身高，单位为米，3D骨架乘以身高（整体缩放），得到真实的物理尺度
+    ST_HUMAN_ACTION_PARAM_FACE_MESH_MODE = 29, // face mesh mode, 0: render only face, 1: render face + eye, 2: render face + mouth, 3: render face + mouth + eye
+    /// 设置头发分割边界区域上限阈值.
+    ST_HUMAN_ACTION_PARAM_HAIR_SEGMENT_MAX_THRESHOLD = 30,
+    /// 设置头发分割边界区域下限阈值
+    ST_HUMAN_ACTION_PARAM_HAIR_SEGMENT_MIN_THRESHOLD = 31,
 } st_human_action_type;
 
 /// @brief 设置human_action参数
@@ -400,6 +425,7 @@ st_result_t
 st_mobile_retrieve_human_edge(
 const st_image_t* segment, st_image_t* edge, int edge_width, bool edge_blur
 );
+
 /// @brief 放大/缩小human_action检测结果.背景图像不缩放
 /// @param[in] scale 缩放的尺度
 /// @param[in,out] p_human_action 需要缩放的human_action检测结果
@@ -446,6 +472,8 @@ typedef enum{
 	ST_MOBILE_EXPRESSION_HAND_BLESS = 23,  ///< 双手合十
 	ST_MOBILE_EXPRESSION_HAND_ILOVEYOU = 24,  ///< 手势ILoveYou
 	ST_MOBILE_EXPRESSION_HAND_SSH = 25,  ///< 嘘
+    ST_MOBILE_EXPRESSION_HAND_THREE = 26,
+    ST_MOBILE_EXPRESSION_HAND_FOUR = 27,
 	// 头状态
 	ST_MOBILE_EXPRESSION_HEAD_NORMAL = 65, ///< 头正向
 	ST_MOBILE_EXPRESSION_SIDE_FACE_LEFT = 66, ///< 头向左侧偏
@@ -543,19 +571,5 @@ st_mobile_get_human_action_threshold(
     unsigned long long config,
     float* threshold
 );
-
-// 四元数
-typedef struct st_quaternion_t {
-    float w;
-    float x;
-    float y;
-    float z;
-} st_quaternion_t;
-
-/// @brief body四元数结果
-typedef struct st_mobile_body_avatar_t {
-    st_quaternion_t *p_body_quat_array;   ///< 人体四元数数组
-    int body_quat_count;     /// < 人体四元数组个数(0 或 79)
-} st_mobile_body_avatar_t, *p_st_mobile_body_avatar_t;
 
 #endif  // INCLUDE_STMOBILE_ST_MOBILE_HUMAN_ACTION_H_

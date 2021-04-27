@@ -64,6 +64,8 @@ typedef enum {
     ST_MODULE_SKYBOX = 12,          ///< 天空盒模块
     ST_MODULE_CATCH_BUTTERFLY = 13, ///< 捕蝴蝶模块
     ST_MODULE_FACE_STRETCH = 14,    ///< 人脸拖拽模块
+    ST_MODULE_DOUBLEGANGER = 15,
+    ST_MODULE_MASK_FILL = 16
 } st_module_type;
 
 /// @brief 创建贴纸句柄
@@ -593,6 +595,15 @@ st_mobile_sticker_get_param_array_size(
     int module_id,
     int param_type,
     int* array_size
+);
+
+/// @brief 设置性能/效果优先级倾向，引擎内部会根据设置调整渲染策略。
+/// @parma[in] handle 已初始化的贴纸句柄
+/// @param[in] hint 性能/效果优先级
+ST_SDK_API st_result_t
+st_mobile_sticker_set_performance_hint(
+    st_handle_t handle,
+    st_performance_hint_t hint
 );
 
 #endif  // INCLUDE_STMOBILE_ST_MOBILE_STICKER_H_

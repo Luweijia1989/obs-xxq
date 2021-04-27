@@ -154,6 +154,7 @@ public:
 	QString lastDeviceId;
 	CriticalSection deviceActivatedMutex;
 	float timeElapsed = 0.f;
+	bool encodeFrameFormatChanged = false;
 
 	STThread *stThread = nullptr;
 

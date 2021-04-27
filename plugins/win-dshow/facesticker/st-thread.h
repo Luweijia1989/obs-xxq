@@ -1,21 +1,17 @@
-﻿#pragma once
+#pragma once
 
 #include <QThread>
 #include <QImage>
 #include <QMutex>
+#include <QWaitCondition>
 #include <QMap>
 #include <QSet>
 #include <QEvent>
+#include <QOffscreenSurface>
+#include <QOpenGLContext>
+#include <QOpenGLFunctions>
 #include "../libdshowcapture/dshowcapture.hpp"
-#include "readerwriterqueue.h"
 #include "st-function.h"
-
-#ifdef WIN32
-#include <GL/gl3w.h>
-#else
-#include <GL/glew.h>
-#endif
-#include <GLFW/glfw3.h>
 
 extern "C" {
 #include "libswscale/swscale.h"
@@ -24,33 +20,16 @@ extern "C" {
 #include "libavcodec/avcodec.h"
 }
 
-class QOffscreenSurface;
-class QOpenGLContext;
-class QOpenGLFunctions;
+class QOpenGLShaderProgram;
+class QOpenGLVertexArrayObject;
+class QOpenGLFramebufferObject;
+class QOpenGLTexture;
+class QOpenGLBuffer;
 
-struct FrameInfo {
-	FrameInfo(unsigned char *d, size_t s, long long t)
-		: data(d), size(s), startTime(t), avFrame(NULL)
-	{
-	}
-
-	FrameInfo() : data(nullptr), size(0), startTime(0), avFrame(NULL) {}
-	unsigned char *data; // frame data should be cached
-	size_t size;
-	long long startTime;
-	long long timestamp;
-	AVFrame *avFrame;
-};
-
-struct VideoFrame {
-	size_t frameSize;
-	int width;
-	int height;
-	uchar *data;
-};
+extern bool g_st_checkpass;
 
 class DShowInput;
-class STThread : public QThread {
+class STThread : public QThread, protected QOpenGLFunctions {
 	Q_OBJECT
 public:
 	enum GameStickerType {
@@ -62,59 +41,70 @@ public:
 	};
 	STThread(DShowInput *dsInput);
 	~STThread();
-	void setFrameConfig(const DShow::VideoConfig &cg);
-	void setFrameConfig(int w, int h, AVPixelFormat f);
-	bool stInited() { return m_stFunc->stInited(); }
-	void addFrame(unsigned char *data, size_t size, long long startTime);
-	void addFrame(AVFrame *frame);
-	void stop();
+	bool stInited() { return m_stFunc->stInited() && g_st_checkpass; }
 	bool needProcess();
 	void updateInfo(const char *data);
 	void updateSticker(const QString &stickerId, bool isAdd);
 	void updateGameInfo(GameStickerType type, int region);
 
+	void videoDataReceived(uint8_t **data, int *linesize, quint64 ts);
+	void setFrameConfig(int w, int h, int f);
+	void setFrameConfig(const DShow::VideoConfig &cg);
+	void quitThread();
+	void freeResource();
+
 protected:
 	virtual void run() override;
 
 private:
-	bool InitGL();
-	void unInitGL();
-	void MesaOpenGL();
-	GLboolean BindTexture(unsigned char *buffer, int width, int height,
-			      GLuint &texId);
-
-	void processVideoData(unsigned char *buffer, size_t size,
-			      long long startTime);
-	void processVideoData(AVFrame *frame);
-	void processVideoDataInternal(AVFrame *frame);
 	void calcPosition(int &width, int &height);
-	void fliph();
-	void flipV();
+	void initShader();
+	void initOpenGLContext();
+	void initVertexData();
+	void initTexture();
+	void processImage(uint8_t **data, int *linesize, quint64 ts);
+	void deleteTextures();
+	void createTextures(int w, int h);
+	void createPBO();
+	void deletePBO();
 
 private:
 	DShowInput *m_dshowInput = nullptr;
 	STFunction *m_stFunc = nullptr;
 	bool m_running = false;
-	moodycamel::BlockingReaderWriterQueue<FrameInfo> m_frameQueue;
-	std::map<GLuint, std::vector<int>> gTextures;
-	GLFWwindow *window = nullptr;
 	struct SwsContext *m_swsctx = NULL;
 	AVPixelFormat m_curPixelFormat = AV_PIX_FMT_NONE;
 	bool flip = false;
-	int m_curFrameWidth = 0;
-	int m_curFrameHeight = 0;
+	int m_frameWidth = 0;
+	int m_frameHeight = 0;
+	bool m_videoFrameSizeChanged = false;
 	AVFrame *m_swsRetFrame = nullptr;
-	unsigned char *m_stickerBuffer = nullptr;
-	size_t m_stickerBufferSize = 0;
-	GLuint textureSrc = -1;
-	GLuint textureDst = -1;
-	QImage m_strawberryOverlay;
-	QImage m_bombOverlay;
-	VideoFrame m_strawberryFrameOverlay;
-	VideoFrame m_bombFrameOverlay;
 	QMap<QString, int> m_stickers;
 	QMutex m_stickerSetterMutex;
 	GameStickerType m_gameStickerType = None;
 	quint64 m_gameStartTime;
 	int m_curRegion = -1;
+
+	QOffscreenSurface *surface;
+	QOpenGLContext *ctx;
+	QOpenGLShaderProgram *m_shader = nullptr;
+	QOpenGLVertexArrayObject *m_vao = nullptr;
+	QOpenGLFramebufferObject *m_fbo = nullptr;
+	QOpenGLTexture *m_backgroundTexture = nullptr;
+	QOpenGLTexture *m_strawberryTexture = nullptr;
+	QOpenGLTexture *m_bombTexture = nullptr;
+	QOpenGLTexture *m_outputTexture = nullptr;
+	QOpenGLTexture *m_beautify = nullptr;
+	QOpenGLTexture *m_makeup = nullptr;
+	QOpenGLTexture *m_filter = nullptr;
+	quint64 m_textureBufferSize;
+	QVector<QOpenGLBuffer*> m_pbos; 
+
+	QMutex m_producerMutex;
+	QWaitCondition m_producerCondition;
+	QMutex m_consumerMutex;
+	QWaitCondition m_consumerCondition;
+	uint8_t **m_data;
+	int *m_linesize;
+	quint64 m_ts;
 };
