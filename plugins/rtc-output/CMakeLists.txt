@@ -15,6 +15,7 @@ else()
 endif()
 
 include_directories(${PROJECT_SOURCE_DIR}/trtc/sdk/include)
+include_directories(${PROJECT_SOURCE_DIR}/trtc/sdk/include/TRTC)
 include_directories(${PROJECT_SOURCE_DIR}/qnrtc/include/cpp)
 include_directories(${PROJECT_SOURCE_DIR}/qnrtc/include/cpp/qiniu)
 include_directories(${PROJECT_SOURCE_DIR})

@@ -38,16 +38,16 @@ public:
     * socks5 代理模式，设置 socks5 tcp/udp 代理服务器 ip 和 port。
     * 设置此接口后，在内网环境可以正常使用进房、发布本地音视频、订阅远端音视频、退房等功能
     * 细节请参考TRTC 代理方案<http://trtc-1252463788.file.myqcloud.com/proxy/proxy_server_deploy.zip>
-
     *
-    * @param ip 代理服务器的 ip 地址
+    * @param host 代理服务器的 ip 地址或者域名地址
     * @param port 代理服务器的端口
     *
+    * @return 设置成功返回0，域名解释失败或者ip非法返回-1。
     * @note 本接口有以下限制：
     *       - 设置完，请 destroy TRTCCloud 重新获取 TRTC 对象
     *       - 如果你只是用 TRTCCloud，则只需要设置Sock5代理接口。
     */
-    virtual void setSocks5Proxy(const char * ip, unsigned short port, const char * username, const char * password) = 0;
+    virtual int setSocks5Proxy(const char * host, unsigned short port, const char * username, const char * password) = 0;
 
     /*
     * TXLivePusher/TXLivePlayer 代理设置
