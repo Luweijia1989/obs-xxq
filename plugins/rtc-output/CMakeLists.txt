@@ -87,4 +87,7 @@ add_custom_command(TARGET rtc-output POST_BUILD
 endfunction()
 
 install_dependency("liteav.dll")
+install_dependency("LiteAvAudioHook.dll")
+install_dependency("LiteAvAudioHookService.dll")
+install_dependency("TRAE.dll")
 install_dependency_qiniu()
