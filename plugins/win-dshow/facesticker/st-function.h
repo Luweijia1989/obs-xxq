@@ -30,7 +30,7 @@ public:
 	~STFunction();
 
 	bool doFaceSticker(unsigned int input, unsigned int output, int width, int height, bool fliph, bool flipv);
-	bool doFaceDetect(unsigned char *inputBuffer, int width, int height, bool flipv);
+	bool doFaceDetect(bool needBeauty, bool needSticker, unsigned char *inputBuffer, int width, int height, bool flipv);
 	void flipFaceDetect(bool flipv, bool fliph, int width, int height);
 	QOpenGLTexture *doBeautify(QOpenGLTexture *srcTexture, QOpenGLTexture *beautify, QOpenGLTexture *makeup, QOpenGLTexture *filter, int width, int height, bool fliph, bool flipv);
 	bool initSenseTimeEnv();
@@ -40,11 +40,7 @@ public:
 	void removeSticker(int id);
 	bool clearSticker();
 	const st_mobile_human_action_t &detectResult() { return m_result; }
-
-private:
-	void iterateBeautifyJsons();
-	void loadBeautifyParam(QString name);
-	void changeOutFit();
+	void updateBeautifyParam(const QJsonObject &setting);
 
 private:
 	st_handle_t m_stHandler = NULL;
@@ -52,13 +48,13 @@ private:
 	st_handle_t h_beautify = NULL;
 	st_handle_t h_makeup = NULL;
 	st_handle_t h_filter = NULL;
-	std::vector<BeautifyParamData> gBeauParams;
-	std::vector<MakeupParamData> gMakeupParam;
-	QMap<QString, double> m_filers;
-	QMap<QString, QString> m_beautifyJsons;
 	st_mobile_human_action_t m_result = {0};
-	unsigned long long m_detectConfig = 0x00FFFFFF;
+	unsigned long long m_beautyDetectConfig = 0x00FFFFFF;
+	unsigned long long m_stickerDetectConfig = 0x00FFFFFF;
 	bool m_stInited = false;
 	std::vector<std::string> Packages;
 	QString m_currentStickerId;
+	QMap<QString, int> m_beautifySettingMap;
+	QMap<QString, int> m_makeupSettingMap;
+	bool m_hasFilter = false;
 };

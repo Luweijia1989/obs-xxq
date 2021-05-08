@@ -92,13 +92,14 @@ void STThread::run()
 		m_running = false;
 		return;
 	}
-
+	updateSticker("E:\\rabbiteating.zip", true);
 	while (m_running)
 	{
 		m_producerMutex.lock();
 		m_producerCondition.wait(&m_producerMutex);
-		if (m_running)
+		if (m_running) {
 			processImage(m_data, m_linesize, m_ts);
+		}
 		m_producerMutex.unlock();
 
 		m_consumerMutex.lock();
@@ -173,6 +174,7 @@ void STThread::videoDataReceived(uint8_t **data, int *linesize, quint64 ts)
 
 void STThread::processImage(uint8_t **data, int *linesize, quint64 ts)
 {
+	bool needBeautify = true;
 	bool needMask = m_gameStickerType != None;
 	bool needSticker = !m_stickers.isEmpty();
 
@@ -206,10 +208,10 @@ void STThread::processImage(uint8_t **data, int *linesize, quint64 ts)
 
 	m_backgroundTexture->setData(QOpenGLTexture::RGBA,QOpenGLTexture::UInt8,m_swsRetFrame->data[0]);
 
-	m_stFunc->doFaceDetect(m_swsRetFrame->data[0], m_frameWidth,  m_frameHeight, flip);
+	m_stFunc->doFaceDetect(needBeautify, needSticker, m_swsRetFrame->data[0], m_frameWidth, m_frameHeight, flip);
 
 	QOpenGLTexture *nextSrc = m_backgroundTexture;
-	if (1) {//是否美颜
+	if (needBeautify) {//是否美颜
 		nextSrc = m_stFunc->doBeautify(m_backgroundTexture, m_beautify, m_makeup, m_filter, m_frameWidth, m_frameHeight, m_dshowInput->flipH, flip);
 	}
 	if (needSticker)
