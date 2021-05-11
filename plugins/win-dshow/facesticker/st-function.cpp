@@ -57,7 +57,7 @@ STFunction::STFunction()
 	m_makeupSettingMap.insert(u8"眼睫毛", ST_MAKEUP_TYPE_EYELASH);
 
 	m_beautifySettingMap.insert(u8"磨皮", ST_BEAUTIFY_SMOOTH_STRENGTH);
-	m_beautifySettingMap.insert(u8"美白", ST_BEAUTIFY_WHITEN2_STRENGTH);
+	m_beautifySettingMap.insert(u8"美白", ST_BEAUTIFY_WHITEN_STRENGTH);
 	m_beautifySettingMap.insert(u8"瘦脸", ST_BEAUTIFY_SHRINK_FACE_RATIO);
 	m_beautifySettingMap.insert(u8"红润", ST_BEAUTIFY_REDDEN_STRENGTH);
 	m_beautifySettingMap.insert(u8"饱和度", ST_BEAUTIFY_SATURATION_STRENGTH);

@@ -5,6 +5,7 @@
 #include "st_mobile_beautify.h"
 #include "st_mobile_makeup.h"
 #include "st_mobile_filter.h"
+#include "st_mobile_common.h"
 #include <map>
 #include <vector>
 #include <QString>

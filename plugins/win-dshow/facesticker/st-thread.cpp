@@ -102,7 +102,9 @@ void STThread::run()
 			for (auto iter = m_beautifySettings.begin(); iter != m_beautifySettings.end(); iter++)
 			{
 				QJsonDocument jd = QJsonDocument::fromJson((*iter).toUtf8());
+				ctx->makeCurrent(surface);
 				m_stFunc->updateBeautifyParam(jd.object());
+				ctx->doneCurrent();
 			}
 			m_beautifySettings.clear();
 			m_beautifySettingMutex.unlock();
