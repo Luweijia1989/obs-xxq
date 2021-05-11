@@ -111,6 +111,7 @@ DShowInput::DShowInput(obs_source_t *source_, obs_data_t *settings)
 	: source(source_), device(InitGraph::False)
 {
 	stThread = new STThread(this);
+	stThread->setBeautifyEnabled(!obs_data_get_bool(settings, "beautifyNotEnabled"));
 	stThread->start(QThread::HighestPriority);
 
 	memset(&audio, 0, sizeof(audio));
@@ -1884,6 +1885,21 @@ static void DShowInputTick(void *data, float seconds)
 	}
 }
 
+static void DShowInputCustomCommnad(void *data, obs_data_t *command)
+{
+	DShowInput *input = reinterpret_cast<DShowInput *>(data);
+	int type = obs_data_get_int(command, "type");
+	QString beautifyStr = obs_data_get_string(command, "beautifySetting");
+	if (type == 0)
+		input->stThread->updateBeautifySetting(beautifyStr);
+	else if (type == 1) {
+		QJsonDocument jd = QJsonDocument::fromJson(beautifyStr.toUtf8());
+		QJsonObject obj = jd.object();
+		input->stThread->setBeautifyEnabled(obj["enabled"].toBool());
+	}
+}
+
+
 void RegisterDShowSource()
 {
 	SetLogCallback(DShowModuleLogCallback, nullptr);
@@ -1902,5 +1918,6 @@ void RegisterDShowSource()
 	info.get_defaults = GetDShowDefaults;
 	info.get_properties = GetDShowProperties;
 	info.video_tick = DShowInputTick;
+	info.make_command = DShowInputCustomCommnad;
 	obs_register_source(&info);
 }

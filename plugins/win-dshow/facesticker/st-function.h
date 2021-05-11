@@ -56,5 +56,6 @@ private:
 	QString m_currentStickerId;
 	QMap<QString, int> m_beautifySettingMap;
 	QMap<QString, int> m_makeupSettingMap;
+	QMap<QString, int> m_makeupInUse;
 	bool m_hasFilter = false;
 };

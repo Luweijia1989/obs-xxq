@@ -92,12 +92,21 @@ void STThread::run()
 		m_running = false;
 		return;
 	}
-	updateSticker("E:\\rabbiteating.zip", true);
+	//updateSticker("E:\\rabbiteating.zip", true);
 	while (m_running)
 	{
 		m_producerMutex.lock();
 		m_producerCondition.wait(&m_producerMutex);
 		if (m_running) {
+			m_beautifySettingMutex.lock();
+			for (auto iter = m_beautifySettings.begin(); iter != m_beautifySettings.end(); iter++)
+			{
+				QJsonDocument jd = QJsonDocument::fromJson((*iter).toUtf8());
+				m_stFunc->updateBeautifyParam(jd.object());
+			}
+			m_beautifySettings.clear();
+			m_beautifySettingMutex.unlock();
+
 			processImage(m_data, m_linesize, m_ts);
 		}
 		m_producerMutex.unlock();
@@ -126,9 +135,8 @@ void STThread::run()
 
 bool STThread::needProcess()
 {
-	return true;
 	QMutexLocker locker(&m_stickerSetterMutex);
-	return !m_stickers.isEmpty() || m_gameStickerType != None;
+	return !m_stickers.isEmpty() || m_gameStickerType != None || m_needBeautify;
 }
 
 void STThread::updateInfo(const char *data)
@@ -158,6 +166,12 @@ void STThread::updateGameInfo(GameStickerType type, int region)
 	}
 }
 
+void STThread::updateBeautifySetting(QString setting)
+{
+	QMutexLocker locker(&m_beautifySettingMutex);
+	m_beautifySettings.append(setting);
+}
+
 void STThread::videoDataReceived(uint8_t **data, int *linesize, quint64 ts)
 {
 	m_producerMutex.lock();
@@ -174,7 +188,6 @@ void STThread::videoDataReceived(uint8_t **data, int *linesize, quint64 ts)
 
 void STThread::processImage(uint8_t **data, int *linesize, quint64 ts)
 {
-	bool needBeautify = true;
 	bool needMask = m_gameStickerType != None;
 	bool needSticker = !m_stickers.isEmpty();
 
@@ -208,10 +221,10 @@ void STThread::processImage(uint8_t **data, int *linesize, quint64 ts)
 
 	m_backgroundTexture->setData(QOpenGLTexture::RGBA,QOpenGLTexture::UInt8,m_swsRetFrame->data[0]);
 
-	m_stFunc->doFaceDetect(needBeautify, needSticker, m_swsRetFrame->data[0], m_frameWidth, m_frameHeight, flip);
+	m_stFunc->doFaceDetect(m_needBeautify, needSticker, m_swsRetFrame->data[0], m_frameWidth, m_frameHeight, flip);
 
 	QOpenGLTexture *nextSrc = m_backgroundTexture;
-	if (needBeautify) {//是否美颜
+	if (m_needBeautify) {//是否美颜
 		nextSrc = m_stFunc->doBeautify(m_backgroundTexture, m_beautify, m_makeup, m_filter, m_frameWidth, m_frameHeight, m_dshowInput->flipH, flip);
 	}
 	if (needSticker)
@@ -477,6 +490,11 @@ void STThread::freeResource()
 
 	m_stFunc->freeStResource();
 	delete m_stFunc;
+}
+
+void STThread::setBeautifyEnabled(bool enabled)
+{
+	m_needBeautify = enabled;
 }
 
 void STThread::calcPosition(int &width, int &height)

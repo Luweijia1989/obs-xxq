@@ -5,44 +5,45 @@
 #include <QJsonObject>
 #include <QJsonDocument>
 #include <QJsonArray>
+#include <QCoreApplication>
 #include "st-helper.h"
 
 static QString NewAddDefaultSetting = u8R"({
-    "滤镜版本" : "#",
-    "美白" : "0",
-    "红润" : "0",
-    "磨皮" : "0",
-    "瘦脸" : "0",
-    "大眼" : "0",
-    "小脸" : "0",
-    "窄脸" : "0",
-    "圆眼" : "0",
-    "瘦脸型" : "0",
-    "下巴" : "0",
-    "苹果肌" : "0",
-    "瘦鼻翼" : "0",
-    "长鼻" : "0",
-    "侧脸隆鼻" : "0",
-    "嘴形" : "0",
-    "缩人中" : "0",
-    "开眼角" : "0",
-    "亮眼" : "0",
-    "祛黑眼圈" : "0",
-    "祛法令纹" : "0",
-    "白牙" : "0",
-    "瘦颧骨" : "0",
-    "开外眼角" : "0",
-    "饱和度" : "0",
-    "锐化" : "0",
-    "清晰度" : "0",
-    "对比度" : "0",
-    "口红" : "#",
-    "腮红" : "#",
-    "修容" : "#",
-    "眉毛" : "#",
-    "眼线" : "#",
-    "眼影" : "#",
-    "眼睫毛" : "#"
+    "滤镜版本": "native_1.5.0#60",
+            "美白": "6",
+            "红润": "100",
+            "磨皮": "90",
+            "瘦脸": "27",
+            "大眼": "42",
+            "小脸": "44",
+            "窄脸": "10",
+            "圆眼": "0",
+            "瘦脸型": "45",
+            "下巴": "25",
+            "苹果肌": "30",
+            "瘦鼻翼": "21",
+            "长鼻": "0",
+            "侧脸隆鼻": "10",
+            "嘴形": "49",
+            "缩人中": "0",
+            "开眼角": "0",
+            "亮眼": "12",
+            "祛黑眼圈": "49",
+            "祛法令纹": "87",
+            "白牙": "20",
+            "瘦颧骨": "0",
+            "开外眼角": "0",
+            "饱和度": "0",
+            "锐化": "36",
+            "清晰度": "20",
+            "对比度": "0",
+            "口红": "1雾面#55",
+            "腮红": "blushb#32",
+            "修容": "facee#58",
+            "眉毛": "browf#33",
+            "眼线": "eyelinerg#15",
+            "眼影": "eyeshadowc#58",
+            "眼睫毛": "eyelashk#35"
 })";
 
 STFunction::STFunction()
@@ -125,8 +126,21 @@ bool STFunction::initSenseTimeEnv()
 	ret = st_mobile_gl_filter_create(&h_filter);
 	assert(ret == ST_OK);
 
+	//磨皮模式设置
+	ret = st_mobile_beautify_setparam(h_beautify, ST_BEAUTIFY_SMOOTH_MODE, 2.0f);
+	assert(ret == ST_OK);
+
 	QJsonDocument jd = QJsonDocument::fromJson(NewAddDefaultSetting.toUtf8());
 	updateBeautifyParam(jd.object());
+
+	unsigned long long beau_config = 0, makeup_config = 0;
+	ret = st_mobile_beautify_get_detect_config(h_beautify, &beau_config);
+	assert(ret == ST_OK);
+	ret = st_mobile_makeup_get_trigger_action(h_makeup, &makeup_config);
+	assert(ret == ST_OK);
+	m_beautyDetectConfig = beau_config | makeup_config |
+		ST_MOBILE_DETECT_MOUTH_PARSE |
+		ST_MOBILE_DETECT_EXTRA_FACE_POINTS;
 
 	ret = st_mobile_sticker_create(&m_handleSticker);
 	if (ret != ST_OK) {
@@ -140,9 +154,6 @@ bool STFunction::initSenseTimeEnv()
 void STFunction::updateBeautifyParam(const QJsonObject &setting)
 {
 	st_result_t ret = ST_OK;
-	//磨皮模式设置
-	ret = st_mobile_beautify_setparam(h_beautify, ST_BEAUTIFY_SMOOTH_MODE, 2.0f);
-	assert(ret == ST_OK);
 
 	for (auto iter = setting.begin(); iter != setting.end(); iter++) {
 		QString key = iter.key();
@@ -152,12 +163,19 @@ void STFunction::updateBeautifyParam(const QJsonObject &setting)
 			if (li.size() > 1) {
 				QString filterPath = "";
 				if (!li.at(0).isEmpty()) {
-					filterPath = QString("%1/%2.model").arg(QString::fromStdString(g_FilterDir)).arg(li.at(0));
+					filterPath = QString(u8"%1/%2.model").arg(QString::fromStdString(g_FilterDir)).arg(li.at(0));
 					m_hasFilter = true;
 				}
+				else
+					m_hasFilter = false;
 
-				std::string stdFilterPath = filterPath.toStdString();
-				ret = st_mobile_gl_filter_set_style(h_filter, stdFilterPath.c_str());
+				QByteArray filterData;
+				QFile filterFile(filterPath);
+				if (filterFile.open(QFile::ReadOnly)) {
+					filterData = filterFile.readAll();
+					filterFile.close();
+				}
+				ret = st_mobile_gl_filter_set_style_from_buffer(h_filter, (const unsigned char *)filterData.data(), filterData.size());
 				assert(ret == ST_OK);
 				ret = st_mobile_gl_filter_set_param(h_filter, ST_GL_FILTER_STRENGTH, li.at(1).toInt() / 100.0);
 				assert(ret == ST_OK);
@@ -169,11 +187,27 @@ void STFunction::updateBeautifyParam(const QJsonObject &setting)
 				QStringList li = value.split('#');
 				if (li.size() > 1) {
 					QString makeupPath = "";
-					if (!li.at(0).isEmpty())
-						makeupPath = QString("%1/%2.zip").arg(QString::fromStdString(g_MakeupDir)).arg(li.at(0));
-					std::string stdMakeupPath = makeupPath.toStdString();
-					ret = st_mobile_makeup_set_makeup_for_type(h_makeup, (st_makeup_type)m_makeupSettingMap.value(key), stdMakeupPath.c_str(), nullptr);
-					st_mobile_makeup_set_strength_for_type(h_makeup, (st_makeup_type)m_makeupSettingMap.value(key), li.at(1).toInt()/100.0);
+					if (!li.at(0).isEmpty()) {
+						makeupPath = QString(u8"%1/%2.zip").arg(QString::fromStdString(g_MakeupDir)).arg(li.at(0));
+						QByteArray makeupData;
+						QFile makeupFile(makeupPath);
+						if (makeupFile.open(QFile::ReadOnly)) {
+							makeupData = makeupFile.readAll();
+							makeupFile.close();
+
+							int mid = 0;
+							ret = st_mobile_makeup_set_makeup_for_type_from_buffer(h_makeup, (st_makeup_type)m_makeupSettingMap.value(key), (const unsigned char *)makeupData.data(), makeupData.size(), &mid);
+							assert(ret == ST_OK);
+							st_mobile_makeup_set_strength_for_type(h_makeup, (st_makeup_type)m_makeupSettingMap.value(key), li.at(1).toInt() / 100.0);
+							m_makeupInUse.insert(key, mid);
+						}
+					} else {
+						if (m_makeupInUse.contains(key)) {
+							st_mobile_makeup_remove_makeup(h_makeup, m_makeupInUse.value(key));
+							m_makeupInUse.remove(key);
+						}
+					}
+
 				}
 			}
 			else {
@@ -181,15 +215,6 @@ void STFunction::updateBeautifyParam(const QJsonObject &setting)
 			}
 		}
 	}
-
-	unsigned long long beau_config = 0, makeup_config = 0;
-	ret = st_mobile_beautify_get_detect_config(h_beautify, &beau_config);
-	assert(ret == ST_OK);
-	ret = st_mobile_makeup_get_trigger_action(h_makeup, &makeup_config);
-	assert(ret == ST_OK);
-	m_beautyDetectConfig = beau_config | makeup_config |
-			       ST_MOBILE_DETECT_MOUTH_PARSE |
-			       ST_MOBILE_DETECT_EXTRA_FACE_POINTS;
 }
 
 void STFunction::freeStResource()
@@ -312,6 +337,6 @@ QOpenGLTexture *STFunction::doBeautify(QOpenGLTexture *srcTexture, QOpenGLTextur
 			height,
 			filter->textureId());
 		tex = filter;
-	}
+	} 
 	return tex;
 }

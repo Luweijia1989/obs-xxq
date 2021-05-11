@@ -46,12 +46,14 @@ public:
 	void updateInfo(const char *data);
 	void updateSticker(const QString &stickerId, bool isAdd);
 	void updateGameInfo(GameStickerType type, int region);
+	void updateBeautifySetting(QString setting);
 
 	void videoDataReceived(uint8_t **data, int *linesize, quint64 ts);
 	void setFrameConfig(int w, int h, int f);
 	void setFrameConfig(const DShow::VideoConfig &cg);
 	void quitThread();
 	void freeResource();
+	void setBeautifyEnabled(bool enabled);
 
 protected:
 	virtual void run() override;
@@ -98,7 +100,10 @@ private:
 	QOpenGLTexture *m_makeup = nullptr;
 	QOpenGLTexture *m_filter = nullptr;
 	quint64 m_textureBufferSize;
-	QVector<QOpenGLBuffer*> m_pbos; 
+	QVector<QOpenGLBuffer*> m_pbos;
+	QMutex m_beautifySettingMutex;
+	QList<QString> m_beautifySettings;
+	bool m_needBeautify = true;
 
 	QMutex m_producerMutex;
 	QWaitCondition m_producerCondition;
