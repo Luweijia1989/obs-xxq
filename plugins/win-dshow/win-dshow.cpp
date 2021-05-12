@@ -763,6 +763,9 @@ bool DShowInput::UpdateVideoConfig(obs_data_t *settings)
 		if (interval == FPS_MATCHING)
 			interval = GetOBSFPS();
 
+		// max 20fps
+		interval = (1/20) * 10000000;
+
 		format = (VideoFormat)obs_data_get_int(settings, VIDEO_FORMAT);
 
 		long long best_interval = numeric_limits<long long>::max();

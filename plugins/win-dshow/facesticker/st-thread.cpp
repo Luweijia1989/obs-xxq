@@ -92,7 +92,7 @@ void STThread::run()
 		m_running = false;
 		return;
 	}
-	//updateSticker("E:\\rabbiteating.zip", true);
+	
 	while (m_running)
 	{
 		m_producerMutex.lock();
@@ -137,6 +137,7 @@ void STThread::run()
 
 bool STThread::needProcess()
 {
+	return true;
 	QMutexLocker locker(&m_stickerSetterMutex);
 	return !m_stickers.isEmpty() || m_gameStickerType != None || m_needBeautify;
 }
@@ -190,6 +191,7 @@ void STThread::videoDataReceived(uint8_t **data, int *linesize, quint64 ts)
 
 void STThread::processImage(uint8_t **data, int *linesize, quint64 ts)
 {
+	bool needDo = !m_stickers.isEmpty() || m_gameStickerType != None || m_needBeautify;
 	bool needMask = m_gameStickerType != None;
 	bool needSticker = !m_stickers.isEmpty();
 
@@ -223,7 +225,8 @@ void STThread::processImage(uint8_t **data, int *linesize, quint64 ts)
 
 	m_backgroundTexture->setData(QOpenGLTexture::RGBA,QOpenGLTexture::UInt8,m_swsRetFrame->data[0]);
 
-	m_stFunc->doFaceDetect(m_needBeautify, needSticker, m_swsRetFrame->data[0], m_frameWidth, m_frameHeight, flip);
+	if (needDo)
+		m_stFunc->doFaceDetect(m_needBeautify, needSticker, m_swsRetFrame->data[0], m_frameWidth, m_frameHeight, flip);
 
 	QOpenGLTexture *nextSrc = m_backgroundTexture;
 	if (m_needBeautify) {//是否美颜
@@ -232,7 +235,8 @@ void STThread::processImage(uint8_t **data, int *linesize, quint64 ts)
 	if (needSticker)
 		m_stFunc->doFaceSticker(nextSrc->textureId(), m_outputTexture->textureId(), m_frameWidth, m_frameHeight, m_dshowInput->flipH, flip);
 
-	m_stFunc->flipFaceDetect(flip, m_dshowInput->flipH, m_frameWidth, m_frameHeight); // 翻转得到实际的人脸关键点信息
+	if (needDo)
+		m_stFunc->flipFaceDetect(flip, m_dshowInput->flipH, m_frameWidth, m_frameHeight); // 翻转得到实际的人脸关键点信息
 
 	float maskX = 0.;
 	float maskY = 0.;
