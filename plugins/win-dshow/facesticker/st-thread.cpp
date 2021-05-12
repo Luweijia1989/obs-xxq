@@ -92,7 +92,8 @@ void STThread::run()
 		m_running = false;
 		return;
 	}
-	
+
+	ctx->makeCurrent(surface);
 	while (m_running)
 	{
 		m_producerMutex.lock();
@@ -102,9 +103,7 @@ void STThread::run()
 			for (auto iter = m_beautifySettings.begin(); iter != m_beautifySettings.end(); iter++)
 			{
 				QJsonDocument jd = QJsonDocument::fromJson((*iter).toUtf8());
-				ctx->makeCurrent(surface);
 				m_stFunc->updateBeautifyParam(jd.object());
-				ctx->doneCurrent();
 			}
 			m_beautifySettings.clear();
 			m_beautifySettingMutex.unlock();
@@ -117,8 +116,6 @@ void STThread::run()
 		m_consumerCondition.notify_one();
 		m_consumerMutex.unlock();
 	}
-
-	ctx->makeCurrent(surface);
 	delete m_fbo;
 	deleteTextures();
 	m_strawberryTexture->destroy();
@@ -127,6 +124,8 @@ void STThread::run()
 	delete m_bombTexture;
 
 	deletePBO();
+
+	ctx->doneCurrent();
 
 	delete m_shader;
 	delete m_vao;
@@ -195,11 +194,10 @@ void STThread::processImage(uint8_t **data, int *linesize, quint64 ts)
 	bool needMask = m_gameStickerType != None;
 	bool needSticker = !m_stickers.isEmpty();
 
-	int ret = sws_scale(m_swsctx, (const uint8_t *const *)(data),
-			    (const int *)linesize, 0, m_frameHeight,
-			    m_swsRetFrame->data, m_swsRetFrame->linesize);
+	int ret = sws_scale(m_swsctx, (const uint8_t *const *)(data), (const int *)linesize, 0, m_frameHeight, m_swsRetFrame->data, m_swsRetFrame->linesize);
+	ret = sws_scale(m_swsctxYUV, (const uint8_t *const *)(data), (const int *)linesize, 0, m_frameHeight, m_swsYUVRetFrame->data, m_swsYUVRetFrame->linesize);
+	
 
-	ctx->makeCurrent(surface);
 	if (m_videoFrameSizeChanged) {
 		if (m_fbo)
 			delete m_fbo;
@@ -226,7 +224,7 @@ void STThread::processImage(uint8_t **data, int *linesize, quint64 ts)
 	m_backgroundTexture->setData(QOpenGLTexture::RGBA,QOpenGLTexture::UInt8,m_swsRetFrame->data[0]);
 
 	if (needDo)
-		m_stFunc->doFaceDetect(m_needBeautify, needSticker, m_swsRetFrame->data[0], m_frameWidth, m_frameHeight, flip);
+		m_stFunc->doFaceDetect(m_needBeautify, needSticker, m_swsYUVRetFrame->data[0], m_frameWidth, m_frameHeight, flip);
 
 	QOpenGLTexture *nextSrc = m_backgroundTexture;
 	if (m_needBeautify) {//是否美颜
@@ -234,7 +232,6 @@ void STThread::processImage(uint8_t **data, int *linesize, quint64 ts)
 	}
 	if (needSticker)
 		m_stFunc->doFaceSticker(nextSrc->textureId(), m_outputTexture->textureId(), m_frameWidth, m_frameHeight, m_dshowInput->flipH, flip);
-
 	if (needDo)
 		m_stFunc->flipFaceDetect(flip, m_dshowInput->flipH, m_frameWidth, m_frameHeight); // 翻转得到实际的人脸关键点信息
 
@@ -346,8 +343,6 @@ void STThread::processImage(uint8_t **data, int *linesize, quint64 ts)
 	m_vao->release();
 	m_shader->release();
 	m_fbo->release();
-
-	ctx->doneCurrent();
 }
 
 void STThread::deleteTextures()
@@ -460,20 +455,30 @@ void STThread::setFrameConfig(int w, int h, int f)
 		if (m_swsRetFrame)
 			av_frame_free(&m_swsRetFrame);
 		m_swsRetFrame = av_frame_alloc();
-		av_image_alloc(m_swsRetFrame->data, m_swsRetFrame->linesize, w,
-			       h, AV_PIX_FMT_RGBA, 1);
-
+		av_image_alloc(m_swsRetFrame->data, m_swsRetFrame->linesize, w, h, AV_PIX_FMT_RGBA, 1);
 		if (m_swsctx) {
 			sws_freeContext(m_swsctx);
 			m_swsctx = NULL;
 		}
 
+		if (m_swsYUVRetFrame)
+			av_frame_free(&m_swsYUVRetFrame);
+		m_swsYUVRetFrame = av_frame_alloc();
+		av_image_alloc(m_swsYUVRetFrame->data, m_swsYUVRetFrame->linesize, w, h, AV_PIX_FMT_YUV420P, 1);
+		if (m_swsctxYUV) {
+			sws_freeContext(m_swsctxYUV);
+			m_swsctxYUV = NULL;
+		}
+
+
 		m_curPixelFormat = (AVPixelFormat)f;
 		flip = AV_PIX_FMT_BGRA == m_curPixelFormat;
 		m_frameWidth = w;
 		m_frameHeight = h;
-		if (m_curPixelFormat != AV_PIX_FMT_NONE)
+		if (m_curPixelFormat != AV_PIX_FMT_NONE) {
 			m_swsctx = sws_getContext(w, h, m_curPixelFormat, w, h, AVPixelFormat::AV_PIX_FMT_RGBA, SWS_BICUBIC, NULL, NULL, NULL);
+			m_swsctxYUV = sws_getContext(w, h, m_curPixelFormat, w, h, AVPixelFormat::AV_PIX_FMT_YUV420P, SWS_FAST_BILINEAR, NULL, NULL, NULL);
+		}
 	}
 }
 
@@ -490,6 +495,9 @@ void STThread::freeResource()
 {
 	if (m_swsctx)
 		sws_freeContext(m_swsctx);
+
+	if (m_swsctxYUV)
+		sws_freeContext(m_swsctxYUV);
 
 	if (m_swsRetFrame)
 		av_frame_free(&m_swsRetFrame);

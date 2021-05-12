@@ -112,7 +112,7 @@ DShowInput::DShowInput(obs_source_t *source_, obs_data_t *settings)
 {
 	stThread = new STThread(this);
 	stThread->setBeautifyEnabled(!obs_data_get_bool(settings, "beautifyNotEnabled"));
-	stThread->start(QThread::HighestPriority);
+	stThread->start(QThread::TimeCriticalPriority);
 
 	memset(&audio, 0, sizeof(audio));
 	memset(&frame, 0, sizeof(frame));

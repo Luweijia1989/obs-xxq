@@ -75,12 +75,14 @@ private:
 	STFunction *m_stFunc = nullptr;
 	bool m_running = false;
 	struct SwsContext *m_swsctx = NULL;
+	struct SwsContext *m_swsctxYUV = NULL;
 	AVPixelFormat m_curPixelFormat = AV_PIX_FMT_NONE;
 	bool flip = false;
 	int m_frameWidth = 0;
 	int m_frameHeight = 0;
 	bool m_videoFrameSizeChanged = false;
 	AVFrame *m_swsRetFrame = nullptr;
+	AVFrame *m_swsYUVRetFrame = nullptr;
 	QMap<QString, int> m_stickers;
 	QMutex m_stickerSetterMutex;
 	GameStickerType m_gameStickerType = None;
