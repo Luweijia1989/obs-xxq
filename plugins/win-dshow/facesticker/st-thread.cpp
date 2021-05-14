@@ -504,6 +504,7 @@ void STThread::freeResource()
 
 	m_stFunc->freeStResource();
 	delete m_stFunc;
+	m_stFunc = nullptr;
 }
 
 void STThread::setBeautifyEnabled(bool enabled)

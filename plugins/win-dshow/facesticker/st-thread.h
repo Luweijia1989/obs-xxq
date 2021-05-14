@@ -41,7 +41,7 @@ public:
 	};
 	STThread(DShowInput *dsInput);
 	~STThread();
-	bool stInited() { return m_stFunc->stInited() && g_st_checkpass; }
+	bool stInited() { return m_stFunc && m_stFunc->stInited() && g_st_checkpass; }
 	bool needProcess();
 	void updateInfo(const char *data);
 	void updateSticker(const QString &stickerId, bool isAdd);
