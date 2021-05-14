@@ -356,8 +356,8 @@ void TRTCCloudCore::setPresetLayoutConfig(TRTCTranscodingConfig &config, const c
 	config.videoBitrate = 850;
 	config.videoFramerate = MIX_FPS;
 	config.videoGOP = 2;
-	config.audioSampleRate = 44100;
-	config.audioBitrate = 64;
+	config.audioSampleRate = 48000;
+	config.audioBitrate = 128;
 	config.audioChannels = 2;
 
 	config.mixUsersArraySize = 2;
