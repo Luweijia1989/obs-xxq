@@ -111,6 +111,7 @@ private:
 	QWaitCondition m_producerCondition;
 	QMutex m_consumerMutex;
 	QWaitCondition m_consumerCondition;
+	QMutex m_runningMutex;
 	uint8_t **m_data;
 	int *m_linesize;
 	quint64 m_ts;

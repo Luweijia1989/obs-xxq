@@ -146,6 +146,10 @@ DShowInput::DShowInput(obs_source_t *source_, obs_data_t *settings)
 
 DShowInput::~DShowInput()
 {
+	if (stThread) {
+		stThread->quitThread();
+	}
+
 	{
 		CriticalScope scope(mutex);
 		actions.resize(1);
@@ -157,7 +161,6 @@ DShowInput::~DShowInput()
 	WaitForSingleObject(thread, INFINITE);
 
 	if (stThread) {
-		stThread->quitThread();
 		delete stThread;
 		stThread = nullptr;
 	}

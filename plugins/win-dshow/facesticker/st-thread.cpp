@@ -176,6 +176,10 @@ void STThread::updateBeautifySetting(QString setting)
 
 void STThread::videoDataReceived(uint8_t **data, int *linesize, quint64 ts)
 {
+	QMutexLocker locker(&m_runningMutex);
+	if (!m_running)
+		return;
+
 	m_producerMutex.lock();
 	m_data = data;
 	m_linesize = linesize;
@@ -484,10 +488,15 @@ void STThread::setFrameConfig(int w, int h, int f)
 
 void STThread::quitThread()
 {
+	QMutexLocker locker(&m_runningMutex);
 	m_running = false;
 	m_producerMutex.lock();
 	m_producerCondition.notify_one();
 	m_producerMutex.unlock();
+
+	m_consumerMutex.lock();
+	m_consumerCondition.notify_one();
+	m_consumerMutex.unlock();
 	wait();
 }
 
