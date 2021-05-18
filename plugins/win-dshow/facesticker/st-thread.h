@@ -82,6 +82,9 @@ private:
 	void createPBO();
 	void deletePBO();
 
+signals:
+	void started();
+
 private:
 	moodycamel::BlockingReaderWriterQueue<FrameInfo> m_frameQueue;
 	DShowInput *m_dshowInput = nullptr;

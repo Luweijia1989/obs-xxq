@@ -83,6 +83,7 @@ void STThread::run()
 	m_running = true;
 	if (!g_st_checkpass) {
 		m_running = false;
+		emit started();
 		goto Clear;
 	}
 
@@ -91,9 +92,10 @@ void STThread::run()
 	qDebug() << "SenseTime init result: " << m_stFunc->stInited();
 	if (!m_stFunc->stInited()) {
 		m_running = false;
+		emit started();
 		goto Clear;
 	}
-
+	emit started();
 	while (m_running)
 	{
 		FrameInfo frame;
@@ -237,12 +239,11 @@ void STThread::processImage(AVFrame *frame, quint64 ts)
 	bool needDo = !m_stickers.isEmpty() || m_gameStickerType != None || m_needBeautify;
 	bool needMask = m_gameStickerType != None;
 	bool needSticker = !m_stickers.isEmpty();
-
+	
 	int actualHeight = frame->height - 2;
 	int ret = sws_scale(m_swsctx, (const uint8_t *const *)(frame->data), frame->linesize, 0, actualHeight, m_swsRetFrame->data, m_swsRetFrame->linesize);
 	ret = sws_scale(m_swsctxYUV, (const uint8_t *const *)(frame->data), frame->linesize, 0, actualHeight, m_swsYUVRetFrame->data, m_swsYUVRetFrame->linesize);
 	
-	 
 	if (m_videoFrameSizeChanged) {
 		if (m_fbo)
 			delete m_fbo;
@@ -531,13 +532,8 @@ void STThread::quitThread()
 {
 	m_running = false;
 	m_frameQueue.enqueue(FrameInfo());
-	wait();
 
-	FrameInfo info;
-	while (m_frameQueue.try_dequeue(info)) {
-		if (info.avFrame)
-			av_frame_free(&info.avFrame);
-	}
+	wait();
 }
 
 void STThread::freeResource()
