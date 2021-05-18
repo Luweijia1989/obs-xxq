@@ -234,7 +234,7 @@ void QNRtc::PushExternalAudioData(const uint8_t *data, int frames)
 {
     if(!m_rtcAudioInterface || !capture_started_ || !m_isVideoLink)
         return;
-    m_rtcAudioInterface->InputAudioFrame(data, frames * 2 * 2, 16, 44100, 2, frames);
+    m_rtcAudioInterface->InputAudioFrame(data, frames * 2 * 2, 16, 48000, 2, frames);
 }
 
 void QNRtc::StartPublish()

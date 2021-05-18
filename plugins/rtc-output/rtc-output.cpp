@@ -19,7 +19,7 @@ static void *rtc_output_create(obs_data_t *settings, obs_output_t *output)
 	context->m_rtcBase->setAudioOutputDevice(obs_data_get_string(settings, "playout_device"));
 	audio_convert_info info;
 	info.format = AUDIO_FORMAT_16BIT;
-	info.samples_per_sec = 44100;
+	info.samples_per_sec = 48000;
 	info.speakers = SPEAKERS_STEREO;
 	obs_output_set_audio_conversion(output, &info);
 
