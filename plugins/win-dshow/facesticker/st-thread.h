@@ -11,6 +11,7 @@
 #include <QOpenGLContext>
 #include <QOpenGLFunctions>
 #include "../libdshowcapture/dshowcapture.hpp"
+#include "readerwriterqueue.h"
 #include "st-function.h"
 
 extern "C" {
@@ -27,6 +28,15 @@ class QOpenGLTexture;
 class QOpenGLBuffer;
 
 extern bool g_st_checkpass;
+
+struct FrameInfo {
+	long long startTime = 0;
+	AVFrame *avFrame = NULL;
+	int type = 0;
+	int w;
+	int h;
+	int f;
+};
 
 class DShowInput;
 class STThread : public QThread, protected QOpenGLFunctions {
@@ -48,7 +58,9 @@ public:
 	void updateGameInfo(GameStickerType type, int region);
 	void updateBeautifySetting(QString setting);
 
-	void videoDataReceived(uint8_t **data, int *linesize, quint64 ts);
+	void addFrame(unsigned char *data, size_t size, long long startTime, int w, int h);
+	void addFrame(AVFrame *frame);
+	void addConfigChangeFrame(int w, int h, int f);
 	void setFrameConfig(int w, int h, int f);
 	void setFrameConfig(const DShow::VideoConfig &cg);
 	void quitThread();
@@ -64,13 +76,14 @@ private:
 	void initOpenGLContext();
 	void initVertexData();
 	void initTexture();
-	void processImage(uint8_t **data, int *linesize, quint64 ts);
+	void processImage(AVFrame *frame, quint64 ts);
 	void deleteTextures();
 	void createTextures(int w, int h);
 	void createPBO();
 	void deletePBO();
 
 private:
+	moodycamel::BlockingReaderWriterQueue<FrameInfo> m_frameQueue;
 	DShowInput *m_dshowInput = nullptr;
 	STFunction *m_stFunc = nullptr;
 	bool m_running = false;
@@ -106,13 +119,4 @@ private:
 	QMutex m_beautifySettingMutex;
 	QList<QString> m_beautifySettings;
 	bool m_needBeautify = true;
-
-	QMutex m_producerMutex;
-	QWaitCondition m_producerCondition;
-	QMutex m_consumerMutex;
-	QWaitCondition m_consumerCondition;
-	QMutex m_runningMutex;
-	uint8_t **m_data;
-	int *m_linesize;
-	quint64 m_ts;
 };

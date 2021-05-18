@@ -96,25 +96,30 @@ void STThread::run()
 	ctx->makeCurrent(surface);
 	while (m_running)
 	{
-		m_producerMutex.lock();
-		m_producerCondition.wait(&m_producerMutex);
-		if (m_running) {
-			m_beautifySettingMutex.lock();
-			for (auto iter = m_beautifySettings.begin(); iter != m_beautifySettings.end(); iter++)
-			{
-				QJsonDocument jd = QJsonDocument::fromJson((*iter).toUtf8());
-				m_stFunc->updateBeautifyParam(jd.object());
-			}
-			m_beautifySettings.clear();
-			m_beautifySettingMutex.unlock();
+		FrameInfo frame;
+		m_frameQueue.wait_dequeue(frame);
 
-			processImage(m_data, m_linesize, m_ts);
+		if (!m_running)
+			break;
+
+		m_beautifySettingMutex.lock();
+		for (auto iter = m_beautifySettings.begin(); iter != m_beautifySettings.end(); iter++)
+		{
+			QJsonDocument jd = QJsonDocument::fromJson((*iter).toUtf8());
+			m_stFunc->updateBeautifyParam(jd.object());
 		}
-		m_producerMutex.unlock();
+		m_beautifySettings.clear();
+		m_beautifySettingMutex.unlock();
 
-		m_consumerMutex.lock();
-		m_consumerCondition.notify_one();
-		m_consumerMutex.unlock();
+		if (frame.type == 0)
+		{
+			processImage(frame.avFrame, frame.startTime);
+			av_frame_free(&frame.avFrame);
+		}
+		else
+		{
+			setFrameConfig(frame.w, frame.h, frame.f);
+		}
 	}
 	delete m_fbo;
 	deleteTextures();
@@ -174,32 +179,60 @@ void STThread::updateBeautifySetting(QString setting)
 	m_beautifySettings.append(setting);
 }
 
-void STThread::videoDataReceived(uint8_t **data, int *linesize, quint64 ts)
+void STThread::addFrame(unsigned char *data, size_t size, long long startTime, int w, int h)
 {
-	QMutexLocker locker(&m_runningMutex);
 	if (!m_running)
 		return;
+	FrameInfo info;
+	info.startTime = startTime;
 
-	m_producerMutex.lock();
-	m_data = data;
-	m_linesize = linesize;
-	m_ts = ts;
-	m_producerCondition.notify_one();
-	m_producerMutex.unlock();
+	AVFrame *tempFrame = av_frame_alloc();
+	AVPicture *tempPicture = (AVPicture *)tempFrame;
+	int ret = avpicture_fill(tempPicture, data, m_curPixelFormat, w, h);
+	tempFrame->pts = startTime;
+	info.avFrame = tempFrame;
 
-	m_consumerMutex.lock();
-	m_consumerCondition.wait(&m_consumerMutex);
-	m_consumerMutex.unlock();
+	m_frameQueue.enqueue(info);
 }
 
-void STThread::processImage(uint8_t **data, int *linesize, quint64 ts)
+void STThread::addFrame(AVFrame *frame)
+{
+	if (!m_running)
+		return;
+	AVFrame *copyFrame = av_frame_alloc();
+	copyFrame->format = frame->format;
+	copyFrame->width = frame->width;
+	copyFrame->height = frame->height;
+	copyFrame->channels = frame->channels;
+	copyFrame->channel_layout = frame->channel_layout;
+	copyFrame->nb_samples = frame->nb_samples;
+	av_frame_get_buffer(copyFrame, 32);
+	av_frame_copy(copyFrame, frame);
+	av_frame_copy_props(copyFrame, frame);
+
+	FrameInfo info;
+	info.avFrame = copyFrame;
+	m_frameQueue.enqueue(info);
+}
+
+void STThread::addConfigChangeFrame(int w, int h, int f)
+{
+	FrameInfo info;
+	info.type = 1;
+	info.w = w;
+	info.h = h;
+	info.f = f;
+	m_frameQueue.enqueue(info);
+}
+
+void STThread::processImage(AVFrame *frame, quint64 ts)
 {
 	bool needDo = !m_stickers.isEmpty() || m_gameStickerType != None || m_needBeautify;
 	bool needMask = m_gameStickerType != None;
 	bool needSticker = !m_stickers.isEmpty();
 
-	int ret = sws_scale(m_swsctx, (const uint8_t *const *)(data), (const int *)linesize, 0, m_frameHeight, m_swsRetFrame->data, m_swsRetFrame->linesize);
-	ret = sws_scale(m_swsctxYUV, (const uint8_t *const *)(data), (const int *)linesize, 0, m_frameHeight, m_swsYUVRetFrame->data, m_swsYUVRetFrame->linesize);
+	int ret = sws_scale(m_swsctx, (const uint8_t *const *)(frame->data), frame->linesize, 0, m_frameHeight, m_swsRetFrame->data, m_swsRetFrame->linesize);
+	ret = sws_scale(m_swsctxYUV, (const uint8_t *const *)(frame->data), frame->linesize, 0, m_frameHeight, m_swsYUVRetFrame->data, m_swsYUVRetFrame->linesize);
 	
 
 	if (m_videoFrameSizeChanged) {
@@ -488,15 +521,14 @@ void STThread::setFrameConfig(int w, int h, int f)
 
 void STThread::quitThread()
 {
-	QMutexLocker locker(&m_runningMutex);
 	m_running = false;
-	m_producerMutex.lock();
-	m_producerCondition.notify_one();
-	m_producerMutex.unlock();
+	m_frameQueue.enqueue(FrameInfo());
 
-	m_consumerMutex.lock();
-	m_consumerCondition.notify_one();
-	m_consumerMutex.unlock();
+	FrameInfo info;
+	while (m_frameQueue.try_dequeue(info)) {
+		if (info.avFrame)
+			av_frame_free(&info.avFrame);
+	}
 	wait();
 }
 

@@ -400,11 +400,11 @@ void DShowInput::OnEncodedVideoData(enum AVCodecID id, unsigned char *data,
 		{
 			if (encodeFrameFormatChanged)
 			{
-				stThread->setFrameConfig(videoConfig.cx, videoConfig.cy, avFrame->format);
+				stThread->addConfigChangeFrame(videoConfig.cx, videoConfig.cy, avFrame->format);
 				encodeFrameFormatChanged = false;
 			}
 
-			stThread->videoDataReceived(avFrame->data, avFrame->linesize, ts);
+			stThread->addFrame(avFrame);
 		}
 		else {
 			obs_source_output_video2(source, &frame);
@@ -424,13 +424,11 @@ void DShowInput::OnVideoData(const VideoConfig &config, unsigned char *data,
 	if (stThread && stThread->stInited() && stThread->needProcess())
 	{
 		if (encodeFrameFormatChanged) {
-			stThread->setFrameConfig(videoConfig);
+			video_format format = ConvertVideoFormat(videoConfig.format);
+			stThread->addConfigChangeFrame(videoConfig.cx, videoConfig.cy, obs_to_ffmpeg_video_format(format));
 			encodeFrameFormatChanged = false;
 		}
-		uint8_t *outdata[MAX_AV_PLANES];
-		uint32_t linesize[MAX_AV_PLANES];
-		fillFrameDataInfo(videoConfig.format, outdata, linesize, videoConfig.cx, videoConfig.cy, data);
-		stThread->videoDataReceived(outdata, (int *)linesize, startTime);
+		stThread->addFrame(data, size, startTime, videoConfig.cx, videoConfig.cy);
 	}
 	else
 		OutputFrame((videoConfig.format == VideoFormat::XRGB ||
