@@ -179,7 +179,7 @@ void STThread::updateBeautifySetting(QString setting)
 	m_beautifySettings.append(setting);
 }
 
-void STThread::addFrame(unsigned char *data, size_t size, long long startTime, int w, int h)
+void STThread::addFrame(unsigned char *data, size_t size, long long startTime, int w, int h, int f)
 {
 	if (!m_running)
 		return;
@@ -187,8 +187,10 @@ void STThread::addFrame(unsigned char *data, size_t size, long long startTime, i
 	info.startTime = startTime;
 
 	AVFrame *tempFrame = av_frame_alloc();
-	AVPicture *tempPicture = (AVPicture *)tempFrame;
-	int ret = avpicture_fill(tempPicture, data, m_curPixelFormat, w, h);
+	av_image_fill_arrays(tempFrame->data, tempFrame->linesize, data, (AVPixelFormat)f, w, h, 1);
+	tempFrame->width = w;
+	tempFrame->height = h;
+	tempFrame->format = f;
 	tempFrame->pts = startTime;
 	info.avFrame = tempFrame;
 
@@ -231,26 +233,27 @@ void STThread::processImage(AVFrame *frame, quint64 ts)
 	bool needMask = m_gameStickerType != None;
 	bool needSticker = !m_stickers.isEmpty();
 
-	int ret = sws_scale(m_swsctx, (const uint8_t *const *)(frame->data), frame->linesize, 0, m_frameHeight, m_swsRetFrame->data, m_swsRetFrame->linesize);
-	ret = sws_scale(m_swsctxYUV, (const uint8_t *const *)(frame->data), frame->linesize, 0, m_frameHeight, m_swsYUVRetFrame->data, m_swsYUVRetFrame->linesize);
+	int actualHeight = frame->height - 2;
+	int ret = sws_scale(m_swsctx, (const uint8_t *const *)(frame->data), frame->linesize, 0, actualHeight, m_swsRetFrame->data, m_swsRetFrame->linesize);
+	ret = sws_scale(m_swsctxYUV, (const uint8_t *const *)(frame->data), frame->linesize, 0, actualHeight, m_swsYUVRetFrame->data, m_swsYUVRetFrame->linesize);
 	
-
+	 
 	if (m_videoFrameSizeChanged) {
 		if (m_fbo)
 			delete m_fbo;
 
-		m_fbo = new QOpenGLFramebufferObject(m_frameWidth, m_frameHeight);
+		m_fbo = new QOpenGLFramebufferObject(frame->width, actualHeight);
 
 		deleteTextures();
 
 		m_backgroundTexture = new QOpenGLTexture(QOpenGLTexture::Target2D);
-		m_backgroundTexture->setSize(m_frameWidth, m_frameHeight);
+		m_backgroundTexture->setSize(frame->width, actualHeight);
 		m_backgroundTexture->setFormat(QOpenGLTexture::RGBA8_UNorm);
 		m_backgroundTexture->allocateStorage();
 
-		createTextures(m_frameWidth, m_frameHeight);
+		createTextures(frame->width, actualHeight);
 
-		m_textureBufferSize = m_frameWidth * m_frameHeight * 4;
+		m_textureBufferSize = frame->width * actualHeight * 4;
 
 		deletePBO();
 		createPBO();
@@ -261,21 +264,21 @@ void STThread::processImage(AVFrame *frame, quint64 ts)
 	m_backgroundTexture->setData(QOpenGLTexture::RGBA,QOpenGLTexture::UInt8,m_swsRetFrame->data[0]);
 
 	if (needDo)
-		m_stFunc->doFaceDetect(m_needBeautify, needSticker, m_swsYUVRetFrame->data[0], m_frameWidth, m_frameHeight, flip);
+		m_stFunc->doFaceDetect(m_needBeautify, needSticker, m_swsYUVRetFrame->data[0], frame->width, actualHeight, flip);
 
 	QOpenGLTexture *nextSrc = m_backgroundTexture;
 	if (m_needBeautify) {//是否美颜
-		nextSrc = m_stFunc->doBeautify(m_backgroundTexture, m_beautify, m_makeup, m_filter, m_frameWidth, m_frameHeight, m_dshowInput->flipH, flip);
+		nextSrc = m_stFunc->doBeautify(m_backgroundTexture, m_beautify, m_makeup, m_filter, frame->width, actualHeight, m_dshowInput->flipH, flip);
 	}
 	if (needSticker)
-		m_stFunc->doFaceSticker(nextSrc->textureId(), m_outputTexture->textureId(), m_frameWidth, m_frameHeight, m_dshowInput->flipH, flip);
+		m_stFunc->doFaceSticker(nextSrc->textureId(), m_outputTexture->textureId(), frame->width, actualHeight, m_dshowInput->flipH, flip);
 	if (needDo)
-		m_stFunc->flipFaceDetect(flip, m_dshowInput->flipH, m_frameWidth, m_frameHeight); // 翻转得到实际的人脸关键点信息
+		m_stFunc->flipFaceDetect(flip, m_dshowInput->flipH, frame->width, actualHeight); // 翻转得到实际的人脸关键点信息
 
 	float maskX = 0.;
 	float maskY = 0.;
-	float maskWidth = (float)m_strawberryTexture->width() / m_frameWidth * 2;
-	float maskHeight = -(float)m_strawberryTexture->height() / m_frameHeight * 2;
+	float maskWidth = (float)m_strawberryTexture->width() / frame->width * 2;
+	float maskHeight = -(float)m_strawberryTexture->height() / actualHeight * 2;
 	if (needMask) {
 		int s, h;
 		calcPosition(s, h);
@@ -283,10 +286,10 @@ void STThread::processImage(AVFrame *frame, quint64 ts)
 		qreal gvalue = 8 * h / (STRAWBERRY_TIME * STRAWBERRY_TIME);
 		int s1 = s / qSqrt(8 * h / gvalue) * deltaTime;
 		int h1 = qSqrt(2 * gvalue * h) * deltaTime - 0.5 * gvalue * deltaTime * deltaTime;
-		QPoint center = QPoint(s1 + m_frameWidth / 2 - m_strawberryTexture->width() / 2, m_strawberryTexture->height() + h1);
-		QRect strawberryRect = QRect(center.x(), m_frameHeight - center.y(), m_strawberryTexture->width(), m_strawberryTexture->height());
-		maskX = 2. * center.x() / m_frameWidth - 1;
-		maskY = 2. * center.y() / m_frameHeight - 1;
+		QPoint center = QPoint(s1 + frame->width / 2 - m_strawberryTexture->width() / 2, m_strawberryTexture->height() + h1);
+		QRect strawberryRect = QRect(center.x(), actualHeight - center.y(), m_strawberryTexture->width(), m_strawberryTexture->height());
+		maskX = 2. * center.x() / frame->width - 1;
+		maskY = 2. * center.y() / actualHeight - 1;
 	
 		bool hit = false;
 		auto detectResult = m_stFunc->detectResult();
@@ -306,7 +309,7 @@ void STThread::processImage(AVFrame *frame, quint64 ts)
 			}
 		}
 	
-		QRect w(0, 0, m_frameWidth, m_frameHeight);
+		QRect w(0, 0, frame->width, actualHeight);
 		if (hit || !w.intersects(strawberryRect)) {
 			updateGameInfo(None, -1);
 			needMask = false;
@@ -328,7 +331,7 @@ void STThread::processImage(AVFrame *frame, quint64 ts)
 	else if (m_gameStickerType == Bomb)
 		m_bombTexture->bind();
 
-	glViewport(0, 0, m_frameWidth, m_frameHeight);
+	glViewport(0, 0, frame->width, actualHeight);
 	m_vao->bind();
 	m_shader->bind();
 	{
@@ -367,7 +370,7 @@ void STThread::processImage(AVFrame *frame, quint64 ts)
 	extraFuncs->glReadBuffer(GL_COLOR_ATTACHMENT0);
 
 	m_pbos[index]->bind();
-	glReadPixels(0, 0, m_frameWidth, m_frameHeight, GL_BGRA, GL_UNSIGNED_BYTE, NULL);
+	glReadPixels(0, 0, frame->width, actualHeight, GL_BGRA, GL_UNSIGNED_BYTE, NULL);
 	m_pbos[index]->release();
 	m_pbos[nextIndex]->bind();
 	auto src = m_pbos[nextIndex]->map(QOpenGLBuffer::ReadOnly);

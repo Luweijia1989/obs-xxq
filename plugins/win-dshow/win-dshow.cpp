@@ -423,12 +423,14 @@ void DShowInput::OnVideoData(const VideoConfig &config, unsigned char *data,
 
 	if (stThread && stThread->stInited() && stThread->needProcess())
 	{
+		video_format format = ConvertVideoFormat(videoConfig.format);
+		int f = obs_to_ffmpeg_video_format(format);
 		if (encodeFrameFormatChanged) {
-			video_format format = ConvertVideoFormat(videoConfig.format);
-			stThread->addConfigChangeFrame(videoConfig.cx, videoConfig.cy, obs_to_ffmpeg_video_format(format));
+			
+			stThread->addConfigChangeFrame(videoConfig.cx, videoConfig.cy, f);
 			encodeFrameFormatChanged = false;
 		}
-		stThread->addFrame(data, size, startTime, videoConfig.cx, videoConfig.cy);
+		stThread->addFrame(data, size, startTime, videoConfig.cx, videoConfig.cy, f);
 	}
 	else
 		OutputFrame((videoConfig.format == VideoFormat::XRGB ||
@@ -442,11 +444,11 @@ void DShowInput::OutputFrame(bool f, bool fh, VideoFormat vf,
 			     long long startTime, long long endTime)
 {
 	const int cx = videoConfig.cx;
-	const int cy = videoConfig.cy;
+	const int cy = videoConfig.cy - 2; //避免crash，高度减掉2
 
 	frame.timestamp = (uint64_t)startTime * 100;
 	frame.width = videoConfig.cx;
-	frame.height = videoConfig.cy;
+	frame.height = videoConfig.cy - 2;
 	frame.format = ConvertVideoFormat(vf);
 	frame.flip = f;
 	frame.flip_h = fh;

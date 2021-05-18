@@ -58,7 +58,7 @@ public:
 	void updateGameInfo(GameStickerType type, int region);
 	void updateBeautifySetting(QString setting);
 
-	void addFrame(unsigned char *data, size_t size, long long startTime, int w, int h);
+	void addFrame(unsigned char *data, size_t size, long long startTime, int w, int h, int f);
 	void addFrame(AVFrame *frame);
 	void addConfigChangeFrame(int w, int h, int f);
 	void setFrameConfig(int w, int h, int f);
