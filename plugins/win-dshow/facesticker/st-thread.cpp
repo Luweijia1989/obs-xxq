@@ -73,27 +73,27 @@ STThread::~STThread()
 
 void STThread::run()
 {
-	m_running = true;
-	if (!g_st_checkpass) {
-		freeResource();
-		m_running = false;
-		return;
-	}
-
 	initOpenGLContext();
 	initShader();
 	initVertexData();
 	initTexture();
 
+	ctx->makeCurrent(surface);
+
+	m_running = true;
+	if (!g_st_checkpass) {
+		m_running = false;
+		goto Clear;
+	}
+
+
 	m_stFunc->initSenseTimeEnv();
 	qDebug() << "SenseTime init result: " << m_stFunc->stInited();
 	if (!m_stFunc->stInited()) {
-		freeResource();
 		m_running = false;
-		return;
+		goto Clear;
 	}
 
-	ctx->makeCurrent(surface);
 	while (m_running)
 	{
 		FrameInfo frame;
@@ -121,7 +121,11 @@ void STThread::run()
 			setFrameConfig(frame.w, frame.h, frame.f);
 		}
 	}
-	delete m_fbo;
+
+Clear:
+	if (m_fbo)
+		delete m_fbo;
+
 	deleteTextures();
 	m_strawberryTexture->destroy();
 	delete m_strawberryTexture;
@@ -130,12 +134,13 @@ void STThread::run()
 
 	deletePBO();
 
-	ctx->doneCurrent();
+	freeResource();
 
 	delete m_shader;
 	delete m_vao;
+
+	ctx->doneCurrent();
 	delete ctx;
-	freeResource();
 	qDebug() << "STThread stopped...";
 }
 
@@ -526,13 +531,13 @@ void STThread::quitThread()
 {
 	m_running = false;
 	m_frameQueue.enqueue(FrameInfo());
+	wait();
 
 	FrameInfo info;
 	while (m_frameQueue.try_dequeue(info)) {
 		if (info.avFrame)
 			av_frame_free(&info.avFrame);
 	}
-	wait();
 }
 
 void STThread::freeResource()
