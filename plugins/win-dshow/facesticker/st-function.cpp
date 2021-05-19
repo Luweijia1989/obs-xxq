@@ -280,10 +280,10 @@ bool STFunction::doFaceDetect(bool needBeauty, bool needSticker, unsigned char *
 	int ret = st_mobile_human_action_detect(
 		m_stHandler,
 		inputBuffer,
-		ST_PIX_FMT_YUV420P,
+		ST_PIX_FMT_RGBA8888,
 		width,
 		height,
-		width,
+		width * 4,
 		flipv ? ST_CLOCKWISE_ROTATE_180 : ST_CLOCKWISE_ROTATE_0,
 		detectConfig,
 		&m_result);

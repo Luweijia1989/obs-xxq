@@ -148,7 +148,6 @@ Clear:
 
 bool STThread::needProcess()
 {
-	return true;
 	QMutexLocker locker(&m_stickerSetterMutex);
 	return !m_stickers.isEmpty() || m_gameStickerType != None || m_needBeautify;
 }
@@ -208,19 +207,11 @@ void STThread::addFrame(AVFrame *frame)
 {
 	if (!m_running)
 		return;
-	AVFrame *copyFrame = av_frame_alloc();
-	copyFrame->format = frame->format;
-	copyFrame->width = frame->width;
-	copyFrame->height = frame->height;
-	copyFrame->channels = frame->channels;
-	copyFrame->channel_layout = frame->channel_layout;
-	copyFrame->nb_samples = frame->nb_samples;
-	av_frame_get_buffer(copyFrame, 32);
-	av_frame_copy(copyFrame, frame);
-	av_frame_copy_props(copyFrame, frame);
 
 	FrameInfo info;
+	auto copyFrame = av_frame_clone(frame);	
 	info.avFrame = copyFrame;
+
 	m_frameQueue.enqueue(info);
 }
 
@@ -236,13 +227,11 @@ void STThread::addConfigChangeFrame(int w, int h, int f)
 
 void STThread::processImage(AVFrame *frame, quint64 ts)
 {
-	bool needDo = !m_stickers.isEmpty() || m_gameStickerType != None || m_needBeautify;
 	bool needMask = m_gameStickerType != None;
 	bool needSticker = !m_stickers.isEmpty();
 	
-	int actualHeight = frame->height - 2;
+	int actualHeight = frame->height;
 	int ret = sws_scale(m_swsctx, (const uint8_t *const *)(frame->data), frame->linesize, 0, actualHeight, m_swsRetFrame->data, m_swsRetFrame->linesize);
-	ret = sws_scale(m_swsctxYUV, (const uint8_t *const *)(frame->data), frame->linesize, 0, actualHeight, m_swsYUVRetFrame->data, m_swsYUVRetFrame->linesize);
 	
 	if (m_videoFrameSizeChanged) {
 		if (m_fbo)
@@ -267,10 +256,9 @@ void STThread::processImage(AVFrame *frame, quint64 ts)
 
 	m_videoFrameSizeChanged = false;
 
-	m_backgroundTexture->setData(QOpenGLTexture::RGBA,QOpenGLTexture::UInt8,m_swsRetFrame->data[0]);
+	m_backgroundTexture->setData(QOpenGLTexture::RGBA, QOpenGLTexture::UInt8, m_swsRetFrame->data[0]);
 
-	if (needDo)
-		m_stFunc->doFaceDetect(m_needBeautify, needSticker, m_swsYUVRetFrame->data[0], frame->width, actualHeight, flip);
+	m_stFunc->doFaceDetect(m_needBeautify, needSticker, m_swsRetFrame->data[0], frame->width, actualHeight, flip);
 
 	QOpenGLTexture *nextSrc = m_backgroundTexture;
 	if (m_needBeautify) {//是否美颜
@@ -278,8 +266,8 @@ void STThread::processImage(AVFrame *frame, quint64 ts)
 	}
 	if (needSticker)
 		m_stFunc->doFaceSticker(nextSrc->textureId(), m_outputTexture->textureId(), frame->width, actualHeight, m_dshowInput->flipH, flip);
-	if (needDo)
-		m_stFunc->flipFaceDetect(flip, m_dshowInput->flipH, frame->width, actualHeight); // 翻转得到实际的人脸关键点信息
+
+	m_stFunc->flipFaceDetect(flip, m_dshowInput->flipH, frame->width, actualHeight); // 翻转得到实际的人脸关键点信息
 
 	float maskX = 0.;
 	float maskY = 0.;
@@ -507,23 +495,12 @@ void STThread::setFrameConfig(int w, int h, int f)
 			m_swsctx = NULL;
 		}
 
-		if (m_swsYUVRetFrame)
-			av_frame_free(&m_swsYUVRetFrame);
-		m_swsYUVRetFrame = av_frame_alloc();
-		av_image_alloc(m_swsYUVRetFrame->data, m_swsYUVRetFrame->linesize, w, h, AV_PIX_FMT_YUV420P, 1);
-		if (m_swsctxYUV) {
-			sws_freeContext(m_swsctxYUV);
-			m_swsctxYUV = NULL;
-		}
-
-
 		m_curPixelFormat = (AVPixelFormat)f;
 		flip = AV_PIX_FMT_BGRA == m_curPixelFormat;
 		m_frameWidth = w;
 		m_frameHeight = h;
 		if (m_curPixelFormat != AV_PIX_FMT_NONE) {
 			m_swsctx = sws_getContext(w, h, m_curPixelFormat, w, h, AVPixelFormat::AV_PIX_FMT_RGBA, SWS_BICUBIC, NULL, NULL, NULL);
-			m_swsctxYUV = sws_getContext(w, h, m_curPixelFormat, w, h, AVPixelFormat::AV_PIX_FMT_YUV420P, SWS_FAST_BILINEAR, NULL, NULL, NULL);
 		}
 	}
 }
@@ -534,15 +511,18 @@ void STThread::quitThread()
 	m_frameQueue.enqueue(FrameInfo());
 
 	wait();
+
+	FrameInfo info;
+	while (m_frameQueue.try_dequeue(info)) {
+		if (info.avFrame)
+			av_frame_free(&info.avFrame);
+	}
 }
 
 void STThread::freeResource()
 {
 	if (m_swsctx)
 		sws_freeContext(m_swsctx);
-
-	if (m_swsctxYUV)
-		sws_freeContext(m_swsctxYUV);
 
 	if (m_swsRetFrame)
 		av_frame_free(&m_swsRetFrame);

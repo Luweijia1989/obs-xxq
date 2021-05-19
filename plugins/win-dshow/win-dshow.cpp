@@ -112,7 +112,7 @@ DShowInput::DShowInput(obs_source_t *source_, obs_data_t *settings)
 	: source(source_), device(InitGraph::False)
 {
 	stThread = new STThread(this);
-	stThread->setBeautifyEnabled(!obs_data_get_bool(settings, "beautifyNotEnabled"));
+	stThread->setBeautifyEnabled(obs_data_get_bool(settings, "beautifyEnabled"));
 	QEventLoop loop;
 	QObject obj;
 	QObject::connect(stThread, &STThread::started, &obj, [=, &loop](){
@@ -450,11 +450,11 @@ void DShowInput::OutputFrame(bool f, bool fh, VideoFormat vf,
 			     long long startTime, long long endTime)
 {
 	const int cx = videoConfig.cx;
-	const int cy = videoConfig.cy - 2; //避免crash，高度减掉2
+	const int cy = videoConfig.cy;
 
 	frame.timestamp = (uint64_t)startTime * 100;
 	frame.width = videoConfig.cx;
-	frame.height = videoConfig.cy - 2;
+	frame.height = videoConfig.cy;
 	frame.format = ConvertVideoFormat(vf);
 	frame.flip = f;
 	frame.flip_h = fh;
