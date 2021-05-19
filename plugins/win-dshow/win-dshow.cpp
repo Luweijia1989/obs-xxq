@@ -152,10 +152,6 @@ DShowInput::DShowInput(obs_source_t *source_, obs_data_t *settings)
 
 DShowInput::~DShowInput()
 {
-	if (stThread) {
-		stThread->quitThread();
-	}
-
 	{
 		CriticalScope scope(mutex);
 		actions.resize(1);
@@ -167,6 +163,7 @@ DShowInput::~DShowInput()
 	WaitForSingleObject(thread, INFINITE);
 
 	if (stThread) {
+		stThread->quitThread();
 		delete stThread;
 		stThread = nullptr;
 	}
@@ -404,13 +401,7 @@ void DShowInput::OnEncodedVideoData(enum AVCodecID id, unsigned char *data,
 #endif
 		if (stThread && stThread->stInited() && stThread->needProcess())
 		{
-			if (encodeFrameFormatChanged)
-			{
-				stThread->addConfigChangeFrame(videoConfig.cx, videoConfig.cy, avFrame->format);
-				encodeFrameFormatChanged = false;
-			}
-
-			stThread->addFrame(avFrame);
+			stThread->addFrame(avFrame, frame.timestamp);
 		}
 		else {
 			obs_source_output_video2(source, &frame);
@@ -431,11 +422,6 @@ void DShowInput::OnVideoData(const VideoConfig &config, unsigned char *data,
 	{
 		video_format format = ConvertVideoFormat(videoConfig.format);
 		int f = obs_to_ffmpeg_video_format(format);
-		if (encodeFrameFormatChanged) {
-			
-			stThread->addConfigChangeFrame(videoConfig.cx, videoConfig.cy, f);
-			encodeFrameFormatChanged = false;
-		}
 		stThread->addFrame(data, size, startTime, videoConfig.cx, videoConfig.cy, f);
 	}
 	else
@@ -462,6 +448,31 @@ void DShowInput::OutputFrame(bool f, bool fh, VideoFormat vf,
 	if (flip)
 		frame.flip = !frame.flip;
 
+	fillFrameDataInfo(vf, frame.data, frame.linesize, cx, cy, data);
+
+	obs_source_output_video2(source, &frame);
+
+	UNUSED_PARAMETER(endTime); /* it's the enndd tiimmes! */
+	UNUSED_PARAMETER(size);
+}
+
+void DShowInput::OutputFrame(VideoFormat vf,
+			     unsigned char *data, size_t size,
+			     long long startTime, long long endTime, int w, int h)
+{
+	const int cx = w;
+	const int cy = h;
+
+	frame.timestamp = (uint64_t)startTime * 100;
+	frame.width = w;
+	frame.height = h;
+	frame.format = ConvertVideoFormat(vf);
+	frame.flip = false;
+	frame.flip_h = false;
+
+	if (flip)
+		frame.flip = !frame.flip;
+	 
 	fillFrameDataInfo(vf, frame.data, frame.linesize, cx, cy, data);
 
 	obs_source_output_video2(source, &frame);
@@ -726,7 +737,6 @@ static DStr GetVideoFormatName(VideoFormat format);
 
 bool DShowInput::UpdateVideoConfig(obs_data_t *settings)
 {
-	encodeFrameFormatChanged = true;
 	string video_device_id = obs_data_get_string(settings, VIDEO_DEVICE_ID);
 	deactivateWhenNotShowing = obs_data_get_bool(settings, DEACTIVATE_WNS);
 	flip = obs_data_get_bool(settings, FLIP_IMAGE);
