@@ -243,6 +243,10 @@ void STThread::addFrame(AVFrame *frame, long long startTime)
 
 void STThread::processImage(AVFrame *frame, quint64 ts)
 {
+	QMutexLocker locker(&m_stickerSetterMutex);
+	if (m_stickers.isEmpty() && m_gameStickerType == None && !m_needBeautify)
+		return;
+
 	if (m_dshowInput->videoConfig.cx != frame->width || m_dshowInput->videoConfig.cy != frame->height)
 		return;
 
@@ -537,6 +541,7 @@ void STThread::freeResource()
 
 void STThread::setBeautifyEnabled(bool enabled)
 {
+	QMutexLocker locker(&m_stickerSetterMutex);
 	m_needBeautify = enabled;
 }
 
