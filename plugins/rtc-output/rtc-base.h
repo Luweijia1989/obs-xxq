@@ -22,6 +22,7 @@ public:
 		int fps;
 		int width;
 		int height;
+		int mode;
 		VideoInfo()
 		{
 			audioBitrate = 0;
@@ -29,6 +30,7 @@ public:
 			fps = 0;
 			width = 0;
 			height = 0;
+			mode = -1;
 		}
 	};
 
@@ -50,8 +52,9 @@ public:
 
 	const QRect &cropInfo() { return m_cropInfo; }
 
-	void setVideoInfo(int a, int v, int fps, int w, int h)
+	void setVideoInfo(int mode, int a, int v, int fps, int w, int h)
 	{
+		m_vinfo.mode = mode;
 		m_vinfo.audioBitrate = a;
 		m_vinfo.videoBitrate = v;
 		m_vinfo.fps = fps;
@@ -145,31 +148,6 @@ public:
 	int link_type;
 	bool is_video_link;
 	QString last_audio_input_device;
-};
-
-class QNRtc;
-class QINIURTC : public RTCBase {
-	Q_OBJECT
-public:
-	QINIURTC();
-	~QINIURTC();
-	virtual void init();
-	virtual void enterRoom();
-	virtual void exitRoom();
-	virtual void setRemoteViewHwnd(long window);
-	virtual void sendAudio(struct audio_data *data);
-	virtual void sendVideo(struct video_data *data);
-	virtual void setSei(const QJsonObject &data, int insetType);
-	virtual void setAudioInputDevice(const QString &deviceId);
-	virtual void setAudioInputMute(bool mute);
-	virtual void setAudioInputVolume(int volume);
-	virtual void setAudioOutputDevice(const QString &deviceId);
-
-private:
-	QNRtc *m_rtc;
-	bool m_joinSucess = false;
-	bool m_subscibeSucess = false;
-	bool m_publishSucess = false;
 };
 
 class TRTC : public RTCBase {

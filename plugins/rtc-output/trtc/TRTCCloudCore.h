@@ -12,6 +12,16 @@ class TRTC;
 typedef ITRTCCloud *(__cdecl *GetTRTCShareInstance)();
 typedef void(__cdecl *DestroyTRTCShareInstance)();
 
+struct MixInfo
+{
+	uint32_t width;
+	uint32_t height;
+	uint32_t vbitrate;
+	uint32_t fps;
+	int mixerCount;
+	bool onlyAnchorVideo;
+};
+
 class TRTCCloudCore : public QObject,
 		      public ITRTCCloudCallback,
 		      public ITRTCLogCallback,
@@ -78,11 +88,11 @@ public:
 
 public:
 	void connectOtherRoom(QString userId, uint32_t roomId);
-	void startCloudMixStream(const char *remoteRoomId, int cdnAppID, int bizID);
+	void startCloudMixStream(const char *remoteRoomId, int cdnAppID, int bizID, const MixInfo &info);
 	void stopCloudMixStream();
 
 protected:
-	void setPresetLayoutConfig(TRTCTranscodingConfig &config, const char *remoteRoomId);
+	void setPresetLayoutConfig(TRTCTranscodingConfig &config, const char *remoteRoomId, const MixInfo &info);
 
 private:
 	static TRTCCloudCore *m_instance;

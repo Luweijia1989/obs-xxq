@@ -11,7 +11,7 @@ static void *rtc_output_create(obs_data_t *settings, obs_output_t *output)
 {
 	int rtc_type = obs_data_get_int(settings, "rtc_type");
 	RTCOutput *context = new RTCOutput((RTCOutput::RTC_TYPE)rtc_type, output);
-	context->m_rtcBase->setVideoInfo(obs_data_get_int(settings, "audiobitrate"), obs_data_get_int(settings, "videobitrate"), obs_data_get_int(settings, "fps"), obs_data_get_int(settings, "v_width"), obs_data_get_int(settings, "v_height"));
+	context->m_rtcBase->setVideoInfo(obs_data_get_int(settings, "linkMode"), obs_data_get_int(settings, "audiobitrate"), obs_data_get_int(settings, "videobitrate"), obs_data_get_int(settings, "fps"), obs_data_get_int(settings, "v_width"), obs_data_get_int(settings, "v_height"));
 	context->m_rtcBase->setLinkInfo(obs_data_get_string(settings, "linkInfo"));
 	context->m_rtcBase->setCropInfo(obs_data_get_int(settings, "cropX"), obs_data_get_int(settings, "cropWidth"));
 	context->m_rtcBase->setRemoteViewHwnd(obs_data_get_int(settings, "hwnd"));
@@ -153,8 +153,6 @@ RTCOutput::RTCOutput(RTC_TYPE type, obs_output_t *output)
 	m_output = output;
 	if(type == RTC_TYPE_TRTC)
 		m_rtcBase = new TRTC();
-	else if (type == RTC_TYPE_QINIU)
-		m_rtcBase = new QINIURTC();
 
 	m_rtcBase->setRtcEventCallback(std::bind(&RTCOutput::sigEvent, this, std::placeholders::_1, std::placeholders::_2));
 }

@@ -320,7 +320,7 @@ void TRTCCloudCore::stopCloudMixStream()
 	}
 }
 
-void TRTCCloudCore::startCloudMixStream(const char *remoteRoomId, int cdnAppID, int bizID)
+void TRTCCloudCore::startCloudMixStream(const char *remoteRoomId, int cdnAppID, int bizID, const MixInfo &info)
 {
 	blog(LOG_INFO, "startCloudMixStream");
 
@@ -334,7 +334,7 @@ void TRTCCloudCore::startCloudMixStream(const char *remoteRoomId, int cdnAppID, 
 
 	if (config.mode > TRTCTranscodingConfigMode_Manual) {
 		if (config.mode == TRTCTranscodingConfigMode_Template_PresetLayout) {
-			setPresetLayoutConfig(config, remoteRoomId);
+			setPresetLayoutConfig(config, remoteRoomId, info);
 		}
 
 		m_pCloud->setMixTranscodingConfig(&config);
@@ -346,21 +346,21 @@ void TRTCCloudCore::startCloudMixStream(const char *remoteRoomId, int cdnAppID, 
 	}
 }
 
-void TRTCCloudCore::setPresetLayoutConfig(TRTCTranscodingConfig &config, const char *remoteRoomId)
+void TRTCCloudCore::setPresetLayoutConfig(TRTCTranscodingConfig &config, const char *remoteRoomId, const MixInfo &info)
 {
 
-	int canvasWidth = MIX_CANVAS_WIDTH;
-	int canvasHeight = MIX_CANVAS_HEIGHT;
+	int canvasWidth = info.width;
+	int canvasHeight = info.height;
 	config.videoWidth = canvasWidth;
 	config.videoHeight = canvasHeight;
-	config.videoBitrate = 850;
-	config.videoFramerate = MIX_FPS;
+	config.videoBitrate = info.vbitrate;
+	config.videoFramerate = info.fps;
 	config.videoGOP = 2;
 	config.audioSampleRate = 48000;
 	config.audioBitrate = 128;
 	config.audioChannels = 2;
 
-	config.mixUsersArraySize = 2;
+	config.mixUsersArraySize = info.mixerCount;
 
 	TRTCMixUser *mixUsersArray = new TRTCMixUser[config.mixUsersArraySize];
 	config.mixUsersArray = mixUsersArray;
@@ -378,9 +378,26 @@ void TRTCCloudCore::setPresetLayoutConfig(TRTCTranscodingConfig &config, const c
 		}
 	};
 	//本地主路信息
-	setMixUser("$PLACE_HOLDER_LOCAL_MAIN$", index, zOrder, 0, 0, canvasWidth / 2, canvasHeight, remoteRoomId);
-	index++;
-	zOrder++;
 
-	setMixUser("$PLACE_HOLDER_REMOTE$", index, zOrder, canvasWidth / 2, 0, canvasWidth / 2, canvasHeight, remoteRoomId);
+	if (info.onlyAnchorVideo)
+	{
+		for (int i = 0; i < info.mixerCount; i++)
+		{
+			if (i == 0)
+				setMixUser("$PLACE_HOLDER_LOCAL_MAIN$", index, zOrder, 0, 0, canvasWidth, canvasHeight, remoteRoomId);
+			else
+				setMixUser("$PLACE_HOLDER_REMOTE$", index, zOrder, 0, 0, 0, 0, remoteRoomId);
+			index++;
+			zOrder++;
+		}
+	}
+	else
+	{
+		for (int i = 0; i < info.mixerCount; i++)
+		{
+			setMixUser(i == 0 ? "$PLACE_HOLDER_LOCAL_MAIN$" : "$PLACE_HOLDER_REMOTE$", index, zOrder, canvasWidth / info.mixerCount * i, 0, canvasWidth / info.mixerCount, canvasHeight, remoteRoomId);
+			index++;
+			zOrder++;
+		}
+	}
 }

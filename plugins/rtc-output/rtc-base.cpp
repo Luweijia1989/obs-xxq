@@ -1,6 +1,5 @@
 #include "rtc-base.h"
 #include "trtc/TRTCCloudCore.h"
-#include "qnrtc/qiniurtc.h"
 #include "TXLiteAVBase.h"
 #include "rtc-output.h"
 #include <QDebug>
@@ -120,6 +119,22 @@ void TRTC::enterRoom()
 	TRTCCloudCore::GetInstance()->getTRTCCloud()->setAudioQuality(TRTCAudioQualityMusic);
 
 	internalEnterRoom();
+
+	if (videoInfo().mode == 0) // 0->单主播 1->主播加观众
+	{
+		CDataCenter::GetInstance()->m_videoEncParams.videoBitrate = videoInfo().videoBitrate;
+		CDataCenter::GetInstance()->m_videoEncParams.videoFps = videoInfo().fps;
+		CDataCenter::GetInstance()->m_videoEncParams.minVideoBitrate = videoInfo().videoBitrate;
+		if (videoInfo().width == 1920)
+			CDataCenter::GetInstance()->m_videoEncParams.videoResolution = TRTCVideoResolution_1920_1080;
+		else if (videoInfo().width == 1280)
+			CDataCenter::GetInstance()->m_videoEncParams.videoResolution = TRTCVideoResolution_1280_720;
+		CDataCenter::GetInstance()->m_videoEncParams.resMode = TRTCVideoResolutionModeLandscape;
+	}
+	else if (videoInfo().mode == 1)
+	{
+		//默认的就是主播加观众的设置，不用调整了。
+	}
 
 	TRTCCloudCore::GetInstance()->getTRTCCloud()->setVideoEncoderParam(CDataCenter::GetInstance()->m_videoEncParams);
 	TRTCCloudCore::GetInstance()->getTRTCCloud()->setVideoEncoderMirror(false);
@@ -259,7 +274,7 @@ void TRTC::setAudioInputDevice(const QString &deviceId)
 	}
 
 	setAudioInputMute(false);
-	std:string strdid = deviceId.toStdString();
+	std::string strdid = deviceId.toStdString();
 	if (last_audio_input_device != deviceId)
 	{
 		auto devices = TRTCCloudCore::GetInstance()->getTRTCCloud()->getMicDevicesList();
@@ -305,7 +320,7 @@ void TRTC::setAudioInputVolume(int volume)
 
 void TRTC::setAudioOutputDevice(const QString &deviceId)
 {
-	std:string strdid = deviceId.toStdString();
+	std::string strdid = deviceId.toStdString();
 	auto devices = TRTCCloudCore::GetInstance()->getTRTCCloud()->getSpeakerDevicesList();
 	int count = devices->getCount();
 	if (count > 0)
@@ -365,7 +380,25 @@ void TRTC::onEnterRoom(int result)
 			TRTCCloudCore::GetInstance()->getTRTCCloud()->muteLocalAudio(false);
 			TRTCCloudCore::GetInstance()->getTRTCCloud()->setRemoteViewFillMode(strOtherUid.c_str(), TRTCVideoFillMode_Fill);
 			TRTCCloudCore::GetInstance()->getTRTCCloud()->startRemoteView(strOtherUid.c_str(), (HWND)m_remoteView);
-			TRTCCloudCore::GetInstance()->startCloudMixStream(link_std_rtcRoomId.c_str(), link_cdnAPPID, link_cdnBizID);
+			MixInfo info;
+			info.onlyAnchorVideo = videoInfo().mode == 0;
+			if (videoInfo().mode == 0)
+			{
+				info.width = videoInfo().width;
+				info.height = videoInfo().height;
+				info.vbitrate = videoInfo().videoBitrate;
+				info.fps = videoInfo().fps;
+				info.mixerCount = 2;
+			}
+			else
+			{
+				info.width = 750;
+				info.height = 564;
+				info.vbitrate = 850;
+				info.fps = 20;
+				info.mixerCount = 2;
+			}
+			TRTCCloudCore::GetInstance()->startCloudMixStream(link_std_rtcRoomId.c_str(), link_cdnAPPID, link_cdnBizID, info);
 		}
 		else
 			sendEvent(RTC_EVENT_SUCCESS, QJsonObject());
@@ -435,142 +468,4 @@ void TRTC::onRemoteUserLeave(QString userId)
 		TRTCCloudCore::GetInstance()->getTRTCCloud()->stopRemoteView(idstr.c_str());
 
 	CDataCenter::GetInstance()->removeRemoteUser(idstr);
-}
-
-QINIURTC::QINIURTC()
-{
-	m_rtc = new QNRtc(this);
-	connect(
-		m_rtc, &QNRtc::linkStateResult, this, [=](QNRtc::ResultCode code, int erorrCode, QString errorStr) {
-		switch (code)
-		{
-		case QNRtc::JoinSucess:
-		case QNRtc::SubscribeSucess:
-		case QNRtc::PublishSucess:
-		{
-			if (code == QNRtc::JoinSucess)
-			{
-				m_joinSucess = true;
-			}
-			else if (code == QNRtc::SubscribeSucess)
-			{
-				m_subscibeSucess = true;
-			}
-			else if (code == QNRtc::PublishSucess)
-			{
-				m_publishSucess = true;
-			}
-
-			if (m_joinSucess && m_subscibeSucess && m_publishSucess)
-			{
-				if (is_video_link)
-					m_rtc->doLinkMerge(link_streamUrl);
-				else
-				{
-					sendEvent(RTC_EVENT_SUCCESS, QJsonObject());
-					m_rtc->startSpeakTimer();
-				}
-			}
-		}
-		break;
-		case QNRtc::MergeSucess:
-			sendEvent(RTC_EVENT_SUCCESS, QJsonObject());
-		break;
-		case QNRtc::Failture:
-		{
-			QJsonObject obj;
-			obj["errCode"] = erorrCode;
-			obj["errMsg"] = errorStr;
-			obj["isNetFail"] = true;
-			sendEvent(RTC_EVENT_FAIL, obj);
-		}
-		break;
-		case QNRtc::ReConnect:
-			sendEvent(RTC_EVENT_RECONNECTING, QJsonObject());
-		break;
-		case QNRtc::ReJoin:
-			sendEvent(RTC_EVENT_REJOIN, QJsonObject());
-		break;
-		case QNRtc::JoinFailture:
-		{
-			QJsonObject obj;
-			obj["errCode"] = erorrCode;
-			obj["errMsg"] = errorStr;
-			obj["isNetFail"] = false;
-			sendEvent(RTC_EVENT_FAIL, obj);
-		}
-		break;
-		default:
-			break;
-		}
-	});
-
-	connect(m_rtc, &QNRtc::speakerEvent, this, &QINIURTC::onSpeakerEvent);
-}
-
- QINIURTC::~QINIURTC() {}
-
-void QINIURTC::init() {}
-
-void QINIURTC::enterRoom()
-{
-	m_rtc->setIsVideoLink(is_video_link);
-	m_rtc->SetVideoInfo(videoInfo().audioBitrate, videoInfo().videoBitrate, videoInfo().fps, videoInfo().width, videoInfo().height);
-	m_rtc->setCropInfo(cropInfo().x(), 0, cropInfo().width(), cropInfo().height());
-	m_rtc->setUserId(link_rtc_uid);
-	m_rtc->startLink(link_rtcRoomToken);
-}
-
-void QINIURTC::exitRoom()
-{
-	m_rtc->stopLink();
-	m_joinSucess = false;
-	m_subscibeSucess = false;
-	m_publishSucess = false;
-}
-
-void QINIURTC::setRemoteViewHwnd(long window)
-{
-	m_rtc->setRenderWidget((HWND)window);
-}
-
-void QINIURTC::sendAudio(struct audio_data *data)
-{
-	m_rtc->PushExternalAudioData(data->data[0], data->frames);
-}
-
-void QINIURTC::sendVideo(struct video_data *data)
-{
-	m_rtc->PushExternalVideoData(data->data[0], data->timestamp);
-}
-
-void QINIURTC::setSei(const QJsonObject &data, int insetType)
-{
-	m_rtc->setSei(data, insetType);
-}
-
-void QINIURTC::setAudioInputDevice(const QString &deviceId)
-{
-	if (is_video_link)
-		return;
-	m_rtc->setMicDevice(deviceId);
-}
-
-void QINIURTC::setAudioInputMute(bool mute)
-{
-	if (is_video_link)
-		return;
-	m_rtc->setMicMute(mute);
-}
-
-void QINIURTC::setAudioInputVolume(int volume)
-{
-	if (is_video_link)
-		return;
-	m_rtc->setMicVolume(volume);
-}
-
-void QINIURTC::setAudioOutputDevice(const QString &deviceId)
-{
-	m_rtc->setPlayoutDevice(deviceId);
 }
