@@ -151,9 +151,7 @@ void obs_module_unload(void) {}
 RTCOutput::RTCOutput(RTC_TYPE type, obs_output_t *output)
 {
 	m_output = output;
-	if(type == RTC_TYPE_TRTC)
-		m_rtcBase = new TRTC();
-
+	m_rtcBase = new TRTC();
 	m_rtcBase->setRtcEventCallback(std::bind(&RTCOutput::sigEvent, this, std::placeholders::_1, std::placeholders::_2));
 }
 
