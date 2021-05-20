@@ -243,6 +243,9 @@ void STThread::addFrame(AVFrame *frame, long long startTime)
 
 void STThread::processImage(AVFrame *frame, quint64 ts)
 {
+	if (m_dshowInput->videoConfig.cx != frame->width || m_dshowInput->videoConfig.cy != frame->height)
+		return;
+
 	quint64 m_textureBufferSize = frame->width * frame->height * 4;
 	bool frameInfoChanged = (m_lastWidth != frame->width || m_lastHeight != frame->height || m_lastFormat != frame->format);
 	m_lastWidth = frame->width;
