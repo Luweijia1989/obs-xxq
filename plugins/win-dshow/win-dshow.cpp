@@ -404,6 +404,7 @@ void DShowInput::OnEncodedVideoData(enum AVCodecID id, unsigned char *data,
 			stThread->addFrame(avFrame, frame.timestamp);
 		}
 		else {
+			QMutexLocker locker(&outputMutex);
 			obs_source_output_video2(source, &frame);
 		}
 	}
@@ -435,6 +436,7 @@ void DShowInput::OutputFrame(bool f, bool fh, VideoFormat vf,
 			     unsigned char *data, size_t size,
 			     long long startTime, long long endTime)
 {
+	QMutexLocker locker(&outputMutex);
 	const int cx = videoConfig.cx;
 	const int cy = videoConfig.cy;
 
@@ -460,6 +462,7 @@ void DShowInput::OutputFrame(VideoFormat vf,
 			     unsigned char *data, size_t size,
 			     long long startTime, long long endTime, int w, int h)
 {
+	QMutexLocker locker(&outputMutex);
 	const int cx = w;
 	const int cy = h;
 
@@ -1764,6 +1767,8 @@ static obs_properties_t *GetDShowProperties(void *obj)
 				  CrossbarConfigClicked);
 
 	obs_properties_add_bool(ppts, DEACTIVATE_WNS, TEXT_DWNS);
+
+	obs_properties_add_bool(ppts, "beautifyEnabled", "beautifyEnabled");
 
 	/* ------------------------------------- */
 	/* video settings */

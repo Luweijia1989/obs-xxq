@@ -18,6 +18,7 @@
 #include <string>
 #include <vector>
 #include <QString>
+#include <QMutex>
 
 /*
  * TODO:
@@ -156,6 +157,7 @@ public:
 	float timeElapsed = 0.f;
 
 	STThread *stThread = nullptr;
+	QMutex outputMutex;
 
 	Decoder audio_decoder;
 	Decoder video_decoder;
