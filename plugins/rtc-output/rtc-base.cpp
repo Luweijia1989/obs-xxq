@@ -116,7 +116,6 @@ void TRTC::enterRoom()
 	TRTCCloudCore::GetInstance()->getTRTCCloud()->callExperimentalAPI(cmd2.c_str());
 
 	TRTCCloudCore::GetInstance()->getTRTCCloud()->setDefaultStreamRecvMode(true, true);
-	TRTCCloudCore::GetInstance()->getTRTCCloud()->setAudioQuality(TRTCAudioQualityMusic);
 
 	internalEnterRoom();
 
@@ -150,7 +149,7 @@ void TRTC::enterRoom()
 	else
 	{
 		TRTCCloudCore::GetInstance()->getTRTCCloud()->enableAudioVolumeEvaluation(3000);
-		TRTCCloudCore::GetInstance()->getTRTCCloud()->startLocalAudio();
+		TRTCCloudCore::GetInstance()->getTRTCCloud()->startLocalAudio(TRTCAudioQualityMusic);
 	}
 
 	qDebug() << QString(u8"正在进入[%1]房间, sceneType[%3]").arg(link_rtcRoomId).arg(u8"视频互动直播");
@@ -272,17 +271,19 @@ void TRTC::setAudioInputDevice(const QString &deviceId)
 		setAudioInputMute(true);
 		return;
 	}
-
+	 
 	setAudioInputMute(false);
 	std::string strdid = deviceId.toStdString();
 	if (last_audio_input_device != deviceId)
 	{
-		auto devices = TRTCCloudCore::GetInstance()->getTRTCCloud()->getMicDevicesList();
+		auto devices = TRTCCloudCore::GetInstance()->deviceManager()->getDevicesList(TXMediaDeviceTypeMic);
+		if (!devices)
+			return;
 		int count = devices->getCount();
 		if (count > 0)
 		{
 			if (deviceId == "default") {
-				TRTCCloudCore::GetInstance()->getTRTCCloud()->setCurrentMicDevice(devices->getDevicePID(0));
+				TRTCCloudCore::GetInstance()->deviceManager()->setCurrentDevice(TXMediaDeviceTypeMic, devices->getDevicePID(0));
 			}
 			else
 			{
@@ -290,7 +291,7 @@ void TRTC::setAudioInputDevice(const QString &deviceId)
 				{
 					if (strcmp(strdid.c_str(), devices->getDevicePID(i)) == 0)
 					{
-						TRTCCloudCore::GetInstance()->getTRTCCloud()->setCurrentMicDevice(devices->getDevicePID(i));
+						TRTCCloudCore::GetInstance()->deviceManager()->setCurrentDevice(TXMediaDeviceTypeMic, devices->getDevicePID(i));
 						break;
 					}
 				}
@@ -321,12 +322,15 @@ void TRTC::setAudioInputVolume(int volume)
 void TRTC::setAudioOutputDevice(const QString &deviceId)
 {
 	std::string strdid = deviceId.toStdString();
-	auto devices = TRTCCloudCore::GetInstance()->getTRTCCloud()->getSpeakerDevicesList();
+	auto devices = TRTCCloudCore::GetInstance()->deviceManager()->getDevicesList(TXMediaDeviceTypeSpeaker);
+	if (!devices)
+		return;
+
 	int count = devices->getCount();
 	if (count > 0)
 	{
 		if (deviceId == "default") {
-			TRTCCloudCore::GetInstance()->getTRTCCloud()->setCurrentSpeakerDevice(devices->getDevicePID(0));
+			TRTCCloudCore::GetInstance()->deviceManager()->setCurrentDevice(TXMediaDeviceTypeSpeaker, devices->getDevicePID(0));
 		}
 		else
 		{
@@ -334,7 +338,7 @@ void TRTC::setAudioOutputDevice(const QString &deviceId)
 			{
 				if (strcmp(strdid.c_str(), devices->getDevicePID(i)) == 0)
 				{
-					TRTCCloudCore::GetInstance()->getTRTCCloud()->setCurrentSpeakerDevice(devices->getDevicePID(i));
+					TRTCCloudCore::GetInstance()->deviceManager()->setCurrentDevice(TXMediaDeviceTypeSpeaker, devices->getDevicePID(i));
 					break;
 				}
 			}
@@ -378,8 +382,12 @@ void TRTC::onEnterRoom(int result)
 		{ 
 			TRTCCloudCore::GetInstance()->getTRTCCloud()->muteLocalVideo(false);
 			TRTCCloudCore::GetInstance()->getTRTCCloud()->muteLocalAudio(false);
-			TRTCCloudCore::GetInstance()->getTRTCCloud()->setRemoteViewFillMode(strOtherUid.c_str(), TRTCVideoFillMode_Fill);
-			TRTCCloudCore::GetInstance()->getTRTCCloud()->startRemoteView(strOtherUid.c_str(), (HWND)m_remoteView);
+			TRTCRenderParams renderParam;
+			renderParam.fillMode = TRTCVideoFillMode_Fill;
+			renderParam.mirrorType = TRTCVideoMirrorType_Disable;
+			renderParam.rotation = TRTCVideoRotation0;
+			TRTCCloudCore::GetInstance()->getTRTCCloud()->setRemoteRenderParams(strOtherUid.c_str(), TRTCVideoStreamTypeBig, renderParam);
+			TRTCCloudCore::GetInstance()->getTRTCCloud()->startRemoteView(strOtherUid.c_str(), TRTCVideoStreamTypeBig, (HWND)m_remoteView);
 			MixInfo info;
 			info.onlyAnchorVideo = videoInfo().mode == 0;
 			if (videoInfo().mode == 0)
@@ -446,7 +454,7 @@ void TRTC::onUserVideoAvailable(QString userId, bool available)
 		}
 	}
 	else {
-		TRTCCloudCore::GetInstance()->getTRTCCloud()->stopRemoteView(idstr.c_str());
+		TRTCCloudCore::GetInstance()->getTRTCCloud()->stopRemoteView(idstr.c_str(), TRTCVideoStreamTypeBig);
 		if (remoteInfo != nullptr && remoteInfo->user_id != "")
 		{
 			remoteInfo->available_main_video = false;
@@ -465,7 +473,7 @@ void TRTC::onRemoteUserLeave(QString userId)
 	qDebug() << QString(u8"%1离开房间").arg(userId);
 	std::string idstr = userId.toStdString();
 	if (TRTCCloudCore::GetInstance()->getTRTCCloud())
-		TRTCCloudCore::GetInstance()->getTRTCCloud()->stopRemoteView(idstr.c_str());
+		TRTCCloudCore::GetInstance()->getTRTCCloud()->stopRemoteView(idstr.c_str(), TRTCVideoStreamTypeBig);
 
 	CDataCenter::GetInstance()->removeRemoteUser(idstr);
 }
