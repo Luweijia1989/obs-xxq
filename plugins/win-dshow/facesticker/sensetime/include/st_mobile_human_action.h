@@ -53,6 +53,7 @@
 #define ST_MOBILE_DETECT_DYNAMIC_GESTURE            0x200000000000 ///< 检测动态手势
 #define ST_MOBILE_DETECT_AVATAR_HELPINFO            0x800000000000 ///< 检测avatar辅助信息
 #define ST_MOBILE_DETECT_FACE_SKIN_COLOR            0x1000000000000 ///< 检测脸部肤色，依赖106关键点检测
+#define ST_MOBILE_DETECT_HAIR_COLOR                 0x100000000000000  ///< avatar发色检测，依赖106关键点和头发分割，目前只支持单人发色
 #define ST_MOBILE_BODY_KEYPOINTS_3D        0x2000000000000  ///< 检测肢体3d关键点
 #define ST_MOBILE_DETECT_EAR               0x4000000000000  ///< 检测耳朵关键点
 #define ST_MOBILE_DETECT_FOREHEAD          0x8000000000000  ///< 检测额头关键点
@@ -107,21 +108,15 @@ typedef struct st_mobile_segment_t {
 	float score;		        ///< 前后背景分割置信度
 	float min_threshold;	    ///< 前后背景最小阈值，与模型相关，取值范围时0.0f-1.0f，当min_threshold和max_threshold同时大于0时，需要外部做后处理。
 	float max_threshold;	    ///< 前后背景最大阈值，同上
+    st_pointf_t offset;         ///< 分割结果位于原图的左上角坐标。
+    st_pointf_t scale;          ///< 分割结果的缩放比例。p_segment->width(height)*scale为和原图对应的分割结果像素大小。
 } st_mobile_segment_t, *p_st_mobile_segment_t;
-
-/// @brief 嘴唇遮挡分割结果
-typedef struct st_mobile_mouth_parse_t {
-	st_image_t *p_mouth_mask;              ///< 嘴唇遮挡分割结果图片信息，遮挡部分为0，嘴唇部分为255
-	float min_threshold;	               ///< 嘴唇遮挡分割最小阈值，与模型相关，取值范围时0.0f-1.0f
-	float max_threshold;	               ///< 嘴唇遮挡分割最大阈值，同上
-	st_pointf_t offset;                    ///< 嘴唇遮挡分割结果与图像原点（左上角）的偏移量
-} st_mobile_mouth_parse_t, *p_st_mobile_mouth_parse_t;
 
 /// @brief human_action检测结果
 typedef struct st_mobile_human_action_t {
     st_mobile_face_t *p_faces;               ///< 检测到的人脸信息
     int face_count;                          ///< 检测到的人脸数目
-    st_mobile_mouth_parse_t *p_mouth_parse;  ///< 检测到的嘴唇遮挡分割信息
+    st_mobile_segment_t *p_mouth_parse;      ///< 检测到的嘴唇遮挡分割信息
     int mouth_parse_count;                   ///< 检测到的嘴唇数目
     st_mobile_hand_t *p_hands;               ///< 检测到的手的信息
     int hand_count;                          ///< 检测到的手的数目
@@ -247,12 +242,12 @@ st_mobile_human_action_add_sub_model_from_buffer(
 
 /// @brief 删除子模型.
 /// @parma[in] handle 人体行为检测句柄
-/// @param[in] config 与create_handle中的参数config意义相同, 例如ST_MOBILE_ENABLE_HAND_DETECT对应删除手势模型
+/// @param[unsigned long long] config 与create_handle中的参数config意义相同, 例如ST_MOBILE_ENABLE_HAND_DETECT对应删除手势模型
 /// @return 成功返回ST_OK， 失败返回其他错误码
 ST_SDK_API
 st_result_t st_mobile_human_action_remove_model_by_config(
 	st_handle_t handle,
-	unsigned int config
+	unsigned long long config
 	);
 
 /// @brief 释放人体行为检测句柄
@@ -330,31 +325,31 @@ typedef enum {
     ST_HUMAN_ACTION_PARAM_BODY_DETECT_INTERVAL = 10,
     /// 设置脸部隔帧检测（对上一帧结果做拷贝），目的是减少耗时。默认每帧检测一次. 最多每10帧检测一次. 开启隔帧检测后, 只能对拷贝出来的检测结果做后处理.
     ST_HUMAN_ACTION_PARAM_FACE_PROCESS_INTERVAL = 11,
-	/// 设置手势隔帧检测（对上一帧结果做拷贝），目的是减少耗时。默认每帧检测一次. 最多每10帧检测一次. 开启隔帧检测后, 只能对拷贝出来的检测结果做后处理.
+    /// 设置手势隔帧检测（对上一帧结果做拷贝），目的是减少耗时。默认每帧检测一次. 最多每10帧检测一次. 开启隔帧检测后, 只能对拷贝出来的检测结果做后处理.
     ST_HUMAN_ACTION_PARAM_HAND_PROCESS_INTERVAL = 12,
-	/// 设置背景隔帧检测（对上一帧结果做拷贝），目的是减少耗时。默认每帧检测一次. 最多每10帧检测一次. 开启隔帧检测后, 只能对拷贝出来的检测结果做后处理.
+    /// 设置背景隔帧检测（对上一帧结果做拷贝），目的是减少耗时。默认每帧检测一次. 最多每10帧检测一次. 开启隔帧检测后, 只能对拷贝出来的检测结果做后处理.
     ST_HUMAN_ACTION_PARAM_BACKGROUND_PROCESS_INTERVAL = 13,
-	/// 设置肢体隔帧检测（对上一帧结果做拷贝），目的是减少耗时。默认每帧检测一次. 最多每10帧检测一次. 开启隔帧检测后, 只能对拷贝出来的检测结果做后处理.
+    /// 设置肢体隔帧检测（对上一帧结果做拷贝），目的是减少耗时。默认每帧检测一次. 最多每10帧检测一次. 开启隔帧检测后, 只能对拷贝出来的检测结果做后处理.
     ST_HUMAN_ACTION_PARAM_BODY_PROCESS_INTERVAL = 14,
-	/// 设置检测到的最大手数目N(默认值2, 最大值32),持续track已检测到的N个hand直到人脸数小于N再继续做detect.值越大,检测到的hand数目越多,但相应耗时越长. 如果当前手数目达到上限，检测线程将休息
-	ST_HUMAN_ACTION_PARAM_HAND_LIMIT = 15,
-	/// 头发结果中长边的长度[10,长边长度](默认长边240,短边=长边/原始图像长边*原始图像短边).值越大,头发分割的耗时越长,边缘部分效果越好.
-	ST_HUMAN_ACTION_PARAM_HAIR_MAX_SIZE = 16,
-	/// 头发分割羽化程度[0,1](默认值0.35),0 完全不羽化,1羽化程度最高,在strenth较小时,羽化程度基本不变.值越大,过度边缘部分越宽.
-	ST_HUMAN_ACTION_PARAM_HAIR_BLUR_STRENGTH = 17,
-	/// 设置头发灰度图的方向是否需要旋转（0: 不旋转, 保持竖直; 1: 旋转, 方向和输入图片一致. 默认0不旋转)
-	ST_HUMAN_ACTION_PARAM_HAIR_RESULT_ROTATE = 18,
-	/// 设置头发分割隔帧检测（对上一帧结果做拷贝），目的是减少耗时。默认每帧检测一次. 最多每10帧检测一次. 开启隔帧检测后, 只能对拷贝出来的检测结果做后处理.
-	ST_HUMAN_ACTION_PARAM_HAIR_PROCESS_INTERVAL = 19,
-	ST_HUMAN_ACTION_PARAM_CAM_FOVX = 20,  // 摄像头x方向上的视场角，单位为度，3d点会需要
-	/// 设置是否根据肢体信息检测摄像头运动状态 (0: 不检测; 1: 检测. 默认检测肢体轮廓点时检测摄像头运动状态)
-	ST_HUMAN_ACTION_PARAM_DETECT_CAMERA_MOTION_WITH_BODY = 21,
-	/// 输出的multisegment结果中长边的长度.
-	ST_HUMAN_ACTION_PARAM_MULTI_SEGMENT_MAX_SIZE = 22,
-	/// 设置多类分割检测结果灰度图的方向是否需要旋转（0: 不旋转, 保持竖直; 1: 旋转, 方向和输入图片一致. 默认不旋转)
-	ST_HUMAN_ACTION_PARAM_MULTI_SEGMENT_RESULT_ROTATE = 23,
+    /// 设置检测到的最大手数目N(默认值2, 最大值32),持续track已检测到的N个hand直到人脸数小于N再继续做detect.值越大,检测到的hand数目越多,但相应耗时越长. 如果当前手数目达到上限，检测线程将休息
+    ST_HUMAN_ACTION_PARAM_HAND_LIMIT = 15,
+    /// 头发结果中长边的长度[10,长边长度](默认长边240,短边=长边/原始图像长边*原始图像短边).值越大,头发分割的耗时越长,边缘部分效果越好.
+    ST_HUMAN_ACTION_PARAM_HAIR_MAX_SIZE = 16,
+    /// 头发分割羽化程度[0,1](默认值0.35),0 完全不羽化,1羽化程度最高,在strenth较小时,羽化程度基本不变.值越大,过度边缘部分越宽.
+    ST_HUMAN_ACTION_PARAM_HAIR_BLUR_STRENGTH = 17,
+    /// 设置头发灰度图的方向是否需要旋转（0: 不旋转, 保持竖直; 1: 旋转, 方向和输入图片一致. 默认0不旋转)
+    ST_HUMAN_ACTION_PARAM_HAIR_RESULT_ROTATE = 18,
+    /// 设置头发分割隔帧检测（对上一帧结果做拷贝），目的是减少耗时。默认每帧检测一次. 最多每10帧检测一次. 开启隔帧检测后, 只能对拷贝出来的检测结果做后处理.
+    ST_HUMAN_ACTION_PARAM_HAIR_PROCESS_INTERVAL = 19,
+    ST_HUMAN_ACTION_PARAM_CAM_FOVX = 20,  // 摄像头x方向上的视场角，单位为度，3d点会需要
+    /// 设置是否根据肢体信息检测摄像头运动状态 (0: 不检测; 1: 检测. 默认检测肢体轮廓点时检测摄像头运动状态)
+    ST_HUMAN_ACTION_PARAM_DETECT_CAMERA_MOTION_WITH_BODY = 21,
+    /// 输出的multisegment结果中长边的长度.
+    ST_HUMAN_ACTION_PARAM_MULTI_SEGMENT_MAX_SIZE = 22,
+    /// 设置多类分割检测结果灰度图的方向是否需要旋转（0: 不旋转, 保持竖直; 1: 旋转, 方向和输入图片一致. 默认不旋转)
+    ST_HUMAN_ACTION_PARAM_MULTI_SEGMENT_RESULT_ROTATE = 23,
     /// 设置预处理后图像的最长边，最小320， 视频默认值320，图像默认值1000。 值越大，耗时越长，检测到的目标数目会多一些
-	ST_HUMAN_ACTION_PARAM_PREPROCESS_MAX_SIZE = 24,
+    ST_HUMAN_ACTION_PARAM_PREPROCESS_MAX_SIZE = 24,
     /// Deprecated，设置背景分割使用的内核种类
     ST_HUMAN_ACTION_PARAM_SEGMENT_KERNAL_TYPE = 25,
     /// 设置背景分割边界区域上限阈值.
@@ -362,11 +357,30 @@ typedef enum {
     /// 设置背景分割边界区域下限阈值
     ST_HUMAN_ACTION_PARAM_SEGMENT_MIN_THRESHOLD = 27,
     ST_HUMAN_ACTION_PARAM_STATURE = 28,   // 身高，单位为米，3D骨架乘以身高（整体缩放），得到真实的物理尺度
+    // 设置face mesh渲染模式（0: 脸部三角面片, 1: 脸部+眼睛三角面片, 2: 脸部+嘴巴三角面片, 3: 脸部+嘴巴+眼睛三角面片）
     ST_HUMAN_ACTION_PARAM_FACE_MESH_MODE = 29, // face mesh mode, 0: render only face, 1: render face + eye, 2: render face + mouth, 3: render face + mouth + eye
     /// 设置头发分割边界区域上限阈值.
     ST_HUMAN_ACTION_PARAM_HAIR_SEGMENT_MAX_THRESHOLD = 30,
     /// 设置头发分割边界区域下限阈值
     ST_HUMAN_ACTION_PARAM_HAIR_SEGMENT_MIN_THRESHOLD = 31,
+    /// 输出的皮肤分割结果中长边的长度.
+    ST_HUMAN_ACTION_PARAM_SKIN_SEGMENT_MAX_SIZE = 32,
+    /// 设置皮肤分割边界区域上限阈值.
+    ST_HUMAN_ACTION_PARAM_SKIN_SEGMENT_MAX_THRESHOLD = 33,
+    /// 设置皮肤分割边界区域下限阈值
+    ST_HUMAN_ACTION_PARAM_SKIN_SEGMENT_MIN_THRESHOLD = 34,
+    /// 设置皮肤分割检测结果灰度图的方向是否需要旋转（0: 不旋转, 保持竖直; 1: 旋转, 方向和输入图片一致. 默认不旋转)
+    ST_HUMAN_ACTION_PARAM_SKIN_SEGMENT_RESULT_ROTATE = 35,
+    /// 设置头部分割检测结果灰度图的方向是否需要旋转（0: 不旋转, 保持竖直; 1: 旋转, 方向和输入图片一致. 默认不旋转)
+    ST_HUMAN_ACTION_PARAM_HEAD_SEGMENT_RESULT_ROTATE = 36,
+    /// 设置嘴唇分割检测结果灰度图的方向是否需要旋转（0: 不旋转, 保持竖直; 1: 旋转, 方向和输入图片一致. 默认不旋转)
+    ST_HUMAN_ACTION_PARAM_MOUTH_PARSE_RESULT_ROTATE = 37,
+    // 设置face mesh额头点扩展scale范围起始值（小于终止值，默认是2）
+    ST_HUMAN_ACTION_PARAM_FACE_MESH_START_SCALE = 38,
+    // 设置face mesh额头点扩展scale范围终止值（大于起始值，默认是3）
+    ST_HUMAN_ACTION_PARAM_FACE_MESH_END_SCALE = 39,
+    /// 头发结果中长边的长度[10,长边长度](默认长边240,短边=长边/原始图像长边*原始图像短边).值越大,头发分割的耗时越长,边缘部分效果越好.
+	ST_HUMAN_ACTION_PARAM_HEAD_MAX_SIZE = 40,
 } st_human_action_type;
 
 /// @brief 设置human_action参数
@@ -571,5 +585,53 @@ st_mobile_get_human_action_threshold(
     unsigned long long config,
     float* threshold
 );
+
+
+/// @brief 三角面片的顶点索引
+typedef struct st_face_mesh_index_t {
+	int v1;
+	int v2;
+	int v3;
+}st_face_mesh_index_t, *p_st_face_mesh_index_t;
+
+///// @brief 四角面片的顶点索引
+//typedef struct st_face_mesh_index_quad_t {
+//	int v1;
+//	int v2;
+//	int v3;
+//	int v4;
+//}st_face_mesh_index_quad_t, *p_st_face_mesh_index_quad_t;
+
+/// @brief 3d mesh 三角面片索引结果
+typedef struct st_mobile_face_mesh_list_t {
+	st_face_mesh_index_t* p_face_mesh_index;
+	int face_mesh_list_count;
+}st_mobile_face_mesh_list_t, *p_st_mobile_face_mesh_list_t;
+
+///// @brief 3d mesh 四角面片索引结果
+//typedef struct st_mobile_face_mesh_list_quad_t {
+//	st_face_mesh_index_quad_t* p_face_mesh_index_quad;
+//	int face_mesh_list_count_quad;
+//}st_mobile_face_mesh_list_quad_t, *p_st_mobile_face_mesh_list_quad_t;
+
+/// @brief 获取3D mesh三角拓扑面片索引信息，在加载模型后调用一次来获取索引信息，或者在每次设置face mesh模式后调用一次来更新索引信息
+/// @param[in] handle 已初始化的human_action句柄
+/// @param[out] p_face_mesh 3Dmesh面片索引结果，底层分配内存
+ST_SDK_API st_result_t
+st_mobile_human_action_face_mesh_list(
+	st_handle_t handle,
+	st_mobile_face_mesh_list_t* p_face_mesh
+);
+
+///// @brief 获取3D mesh四角拓扑面片索引信息，在加载模型后调用一次来获取索引信息，或者在每次设置face mesh模式后调用一次来更新索引信息
+///// @param[in] handle 已初始化的human_action句柄
+///// @param[out] p_face_mesh 3Dmesh三角面片索引结果，底层分配内存
+///// @param[out] p_face_mesh_quad 3Dmesh四角面片索引结果，底层分配内存
+//ST_SDK_API st_result_t
+//st_mobile_human_action_face_mesh_list_quad(
+//	st_handle_t handle,
+//	st_mobile_face_mesh_list_t* p_face_mesh,
+//	st_mobile_face_mesh_list_quad_t* p_face_mesh_quad
+//);
 
 #endif  // INCLUDE_STMOBILE_ST_MOBILE_HUMAN_ACTION_H_

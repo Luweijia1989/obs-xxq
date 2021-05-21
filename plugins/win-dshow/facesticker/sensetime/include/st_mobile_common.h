@@ -77,6 +77,7 @@ typedef int   st_result_t;
 #define ST_E_API_UNSUPPORTED                -39 ///< 该API暂不支持
 #define ST_E_API_DEPRECATED                 -40 ///< 该API已标记为废弃，应替换其他API或停止使用
 #define ST_E_ARG_UNSUPPORTED                -41 ///< 该参数不支持
+#define ST_E_PRECONDITION                   -42 ///< 前置条件不满足
 
 // rendering related errors.
 #define ST_E_INVALID_GL_CONTEXT             -100 ///< OpenGL Context错误，当前为空，或不一致
@@ -217,6 +218,12 @@ typedef struct
     st_pixel_format format;     /// input image format 图像的格式
 } st_multiplane_image_t;
 
+/// 人脸检测内部参数
+typedef struct st_mobile_face_extra_info {
+	float affine_mat[3][3];				   ///< 仿射变换矩阵
+	int model_input_size;                  ///< 内部模型输入大小
+} st_mobile_face_extra_info;
+
 /// @brief track106配置选项,对应st_mobile_tracker_106_create和st_mobile_human_action_create中的config参数,具体配置如下：
 // 使用单线程或双线程track：处理图片必须使用单线程,处理视频建议使用多线程 (创建human_action handle建议使用ST_MOBILE_DETECT_MODE_VIDEO/ST_MOBILE_DETECT_MODE_IMAGE)
 #define ST_MOBILE_TRACKING_MULTI_THREAD         0x00000000  ///< 多线程,功耗较多,卡顿较少
@@ -249,13 +256,14 @@ typedef struct st_mobile_face_t {
     st_point3f_t *p_gaze_direction;        ///< 左眼和右眼视线方向，没有检测到是为NULL
     float *p_gaze_score;                   ///< 视线置信度: [0.0, 1.0], 建议阈值为0.5
     unsigned long long face_action;        ///< 脸部动作
-    float affine_mat[3][3];				   ///< 仿射变换矩阵
     unsigned char *p_avatar_help_info;     ///< avatar辅助信息,仅限内部使用，严禁修改
     int avatar_help_info_length;           ///< avatar辅助信息字节长度
     int skin_type;                         ///< 肤色类型
     float *p_face_action_score;            ///< 脸部动作置信度, eye, mouth, pitch, yaw, brow
     int face_action_score_count;           ///< 脸部动作数目
     st_mobile_forehead_t* p_face_forehead; ///< 额头点信息，包括额头点坐标和个数
+    st_color_t hair_color;                 ///< avatar发色, rgb取值范围[0.0, 1.0]; 其中a(alpha)值不必要，设置默认值为1.0
+    st_mobile_face_extra_info face_extra_info;///< 人脸检测模型内部参数
 } st_mobile_face_t, *p_st_mobile_face_t;
 
 /// @brief 设置眨眼动作的阈值,置信度为[0,1], 默认阈值为0.5
