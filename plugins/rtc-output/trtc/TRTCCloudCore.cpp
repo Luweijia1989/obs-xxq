@@ -103,6 +103,11 @@ ITRTCCloud *TRTCCloudCore::getTRTCCloud()
 	return m_pCloud;
 }
 
+trtc::ITXDeviceManager *TRTCCloudCore::deviceManager()
+{
+	return m_pCloud->getDeviceManager();
+}
+
 ITRTCCloudCallback *TRTCCloudCore::GetITRTCCloudCallback()
 {
 	return this;
@@ -119,7 +124,7 @@ void TRTCCloudCore::onError(TXLiteAVError errCode, const char *errMsg,
 	data["msg"] = errMsg;
 	emit trtcEvent(RTC_EVENT_ERROR, data);
 }
-
+ 
 void TRTCCloudCore::onWarning(TXLiteAVWarning warningCode,
 			      const char *warningMsg, void *arg)
 {

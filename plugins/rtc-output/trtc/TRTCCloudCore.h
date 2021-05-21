@@ -46,6 +46,7 @@ public:
 	void Uninit();
 	void PreUninit(bool isVideoLink);
 	ITRTCCloud *getTRTCCloud();
+	ITXDeviceManager *deviceManager();
 	ITRTCCloudCallback *GetITRTCCloudCallback();
 
 signals:
