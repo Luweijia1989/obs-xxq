@@ -1,4 +1,4 @@
-﻿project(obs-qmlview)
+project(obs-qmlview)
 
 set(CMAKE_INCLUDE_CURRENT_DIR TRUE)
 set(CMAKE_AUTOMOC TRUE)
@@ -33,6 +33,8 @@ if(NOT Qt5QuickWidgets_FOUND)
         endif()
 endif()
 
+include_directories(${PROJECT_SOURCE_DIR}/rpc/include)
+
 set(qmlview_SOURCES
     qmlview.cpp
     renderer.cpp
@@ -46,6 +48,7 @@ set(qmlview_SOURCES
     vote.cpp
     gift-tv.cpp
     mask.cpp
+    webcapture.cpp
 )
 
 set( qmlview_HEADERS
@@ -63,6 +66,7 @@ set( qmlview_HEADERS
     vote.h
     gift-tv.h
     mask.h
+    webcapture.h
 )
 
 set(qmlview_QRC qmlview.qrc)
@@ -74,6 +78,8 @@ add_library(obs-qmlview MODULE
 	${qmlview_QRC_SOURCES}
 )
 target_link_libraries(obs-qmlview
+	debug ${PROJECT_SOURCE_DIR}/rpc/lib/debug/RPC.lib
+	optimized ${PROJECT_SOURCE_DIR}/rpc/lib/release/RPC.lib
         libobs
         Qt5::Quick
         Qt5::QuickWidgets
