@@ -23,9 +23,9 @@ st_mobile_beautify_create(
 ///@brief 美化参数类型
 typedef enum {
     ST_BEAUTIFY_REDDEN_STRENGTH = 1,        /// 红润强度, [0,1.0], 默认值0.36, 0.0不做红润
-    ST_BEAUTIFY_SMOOTH_MODE     = 2,        /// 磨皮模式, 默认值1.0, 1.0表示对全图磨皮, 0.0表示只对人脸磨皮
+    ST_BEAUTIFY_SMOOTH_MODE     = 2,        /// 磨皮模式, 默认值2.0, 0.0表示只对人脸磨皮, 1.0表示对全图磨皮, 2.0表示精细化磨皮
     ST_BEAUTIFY_SMOOTH_STRENGTH = 3,        /// 磨皮强度, [0,1.0], 默认值0.74, 0.0不做磨皮
-    ST_BEAUTIFY_WHITEN_STRENGTH = 4,        /// 美白强度, [0,1.0], 默认值0.30, 0.0不做美白
+    ST_BEAUTIFY_WHITEN_STRENGTH = 4,        /// 美白强度, [0,1.0], 默认值0.0, 0.0不做美白
     ST_BEAUTIFY_ENLARGE_EYE_RATIO = 5,      /// 大眼比例, [0,1.0], 默认值0.13, 0.0不做大眼效果
     ST_BEAUTIFY_SHRINK_FACE_RATIO = 6,      /// 瘦脸比例, [0,1.0], 默认值0.11, 0.0不做瘦脸效果
     ST_BEAUTIFY_SHRINK_JAW_RATIO = 7,       /// 小脸比例, [0,1.0], 默认值0.10, 0.0不做小脸效果
@@ -34,9 +34,11 @@ typedef enum {
     ST_BEAUTIFY_DEHIGHLIGHT_STRENGTH = 10,  /// 去高光强度, [0,1.0], 默认值0.0, 0.0不做去高光，注意，此功能只用于图片处理，预览或视频处理均设为0.0
 	ST_BEAUTIFY_NARROW_FACE_STRENGTH = 11,  /// 窄脸强度, [0,1.0], 默认值0.0, 0.0不做窄脸
     ST_BEAUTIFY_ROUND_EYE_RATIO = 12,       /// 圆眼比例, [0,1.0], 默认值0.0, 0.0不做圆眼
-    ST_BEAUTIFY_SHARPEN_STRENGTH = 14,      /// 锐化强度，[0, 1.0], 默认值0.0， 0.0不做锐化
-    ST_BEAUTIFY_WHITEN2_STRENGTH = 15,      /// 美白强度(2), [0,1.0], 默认值0.0, 0.0不做美白
-
+    ST_BEAUTIFY_SHARPEN_STRENGTH = 14,      /// 锐化强度, [0, 1.0], 默认值0.0, 0.0不做锐化
+    ST_BEAUTIFY_THINNER_HEAD_RATIO = 15,    /// 小头比例, [0, 1.0], 默认值0.0, 0.0不做小头效果
+    ST_BEAUTIFY_WHITEN2_STRENGTH = 16,      /// 美白强度(2), [0,1.0], 默认值0.0, 0.0不做美白
+    ST_BEAUTIFY_WHITEN3_STRENGTH = 17,      /// 美白强度(3), [0,1.0], 默认值0.0, 0.0不做美白
+    ST_BEAUTIFY_CLEAR_STRENGTH = 18,        /// 清晰强度, [0,1.0], 默认值0.0, 0.0不做清晰
 
     ST_BEAUTIFY_3D_NARROW_NOSE_RATIO = 20,              /// 瘦鼻比例，[0, 1.0], 默认值为0.0，0.0不做瘦鼻
     ST_BEAUTIFY_3D_NOSE_LENGTH_RATIO = 21,              /// 鼻子长短比例，[-1, 1], 默认值为0.0, [-1, 0]为短鼻，[0, 1]为长鼻
@@ -68,6 +70,28 @@ st_mobile_beautify_setparam(
     st_handle_t handle,
     st_beautify_type type,
     float value
+);
+
+/// @brief 加载美颜资源，其中可能有一个或者多个效果的组合资源，需要在OpenGL Context中调用
+/// @param [in] handle 已初始化的美化句柄
+/// @param [in] p_resource_path 资源文件（目前是zip）全路径
+/// @return 成功返回ST_OK, 错误则返回错误码,错误码定义在st_mobile_common.h中,如ST_E_FAIL等
+ST_SDK_API st_result_t
+st_mobile_beautify_load_resource(
+    st_handle_t handle,
+    const char* p_resource_path
+);
+
+/// @brief 加载美颜资源，其中可能有一个或者多个效果的组合资源，需要在OpenGL Context中调用
+/// @param [in] handle 已初始化的美化句柄
+/// @param [in] p_resource_buffer 已读取到内存中的资源buffer
+/// @param [in] buffer_len buffer的长度（字节数）
+/// @return 成功返回ST_OK, 错误则返回错误码,错误码定义在st_mobile_common.h中,如ST_E_FAIL等
+ST_SDK_API st_result_t
+st_mobile_beautify_load_resource_from_buffer(
+    st_handle_t handle,
+    const char* p_resource_buffer,
+    int buffer_len
 );
 
 /// @brief 获取当前打开的美颜功能需要的检测配置选项
@@ -171,6 +195,13 @@ st_mobile_beautify_process_and_output_texture(
     unsigned int textureid_dst,
     unsigned char *img_out, st_pixel_format fmt_out,
     st_mobile_human_action_t* p_human_out
+);
+
+/// @brief 重置内部process texture接口output buffer时的双缓冲（PC平台），避免在传入texture时域上不连续时的闪一阵旧结果问题
+/// @param[in] handle 已初始化的美化句柄
+ST_SDK_API st_result_t
+st_mobile_beautify_reset_output_buffer_cache(
+    st_handle_t handle
 );
 
 /// @brief 释放美化句柄. 必须在OpenGL线程中调用

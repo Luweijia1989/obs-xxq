@@ -278,6 +278,10 @@ typedef enum {
     /// ST_BODY_BEAUTIFY_REF_PART模式: [0.0， 1.0]，0.0为原始效果，(0.0, 1.0]为增高，最高限制为8头身
     /// ST_BODY_BEAUTIFY_REF_HEAD模式: [0.0， 1.0]，0.0为原始效果，(0.0, 1.0]为增高，最高限制为8头身
     ST_BODY_BEAUTIFY_PARAM_HEIGHT_RATIO,
+    /// 颈部美化系数
+    /// ST_BODY_BEAUTIFY_REF_PART模式: [0.0， 1.0]，0.0为原始效果，(0.0, 1.0]为瘦颈
+    /// ST_BODY_BEAUTIFY_REF_HEAD模式: [0.0， 1.0]，0.0为原始效果，(0.0, 1.0]为瘦颈
+    ST_BODY_BEAUTIFY_PARAM_NECK_RATIO,
     ST_BODY_BEAUTIFY_PARAM_TAKE_PICTURE,
 
     /// 输入待处理纹理的size发生变化时，是否重置美体效果，大于0为重置美体效果，小于等于0为不重置美体效果。默认为重置美体效果

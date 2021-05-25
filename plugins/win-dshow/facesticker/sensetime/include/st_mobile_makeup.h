@@ -21,7 +21,8 @@ typedef enum
     ST_MAKEUP_TYPE_EYELINER = 6,    //眼线美妆
     ST_MAKEUP_TYPE_EYELASH = 7,     //眼睫毛美妆
     ST_MAKEUP_TYPE_EYEBALL = 8,     //美瞳美妆
-    ST_MAKEUP_TYPE_HAIR_DYE = 9     //染发效果
+    ST_MAKEUP_TYPE_HAIR_DYE = 9,    //染发美妆
+    ST_MAKEUP_TYPE_ALL              //整妆，可以包含多个补妆效果
 }st_makeup_type;
 
 /// @brief 创建美妆句柄
@@ -109,7 +110,7 @@ st_mobile_makeup_clear_makeups(
     st_handle_t handle
 );
 
-/// @brief 获取触发动作类型。目前需要显示的
+/// @brief 获取当前的美妆效果需要的检测配置选项。必须在添加素材包(add type)或者更换素材包(set type)之后调用
 /// @param[in] handle 已初始化的美妆句柄
 /// @param[out] action 返回的触发动作, 每一位分别代表该位对应状态是否是触发动作, 对应状态详见st_mobile_common.h中, 如ST_MOBILE_EYE_BLINK等
 /// @return 成功返回ST_OK, 失败返回其他错误码, 错误码定义在st_mobile_common.h中, 如ST_E_FAIL等
@@ -138,18 +139,38 @@ st_mobile_makeup_prepare(
     st_mobile_human_action_t* human_action
 );
 
+/// @brief 更新贴纸需要的Mask纹理, 必须在opengl环境中运行. 典型地, old_human_action为美颜之前的检测结果, new_hunman_action为美颜之后的检测结果
+/// @parma[in] handle 已初始化的贴纸句柄
+/// @param[in] old_hunman_action 检测结果
+/// @param[in] new_hunman_action 变形之后的检测结果
+/// @param[in] width 原始图像的宽
+/// @param[in] height 原始图像的高
+/// @param[in] rotate 人脸朝向
+/// @return 成功返回ST_OK, 失败返回其他错误码, 错误码定义在st_mobile_common.h中, 如ST_E_FAIL等
+ST_SDK_API st_result_t
+st_mobile_makeup_update_internal_mask(
+    st_handle_t handle,
+    const st_mobile_human_action_t* old_human_action,
+    const st_mobile_human_action_t* new_human_action,
+    int width, int height,
+    st_rotate_type rotate
+);
+
 /// @brief 对OpenGLES中的纹理进行美妆处理, 必须在opengl环境中运行, 仅支持RGBA图像格式
 /// @param[in] handle 已初始化的美妆句柄
 /// @param[in]texture_src 输入texture id
 /// @param[in] image_width 图像宽度
 /// @param[in] image_height 图像高度
+/// @param[in] rotate 人脸朝向
 /// @param[in] human_action 动作, 包含106点、face动作
 /// @param[in]texture_dst 输出texture id
 /// @return 成功返回ST_OK, 失败返回其他错误码, 错误码定义在st_mobile_common.h中, 如ST_E_FAIL等
 ST_SDK_API st_result_t
 st_mobile_makeup_process_texture(
     st_handle_t handle,
-    unsigned int texture_src, int image_width, int image_height,
+    unsigned int texture_src,
+    int image_width,
+    int image_height,
     st_rotate_type rotate,
     st_mobile_human_action_t* human_action,
     unsigned int texture_dst
@@ -169,11 +190,14 @@ st_mobile_makeup_process_texture(
 ST_SDK_API st_result_t
 st_mobile_makeup_process_and_output_texture(
     st_handle_t handle,
-    unsigned int textureid_src, int image_width, int image_height,
+    unsigned int textureid_src,
+    int image_width,
+    int image_height,
     st_rotate_type rotate,
     st_mobile_human_action_t* human_action,
     unsigned int textureid_dst,
-    unsigned char* img_out, st_pixel_format fmt_out
+    unsigned char* img_out,
+    st_pixel_format fmt_out
 );
 
 /// @brief 调整指定类型美妆的强度
@@ -220,6 +244,12 @@ st_mobile_makeup_set_performance_hint(
     st_performance_hint_t hint
 );
 
+/// @brief 重置内部process texture接口output buffer时的双缓冲（PC平台），避免在传入texture时域上不连续时的闪一阵旧结果问题
+/// @param[in] handle 已初始化的美妆句柄
+ST_SDK_API st_result_t
+st_mobile_makeup_reset_output_buffer_cache(
+    st_handle_t handle
+);
 
 /// @brief 释放美妆句柄, 必须在OpenGL线程中调用
 /// @param[in] handle 已初始化的美妆句柄

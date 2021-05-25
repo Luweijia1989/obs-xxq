@@ -186,6 +186,13 @@ st_mobile_gl_filter_process_buffer(
     unsigned char *img_out, st_pixel_format fmt_out
 );
 
+/// @brief 重置内部process texture接口output buffer时的双缓冲（PC平台），避免在传入texture时域上不连续时的闪一阵旧结果问题
+/// @param[in] handle 已初始化的滤镜句柄
+ST_SDK_API st_result_t
+st_mobile_gl_filter_reset_output_buffer_cache(
+    st_handle_t handle
+);
+
 /// @brief 释放OpenGL滤镜句柄, 必须在OpenGL线程中调用
 /// @param[in] handle 已初始化的滤镜句柄
 ST_SDK_API void

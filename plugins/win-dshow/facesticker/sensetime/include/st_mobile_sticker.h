@@ -44,6 +44,8 @@ typedef enum {
 
 	ST_STICKER_PARAM_PACKAGE_STATE_FUNC_PTR = 9,    ///< 设置package状态回调函数
     ST_STICKER_PARAM_SOUND_RESUME_FUNC_PTR = 10,          ///< 设置音乐继续回调函数
+
+    ST_STICKER_PARAM_PREFER_MEMORY_CACHE = 11,    ///< 如果清除所有3D贴纸, 是否保留3D共用资源
 } st_sticker_param_type;
 
 
@@ -86,6 +88,16 @@ st_mobile_sticker_change_package(
     st_handle_t handle,
     const char* zip_path,
     int* package_id
+);
+
+/// @brief 重新播放素材
+/// @param[in] handle 已初始化的贴纸句柄
+/// @param[in] package_id 素材包id
+/// @return 成功返回ST_OK, 失败返回其他错误码, 错误码定义在st_mobile_common.h中, 如ST_E_FAIL等
+ST_SDK_API st_result_t
+st_mobile_sticker_replay_package(
+    st_handle_t handle,
+    int package_id
 );
 
 /// @brief 更换缓存中的素材包 (删除已有的素材包)
@@ -247,6 +259,25 @@ st_mobile_sticker_process_texture_both(
 								  unsigned int texture_dst
 								  );
 
+
+
+
+/// @brief 更新贴纸需要的Mask纹理, 必须在opengl环境中运行. 典型地, old_human_action为美颜之前的检测结果, new_hunman_action为美颜之后的检测结果
+/// @parma[in] handle 已初始化的贴纸句柄
+/// @param[in] old_hunman_action 检测结果
+/// @param[in] new_hunman_action 变形之后的检测结果
+/// @param[in] width 原始图像的宽
+/// @param[in] height 原始图像的高
+/// @param[in] rotate 人脸朝向
+/// @return 成功返回ST_OK, 失败返回其他错误码, 错误码定义在st_mobile_common.h中, 如ST_E_FAIL等
+ST_SDK_API st_result_t
+st_mobile_sticker_update_internal_mask(
+    st_handle_t handle,
+    const st_mobile_human_action_t* old_human_action,
+    const st_mobile_human_action_t* new_human_action,
+    int width, int height,
+    st_rotate_type rotate
+);
 
 /// @brief 对OpenGLES中的纹理进行贴纸处理, 必须在opengl环境中运行, 仅支持RGBA图像格式.
 /// @parma[in] handle 已初始化的贴纸句柄
@@ -583,6 +614,15 @@ st_mobile_sticker_get_param_array(
     void* array_data
 );
 
+
+/// @brief 释放空闲的gl渲染资源,需要在gl上下文中调用
+/// @param[in] handle 已初始化的贴纸句柄
+/// @return 成功返回ST_OK, 失败返回其他错误码, 错误码定义在st_mobile_common.h中, 如ST_E_FAIL等
+ST_SDK_API st_result_t
+st_mobile_sticker_release_gl_resource(
+    st_handle_t handle
+);
+
 /// @brief 获取数组类型参数的元素个数
 /// @parma[in] handle 已初始化的贴纸句柄
 /// @param[in] module_id 模块id
@@ -604,6 +644,13 @@ ST_SDK_API st_result_t
 st_mobile_sticker_set_performance_hint(
     st_handle_t handle,
     st_performance_hint_t hint
+);
+
+/// @brief 重置内部process texture接口output buffer时的双缓冲（PC平台），避免在传入texture时域上不连续时的闪一阵旧结果问题
+/// @param[in] handle 已初始化的贴纸句柄
+ST_SDK_API st_result_t
+st_mobile_sticker_reset_output_buffer_cache(
+    st_handle_t handle
 );
 
 #endif  // INCLUDE_STMOBILE_ST_MOBILE_STICKER_H_
