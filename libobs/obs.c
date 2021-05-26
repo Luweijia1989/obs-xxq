@@ -1960,7 +1960,7 @@ void obs_load_sources(obs_data_array_t *array, obs_load_source_cb cb,
 		bfree(old_name);
 		bfree(new_name);
 
-		char *source_id = obs_data_get_string(source_data, "id");
+		const char *source_id = obs_data_get_string(source_data, "id");
 		if (strcmp(source_id, "scene") == 0)
 			da_insert(sources, 0, &source);
 		else
@@ -2689,7 +2689,7 @@ void obs_source_create_xxqsource(int type /*1=privacy 2=leave*/,
 	} else if (type == 3) {
 		if (!data->h5_source) {
 			data->h5_source = obs_source_create_private(
-				"window_capture", H5_ID,
+				"webcapture_source", H5_ID,
 				settings);
 			obs_source_activate(data->h5_source, MAIN_VIEW);
 		}
