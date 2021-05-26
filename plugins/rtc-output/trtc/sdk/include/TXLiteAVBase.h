@@ -28,6 +28,17 @@ extern "C" {
      * \return 返回 UTF-8 编码的版本号。
      */
     LITEAV_API const char* getLiteAvSDKVersion();
+
+    /**
+     * 设置 liteav SDK 接入的环境。
+     * 腾讯云在全球各地区部署的环境，按照各地区政策法规要求，需要接入不同地区接入点。
+     * 
+     * @param env_config 需要接入的环境，SDK 默认接入的环境是：默认正式环境。
+     * @return 0：成功；其他：错误
+     * @note 目标市场为中国大陆的客户请不要调用此接口，如果目标市场为海外用户，请通过技术支持联系我们，了解 env_config 的配置方法，以确保 App 遵守 GDPR 标准。
+     */
+    LITEAV_API int setGlobalEnv(const char* env_config);
+
     /// @}
 }
 
@@ -44,6 +55,7 @@ typedef TRTCVideoPixelFormat LiteAVVideoPixelFormat;
 #define LiteAVVideoPixelFormat_I420       TRTCVideoPixelFormat_I420
 #define LiteAVVideoPixelFormat_Texture_2D TRTCVideoPixelFormat_Texture_2D
 #define LiteAVVideoPixelFormat_BGRA32     TRTCVideoPixelFormat_BGRA32
+#define LiteAVVideoPixelFormat_RGBA32     TRTCVideoPixelFormat_RGBA32
 
 typedef TRTCAudioFrameFormat LiteAVAudioFrameFormat;
 #define LiteAVAudioFrameFormatNone TRTCAudioFrameFormatNone
@@ -71,87 +83,4 @@ typedef TRTCScreenCaptureProperty LiteAVScreenCaptureProperty;
 
 typedef ITRTCDeviceInfo ILiteAVDeviceInfo;
 typedef ITRTCDeviceCollection ILiteAVDeviceCollection;
-
-class ILiteAVStreamDataSource
-{
-public:
-    /**
-    * \brief SDK在成功请求到视频位后会调用该方法以通知数据源开始工作
-    */
-    virtual void onStart() = 0;
-
-    /**
-    * \brief SDK在不再需要用到该数据源的时候会调用该方法以通知数据源停止工作
-    */
-    virtual void onStop() = 0;
-
-    /**
-    * \brief SDK在需要视频帧时调用该方法以请求视频帧
-    *
-    * \param frame 用于存放请求到的视频帧，其中
-    *                   bufferType      无效，暂时只支持LiteAVVideoBufferType_Buffer类型
-    *                   videoFormat     必填
-    *                   data            SDK已创建好buffer，数据源仅负责将视频数据拷贝其中
-    *                   textureId       无效
-    *                   length          必填，初始值指示data字段可用空间大小，需填写为可用数据大小
-    *                   width           必填
-    *                   height          必填
-    *                   timestamp       可选
-    *                   rotation        可选
-    *
-    * \return 可用数据大小，<0 表示出错
-    */
-    virtual int onRequestVideoFrame(LiteAVVideoFrame &frame) = 0;
-
-    /**
-    * \brief SDK在需要视频帧时调用该方法以请求音频帧
-    *
-    * \param frame 用于存放请求到的视频帧，其中
-    *                   audioFormat     无效，暂时只支持LiteAVAudioFrameFormatPCM类型
-    *                   data            SDK已创建好buffer，数据源仅负责将视频数据拷贝其中
-    *                   length          必填，初始值指示data字段可用空间大小，需填写为可用数据大小
-    *                   sampleRate      必填
-    *                   channel         必填
-    *                   timestamp       可选
-    *
-    * \return 可用数据大小，<0 表示出错
-    */
-    virtual int onRequestAudioFrame(LiteAVAudioFrame &frame) = 0;
-
-public:
-    typedef void(*OnDestoryCallback)(void*);
-
-    ILiteAVStreamDataSource()
-    {
-        m_hOnDestoryCallbackMutex = NULL;
-        m_pOnDestoryCallback = NULL;
-        m_pOnDestoryCallbackParam = NULL;
-        m_hOnDestoryCallbackMutex = CreateMutex(NULL, FALSE, NULL);
-    }
-
-    virtual ~ILiteAVStreamDataSource()
-    {
-        WaitForSingleObject(m_hOnDestoryCallbackMutex, INFINITE);
-        if (m_pOnDestoryCallback)
-        {
-            m_pOnDestoryCallback(m_pOnDestoryCallbackParam);
-        }
-        ReleaseMutex(m_hOnDestoryCallbackMutex);
-        CloseHandle(m_hOnDestoryCallbackMutex);
-    }
-
-    void setOnDestoryCallback(OnDestoryCallback callback, void* param)
-    {
-        WaitForSingleObject(m_hOnDestoryCallbackMutex, INFINITE);
-        m_pOnDestoryCallback = callback;
-        m_pOnDestoryCallbackParam = param;
-        ReleaseMutex(m_hOnDestoryCallbackMutex);
-    }
-private:
-    HANDLE m_hOnDestoryCallbackMutex;
-    OnDestoryCallback m_pOnDestoryCallback;
-    void *m_pOnDestoryCallbackParam;
-
-};
-
 #endif /* __TXLITEAVBASE_H__ */

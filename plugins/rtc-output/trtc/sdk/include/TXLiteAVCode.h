@@ -23,14 +23,14 @@ typedef enum TXLiteAVError
     //
     /////////////////////////////////////////////////////////////////////////////////
     ERR_ROOM_ENTER_FAIL                             = -3301,    ///< 进入房间失败
-    ERR_ENTER_ROOM_PARAM_NULL                       = -3316,    ///< 进房参数为空，请检查 enterRoom:appScene: 接口调用是否传入有效的 param
+    ERR_ROOM_REQUEST_ENTER_ROOM_TIMEOUT             = -3308,    ///< 请求进房超时，请检查网络
+    ERR_ENTER_ROOM_PARAM_NULL                       = -3316,    ///< 进房参数为空，请检查： enterRoom:appScene: 接口调用是否传入有效的 param
     ERR_SDK_APPID_INVALID                           = -3317,    ///< 进房参数 sdkAppId 错误
     ERR_ROOM_ID_INVALID                             = -3318,    ///< 进房参数 roomId 错误
     ERR_USER_ID_INVALID                             = -3319,    ///< 进房参数 userID 不正确
     ERR_USER_SIG_INVALID                            = -3320,    ///< 进房参数 userSig 不正确
-    ERR_ROOM_REQUEST_ENTER_ROOM_TIMEOUT             = -3308,    ///< 请求进房超时，请检查网络
+    ERR_ROOM_REQUEST_ENTER_ROOM_REFUSED             = -3340,    ///< 请求进房拒绝，请检查：是否连续调用 enterRoom 进入相同房间
     ERR_SERVER_INFO_SERVICE_SUSPENDED               = -100013,  ///< 服务不可用。请检查：套餐包剩余分钟数是否大于0，腾讯云账号是否欠费
-
 
     /////////////////////////////////////////////////////////////////////////////////
     //
@@ -39,7 +39,6 @@ typedef enum TXLiteAVError
     //
     /////////////////////////////////////////////////////////////////////////////////
     ERR_ROOM_REQUEST_QUIT_ROOM_TIMEOUT              = -3325,    ///< 请求退房超时
-
 
     /////////////////////////////////////////////////////////////////////////////////
     //
@@ -60,6 +59,16 @@ typedef enum TXLiteAVError
     ERR_SPEAKER_START_FAIL                          = -1321,    ///< 打开扬声器失败，例如在 Windows 或 Mac 设备，扬声器的配置程序（驱动程序）异常，禁用后重新启用设备，或者重启机器，或者更新配置程序
     ERR_SPEAKER_SET_PARAM_FAIL                      = -1322,    ///< 扬声器设置参数失败
     ERR_SPEAKER_STOP_FAIL                           = -1323,    ///< 停止扬声器失败
+    
+    /////////////////////////////////////////////////////////////////////////////////
+    //
+    //       系统声音采集相关错误码
+    //       NOTE: 通过回调函数 TRTCCloudDelegate##onSystemAudioLoopbackError() 通知
+    //
+    /////////////////////////////////////////////////////////////////////////////////
+    ERR_AUDIO_PLUGIN_START_FAIL                     = -1330,    ///< 开启系统声音录制失败，例如音频驱动插件不可用
+    ERR_AUDIO_PLUGIN_INSTALL_NOT_AUTHORIZED         = -1331,    ///< 安装音频驱动插件未授权
+    ERR_AUDIO_PLUGIN_INSTALL_FAILED                 = -1332,    ///< 安装音频驱动插件失败
 
     /////////////////////////////////////////////////////////////////////////////////
     //
@@ -93,7 +102,6 @@ typedef enum TXLiteAVError
     ERR_PIXEL_FORMAT_UNSUPPORTED                    = -1327,    ///< 设置的 pixel format 不支持
     ERR_BUFFER_TYPE_UNSUPPORTED                     = -1328,    ///< 设置的 buffer type 不支持
 
-
     /////////////////////////////////////////////////////////////////////////////////
     //
     //       CDN 绑定和混流相关错误码
@@ -108,7 +116,6 @@ typedef enum TXLiteAVError
     ERR_ROOM_REQUEST_START_PUBLISHING_ERROR         = -3334,    ///< 开始向腾讯云的直播 CDN 推流信令异常
     ERR_ROOM_REQUEST_STOP_PUBLISHING_TIMEOUT        = -3335,    ///< 停止向腾讯云的直播 CDN 推流信令超时
     ERR_ROOM_REQUEST_STOP_PUBLISHING_ERROR          = -3336,    ///< 停止向腾讯云的直播 CDN 推流信令异常
-    
 
     /////////////////////////////////////////////////////////////////////////////////
     //
@@ -141,8 +148,7 @@ typedef enum TXLiteAVError
     ERR_SERVER_CENTER_CONN_ROOM_CONNED_USER_DELETED     = -102049,  ///< 被连麦用户已被删除
     ERR_SERVER_CENTER_CONN_ROOM_CONNED_USER_FULL        = -102050,  ///< 被连麦用户达到资源上限
     ERR_SERVER_CENTER_CONN_ROOM_INVALID_SEQ             = -102051,  ///< 连麦请求序号错乱
-    
-    
+
     /////////////////////////////////////////////////////////////////////////////////
     //
     //       客户无需关心的内部错误码
@@ -165,6 +171,9 @@ typedef enum TXLiteAVError
     ERR_PLAY_LIVE_STREAM_SWITCH_FAIL                = -2307,    ///< 直播，切流失败（切流可以播放不同画面大小的视频）
     ERR_PLAY_LIVE_STREAM_SERVER_REFUSE              = -2308,    ///< 直播，服务器拒绝连接请求
     ERR_RTMP_ACC_FETCH_STREAM_FAIL                  = -2309,    ///< 直播，RTMPACC 低延时拉流失败，且经过多次重试无法恢复
+    ERR_HEVC_ENCODE_FAIL                            = -2310,    ///< 265编码失败
+    ERR_HEVC_ENCODE_NOT_SUPPORT                     = -2311,    ///< 265编码判断不支持
+    ERR_HEVC_SOFTDECODER_START_FAIL                 = -2312,    ///< 265软解启动失败
 
     ERR_ROOM_HEARTBEAT_FAIL                         = -3302,    ///< 心跳失败，客户端定时向服务器发送数据包，告诉服务器自己活着，这个错误通常是发包超时
     ERR_ROOM_REQUEST_IP_FAIL                        = -3303,    ///< 拉取接口机服务器地址失败
@@ -294,6 +303,7 @@ typedef enum TXLiteAVError
 typedef enum TXLiteAVWarning
 {
     WARNING_HW_ENCODER_START_FAIL                   = 1103,     ///< 硬编码启动出现问题，自动切换到软编码
+    WARNING_CURRENT_ENCODE_TYPE_CHANGED             = 1104,     ///<  当前编码格式, 通过key 为type获取，值为1时是265编码，值为0时是264编码
     WARNING_VIDEO_ENCODER_SW_TO_HW                  = 1107,     ///<  当前 CPU 使用率太高，无法满足软件编码需求，自动切换到硬件编码
     WARNING_INSUFFICIENT_CAPTURE_FPS                = 1108,     ///<  摄像头采集帧率不足，部分自带美颜算法的 Android 手机上会出现
     WARNING_SW_ENCODER_START_FAIL                   = 1109,     ///<  软编码启动失败
@@ -305,6 +315,7 @@ typedef enum TXLiteAVWarning
     WARNING_MICROPHONE_NOT_AUTHORIZED               = 1203,     ///<  用户未授权当前应用使用麦克风
     WARNING_MICROPHONE_DEVICE_ABNORMAL              = 1204,     ///<  音频采集设备不可用（例如被占用或者PC判定无效设备）
     WARNING_SPEAKER_DEVICE_ABNORMAL                 = 1205,     ///<  音频播放设备不可用（例如被占用或者PC判定无效设备）
+    WARNING_SCREEN_CAPTURE_NOT_AUTHORIZED           = 1206,     ///<  用户未授权当前应用使用屏幕录制
     WARNING_VIDEO_FRAME_DECODE_FAIL                 = 2101,     ///<  当前视频帧解码失败
     WARNING_AUDIO_FRAME_DECODE_FAIL                 = 2102,     ///<  当前音频帧解码失败
     WARNING_VIDEO_PLAY_LAG                          = 2105,     ///<  当前视频播放出现卡顿

@@ -93,7 +93,7 @@ public:
 
     /**
     * \brief：查询已选择扬声器的能量值，指示音量的大小
-    * \return：能量值，范围是[0, 65535]
+    * \return：能量值，范围是[0, 100]
     */
     virtual uint32_t speakerVolumeIndication() = 0;
 
@@ -179,14 +179,15 @@ public:
 	/**
 	* \brief：设置渲染的镜像效果
 	* \param：mirror - true表示画面左右反转，false表示保持原样
-	* \return:无
+	* \return：无
 	*/
     virtual void setRenderYMirror(bool mirror) = 0;
 
     /**
     * \brief：设置视频编码格式，默认格式是TXE_OUTPUT_VIDEO_WITHOUT_OUTPUT
     * \param：format - 视频编码格式，参考 TXLiveTypeDef.h 中定义的 TXEOutputVideoFormat 枚举值
-    * \return:无
+    * \return：无
+    * \note：自定义渲染必须设置输出格式。
     */
     virtual void setOutputVideoFormat(TXEOutputVideoFormat format) = 0;
 
