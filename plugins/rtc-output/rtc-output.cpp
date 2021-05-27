@@ -11,12 +11,7 @@ static void *rtc_output_create(obs_data_t *settings, obs_output_t *output)
 {
 	int rtc_type = obs_data_get_int(settings, "rtc_type");
 	RTCOutput *context = new RTCOutput((RTCOutput::RTC_TYPE)rtc_type, output);
-	context->m_rtcBase->setVideoInfo(obs_data_get_int(settings, "linkMode"), obs_data_get_int(settings, "audiobitrate"), obs_data_get_int(settings, "videobitrate"), obs_data_get_int(settings, "fps"), obs_data_get_int(settings, "v_width"), obs_data_get_int(settings, "v_height"));
-	context->m_rtcBase->setLinkInfo(obs_data_get_string(settings, "linkInfo"));
-	context->m_rtcBase->setCropInfo(obs_data_get_int(settings, "cropX"), obs_data_get_int(settings, "cropWidth"));
-	context->m_rtcBase->setRemoteViewHwnd(obs_data_get_int(settings, "hwnd"));
-	context->m_rtcBase->setMicInfo(obs_data_get_string(settings, "micInfo"));
-	context->m_rtcBase->setAudioOutputDevice(obs_data_get_string(settings, "playout_device"));
+
 	audio_convert_info info;
 	info.format = AUDIO_FORMAT_16BIT;
 	info.samples_per_sec = 48000;
@@ -121,6 +116,18 @@ static void rtc_output_custom_command(void *data, obs_data_t *param)
 	}
 }
 
+static void rtc_output_update(void *data, obs_data_t *settings)
+{
+	RTCOutput *context = static_cast<RTCOutput *>(data);
+
+	context->m_rtcBase->setVideoInfo(obs_data_get_int(settings, "linkMode"), obs_data_get_int(settings, "audiobitrate"), obs_data_get_int(settings, "videobitrate"), obs_data_get_int(settings, "fps"), obs_data_get_int(settings, "v_width"), obs_data_get_int(settings, "v_height"));
+	context->m_rtcBase->setLinkInfo(obs_data_get_string(settings, "linkInfo"));
+	context->m_rtcBase->setCropInfo(obs_data_get_int(settings, "cropX"), obs_data_get_int(settings, "cropWidth"));
+	context->m_rtcBase->setRemoteViewHwnd(obs_data_get_int(settings, "hwnd"));
+	context->m_rtcBase->setMicInfo(obs_data_get_string(settings, "micInfo"));
+	context->m_rtcBase->setAudioOutputDevice(obs_data_get_string(settings, "playout_device"));
+}
+
 OBS_DECLARE_MODULE()
 OBS_MODULE_USE_DEFAULT_LOCALE("obs-outputs", "en-US")
 MODULE_EXPORT const char *obs_module_description(void)
@@ -141,6 +148,7 @@ bool obs_module_load(void)
 	rtc_output_info.raw_audio = rtc_output_raw_audio;
 	rtc_output_info.raw_video = rtc_output_raw_video;
 	rtc_output_info.custom_command = rtc_output_custom_command;
+	rtc_output_info.update = rtc_output_update;
 
 	obs_register_output(&rtc_output_info);
 	return true;

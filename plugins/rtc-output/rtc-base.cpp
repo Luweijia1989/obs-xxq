@@ -382,12 +382,6 @@ void TRTC::onEnterRoom(int result)
 		{ 
 			TRTCCloudCore::GetInstance()->getTRTCCloud()->muteLocalVideo(false);
 			TRTCCloudCore::GetInstance()->getTRTCCloud()->muteLocalAudio(false);
-			TRTCRenderParams renderParam;
-			renderParam.fillMode = TRTCVideoFillMode_Fill;
-			renderParam.mirrorType = TRTCVideoMirrorType_Disable;
-			renderParam.rotation = TRTCVideoRotation0;
-			TRTCCloudCore::GetInstance()->getTRTCCloud()->setRemoteRenderParams(strOtherUid.c_str(), TRTCVideoStreamTypeBig, renderParam);
-			TRTCCloudCore::GetInstance()->getTRTCCloud()->startRemoteView(strOtherUid.c_str(), TRTCVideoStreamTypeBig, (HWND)m_remoteView);
 			MixInfo info;
 			info.onlyAnchorVideo = videoInfo().mode == 0;
 			if (videoInfo().mode == 0)
@@ -405,6 +399,13 @@ void TRTC::onEnterRoom(int result)
 				info.vbitrate = 850;
 				info.fps = 20;
 				info.mixerCount = 2;
+
+				TRTCRenderParams renderParam;
+				renderParam.fillMode = TRTCVideoFillMode_Fill;
+				renderParam.mirrorType = TRTCVideoMirrorType_Disable;
+				renderParam.rotation = TRTCVideoRotation0;
+				TRTCCloudCore::GetInstance()->getTRTCCloud()->setRemoteRenderParams(strOtherUid.c_str(), TRTCVideoStreamTypeBig, renderParam);
+				TRTCCloudCore::GetInstance()->getTRTCCloud()->startRemoteView(strOtherUid.c_str(), TRTCVideoStreamTypeBig, (HWND)m_remoteView);
 			}
 			TRTCCloudCore::GetInstance()->startCloudMixStream(link_std_rtcRoomId.c_str(), link_cdnAPPID, link_cdnBizID, info);
 		}
