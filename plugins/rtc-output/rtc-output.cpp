@@ -52,7 +52,6 @@ static bool rtc_output_start(void *data)
 	if (context->stop_thread_active)
 		pthread_join(context->stop_thread, NULL);
 
-	obs_output_begin_data_capture(context->m_output, 0);
 	return true;
 }
 
@@ -175,6 +174,9 @@ RTCOutput::~RTCOutput()
 
 void RTCOutput::sigEvent(int type, QJsonObject data)
 {
+	if (type == RTC_EVENT_SUCCESS)
+		obs_output_begin_data_capture(m_output, 0);
+		
 	data["event_type"] = type;
 	obs_data_t *p = obs_data_create_from_json(QJsonDocument(data).toJson(QJsonDocument::Compact).data());
 	struct calldata params = { 0 };

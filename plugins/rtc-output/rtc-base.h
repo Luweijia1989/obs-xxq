@@ -45,6 +45,7 @@ public:
 	virtual void setAudioInputMute(bool mute) = 0;
 	virtual void setAudioInputVolume(int volume) = 0;
 	virtual void setAudioOutputDevice(const QString &deviceId) = 0;
+	virtual void stopTimeoutTimer() = 0;
 	void setCropInfo(int x, int cropWidth)
 	{
 		m_cropInfo = QRect(x, 0, cropWidth, m_vinfo.height);
@@ -107,6 +108,9 @@ public:
 			return;
 
 		m_rtccb(type, data);
+
+		if (type == RTC_EVENT_SUCCESS)
+			stopTimeoutTimer();
 	}
 
 public slots:
@@ -166,6 +170,7 @@ public:
 	virtual void setAudioInputMute(bool mute);
 	virtual void setAudioInputVolume(int volume);
 	virtual void setAudioOutputDevice(const QString &deviceId);
+	virtual void stopTimeoutTimer();
 
 private:
 	void internalEnterRoom();
@@ -185,4 +190,5 @@ private:
 	QByteArray m_seiData;
 	QByteArray m_uuid;
 	bool m_hasMixStream = false;
+	QTimer m_linkTimeout;
 };

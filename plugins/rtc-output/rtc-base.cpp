@@ -19,6 +19,14 @@ QByteArray hexstrTobyte(QString str)
 
 TRTC::TRTC()
 {
+	m_linkTimeout.setSingleShot(true);
+	m_linkTimeout.setInterval(30000);
+	connect(&m_linkTimeout, &QTimer::timeout, this, [=](){
+		QJsonObject obj;
+		obj["errCode"] = -1;
+		obj["errMsg"] = "timeout";
+		sendEvent(RTC_EVENT_FAIL, obj);
+	});
 	auto str = QUuid::createUuid().toString(QUuid::Id128);
 	m_uuid = hexstrTobyte(str);
 
@@ -105,6 +113,8 @@ void TRTC::init()
 
 void TRTC::enterRoom()
 {
+	m_linkTimeout.start();
+
 	m_hasMixStream = false;
 	init();
 
@@ -345,6 +355,11 @@ void TRTC::setAudioOutputDevice(const QString &deviceId)
 		}
 	}
 	devices->release();
+}
+
+void TRTC::stopTimeoutTimer()
+{
+	QMetaObject::invokeMethod(&m_linkTimeout, "stop", Qt::QueuedConnection);
 }
 
 void TRTC::internalEnterRoom()
