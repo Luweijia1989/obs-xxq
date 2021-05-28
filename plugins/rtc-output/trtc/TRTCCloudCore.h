@@ -45,6 +45,7 @@ public:
 	void Init();
 	void Uninit();
 	void PreUninit(bool isVideoLink);
+	uint32_t getSentBytes() { return sentBytes; }
 	ITRTCCloud *getTRTCCloud();
 	ITXDeviceManager *deviceManager();
 	ITRTCCloudCallback *GetITRTCCloudCallback();
@@ -99,6 +100,7 @@ private:
 	static TRTCCloudCore *m_instance;
 	TRTC *m_rtcInstance = nullptr;
 	ITRTCCloud *m_pCloud = nullptr;
+	uint32_t sentBytes = 0;
 
 private:
 	HMODULE trtc_module_;

@@ -46,6 +46,9 @@ public:
 	virtual void setAudioInputVolume(int volume) = 0;
 	virtual void setAudioOutputDevice(const QString &deviceId) = 0;
 	virtual void stopTimeoutTimer() = 0;
+	virtual uint64_t getTotalBytes() = 0;
+	virtual void startRecord(const QString &path) = 0;
+	virtual void stopRecord() = 0;
 	void setCropInfo(int x, int cropWidth)
 	{
 		m_cropInfo = QRect(x, 0, cropWidth, m_vinfo.height);
@@ -171,6 +174,9 @@ public:
 	virtual void setAudioInputVolume(int volume);
 	virtual void setAudioOutputDevice(const QString &deviceId);
 	virtual void stopTimeoutTimer();
+	virtual uint64_t getTotalBytes();
+	virtual void startRecord(const QString &path);
+	virtual void stopRecord();
 
 private:
 	void internalEnterRoom();

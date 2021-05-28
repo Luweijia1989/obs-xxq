@@ -362,6 +362,24 @@ void TRTC::stopTimeoutTimer()
 	QMetaObject::invokeMethod(&m_linkTimeout, "stop", Qt::QueuedConnection);
 }
 
+uint64_t TRTC::getTotalBytes()
+{
+	return TRTCCloudCore::GetInstance()->getSentBytes();
+}
+
+void TRTC::startRecord(const QString &path)
+{
+	trtc::TRTCLocalRecordingParams p;
+	std::string pp = path.toStdString();
+	p.filePath = pp.c_str();
+	TRTCCloudCore::GetInstance()->getTRTCCloud()->startLocalRecording(p);
+}
+
+void TRTC::stopRecord()
+{
+	TRTCCloudCore::GetInstance()->getTRTCCloud()->stopLocalRecording();
+}
+
 void TRTC::internalEnterRoom()
 {
 	//进入房间

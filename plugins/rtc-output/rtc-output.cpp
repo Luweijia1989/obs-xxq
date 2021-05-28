@@ -113,6 +113,13 @@ static void rtc_output_custom_command(void *data, obs_data_t *param)
 		auto obj = QJsonDocument::fromJson(obs_data_get_string(param, "param")).object();
 		context->m_rtcBase->setAudioOutputDevice(obj["device"].toString());
 	}
+	else if (strcmp(func, "startRecord") == 0) {
+		auto obj = QJsonDocument::fromJson(obs_data_get_string(param, "param")).object();
+		context->m_rtcBase->startRecord(obj["path"].toString());
+	}
+	else if (strcmp(func, "stopRecord") == 0) {
+		context->m_rtcBase->stopRecord();
+	}
 }
 
 static void rtc_output_update(void *data, obs_data_t *settings)
@@ -125,6 +132,12 @@ static void rtc_output_update(void *data, obs_data_t *settings)
 	context->m_rtcBase->setRemoteViewHwnd(obs_data_get_int(settings, "hwnd"));
 	context->m_rtcBase->setMicInfo(obs_data_get_string(settings, "micInfo"));
 	context->m_rtcBase->setAudioOutputDevice(obs_data_get_string(settings, "playout_device"));
+}
+
+static uint64_t rtc_get_total_bytes(void *data)
+{
+	RTCOutput *context = static_cast<RTCOutput *>(data);
+	return context->m_rtcBase->getTotalBytes();
 }
 
 OBS_DECLARE_MODULE()
@@ -148,6 +161,7 @@ bool obs_module_load(void)
 	rtc_output_info.raw_video = rtc_output_raw_video;
 	rtc_output_info.custom_command = rtc_output_custom_command;
 	rtc_output_info.update = rtc_output_update;
+	rtc_output_info.get_total_bytes = rtc_get_total_bytes;
 
 	obs_register_output(&rtc_output_info);
 	return true;

@@ -69,6 +69,7 @@ TRTCCloudCore::~TRTCCloudCore()
 
 void TRTCCloudCore::Init()
 {
+	sentBytes = 0;
 	m_pCloud->addCallback(this);
 	m_pCloud->setLogCallback(this);
 	m_pCloud->setAudioFrameCallback(this);
@@ -242,7 +243,7 @@ void TRTCCloudCore::onUserVideoAvailable(const char *userId, bool available)
 void TRTCCloudCore::onStatistics(const TRTCStatistics &statis)
 {
 	//更新云端混流的结构信息
-	
+	sentBytes = statis.sentBytes;
 }
 
 void TRTCCloudCore::onLog(const char *log, TRTCLogLevel level,
