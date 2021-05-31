@@ -112,7 +112,7 @@ public:
 
 		m_rtccb(type, data);
 
-		if (type == RTC_EVENT_SUCCESS)
+		if (type == RTC_EVENT_SUCCESS || type == RTC_EVENT_FAIL)
 			stopTimeoutTimer();
 	}
 
