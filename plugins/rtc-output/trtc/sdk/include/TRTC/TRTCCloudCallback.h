@@ -370,17 +370,6 @@ public:
      */
     virtual void onAudioDevicePlayoutVolumeChanged(uint32_t volume, bool muted) {}
 #endif
-    
-#if TARGET_PLATFORM_MAC
-    /**
-     * 6.9 系统声音采集结果回调
-     *
-     * 系统声音采集接口 startSystemAudioLoopback 会触发这个回调
-     *
-     * @param errCode ERR_NULL 表示成功，其余值表示失败
-     */
-    virtual void onSystemAudioLoopbackError(TXLiteAVError errCode) {}
-#endif
     /// @}
 
     /////////////////////////////////////////////////////////////////////////////////
@@ -515,7 +504,7 @@ public:
     /**
      * 9.5 当屏幕分享停止时，SDK 会通过此回调通知
      *
-     * @param reason 停止原因，0：表示用户主动停止；1：表示屏幕分享窗口被关闭；2：表示屏幕分享的显示屏状态变更（如接口被拔出、投影模式变更等）
+     * @param reason 停止原因，0：表示用户主动停止；1：表示屏幕分享窗口被关闭
      */
     virtual void onScreenCaptureStoped(int reason) {};
     /// @}
@@ -543,42 +532,11 @@ public:
                                     uint32_t length, uint32_t width, uint32_t height,
                                     TRTCVideoPixelFormat format) {
     }
-   /// @}
-   /////////////////////////////////////////////////////////////////////////////////
-   //
-   //                      （十一）本地录制回调
-   //
-   /////////////////////////////////////////////////////////////////////////////////
-   /// @name 本地录制回调
-   /// @{
-    /**
-     * 11.1 录制任务已经开始
-     *
-     * @param errCode 错误码 0：初始化录制成功；-1：初始化录制失败；-2: 文件后缀名有误。
-
-     * @param storagePath 录制文件存储路径
-     */
-    virtual void onLocalRecordBegin(int errCode, const char* storagePath) {}
-
-    /**
-      * 11.2 录制任务进行中
-      * @param duration 已经录制的累计时长，单位毫秒
-      * @param storagePath 录制文件存储路径
-      */
-    virtual void onLocalRecording(long duration, const char* storagePath) {}
-    /**
-    * 11.3 录制任务已结束
-    *
-    * @param errCode 错误码 0：录制成功；-1：录制失败；-2：切换分辨率或横竖屏导致录制结束。
-
-    * @param storagePath 录制文件存储路径
-    */
-   virtual void onLocalRecordComplete(int errCode, const char* storagePath) {}
     /// @}
 
     /////////////////////////////////////////////////////////////////////////////////
     //
-    //                      （十二）Windows 专有废弃方法
+    //                      （十一）Windows 专有废弃方法
     //
     /////////////////////////////////////////////////////////////////////////////////
     /// @name Windows 专有废弃方法
@@ -648,7 +606,7 @@ public:
 
 /////////////////////////////////////////////////////////////////////////////////
 //
-//                      （十三）自定义视频渲染回调
+//                      （十二）自定义视频渲染回调
 //
 /////////////////////////////////////////////////////////////////////////////////
 
@@ -658,7 +616,7 @@ class ITRTCVideoRenderCallback
 public:
     virtual ~ITRTCVideoRenderCallback() {}
     /**
-     * 13.1 自定义视频渲染回调
+     * 12.1 自定义视频渲染回调
      *
      * 可以通过 setLocalVideoRenderCallback 和 setRemoteVideoRenderCallback 接口设置自定义渲染回调
      *
@@ -671,35 +629,9 @@ public:
     virtual void onRenderVideoFrame(const char* userId, TRTCVideoStreamType streamType, TRTCVideoFrame* frame) {}
 };
 
-#if __APPLE__
 /////////////////////////////////////////////////////////////////////////////////
 //
-//                      （十四）自定义视频预处理数据回调
-//
-/////////////////////////////////////////////////////////////////////////////////
-
-/// 自定义视频数据回调
-class ITRTCVideoFrameCallback
-{
-public:
-    virtual ~ITRTCVideoFrameCallback() {}
-    /**
-     * 14.1 自定义视频预处理数据回调
-     *
-     * 可以通过 setLocalVideoProcessCallback 接口设置自定义渲染回调
-     *
-     * @param srcFrame    处理前的视频帧
-     * @param dstFrame    处理后的视频帧
-     * @return 0：成功；其他：错误
-     *
-     */
-    virtual int onProcessVideoFrame(TRTCVideoFrame *srcFrame, TRTCVideoFrame *dstFrame) {return 0;}
-};
-#endif
-
-/////////////////////////////////////////////////////////////////////////////////
-//
-//                      （十五）音频数据回调
+//                      （十三）音频数据回调
 //
 /////////////////////////////////////////////////////////////////////////////////
 
@@ -709,7 +641,7 @@ class ITRTCAudioFrameCallback
 public:
     virtual ~ITRTCAudioFrameCallback() {}
     /**
-     * 15.1 本地麦克风采集到的音频数据回调
+     * 13.1 本地麦克风采集到的音频数据回调
      *
      * @param frame      音频数据
      * @note - 请不要在此回调函数中做任何耗时操作，建议直接拷贝到另一线程进行处理，否则会导致各种声音问题。
@@ -723,7 +655,7 @@ public:
 
 #if TARGET_PLATFORM_PHONE
     /**
-     * 15.2 本地采集并经过音频模块前处理后的音频数据回调
+     * 13.2 本地采集并经过音频模块前处理后的音频数据回调
      *
      * @param frame      音频数据
      * @note - 请不要在此回调函数中做任何耗时操作，建议直接拷贝到另一线程进行处理，否则会导致各种声音问题。
@@ -737,7 +669,7 @@ public:
 #endif
 
     /**
-     * 15.3 混音前的每一路远程用户的音频数据（例如您要对某一路的语音进行文字转换，必须要使用这里的原始数据，而不是混音之后的数据）
+     * 13.3 混音前的每一路远程用户的音频数据（例如您要对某一路的语音进行文字转换，必须要使用这里的原始数据，而不是混音之后的数据）
      *
      * @param frame      音频数据
      * @param userId     用户标识
@@ -747,7 +679,7 @@ public:
     virtual void onPlayAudioFrame(TRTCAudioFrame *frame, const char* userId) {};
 
     /**
-     * 15.4 各路音频数据混合后送入喇叭播放的音频数据
+     * 13.4 各路音频数据混合后送入喇叭播放的音频数据
      *
      * @param frame      音频数据
      * @note - 请不要在此回调函数中做任何耗时操作，建议直接拷贝到另一线程进行处理，否则会导致各种声音问题。
@@ -762,7 +694,7 @@ public:
 
 /////////////////////////////////////////////////////////////////////////////////
 //
-//                      （十六）Log 信息回调
+//                      （十四）Log 信息回调
 //
 /////////////////////////////////////////////////////////////////////////////////
 
@@ -772,7 +704,7 @@ class ITRTCLogCallback
 public:
     virtual ~ITRTCLogCallback() {}
     /**
-     * 16.1 有日志打印时的回调
+     * 14.1 有日志打印时的回调
      *
      * @param log 日志内容
      * @param level 日志等级 参见 TRTCLogLevel

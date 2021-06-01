@@ -33,7 +33,6 @@
 
 #define TARGET_PLATFORM_DESKTOP (__APPLE__ && TARGET_OS_MAC && !TARGET_OS_IPHONE) || _WIN32
 #define TARGET_PLATFORM_PHONE   __ANDROID__ || (__APPLE__ && TARGET_OS_IOS)
-#define TARGET_PLATFORM_MAC     __APPLE__ && TARGET_OS_MAC && !TARGET_OS_IPHONE
 
 namespace trtc {
 
@@ -216,7 +215,6 @@ enum TRTCVideoPixelFormat
     TRTCVideoPixelFormat_I420 = 1,        ///< I420
     TRTCVideoPixelFormat_Texture_2D = 2,  ///< OpenGL 2D 纹理
     TRTCVideoPixelFormat_BGRA32 = 3,      ///< BGRA32
-    TRTCVideoPixelFormat_RGBA32 = 5,      ///< RGBA32
 };
 
 
@@ -349,21 +347,6 @@ enum TRTCQuality
     TRTCQuality_Down      = 6,   ///< 不可用
 };
 
-/**
- * 2.6 混流输入类型
- */
-enum TRTCMixInputType
-{
-    /// 不指定，根据pureAudio值决定混流类型
-    TRTCMixInputTypeUndefined     = 0,
-    /// 混入音视频
-    TRTCMixInputTypeAudioVideo    = 1,
-    /// 只混入视频
-    TRTCMixInputTypePureVideo     = 2,
-    /// 只混入音频
-    TRTCMixInputTypePureAudio     = 3,
-};
-
 /////////////////////////////////////////////////////////////////////////////////
 //
 //                    【（三）声音相关枚举值定义】
@@ -427,7 +410,7 @@ enum TRTCDeviceState
 
 /**
  * 4.3 设备类型
- *
+ * 
  * 以下定义仅用于兼容原有接口，具体定义参见 ITXDeviceManager.h 文件
  */
 typedef TXMediaDeviceType TRTCDeviceType;
@@ -788,33 +771,24 @@ struct TRTCSpeedTestResult
  */
 struct TRTCMixUser
 {
-    ///【字段含义】参与混流的 userId
+    /// 参与混流的 userId
     const char * userId;
 
-    ///【字段含义】参与混流的 roomId，跨房流传入的实际 roomId，当前房间流传入 roomId = nullptr
+    /// 参与混流的 roomId，跨房流传入的实际 roomId，当前房间流传入 roomId = nullptr
     const char * roomId;
 
-    ///【字段含义】图层位置坐标以及大小，左上角为坐标原点(0,0) （绝对像素值）
+    /// 图层位置坐标以及大小，左上角为坐标原点(0,0) （绝对像素值）
     RECT rect;
 
-    ///【字段含义】图层层次（1 - 15）不可重复
+    /// 图层层次（1 - 15）不可重复
     int zOrder;
 
-    ///【字段含义】该用户是不是只开启了音频
-    ///【推荐取值】默认值：NO
-    ///【特别说明】废弃，推荐使用 inputType
+    /// 该用户是不是只开启了音频
     bool pureAudio;
 
-    ///【字段含义】参与混合的是主路画面（TRTCVideoStreamTypeBig）或屏幕分享（TRTCVideoStreamTypeSub）画面
+    /// 参与混合的是主路画面（TRTCVideoStreamTypeBig）或屏幕分享（TRTCVideoStreamTypeSub）画面
     TRTCVideoStreamType streamType;
 
-    /// 【字段含义】该用户的输入流类型（该字段是对 pureAudio 字段的升级）
-    /// 【推荐取值】
-    ///     - 默认值：TRTCMixInputTypeUndefined
-    ///     - 如果您没有对 pureAudio 字段进行设置，您可以根据实际需要设置该字段
-    ///     - 如果您已经设置了 pureAudio 为 YES，请设置该字段为 TRTCMixInputTypeUndefined
-    TRTCMixInputType inputType;
-    
     TRTCMixUser()
         : userId(nullptr)
         , roomId(nullptr)
@@ -822,7 +796,6 @@ struct TRTCMixUser
         , zOrder(0)
         , pureAudio(false)
         , streamType(TRTCVideoStreamTypeBig)
-        , inputType(TRTCMixInputTypeUndefined)
     {
         rect.left = 0;
         rect.top = 0;
@@ -948,8 +921,6 @@ struct TRTCTranscodingConfig
 
     TRTCTranscodingConfig()
         : mode(TRTCTranscodingConfigMode_Unknown)
-        , appId(0)
-        , bizId(0)
         , videoWidth(0)
         , videoHeight(0)
         , videoBitrate(0)
@@ -1093,10 +1064,6 @@ struct TRTCLocalStatistics
     uint32_t audioBitrate;                          ///< 音频发送码率（Kbps）
 
     TRTCVideoStreamType streamType;                 ///< 流类型（大画面 | 小画面 | 辅路画面）
-    
-    /// 音频设备采集状态，用于检测外接音频设备的健康度
-    /// 0：采集设备状态正常；1：检测到长时间静音；2：检测到破音；3：检测到声音异常间断。
-    uint32_t audioCaptureState;
 
     TRTCLocalStatistics()
             : width(0)
@@ -1106,7 +1073,6 @@ struct TRTCLocalStatistics
             , audioSampleRate(0)
             , audioBitrate(0)
             , streamType(TRTCVideoStreamTypeBig)
-            , audioCaptureState(0)
     {
 
     }
@@ -1117,55 +1083,39 @@ struct TRTCLocalStatistics
  */
 struct TRTCRemoteStatistics
 {
-    /// 用户 ID，指定是哪个用户的视频流
-    const char * userId;
+    const char * userId;                                ///< 用户 ID，指定是哪个用户的视频流
 
-    /// 该线路的总丢包率（％）
-    /// 这个值越小越好，例如，丢包率为0表示网络很好。
-    /// 丢包率是该线路的 userId 从上行到服务器再到下行的总丢包率。
-    /// 如果 downLoss 为0，但是 finalLoss 不为0，说明该 userId 上行时出现了无法恢复的丢包。
+    /** 该线路的总丢包率（％）
+      *
+      * 这个值越小越好，例如，丢包率为0表示网络很好。
+      * 丢包率是该线路的 userId 从上行到服务器再到下行的总丢包率。
+      * 如果 downLoss 为0，但是 finalLoss 不为0，说明该 userId 上行时出现了无法恢复的丢包。
+      */
     uint32_t finalLoss;
 
-    /// 视频宽度
-    uint32_t width;
-    /// 视频高度
-    uint32_t height;
-    
-    /// 接收帧率（fps）
-    uint32_t frameRate;
+    uint32_t width;                                 ///< 视频宽度
 
-    /// 视频码率（Kbps）
-    uint32_t videoBitrate;
+    uint32_t height;                                ///< 视频高度
 
-    /// 音频采样率（Hz）
-    uint32_t audioSampleRate;
+    uint32_t frameRate;                             ///< 接收帧率（fps）
 
-    /// 音频码率（Kbps）
-    uint32_t audioBitrate;
+    uint32_t videoBitrate;                          ///< 视频码率（Kbps）
 
-    /// 播放时延（ms）
-    uint32_t jitterBufferDelay;
+    uint32_t audioSampleRate;                       ///< 音频采样率（Hz）
 
-    /// 端对端延迟（ms）
-    /// 该字段为全链路延迟统计，链路包含：采集->编码->网络传输->接收->缓冲->解码->播放
-    /// 延迟以 audio 为基准进行计算。需要本地和远端均为8.5版本以上时才生效
-    /// 若远端用户为低版本，对应延迟会回调为0，此时代表无效值
-    uint32_t point2PointDelay;
+    uint32_t audioBitrate;                          ///< 音频码率（Kbps）
 
-    /// 音频播放卡顿累计时长（ms）
-    uint32_t audioTotalBlockTime;
+    uint32_t jitterBufferDelay;                     ///< 播放时延（ms）
 
-    /// 音频播放卡顿率，音频卡顿累计时长占音频总播放时长的百分比 (%)
-    uint32_t audioBlockRate;
+    uint32_t audioTotalBlockTime;                   ///< 音频播放卡顿累计时长（ms）
 
-    /// 视频播放卡顿累计时长（ms）
-    uint32_t videoTotalBlockTime;
+    uint32_t audioBlockRate;                        ///< 音频播放卡顿率，音频卡顿累计时长占音频总播放时长的百分比 (%)
 
-    /// 视频播放卡顿率，视频卡顿累计时长占音频总播放时长的百分比（%）
-    uint32_t videoBlockRate;
+    uint32_t videoTotalBlockTime;                   ///< 视频播放卡顿累计时长（ms）
 
-    /// 流类型（大画面 | 小画面 | 辅路画面）
-    TRTCVideoStreamType streamType;
+    uint32_t videoBlockRate;                        ///< 视频播放卡顿率，视频卡顿累计时长占音频总播放时长的百分比（%）
+
+    TRTCVideoStreamType streamType;                 ///< 流类型（大画面 | 小画面 | 辅路画面）
 
     TRTCRemoteStatistics()
             : userId(nullptr)
@@ -1177,7 +1127,6 @@ struct TRTCRemoteStatistics
             , audioSampleRate(0)
             , audioBitrate(0)
             , jitterBufferDelay(0)
-            , point2PointDelay(0)
             , audioTotalBlockTime(0)
             , audioBlockRate(0)
             , videoTotalBlockTime(0)
@@ -1194,17 +1143,19 @@ struct TRTCRemoteStatistics
 struct TRTCStatistics
 {
 
-    /// C -> S 上行丢包率（％），
-    /// 该值越小越好，例如，丢包率为0表示网络很好，
-    /// 丢包率为30@%则意味着 SDK 向服务器发送的数据包中会有30@%丢失在上行传输中。
+    /** C -> S 上行丢包率（％），
+      * 该值越小越好，例如，丢包率为0表示网络很好，
+      * 丢包率为30@%则意味着 SDK 向服务器发送的数据包中会有30@%丢失在上行传输中。
+      */
     uint32_t upLoss;
 
-    /// S -> C 下行丢包率（％），
-    /// 该值越小越好，例如，丢包率为0表示网络很好，
-    /// 丢包率为30@%则意味着 SDK 向服务器发送的数据包中会有30@%丢失在下行传输中。
+    /** S -> C 下行丢包率（％），
+      * 该值越小越好，例如，丢包率为0表示网络很好，
+      * 丢包率为30@%则意味着 SDK 向服务器发送的数据包中会有30@%丢失在下行传输中。
+      */
     uint32_t downLoss;
 
-    /// 当前 App 的 CPU 使用率（％）
+    ///当前 App 的 CPU 使用率（％）
     uint32_t appCpu;
 
     /// 当前系统的 CPU 使用率（％）
@@ -1279,14 +1230,10 @@ struct TRTCScreenCaptureSourceInfo {
     const char *      sourceName;                   ///< 采集源名称，UTF8 编码
     TRTCImageBuffer thumbBGRA;                      ///< 缩略图内容
     TRTCImageBuffer iconBGRA;                       ///< 图标内容
-    bool            isMinimizeWindow;               ///< 是否为最小化窗口，通过 getScreenCaptureSources 获取列表时的窗口状态，仅采集源为 Window 时才可用
-    bool            isMainScreen;                   ///< 是否为主屏，是否为主屏，仅采集源类型为 Screen 时才可用
     TRTCScreenCaptureSourceInfo()
         : type(TRTCScreenCaptureSourceTypeUnknown)
         , sourceId(nullptr)
         , sourceName(nullptr)
-        , isMinimizeWindow(false)
-        , isMainScreen(false)
     {};
 };
 
@@ -1339,60 +1286,17 @@ struct TRTCScreenCaptureProperty {
 
 /**
  * 5.24 设备列表和设备 Item 信息
- *
+ * 
  * 以下定义仅用于兼容原有接口，具体定义参见 ITXDeviceManager.h 文件
  */
 typedef ITXDeviceCollection ITRTCDeviceCollection;
 typedef ITXDeviceInfo       ITRTCDeviceInfo;
-/**
- * 5.25 本地录制参数
- *
- */
-enum TRTCLocalRecordType {
-    /// 仅录制音频
-    TRTCLocalRecordType_Audio = 0,
 
-    /// 仅录制视频
-    TRTCLocalRecordType_Video = 1,
-
-    /// 同时录制音频、视频
-    TRTCLocalRecordType_Both = 2,
-
-};
-
-struct TRTCLocalRecordingParams {
-    ///【字段含义】文件路径（必填），录制的文件地址，请自行指定，确保路径有读写权限且合法，否则录制文件无法生成。
-    ///【特别说明】该路径需精确到文件名及格式后缀，格式后缀决定录制文件的格式，目前支持的格式只有 mp4。
-    /// Windows建议在应用的私有数据目录中指定存放路径。
-    ///【示例代码】在 %appdata%\\test 目录下录制 example.mp4 文件
-    /// std::string filePath;
-    /// std::wstring path;
-    /// wchar_t fullPath[MAX_PATH] = { 0 };
-    /// ::SHGetFolderPathW(NULL, CSIDL_APPDATA, NULL, 0, fullPath);
-    /// path=fullPath;
-    /// path += L"\\test\\example.mp4";
-    /// filePath = txf_wstr2utf8(path);
-    const char *filePath;
-
-    ///【字段含义】媒体录制类型，默认为同时录制音频和视频。
-    TRTCLocalRecordType recordType;
-
-    ///interval 录制中事件（onLocalRecordDoing）的回调频率，单位毫秒，有效范围：1000-10000，默认为 -1 表示不回调
-    int interval;
-    
-    TRTCLocalRecordingParams()
-        : filePath(nullptr)
-        , recordType(TRTCLocalRecordType_Both)
-        , interval(-1)
-    {
-
-    }
-};
 /// @}
-}  // namespace trtc
+}
 
 #ifdef _WIN32
 using namespace trtc;
 #endif
 
-#endif / *__TRTCCLOUDDEF_H__ * /
+#endif / * __TRTCCLOUDDEF_H__  */

@@ -137,71 +137,70 @@ public:
     /**
      * 获取设备列表
      *
-     * @param type  设备类型，指定需要获取哪种设备的列表。详见 TXMediaDeviceType 定义。
+     * @param type  设备类型，指定需要获取哪种设备的列表。详见TXMediaDeviceType定义。
      *
-     * @note - delete ITXDeviceCollection* 指针会导致编译错误，SDK 维护 ITXDeviceCollection 对象的生命周期
-     *       - 使用完毕后请调用 release 方法释放资源
+     * @note - 如果 delete ITXDeviceCollection* 指针会编译错误，SDK 维护 ITXDeviceCollection 对象的生命周期。
      *       - type 只支持 TXMediaDeviceTypeMic、TXMediaDeviceTypeSpeaker、TXMediaDeviceTypeCamera
-     *       - 此接口只支持 Mac 和 Windows 平台
+     *       - 此接口只支持Mac和Windows平台
      */
     virtual ITXDeviceCollection* getDevicesList(TXMediaDeviceType type) = 0;
 
     /**
      * 指定当前设备
      *
-     * @param type  设备类型，根据设备类型指定当前设备。详见 TXMediaDeviceType 定义。
+     * @param type  设备类型，根据设备类型指定当前设备。详见TXMediaDeviceType定义。
      * @param deviceId  从 getDevicesList 中得到的设备 ID
      * @return 0：操作成功 负数：失败
      * @note - type 只支持 TXMediaDeviceTypeMic、TXMediaDeviceTypeSpeaker、TXMediaDeviceTypeCamera
-     *       - 此接口只支持 Mac 和 Windows 平台
+     *       - 此接口只支持Mac和Windows平台
      */
     virtual int setCurrentDevice(TXMediaDeviceType type, const char* deviceId) = 0;
 
     /**
      * 获取当前使用的设备
      *
-     * @param type  设备类型，根据设备类型获取当前设备信息。详见 TXMediaDeviceType 定义。
+     * @param type  设备类型，根据设备类型获取当前设备信息。详见TXMediaDeviceType定义。
      * @return ITRTCDeviceInfo 设备信息，能获取设备 ID 和设备名称
-     * @note 此接口只支持 Mac 和 Windows 平台
+     * @note 此接口只支持Mac和Windows平台
      */
     virtual ITXDeviceInfo* getCurrentDevice(TXMediaDeviceType type) = 0;
 
     /**
      * 设置当前设备的音量
      *
-     * @param type  设备类型，根据设备类型获取当前设备音量。详见 TXMediaDeviceType 定义。
+     * @param type  设备类型，根据设备类型获取当前设备音量。详见TXMediaDeviceType定义。
      * @param volume 音量大小
      * @return 0：操作成功 负数：失败
      * @note - type 只支持 TXMediaDeviceTypeMic、TXMediaDeviceTypeSpeaker
-     *       - 此接口只支持 Mac 和 Windows 平台
+     *       - 此接口只支持Mac和Windows平台
      */
     virtual int setCurrentDeviceVolume(TXMediaDeviceType type, uint32_t volume) = 0;
 
     /**
      * 获取当前设备的音量
      *
-     * @param type  设备类型，根据设备类型获取当前设备音量。详见 TXMediaDeviceType 定义。
+     * @param type  设备类型，根据设备类型获取当前设备音量。详见TXMediaDeviceType定义。
      *
      * @note - type 只支持 TXMediaDeviceTypeMic、TXMediaDeviceTypeSpeaker
-     *       - 此接口只支持 Mac 和 Windows 平台
+     *       - 此接口只支持Mac和Windows平台
      */
     virtual uint32_t getCurrentDeviceVolume(TXMediaDeviceType type) = 0;
 
     /**
      * 设置当前设备是否静音
      *
-     * @param type  设备类型，根据设备类型设置当前设备状态。详见 TXMediaDeviceType 定义。
+     * @param type  设备类型，根据设备类型设置当前设备状态。详见TXMediaDeviceType定义。
      * @param mute 是否静音/禁画
      * @return 0：操作成功 负数：失败
      * @note - type 只支持 TXMediaDeviceTypeMic、TXMediaDeviceTypeSpeaker
-     *       - 此接口只支持 Mac 和 Windows 平台
+     *       - 此接口只支持Mac和Windows平台
      */
     virtual int setCurrentDeviceMute(TXMediaDeviceType type, bool mute) = 0;
 
     /**
      * 查询当前设备是否静音
      *
-     * @param type  设备类型，根据设备类型获取当前设备状态。详见 TXMediaDeviceType 定义。
+     * @param type  设备类型，根据设备类型获取当前设备状态。详见TXMediaDeviceType定义。
      * @return true : 当前设备已静音；false : 当前设备未静音
      * @note type 只支持 TXMediaDeviceTypeMic、TXMediaDeviceTypeSpeaker
      */
@@ -213,7 +212,7 @@ public:
      * @param view 预览控件所在的父控件
      * @return 0：操作成功 负数：失败
      * @note - 在测试过程中可以使用 setCurrentCameraDevice 接口切换摄像头。
-     *       - 此接口只支持 Mac 和 Windows 平台
+     *       - 此接口只支持Mac和Windows平台
      */
     virtual int startCameraDeviceTest(void* view) = 0;
 
@@ -225,7 +224,7 @@ public:
      * @param callback 摄像头预览自定义渲染画面回调
      * @return 0：操作成功 负数：失败
      * @note - 在测试过程中可以使用 setCurrentCameraDevice 接口切换摄像头。
-     *       - 此接口只支持 Windows 平台
+     *       - 此接口只支持Windows平台
      */
     virtual int startCameraDeviceTest(ITRTCVideoRenderCallback* callback) = 0;
 #endif
@@ -233,7 +232,7 @@ public:
     /**
      * 结束摄像头测试
      * @return 0：操作成功 负数：失败
-     * @note 此接口只支持 Mac 和 Windows 平台
+     * @note 此接口只支持Mac和Windows平台
      */
     virtual int stopCameraDeviceTest() = 0;
 
@@ -242,14 +241,14 @@ public:
      *
      * @param interval 音量回调间隔
      * @return 0：操作成功 负数：失败
-     * @note 此接口只支持 Mac 和 Windows 平台
+     * @note 此接口只支持Mac和Windows平台
      */
     virtual int startMicDeviceTest(uint32_t interval) = 0;
 
     /**
      * 结束麦克风测试
      * @return 0：操作成功 负数：失败
-     * @note 此接口只支持 Mac 和 Windows 平台
+     * @note 此接口只支持Mac和Windows平台
      */
     virtual int stopMicDeviceTest() = 0;
 
@@ -259,14 +258,14 @@ public:
      * 该方法播放指定的音频文件测试播放设备是否能正常工作。如果能听到声音，说明播放设备能正常工作。
      * @param filePath 声音文件的路径
      * @return 0：操作成功 负数：失败
-     * @note 此接口只支持 Mac 和 Windows 平台
+     * @note 此接口只支持Mac和Windows平台
      */
     virtual int startSpeakerDeviceTest(const char* filePath) = 0;
 
     /**
      * 停止扬声器测试
      * @return 0：操作成功 负数：失败
-     * @note 此接口只支持 Mac 和 Windows 平台
+     * @note 此接口只支持Mac和Windows平台
      */
     virtual int stopSpeakerDeviceTest() = 0;
 
@@ -278,14 +277,12 @@ public:
      * @return 0:成功
      */
     virtual int setApplicationPlayVolume(int volume) = 0;
-
     /**
      * 获取 Windows 系统音量合成器中当前进程的音量
      *
      * @return 返回音量值，取值范围[0~100]
      */
     virtual int getApplicationPlayVolume() = 0;
-
     /**
      * 设置 Windows 系统音量合成器中当前进程的静音状态
      *
@@ -293,7 +290,6 @@ public:
      * @return 0 设置成功
      */
     virtual int setApplicationMuteState(bool bMute) = 0;
-
     /**
      * 获取 Windows 系统音量合成器中当前进程的静音状态
      *
@@ -308,19 +304,19 @@ public:
      *
      * @param frontCamera YES：切换到前置摄像头 NO：切换到后置摄像头
      * @return 0：操作成功 负数：失败
-     * @note 此接口只支持 Android 和 iOS 平台
+     * @note 此接口只支持和Android和iOS平台
      */
     virtual int switchCamera(bool frontCamera) = 0;
 
     /**
      * 当前是否为前置摄像头
-     * @note 此接口只支持 Android 和 iOS 平台
+     * @note 此接口只支持和Android和iOS平台
      */
     virtual bool isFrontCamera() = 0;
 
     /**
      * 获取摄像头最大缩放倍数
-     * @note 此接口只支持 Android 和 iOS 平台
+     * @note 此接口只支持和Android和iOS平台
      */
     virtual float getCameraZoomMaxRatio() = 0;
 
@@ -329,7 +325,7 @@ public:
      *
      * @param zoomRatio 缩放倍数
      * @return 0：操作成功 负数：失败
-     * @note 此接口只支持 Android 和 iOS 平台
+     * @note 此接口只支持和Android和iOS平台
      */
     virtual int setCameraZoomRatio(float zoomRatio) = 0;
 
@@ -338,13 +334,13 @@ public:
      *
      * @param enabled YES：开启；NO：关闭，默认值：YES
      * @return 0：操作成功 负数：失败
-     * @note 此接口只支持 Android 和 iOS 平台
+     * @note 此接口只支持和Android和iOS平台
      */
     virtual int enableCameraAutoFocus (bool enabled) = 0;
 
     /**
      * 查询是否支持自动识别人脸位置
-     * @note 此接口只支持 Android 和 iOS 平台
+     * @note 此接口只支持和Android和iOS平台
      */
     virtual bool isAutoFocusEnabled () = 0;
 
@@ -354,7 +350,7 @@ public:
      * @param x 焦点横坐标
      * @param y 焦点纵坐标
      * @return 0：操作成功 负数：失败
-     * @note 此接口只支持 Android 和 iOS 平台
+     * @note 此接口只支持和Android和iOS平台
      */
     virtual int setCameraFocusPosition (float x, float y) = 0;
 
@@ -363,7 +359,7 @@ public:
      *
      * @param enabled  YES：开启；NO：关闭，默认值：NO
      * @return 0：操作成功 负数：失败
-     * @note 此接口只支持 Android 和 iOS 平台
+     * @note 此接口只支持和Android和iOS平台
      */
     virtual int enableCameraTorch (bool enabled) = 0;
 
@@ -376,7 +372,7 @@ public:
      *
      * @param type 系统音量类型，如无特殊需求，不推荐您自行设置。
      * @return 0：操作成功 负数：失败
-     * @note 此接口只支持 Android 和 iOS 平台
+     * @note 此接口只支持和Android和iOS平台
      */
     virtual int setSystemVolumeType (TXSystemVolumeType type) = 0;
 
@@ -389,7 +385,7 @@ public:
      *
      * @param route 音频路由，即声音由哪里输出（扬声器、听筒），默认值：TXAudioRouteSpeakerphone
      * @return 0：操作成功 负数：失败
-     * @note 此接口只支持 Android 和 iOS 平台
+     * @note 此接口只支持和Android和iOS平台
      */
     virtual int setAudioRoute (TXAudioRoute route) = 0;
     

@@ -130,7 +130,7 @@ enum TXEAutoAdjustStrategy
 /**
 *  \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\  推流的画面质量预设选项  \\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\\
 *
-*  - 1.2.0 版本开始引入推流画质接口 setVideoQualityParamPreset 用于自动选择最佳的推流画质效果。
+*  - 1.2.0 版本开始引入推流画质接口 setVideoQualityParamPreset 用于傻瓜化的选择推流画质效果。
 *  - TXLivePush::setVideoQualityParamPreset 内部通过预先配置不同的视频参数调整到对应的质量
 *  - 目前支持的几种画质选项如下：
 *

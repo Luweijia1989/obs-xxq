@@ -26,9 +26,10 @@ class IDeprecatedTRTCCloud {
      * 开启本地音频的采集和上行
      *
      * 该函数会启动麦克风采集，并将音频数据传输给房间里的其他用户。
-     * SDK 不会默认开启本地音频采集和上行，您需要调用该函数开启，否则房间里的其他用户将无法听到您的声音。
+     * SDK
+     * 并不会默认开启本地的音频上行，也就说，如果您不调用这个函数，房间里的其他用户就听不到您的声音。
      *
-     * @deprecated v8.0 版本弃用，请使用 startLocalAudio(quality) 接口
+     * @deprecated v8.0 版本弃用，请使用 startLocalAudio(TRTCAudioQuality) 接口
      * @note TRTC SDK 并不会默认打开本地的麦克风采集。
      */
     virtual __declspec(
@@ -38,10 +39,12 @@ class IDeprecatedTRTCCloud {
     /**
      * 开始显示远端视频画面
      *
-     * 在收到 SDK 的 onUserVideoAvailable(userId, true) 通知时，可以获知该远程用户开启了视频，此后调用 startRemoteView(userId) 接口加载该用户的远程画面时，
-     * 可以用 loading 动画优化加载过程中的等待体验。 待该用户的首帧画面开始显示时，您会收到 onFirstVideoFrame(userId) 事件回调。
+     * 在收到 SDK 的 onUserVideoAvailable(userId, true) 通知时，可以获知该远程用户开启了视频，
+     * 此后调用 startRemoteView(userId) 接口加载该用户的远程画面时，可以用 loading
+     * 动画优化加载过程中的等待体验。 待该用户的首帧画面开始显示时，您会收到
+     * onFirstVideoFrame(userId) 事件回调。
      *
-     * @deprecated v8.0 版本弃用，请使用 startRemoteView(userId, streamType, rendView) 接口
+     * @deprecated v8.0 版本弃用，请使用 startRemoteView(userId,streamType,rendView) 接口
      * @param userId   对方的用户标识
      * @param rendView 承载预览画面的窗口句柄
      */
@@ -64,7 +67,8 @@ class IDeprecatedTRTCCloud {
      * 设置本地图像的填充模式
      *
      * @deprecated v8.0 版本弃用，请使用 setLocalRenderParams(TRTCRenderParams) 接口
-     * @param mode 填充（画面可能会被拉伸裁剪）或适应（画面可能会有黑边），默认值：TRTCVideoFillMode_Fit
+     * @param mode
+     * 填充（画面可能会被拉伸裁剪）或适应（画面可能会有黑边），默认值：TRTCVideoFillMode_Fit
      */
     virtual __declspec(deprecated("use setLocalRenderParams(TRTCRenderParams) instead."))
         void setLocalViewFillMode(TRTCVideoFillMode mode) {};
@@ -73,7 +77,8 @@ class IDeprecatedTRTCCloud {
      * 设置本地图像的顺时针旋转角度
      *
      * @deprecated v8.0 版本弃用，请使用 setLocalRenderParams(TRTCRenderParams) 接口
-     * @param rotation 支持 TRTCVideoRotation90 、 TRTCVideoRotation180 以及 TRTCVideoRotation270 旋转角度，默认值：TRTCVideoRotation0
+     * @param rotation 支持 TRTCVideoRotation90 、 TRTCVideoRotation180 以及 TRTCVideoRotation270
+     * 旋转角度，默认值：TRTCVideoRotation0
      */
     virtual __declspec(deprecated("use setLocalRenderParams(TRTCRenderParams) instead."))
         void setLocalViewRotation(TRTCVideoRotation rotation) {};
@@ -92,7 +97,8 @@ class IDeprecatedTRTCCloud {
      *
      * @deprecated v8.0 版本弃用，请使用 setRemoteRenderParams(userId,streamType,param) 接口
      * @param userId 用户 ID
-     * @param mode 填充（画面可能会被拉伸裁剪）或适应（画面可能会有黑边），默认值：TRTCVideoFillMode_Fit
+     * @param mode
+     * 填充（画面可能会被拉伸裁剪）或适应（画面可能会有黑边），默认值：TRTCVideoFillMode_Fit
      */
     virtual __declspec(deprecated(
         "use setRemoteRenderParams(userId,streamType,param) "
@@ -103,7 +109,8 @@ class IDeprecatedTRTCCloud {
      *
      * @deprecated v8.0 版本弃用，请使用 setRemoteRenderParams(userId,streamType,param) 接口
      * @param userId 用户 ID
-     * @param rotation 支持 TRTCVideoRotation90 、 TRTCVideoRotation180 以及 TRTCVideoRotation270 旋转角度，默认值：TRTCVideoRotation0
+     * @param rotation 支持 TRTCVideoRotation90 、 TRTCVideoRotation180 以及 TRTCVideoRotation270
+     * 旋转角度，默认值：TRTCVideoRotation0
      */
     virtual __declspec(deprecated(
         "use setRemoteRenderParams(userId,streamType,param) "
@@ -126,7 +133,6 @@ class IDeprecatedTRTCCloud {
 
     /**
      * 停止显示远端用户的辅路画面（TRTCVideoStreamTypeSub，一般用于屏幕分享）。
-     * 
      * @deprecated v8.0 版本弃用，请使用 stopRemoteView(userId,streamType) 接口
      * @param userId 对方的用户标识
      */
@@ -135,13 +141,15 @@ class IDeprecatedTRTCCloud {
 
     /**
      * 设置辅路画面（TRTCVideoStreamTypeSub，一般用于屏幕分享）的显示模式
-     * 
-     * - setRemoteViewFillMode() 用于设置远端主路画面（TRTCVideoStreamTypeBig，一般用于摄像头）的显示模式。
-     * - setRemoteSubStreamViewFillMode() 用于设置远端辅路画面（TRTCVideoStreamTypeSub，一般用于屏幕分享）的显示模式。
+     * - setRemoteViewFillMode()
+     * 用于设置远端主路画面（TRTCVideoStreamTypeBig，一般用于摄像头）的显示模式。
+     * - setRemoteSubStreamViewFillMode()
+     * 用于设置远端辅路画面（TRTCVideoStreamTypeSub，一般用于屏幕分享）的显示模式。
      *
      * @deprecated v8.0 版本弃用，请使用 setRemoteRenderParams(userId,streamType,param) 接口
      * @param userId 用户的 ID
-     * @param mode 填充（画面可能会被拉伸裁剪）或适应（画面可能会有黑边），默认值：TRTCVideoFillMode_Fit
+     * @param mode
+     * 填充（画面可能会被拉伸裁剪）或适应（画面可能会有黑边），默认值：TRTCVideoFillMode_Fit
      */
     virtual __declspec(
         deprecated("use setRemoteRenderParams(userId,streamType,param) "
@@ -150,9 +158,10 @@ class IDeprecatedTRTCCloud {
 
     /**
      * 设置辅路画面（TRTCVideoStreamTypeSub，一般用于屏幕分享）的顺时针旋转角度
-     * 
-     * - setRemoteViewRotation() 用于设置远端主路画面（TRTCVideoStreamTypeBig，一般用于摄像头）的旋转角度。
-     * - setRemoteSubStreamViewRotation() 用于设置远端辅路画面（TRTCVideoStreamTypeSub，一般用于屏幕分享）的旋转角度。
+     * - setRemoteViewRotation()
+     * 用于设置远端主路画面（TRTCVideoStreamTypeBig，一般用于摄像头）的旋转角度。
+     * - setRemoteSubStreamViewRotation()
+     * 用于设置远端辅路画面（TRTCVideoStreamTypeSub，一般用于屏幕分享）的旋转角度。
      *
      * @deprecated v8.0 版本弃用，请使用 setRemoteRenderParams(userId,streamType,param) 接口
      * @param userId 用户 ID
@@ -168,10 +177,13 @@ class IDeprecatedTRTCCloud {
      *
      * 主播端的音质越高，观众端的听感越好，但传输所依赖的带宽也就越高，在带宽有限的场景下也更容易出现卡顿。
      *
-     * - {@link TRTCCloudDef#TRTCAudioQualitySpeech}，流畅：采样率：16k；单声道；音频裸码率：16kbps；适合语音通话为主的场景，比如在线会议，语音通话。
-     * - {@link TRTCCloudDef#TRTCAudioQualityDefault}，默认：采样率：48k；单声道；音频裸码率：50kbps；SDK 默认的音频质量，如无特殊需求推荐选择之。
-     * - {@link TRTCCloudDef#TRTCAudioQualityMusic}，高音质：采样率：48k；双声道 + 全频带；音频裸码率：128kbps；适合需要高保真传输音乐的场景，比如K歌、音乐直播等。
-     *
+     * - {@link TRTCCloudDef#TRTCAudioQualitySpeech}，
+     * 流畅：采样率：16k；单声道；音频裸码率：16kbps；适合语音通话为主的场景，比如在线会议，语音通话。
+     * - {@link
+     * TRTCCloudDef#TRTCAudioQualityDefault}，默认：采样率：48k；单声道；音频裸码率：50kbps；SDK
+     * 默认的音频质量，如无特殊需求推荐选择之。
+     * - {@link TRTCCloudDef#TRTCAudioQualityMusic}，高音质：采样率：48k；双声道 +
+     * 全频带；音频裸码率：128kbps；适合需要高保真传输音乐的场景，比如K歌、音乐直播等。
      * @deprecated v8.0 版本弃用，请使用 startLocalAudio(TRTCAudioQuality) 接口
      * @note 该方法需要在 startLocalAudio 之前进行设置，否则不会生效。
      */
@@ -185,11 +197,11 @@ class IDeprecatedTRTCCloud {
      * 低端设备推荐优先选择低清晰度的小画面。
      * 如果对方没有开启双路视频模式，则此操作无效。
      *
-     * @deprecated v8.0 版本弃用，请使用 startRemoteView(userId, streamType, rendView) 接口
+     * @deprecated v8.0 版本弃用，请使用 startRemoteView(userId,streamType,rendView) 接口
      * @param type 默认观看大画面还是小画面，默认为 TRTCVideoStreamTypeBig
      */
     virtual __declspec(
-        deprecated("use startRemoteView(userId, streamType, rendView) "
+        deprecated("use startRemoteView(userId,streamType,rendView) "
                    "instead.")) void setPriorRemoteVideoStreamType(TRTCVideoStreamType type) {};
 
     /**
@@ -207,7 +219,8 @@ class IDeprecatedTRTCCloud {
      * </pre>
      *
      * @deprecated v8.0 版本弃用，请使用 ITXDeviceManager::getDevicesList 接口
-     * @note delete ITRTCDeviceCollection* 指针会导致编译错误，SDK 维护 ITRTCDeviceCollection 对象的生命周期，使用完毕后请调用 release 方法释放资源。
+     * @note 如果 delete ITRTCDeviceCollection*指针会编译错误，SDK 维护 ITRTCDeviceCollection
+     * 对象的生命周期。
      * @return 摄像头管理器对象指针 ITRTCDeviceCollection*
      */
     virtual __declspec(deprecated("use ITXDeviceManager::getDevicesList instead."))
@@ -239,7 +252,7 @@ class IDeprecatedTRTCCloud {
     /**
      * 获取麦克风设备列表
      *
-     * 示例代码：
+     *  示例代码：
      * <pre>
      *  ITRTCDeviceCollection * pDevice = m_pCloud->getMicDevicesList();
      *  for (int i{}; i < pDevice->getCount(); i++)
@@ -252,7 +265,8 @@ class IDeprecatedTRTCCloud {
      *
      * @deprecated v8.0 版本弃用，请使用 ITXDeviceManager::getDevicesList 接口
      * @return 麦克风管理器对象指针 ITRTCDeviceCollection*
-     * @note delete ITRTCDeviceCollection* 指针会导致编译错误，SDK 维护 ITRTCDeviceCollection 对象的生命周期，使用完毕后请调用 release 方法释放资源。
+     * @note 如果 delete ITRTCDeviceCollection* 指针会编译错误，SDK 维护 ITRTCDeviceCollection
+     * 对象的生命周期。
      */
     virtual __declspec(deprecated("use ITXDeviceManager::getDevicesList instead."))
         ITRTCDeviceCollection* getMicDevicesList() {
@@ -299,7 +313,8 @@ class IDeprecatedTRTCCloud {
      * 设置系统当前麦克风设备的音量
      *
      * @deprecated v8.0 版本弃用，请使用 ITXDeviceManager::setCurrentDeviceVolume 接口
-     * @note 该接口的功能是调节系统采集音量，如果用户直接调节 Windows 系统设置的采集音量时，该接口的设置结果会被用户的操作所覆盖。
+     * @note 该接口的功能是调节系统采集音量，如果用户直接调节 WIN
+     * 系统设置的采集音量时，该接口的设置结果会被用户的操作所覆盖。
      *
      * @param volume 麦克风音量值，范围0 - 100
      */
@@ -311,7 +326,8 @@ class IDeprecatedTRTCCloud {
      * 设置系统当前麦克风设备的是否静音
      *
      * @deprecated v8.0 版本弃用，请使用 ITXDeviceManager::setCurrentDeviceMute 接口
-     * @note 该接口的功能是设置系统麦克风静音，如果用户直接设置 Windows 系统设置的麦克风静音时，该接口的设置结果会被用户的操作所覆盖。
+     * @note 该接口的功能是设置系统麦克风静音，如果用户直接设置 WIN
+     * 系统设置的麦克风静音时，该接口的设置结果会被用户的操作所覆盖。
      *
      * @param mute 设置为 true 时，则设置麦克风设备静音
      */
@@ -348,7 +364,8 @@ class IDeprecatedTRTCCloud {
      *
      * @deprecated v8.0 版本弃用，请使用 ITXDeviceManager::getDevicesList 接口
      * @return 扬声器管理器对象指针 ITRTCDeviceCollection*
-     * @note delete ITRTCDeviceCollection* 指针会导致编译错误，SDK 维护 ITRTCDeviceCollection 对象的生命周期，使用完毕后请调用 release 方法释放资源。
+     * @note 如果 delete ITRTCDeviceCollection* 指针会编译错误，SDK 维护 ITRTCDeviceCollection
+     * 对象的生命周期。
      */
     virtual __declspec(deprecated("use ITXDeviceManager::getDevicesList instead."))
         ITRTCDeviceCollection* getSpeakerDevicesList() {
@@ -393,7 +410,8 @@ class IDeprecatedTRTCCloud {
      * 设置系统当前扬声器设备音量
      *
      * @deprecated v8.0 版本弃用，请使用 ITXDeviceManager::setCurrentDeviceVolume 接口
-     * @note 该接口的功能是调节系统播放音量，如果用户直接调节 Windows 系统设置的播放音量时，该接口的设置结果会被用户的操作所覆盖。
+     * @note 该接口的功能是调节系统播放音量，如果用户直接调节 WIN
+     * 系统设置的播放音量时，该接口的设置结果会被用户的操作所覆盖。
      *
      * @param volume 设置的扬声器音量，范围0 - 100
      */
@@ -405,7 +423,8 @@ class IDeprecatedTRTCCloud {
      * 设置系统当前扬声器设备的是否静音
      *
      * @deprecated v8.0 版本弃用，请使用 ITXDeviceManager::setCurrentDeviceMute 接口
-     * @note 该接口的功能是设置系统扬声器静音，如果用户直接设置 Windows 系统设置的扬声器静音时，该接口的设置结果会被用户的操作所覆盖。
+     * @note 该接口的功能是设置系统扬声器静音，如果用户直接设置 WIN
+     * 系统设置的扬声器静音时，该接口的设置结果会被用户的操作所覆盖。
      *
      * @param mute 设置为 true 时，则设置扬声器设备静音
      */
@@ -454,7 +473,6 @@ class IDeprecatedTRTCCloud {
 
     /**
      * 停止摄像头测试
-     * 
      * @deprecated v8.0 版本弃用，请使用 ITXDeviceManager::stopCameraDeviceTest 接口
      */
     virtual __declspec(deprecated(
@@ -476,7 +494,6 @@ class IDeprecatedTRTCCloud {
 
     /**
      * 停止麦克风测试
-     * 
      * @deprecated v8.0 版本弃用，请使用 ITXDeviceManager::stopMicDeviceTest 接口
      */
     virtual __declspec(
@@ -490,7 +507,8 @@ class IDeprecatedTRTCCloud {
      * 该方法播放指定的音频文件测试播放设备是否能正常工作。如果能听到声音，说明播放设备能正常工作。
      *
      * @deprecated v8.0 版本弃用，请使用 ITXDeviceManager::startSpeakerDeviceTest 接口
-     * @param testAudioFilePath 音频文件的绝对路径，路径字符串使用 UTF-8 编码格式，支持文件格式：WAV、MP3
+     * @param testAudioFilePath 音频文件的绝对路径，路径字符串使用 UTF-8
+     * 编码格式，支持文件格式：WAV、MP3
      */
     virtual __declspec(
         deprecated("use ITXDeviceManager::startSpeakerDeviceTest "
@@ -498,7 +516,6 @@ class IDeprecatedTRTCCloud {
 
     /**
      * 停止扬声器测试
-     * 
      * @deprecated v8.0 版本弃用，请使用 ITXDeviceManager::stopSpeakerDeviceTest 接口
      */
     virtual __declspec(deprecated(
@@ -507,7 +524,8 @@ class IDeprecatedTRTCCloud {
     /**
      * 设置麦克风的音量大小
      *
-     * @deprecated 从 v6.9 版本开始废弃，请使用 setAudioCaptureVolume 接口替代。
+     * @deprecated 从 v6.9 版本开始废弃
+     * @note 使用 setAudioCaptureVolume 接口替代。
      */
     virtual __declspec(deprecated("use setAudioCaptureVolume instead.")) void setMicVolumeOnMixing(
         uint32_t volume) {};
@@ -515,7 +533,9 @@ class IDeprecatedTRTCCloud {
     /**
      * 启动屏幕分享
      *
-     * @deprecated 从 v7.2 版本开始废弃，请使用 startScreenCapture(rendView, type, params) 接口替代。
+     * @deprecated 从 v7.2 版本开始废弃
+     * @note 使用 startScreenCapture(TXView rendView, TRTCVideoStreamType type, TRTCVideoEncParam*
+     * params) 接口替代。
      */
     virtual __declspec(deprecated(
         "use startScreenCapture(TXView rendView, TRTCVideoStreamType type, TRTCVideoEncParam* "
@@ -524,33 +544,34 @@ class IDeprecatedTRTCCloud {
     /**
      * 启动播放背景音乐
      *
-     * @deprecated v7.3 版本弃用，请使用 TXAudioEffectManager startPlayMusic 接口，支持并发播放多个 BGM
+     * @deprecated v7.3 版本弃用，请使用 TXAudioEffectManager startPlayMusic 接口，支持并发播放多个
+     * BGM
      *
      * @param path 音乐文件路径，支持的文件格式：aac, mp3。
      */
-    virtual __declspec(deprecated("use TXAudioEffectManager startPlayMusic instead")) void playBGM(
+    virtual __declspec(deprecated("use getAudioEffectManager instead")) void playBGM(
         const char* path) {};
 
     /**
      * 停止播放背景音乐
      *
-     * @deprecated v7.3 版本弃用，请使用 TXAudioEffectManager stopPlayMusic 接口
+     * @deprecated v7.3 版本弃用，请使用 TXAudioEffectManager pausePlayMusic 接口
      */
-    virtual __declspec(deprecated("use TXAudioEffectManager stopPlayMusic instead")) void stopBGM() {};
+    virtual __declspec(deprecated("use getAudioEffectManager instead")) void stopBGM() {};
 
     /**
      * 暂停播放背景音乐
      *
      * @deprecated v7.3 版本弃用，请使用 TXAudioEffectManager pausePlayMusic 接口
      */
-    virtual __declspec(deprecated("use TXAudioEffectManager pausePlayMusic instead")) void pauseBGM() {};
+    virtual __declspec(deprecated("use getAudioEffectManager instead")) void pauseBGM() {};
 
     /**
      * 继续播放背景音乐
      *
      * @deprecated v7.3 版本弃用，请使用 TXAudioEffectManager resumePlayMusic 接口
      */
-    virtual __declspec(deprecated("use TXAudioEffectManager resumePlayMusic instead")) void resumeBGM() {};
+    virtual __declspec(deprecated("use getAudioEffectManager instead")) void resumeBGM() {};
 
     /**
      * 获取音乐文件总时长，单位毫秒
@@ -559,7 +580,7 @@ class IDeprecatedTRTCCloud {
      * @param path 音乐文件路径，如果 path 为空，那么返回当前正在播放的 music 时长
      * @return     成功返回时长，失败返回-1
      */
-    virtual __declspec(deprecated("use TXAudioEffectManager getMusicDurationInMS instead")) uint32_t
+    virtual __declspec(deprecated("use getAudioEffectManager instead")) uint32_t
         getBGMDuration(const char* path) {
         return 0;
     };
@@ -576,8 +597,10 @@ class IDeprecatedTRTCCloud {
     /**
      * 设置背景音乐播放音量的大小
      *
-     * @deprecated v7.3 版本弃用，请使用 TXAudioEffectManager::setMusicPublishVolume / setMusicPlayoutVolume 接口播放背景音乐混音时使用，用来控制背景音乐播放音量的大小，
-     * 该接口会同时控制远端播放音量的大小和本地播放音量的大小，因此调用该接口后，setBGMPlayoutVolume和setBGMPublishVolume设置的音量值会被覆盖。
+     * @deprecated v7.3 版本弃用，请使用 TXAudioEffectManager setMusicPublishVolume /
+     * setMusicPlayoutVolume 接口 播放背景音乐混音时使用，用来控制背景音乐播放音量的大小，
+     * 该接口会同时控制远端播放音量的大小和本地播放音量的大小，
+     * 因此调用该接口后，setBGMPlayoutVolume和setBGMPublishVolume设置的音量值会被覆盖
      *
      * @param volume 音量大小，100为正常音量，取值范围为0 - 100；默认值：100
      */
@@ -587,9 +610,9 @@ class IDeprecatedTRTCCloud {
     /**
      * 设置背景音乐本地播放音量的大小
      *
+     * @deprecated v7.3 版本弃用，请使用 TXAudioEffectManager setMusicPlayoutVolume 接口
      * 播放背景音乐混音时使用，用来控制背景音乐在本地播放时的音量大小。
      *
-     * @deprecated v7.3 版本弃用，请使用 TXAudioEffectManager::setMusicPlayoutVolume 接口
      * @param volume 音量大小，100为正常音量，取值范围为0 - 100；默认值：100
      */
     virtual __declspec(deprecated("use getAudioEffectManager instead")) void setBGMPlayoutVolume(
@@ -598,9 +621,9 @@ class IDeprecatedTRTCCloud {
     /**
      * 设置背景音乐远端播放音量的大小
      *
+     * @deprecated v7.3 版本弃用，请使用 TXAudioEffectManager setMusicPublishVolume 接口
      * 播放背景音乐混音时使用，用来控制背景音乐在远端播放时的音量大小。
      *
-     * @deprecated v7.3 版本弃用，请使用 TXAudioEffectManager::setMusicPublishVolume 接口
      * @param volume 音量大小，100为正常音量，取值范围为0 - 100；默认值：100
      */
     virtual __declspec(deprecated("use getAudioEffectManager instead")) void setBGMPublishVolume(
@@ -609,10 +632,10 @@ class IDeprecatedTRTCCloud {
     /**
      * 播放音效
      *
+     * @deprecated v7.3 版本弃用，请使用 TXAudioEffectManager startPlayMusic 接口
      * 每个音效都需要您指定具体的 ID，您可以通过该 ID 对音效的开始、停止、音量等进行设置。
      * 支持的文件格式：aac, mp3。
      *
-     * @deprecated v7.3 版本弃用，请使用 TXAudioEffectManager startPlayMusic 接口
      * @note 若您想同时播放多个音效，请分配不同的 ID 进行播放。因为使用同一个 ID 播放不同音效，SDK
      * 将会停止上一个 ID 对应的音效播放，再启动新的音效播放。
      *
@@ -624,7 +647,8 @@ class IDeprecatedTRTCCloud {
     /**
      * 设置音效音量
      *
-     * @deprecated v7.3 版本弃用，请使用 TXAudioEffectManager setMusicPublishVolume / setMusicPlayoutVolume 接口
+     * @deprecated v7.3 版本弃用，请使用 TXAudioEffectManager setMusicPublishVolume /
+     * setMusicPlayoutVolume 接口
      * @note 会覆盖通过 setAllAudioEffectsVolume 指定的整体音效音量。
      *
      * @param effectId 音效 ID
@@ -653,7 +677,8 @@ class IDeprecatedTRTCCloud {
     /**
      * 设置所有音效的音量
      *
-     * @deprecated v7.3 版本弃用，请使用 TXAudioEffectManager setMusicPublishVolume / setMusicPlayoutVolume 接口
+     * @deprecated v7.3 版本弃用，请使用 TXAudioEffectManager setMusicPublishVolume /
+     * setMusicPlayoutVolume 接口
      * @note 该操作会覆盖通过 setAudioEffectVolume 指定的单独音效音量。
      *
      * @param volume 音量大小，取值范围为0 - 100；默认值：100
@@ -686,7 +711,8 @@ class IDeprecatedTRTCCloud {
      * @param source            指定分享源
      * @param captureRect       指定捕获的区域
      * @param captureMouse      指定是否捕获鼠标指针
-     * @param highlightWindow   指定是否高亮正在共享的窗口，以及当捕获图像被遮挡时高亮遮挡窗口提示用户移走遮挡
+     * @param highlightWindow
+     * 指定是否高亮正在共享的窗口，以及当捕获图像被遮挡时高亮遮挡窗口提示用户移走遮挡
      */
     virtual __declspec(deprecated(
         "use selectScreenCaptureTarget(TRTCScreenCaptureSourceInfo,RECT,TRTCScreenCaptureProperty) "
@@ -694,39 +720,6 @@ class IDeprecatedTRTCCloud {
                                                    const RECT& captureRect,
                                                    bool captureMouse = true,
                                                    bool highlightWindow = true) {};
-
-    /**
-     * 启用视频自定义采集模式
-     *
-     * 开启该模式后，SDK 不再运行原有的视频采集流程，只保留编码和发送能力。
-     * 您需要用 sendCustomVideoData() 不断地向 SDK 塞入自己采集的视频画面。
-     *
-     * @param enable 是否启用，默认值：false
-     */
-    virtual __declspec(deprecated(
-        "use void enableCustomVideoCapture(TRTCVideoStreamType type, bool enable) instead")) void enableCustomVideoCapture(bool enable){};
-
-    /**
-     * TRTCVideoFrame 推荐如下填写方式（其他字段不需要填写）：
-     * - pixelFormat： Windows、Android平台仅支持 TRTCVideoPixelFormat_I420，iOS、Mac平台支持TRTCVideoPixelFormat_I420和TRTCVideoPixelFormat_BGRA32
-     * - bufferType：仅支持 TRTCVideoBufferType_Buffer。
-     * - data：视频帧 buffer。
-     * - length：视频帧数据长度，I420 格式下，其值等于：width × height × 3 / 2。
-     * - width：视频图像长度。
-     * - height：视频图像宽度。
-     * - timestamp：如果 timestamp 间隔不均匀，会严重影响音画同步和录制出的 MP4 质量。
-     *
-     * 参考文档：[自定义采集和渲染](https://cloud.tencent.com/document/product/647/34066)。
-     * @param frame 视频数据，支持 I420 格式数据。
-     * @note - SDK 内部有帧率控制逻辑，目标帧率以您在 setVideoEncoderParam 中设置的为准，太快会自动丢帧，太慢则会自动补帧。
-     *       - 可以设置 frame 中的 timestamp 为 0，相当于让 SDK 自己设置时间戳，但请“均匀”地控制 sendCustomVideoData 的调用间隔，否则会导致视频帧率不稳定。
-     *       - iOS、Mac平台目前仅支持传入TRTCVideoPixelFormat_I420或TRTCVideoPixelFormat_BGRA32格式的视频帧
-     *       - Windows、Android平台目前仅支持传入TRTCVideoPixelFormat_I420格式的视频帧
-     */
-    virtual __declspec(
-        deprecated("use sendCustomVideoData(TRTCVideoStreamType type, TRTCVideoFrame* frame) "
-                   "instead")) void sendCustomVideoData(TRTCVideoFrame* frame){};
-
     /// @}
 };
 /// @}

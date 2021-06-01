@@ -64,7 +64,6 @@ namespace PlayEvt
         PLAY_EVT_PLAY_LOADING = 2007,   // 视频播放loading
         PLAY_EVT_START_VIDEO_DECODER = 2008,   // 解码器启动
         PLAY_EVT_CHANGE_RESOLUTION = 2009,   // 视频分辨率改变
-        PLAY_EVT_RCV_FIRST_AUDIO_FRAME = 2026,   // 音频首次播放
         PLAY_EVT_SNAPSHOT_RESULT = 1022, // 截图快照返回码
         EVT_PLAY_GET_MESSAGE = 2012,   // 消息事件
 
