@@ -3,7 +3,7 @@
 /*
  * Module:   ITRTCCloud @ TXLiteAVSDK
  *
- * SDK VERSION "8.3.0.23023"
+ * SDK VERSION "8.7.0.10102"
  *
  * Function: 腾讯云视频通话功能的主要接口类
  *
@@ -26,6 +26,7 @@
 #include "ITXDeviceManager.h"
 #ifdef _WIN32
 #include "IDeprecatedTRTCCloud.h"
+#include "TXLiteAVBase.h"
 #endif  // _WIN32
 
 
@@ -44,19 +45,17 @@ extern "C" {
     /**
      * @brief 用于动态加载 dll 时，获取 ITRTCCloud 对象指针。
      *
-     * @return 返回 ITRTCCloud 单例对象的指针，注意：delete ITRTCCloud*会编译错误，需要调用
-     * destroyTRTCCloud 释放单例指针对象。
-     * @param context Android 上下文，内部会转为 ApplicationContext 用于系统 API 调用
-     * @note 本接口仅适用于Android平台
+     * @return 返回 ITRTCCloud 单例对象的指针，注意：delete ITRTCCloud* 会编译错误，需要调用 destroyTRTCCloud 释放单例指针对象。
+     * @param context Android 上下文，内部会转为 ApplicationContext 用于系统 API 调用，如果传入的 context 为空，内部会自动获取当前进程的 ApplicationContext
+     * @note 本接口仅适用于 Android 平台
      */
     TRTC_API trtc::ITRTCCloud* getTRTCShareInstance(void *context);
 #else
     /**
      * @brief 用于动态加载 dll 时，获取 ITRTCCloud 对象指针。
      *
-     * @return 返回 ITRTCCloud 单例对象的指针，注意：delete ITRTCCloud*会编译错误，需要调用
-     * destroyTRTCCloud 释放单例指针对象。
-     * @note 本接口适用于Windows、Mac、iOS平台
+     * @return 返回 ITRTCCloud 单例对象的指针，注意：delete ITRTCCloud* 会编译错误，需要调用 destroyTRTCCloud 释放单例指针对象。
+     * @note 本接口适用于 Windows、Mac、iOS 平台
      */
     TRTC_API trtc::ITRTCCloud* getTRTCShareInstance();
 #endif
@@ -206,6 +205,17 @@ public:
      *   trtc.ConnectOtherRoom(params.c_str());
      * </pre>
      *
+     * @note 如果进房时，使用的是字符串房间号码，上面的 roomId 也需要相应改为 strRoomId。
+     * <pre>
+     *   //此处用到 jsoncpp 库来格式化 JSON 字符串
+     *   Json::Value jsonObj;
+     *   jsonObj["strRoomId"] = "002";
+     *   jsonObj["userId"] = "userB";
+     *   Json::FastWriter writer;
+     *   std::string params = writer.write(jsonObj);
+     *   trtc.ConnectOtherRoom(params.c_str());
+     * </pre>
+     *
      * @param params JSON 字符串连麦参数，roomId 代表目标房间号，userId 代表目标用户 ID。
      *
      */
@@ -266,7 +276,7 @@ public:
      *
      * @return 子 TRTCCloud 实例
      * @note
-     *  - 此方法目前仅支持Windows、iOS、Mac平台
+     *  - 此方法目前仅支持 Windows、iOS、Mac 平台
      *  - 同一个用户，可以使用同一个 userId 进入多个不同 roomId 的房间。
      *  - 两台手机不可以同时使用同一个 userId 进入同一个 roomId 的房间。
      *  - 通过 createSubCloud 接口创建出来的子房间 TRTCCloud 实例有一个能力限制：不能调用子实例中与本地音视频
@@ -279,7 +289,7 @@ public:
     /**
      * 1.8 销毁子 TRTCCloud 实例
      *
-     * @note 此方法目前仅支持Windows、iOS、Mac平台
+     * @note 此方法目前仅支持 Windows、iOS、Mac 平台
      */
     virtual void destroySubCloud(ITRTCCloud *cloud) = 0;
 #endif
@@ -458,9 +468,9 @@ public:
      *     - 辅流（屏幕分享）：({@link  TRTCVideoStreamTypeSub})
      * @param rendView 承载视频画面的控件
      *
-     * @note 注意几点规则需要您关注：
-     *   1. SDK 支持同时观看某 userid 的大画面和辅路，或者小画面和辅路，但不支持同时观看大画面和小画面。
-     *   2. 只有当指定的 userid 通过 enableEncSmallVideoStream 开启双路编码后，才能观看该用户的小画面。
+     * @note 注意几点规则需要您关注：<br>
+     *   1. SDK 支持同时观看某 userid 的大画面和辅路，或者小画面和辅路，但不支持同时观看大画面和小画面。<br>
+     *   2. 只有当指定的 userid 通过 enableEncSmallVideoStream 开启双路编码后，才能观看该用户的小画面。<br>
      *   3. 如果该用户的小画面不存在，则默认切换到大画面。
      */
     virtual void startRemoteView(const char* userId, TRTCVideoStreamType streamType, TXView rendView) = 0;
@@ -736,6 +746,26 @@ public:
      * 如果调用 exitRoom 时还在录音，录音会自动停止。
      */
     virtual void stopAudioRecording() = 0;
+#if _WIN32
+    /**
+    * 4.14 开启本地录制
+    *
+    * 开启后把直播过程中的音视频数据录制存储到本地文件。
+    * 应用场景:
+    * 1. 不推流情况下，通过调用 startLocalPreview 预览画面后，进行录制。
+    * 2. 在推流的同时进行录制，把直播的全程录制保存到本地文件。
+    *
+    * @param params 录制参数，请参考 {@link TRTCLocalRecordingParams}
+    *
+    */
+    virtual void startLocalRecording(const TRTCLocalRecordingParams& params) = 0;
+    /**
+    * 4.15 停止本地录制
+    *
+    * 如果调用 exitRoom 时还在录制，录制会自动停止。
+    */
+    virtual void stopLocalRecording() = 0;
+#endif
     /// @}
 
     /////////////////////////////////////////////////////////////////////////////////
@@ -813,7 +843,7 @@ public:
      */
     virtual ITXAudioEffectManager* getAudioEffectManager() = 0;
 
-#ifdef _WIN32
+#if TARGET_PLATFORM_DESKTOP
     /**
      * 7.2 打开系统声音采集
      *
@@ -822,18 +852,18 @@ public:
      *
      *
      * @param path
-     *    - path 为空，代表采集整个操作系统的声音。
-     *    - path 填写 exe 程序（如 QQ音乐）所在的路径，将会启动此程序并只采集此程序的声音。
+     *    - path 为空，代表采集整个操作系统的声音。( Windows 平台)
+     *    - path 填写 exe 程序（如 QQ音乐）所在的路径，将会启动此程序并只采集此程序的声音。( Windows 平台，采集程序声音仅支持32位 SDK )
+     *    - path 默认为空，其他值未定义。（ Mac 平台）
      *
-     * @note 此接口目前仅适用于Windows平台
+     * @note 此接口目前仅适用于 Windows 、 Mac 平台
      */
     virtual void startSystemAudioLoopback(const char* path = nullptr) = 0;
 
     /**
      * 7.3 关闭系统声音采集。
      *
-     * 目前仅适用于Windows平台
-     *
+     * @note 此接口目前仅适用于 Windows 、 Mac 平台
      */
     virtual void stopSystemAudioLoopback() = 0;
 
@@ -843,7 +873,7 @@ public:
      * @param volume 音量大小，100为原始音量，取值0 - 150，默认值为100
      *
      * @note
-     *  1. 此接口目前仅适用于Windows平台。<br>
+     *  1. 此接口目前仅适用于 Windows 、 Mac 平台。<br>
      *  2. 如果要将 volume 设置为大于100的数值，需要进行特殊配置，请联系技术支持。
      */
     virtual void setSystemAudioLoopbackVolume(uint32_t volume) = 0;
@@ -863,7 +893,9 @@ public:
      *
      * @param rendView 承载预览画面的控件，可以设置为 nullptr，表示不显示屏幕分享的预览效果。
      * @param type 屏幕分享使用的线路，可以设置为主路（TRTCVideoStreamTypeBig）或者辅路（TRTCVideoStreamTypeSub），默认使用辅路。
-     * @param params 屏幕分享的画面编码参数，可以设置为 nullptr，表示让 SDK 选择最佳的编码参数（分辨率、码率等）。
+     * @param params 屏幕分享的画面编码参数，SDK 会优先使用您通过此接口设置的编码参数：
+     * - 如果 params 设置为 nullptr，且您已通过 setSubStreamEncoderParam 设置过辅路视频编码参数，SDK 将使用您设置过的辅路编码参数进行屏幕分享。
+     * - 如果 params 设置为 nullptr，且您未通过 setSubStreamEncoderParam 设置过辅路视频编码参数，SDK 将自适应选择最佳的编码参数进行屏幕分享。
      *
      * @note 一个用户同时最多只能上传一条主路（TRTCVideoStreamTypeBig）画面和一条辅路（TRTCVideoStreamTypeSub）画面，
      * 默认情况下，屏幕分享使用辅路画面，如果使用主路画面，建议您提前停止摄像头采集（stopLocalPreview）避免相互冲突。
@@ -894,8 +926,8 @@ public:
      *
      * @note
      * - 返回的列表中包括屏幕和应用窗口，屏幕会在列表的前面几个元素中。
+     * - delete ITRTCScreenCaptureSourceList* 指针会导致编译错误，SDK 维护 ITRTCScreenCaptureSourceList 对象的生命周期。
      * - 获取完屏幕窗口列表后请手动调用 ITRTCScreenCaptureSourceList 的 release 方法释放资源，否则可能会引起内存泄漏。
-     * - 如果 delete ITRTCScreenCaptureSourceList*指针会编译错误，SDK 维护 ITRTCScreenCaptureSourceList 对象的生命周期。
      * - Windows 平台 v8.3 版本后获取窗口列表默认携带最小化窗口，且最小化窗口的缩略图数据默认填充窗口图标数据
      *
      * @param thumbSize 指定要获取的窗口缩略图大小，缩略图可用于绘制在窗口选择界面上
@@ -920,7 +952,7 @@ public:
      * @param source                 指定分享源
      * @param captureRect            指定捕获的区域
      * @param property               指定屏幕分享目标的属性，包括捕获鼠标，高亮捕获窗口等，详情参考TRTCScreenCaptureProperty 定义
-     * @note 设置高亮边框颜色、宽度参数在Mac平台不生效
+     * @note 设置高亮边框颜色、宽度参数在 Mac 平台不生效
      *
      */
     virtual void selectScreenCaptureTarget(const TRTCScreenCaptureSourceInfo &source, const RECT& captureRect, const TRTCScreenCaptureProperty &property) = 0;
@@ -937,7 +969,7 @@ public:
     virtual void setSubStreamEncoderParam(const TRTCVideoEncParam& params) = 0;
 
     /**
-     *8.8 设置屏幕分享的混音音量大小
+     * 8.8 设置屏幕分享的混音音量大小
      *
      * 这个数值越高，屏幕分享音量的占比就越高，麦克风音量占比就越小，所以不推荐设置得太大，否则麦克风的声音就被压制了。
      *
@@ -954,7 +986,7 @@ public:
      * @note 
      * - 该方法只有在 TRTCScreenCaptureSourceInfo 中的 type 指定为 TRTCScreenCaptureSourceTypeScreen 时生效，即分享屏幕时生效
      * - 该方法添加的窗口列表会在退房后清除
-     * - Mac平台下请传入窗口ID（即CGWindowID），您可以通过TRTCScreenCaptureSourceInfo中的sourceId成员获得。
+     * - Mac 平台下请传入窗口 ID（即 CGWindowID），您可以通过 TRTCScreenCaptureSourceInfo 中的 sourceId 成员获得。
      */
     virtual void addExcludedShareWindow(TXView window) = 0;
 
@@ -965,7 +997,7 @@ public:
      *
      * @note
      * - 该方法只有在 TRTCScreenCaptureSourceInfo 中的 type 指定为 TRTCScreenCaptureSourceTypeScreen 时生效，即分享屏幕时生效
-     * - Mac平台下请传入窗口ID（即CGWindowID），您可以通过TRTCScreenCaptureSourceInfo中的sourceId成员获得。
+     * - Mac 平台下请传入窗口 ID（即 CGWindowID），您可以通过 TRTCScreenCaptureSourceInfo 中的 sourceId 成员获得。
      */
     virtual void removeExcludedShareWindow(TXView window) = 0;
 
@@ -975,8 +1007,7 @@ public:
      * @note 该方法只有在 TRTCScreenCaptureSourceInfo 中的 type 指定为 TRTCScreenCaptureSourceTypeScreen 时生效，即分享屏幕时生效
      */
     virtual void removeAllExcludedShareWindow() = 0;
-#endif
-#ifdef _WIN32
+
     /**
      * 8.12 将指定窗口加入屏幕分享的包含列表中，加入包含列表中的窗口如果在采集窗口区域内会被分享出去
      *
@@ -986,6 +1017,7 @@ public:
      * @note 
      * - 该方法只有在 TRTCScreenCaptureSourceInfo 中的 type 指定为 TRTCScreenCaptureSourceTypeWindow 时生效，即分享窗口时生效
      * - 该方法添加的窗口列表会在退房后清除
+     * - Mac 平台下请传入窗口 ID（即 CGWindowID），您可以通过 TRTCScreenCaptureSourceInfo 中的 sourceId 成员获得
      */
     virtual void addIncludedShareWindow(TXView window) = 0;
 
@@ -993,7 +1025,9 @@ public:
      * 8.13 将指定窗口从屏幕分享的包含列表中移除
      *
      * @param window 希望被分享出去的窗口
-     * @note 该方法只有在 TRTCScreenCaptureSourceInfo 中的 type 指定为 TRTCScreenCaptureSourceTypeWindow 时生效，即分享窗口时生效
+     * @note
+     * - 该方法只有在 TRTCScreenCaptureSourceInfo 中的 type 指定为 TRTCScreenCaptureSourceTypeWindow 时生效，即分享窗口时生效
+     * - Mac 平台下请传入窗口 ID（即 CGWindowID），您可以通过 TRTCScreenCaptureSourceInfo 中的 sourceId 成员获得
      */
     virtual void removeIncludedShareWindow(TXView window) = 0;
 
@@ -1013,10 +1047,48 @@ public:
     /////////////////////////////////////////////////////////////////////////////////
     /// @name 自定义采集和渲染
     /// @{
+#ifdef _WIN32
     /**
      * 9.1 启用视频自定义采集模式
      *
-     * 开启该模式后，SDK 不在运行原有的视频采集流程，只保留编码和发送能力。
+     * 开启该模式后，SDK 不再运行原有视频流上的采集流程，只保留编码和发送能力。
+     * 您需要用 sendCustomVideoData() 不断地向 SDK 塞入自己采集的视频画面。
+     *
+     * @param type 视频流类型：
+     *     - 高清大画面：({@link  TRTCVideoStreamTypeBig})
+     *     - 辅流（屏幕分享）：({@link  TRTCVideoStreamTypeSub})
+     * @param enable 是否启用，默认值：false 
+     */
+    virtual void enableCustomVideoCapture(TRTCVideoStreamType type, bool enable) = 0;
+
+     /**
+     * 9.2 向 SDK 投送自己采集的视频数据
+     *
+     * TRTCVideoFrame 推荐如下填写方式（其他字段不需要填写）：
+     * - pixelFormat： Windows、Android 平台仅支持 TRTCVideoPixelFormat_I420
+     *                iOS、Mac 平台支持 TRTCVideoPixelFormat_I420 和 TRTCVideoPixelFormat_BGRA32
+     * - bufferType：仅支持 TRTCVideoBufferType_Buffer。
+     * - data：视频帧 buffer。
+     * - length：视频帧数据长度，I420 格式下，其值等于：width × height × 3 / 2。
+     * - width：视频图像长度。
+     * - height：视频图像宽度。
+     * - timestamp：时间戳，单位毫秒（ms）。如果 timestamp 间隔不均匀，会严重影响音画同步和录制出的 MP4 质量。
+     *
+     * 参考文档：[自定义采集和渲染](https://cloud.tencent.com/document/product/647/34066)。
+     * @param type 指定视频流类型：
+     *     - 高清大画面：({@link  TRTCVideoStreamTypeBig})
+     *     - 辅流（屏幕分享）：({@link  TRTCVideoStreamTypeSub})
+     * @param frame 视频数据，支持 I420 格式数据。
+     * @note - SDK 内部有帧率控制逻辑，目标帧率以您在 setVideoEncoderParam (高清大画面) 或者 setSubStreamEncoderParam (辅流) 中设置的为准。
+     *       - 可以设置 frame 中的 timestamp 为 0，相当于让 SDK 自己设置时间戳，但请“均匀”地控制 sendCustomVideoData 的调用间隔，否则会导致视频帧率不稳定。
+     *       - Windows 平台目前仅支持传入 TRTCVideoPixelFormat_I420 格式的视频帧
+     */
+    virtual void sendCustomVideoData(TRTCVideoStreamType type, TRTCVideoFrame* frame) = 0;
+#else
+    /**
+     * 9.1 启用视频自定义采集模式
+     *
+     * 开启该模式后，SDK 不再运行原有的视频采集流程，只保留编码和发送能力。
      * 您需要用 sendCustomVideoData() 不断地向 SDK 塞入自己采集的视频画面。
      *
      * @param enable 是否启用，默认值：false
@@ -1027,24 +1099,26 @@ public:
      * 9.2 向 SDK 投送自己采集的视频数据
      *
      * TRTCVideoFrame 推荐如下填写方式（其他字段不需要填写）：
-     * - pixelFormat： Windows、Android平台仅支持 TRTCVideoPixelFormat_I420，iOS、Mac平台支持TRTCVideoPixelFormat_I420和TRTCVideoPixelFormat_BGRA32
+     * - pixelFormat： Windows、Android 平台仅支持 TRTCVideoPixelFormat_I420
+     *                iOS、Mac 平台支持 TRTCVideoPixelFormat_I420 和 TRTCVideoPixelFormat_BGRA32
      * - bufferType：仅支持 TRTCVideoBufferType_Buffer。
      * - data：视频帧 buffer。
      * - length：视频帧数据长度，I420 格式下，其值等于：width × height × 3 / 2。
      * - width：视频图像长度。
      * - height：视频图像宽度。
-     * - timestamp：如果 timestamp 间隔不均匀，会严重影响音画同步和录制出的 MP4 质量。
+     * - timestamp：时间戳，单位毫秒（ms）。如果 timestamp 间隔不均匀，会严重影响音画同步和录制出的 MP4 质量。
      *
      * 参考文档：[自定义采集和渲染](https://cloud.tencent.com/document/product/647/34066)。
      *
      * @param frame 视频数据，支持 I420 格式数据。
      * @note - SDK 内部有帧率控制逻辑，目标帧率以您在 setVideoEncoderParam 中设置的为准，太快会自动丢帧，太慢则会自动补帧。
      *       - 可以设置 frame 中的 timestamp 为 0，相当于让 SDK 自己设置时间戳，但请“均匀”地控制 sendCustomVideoData 的调用间隔，否则会导致视频帧率不稳定。
-     *       - iOS、Mac平台目前仅支持传入TRTCVideoPixelFormat_I420或TRTCVideoPixelFormat_BGRA32格式的视频帧
-     *       - Windows、Android平台目前仅支持传入TRTCVideoPixelFormat_I420格式的视频帧
+     *       - iOS、Mac平台目前仅支持传入 TRTCVideoPixelFormat_I420 或 TRTCVideoPixelFormat_BGRA32 格式的视频帧
+     *       - Android 平台目前仅支持传入 TRTCVideoPixelFormat_I420 格式的视频帧
      */
     virtual void sendCustomVideoData(TRTCVideoFrame* frame) = 0;
-
+#endif
+    
     /**
      * 9.3 启用音频自定义采集模式
      * 开启该模式后，SDK 停止运行原有的音频采集流程，只保留编码和发送能力。
@@ -1053,59 +1127,98 @@ public:
      * @param enable 是否启用，默认值：false
      */
     virtual void enableCustomAudioCapture(bool enable) = 0;
-
+  
     /**
      * 9.4 向 SDK 投送自己采集的音频数据
      *
      * TRTCAudioFrame 推荐如下填写方式：
-     *
      * - audioFormat：音频数据格式，仅支持 TRTCAudioFrameFormatPCM。
      * - data：音频帧 buffer。
      * - length：音频帧数据长度，支持[5ms ~ 100ms]帧长，推荐使用20 ms帧长，【48000采样率、单声道的帧长度：48000 × 0.02s × 1 × 16bit = 15360bit = 1920字节】。
      * - sampleRate：采样率，支持：16000、24000、32000、44100、48000。
      * - channel：声道数（如果是立体声，数据是交叉的），单声道：1； 双声道：2。
-     * - timestamp：时间戳，单位毫秒（ms），可以设置 timestamp 为0，相当于让 SDK 自己设置时间戳。
+     * - timestamp：时间戳，单位毫秒（ms）。如果 timestamp 间隔不均匀，会严重影响音画同步和录制出的 MP4 质量。
      *
      * 参考文档：[自定义采集和渲染](https://cloud.tencent.com/document/product/647/34066)。
      *
      * @param frame 音频数据
-     * @note 需精准的按每帧时长的间隔调用 sendCustomAudioData，否则会容易触发声音卡顿。
+     * @note 可以设置 frame 中的 timestamp 为 0，相当于让 SDK 自己设置时间戳，但请“均匀”地控制 sendCustomAudioData 的调用间隔，否则会导致声音断断续续。
      */
     virtual void sendCustomAudioData(TRTCAudioFrame* frame) = 0;
+#ifdef _WIN32
+    /**
+     * 9.5 控制外部音频是否要混入推流和混入播放
+     *
+     * 通过 mixExternalAudioFrame() 增加一路音频混合到推流的音频流，同时可以支持本地播放
+     *
+     * @param enablePublish 是否混入推流 true：混入推流；false：不混入推流，默认值：false
+     * @param enablePlayout 是否混入本地播放 true：混入播放；false：不混入播放，默认值：false
+     * @note enablePublish = false， enablePlayout = false 时，表示完全关闭这个额外的音频流，即不推流，也不播放
+     */
+    virtual void enableMixExternalAudioFrame(bool enablePublish, bool enablePlayout) = 0;
 
     /**
-     * 9.5 设置本地视频自定义渲染
+     * 9.6 向 SDK 发送自定义辅流音频数据
+     *
+     * TRTCAudioFrame 推荐如下填写方式（其他字段不需要填写）：
+     * - audioFormat：仅支持 TRTCAudioFrameFormatPCM。
+     * - data：音频帧 buffer。
+     * - length：音频帧数据长度，推荐每帧20ms采样数。【PCM格式、48000采样率、单声道的帧长度：48000 × 0.02s × 1 × 16bit = 15360bit = 1920字节】。
+     * - sampleRate：采样率，仅支持48000。
+     * - channel：频道数量（如果是立体声，数据是交叉的），单声道：1； 双声道：2。
+     * - timestamp：时间戳，单位毫秒（ms）。如果 timestamp 间隔不均匀，会严重影响音画同步和录制出的 MP4 质量。
+     *
+     * @param frame 音频数据
+     * @note 可以设置 frame 中的 timestamp 为 0，相当于让 SDK 自己设置时间戳，但请“均匀”地控制 mixExternalAudioFrame 的调用间隔，否则会导致声音断断续续。
+     */
+    virtual void mixExternalAudioFrame(TRTCAudioFrame* frame) = 0;
+#endif
+    /**
+     * 9.7 设置本地视频自定义渲染
      *
      * @note - 设置此方法，SDK 内部会把采集到的数据回调出来，SDK 跳过 TXView 渲染逻辑
      *       - 调用 setLocalVideoRenderCallback(TRTCVideoPixelFormat_Unknown, TRTCVideoBufferType_Unknown, nullptr) 停止回调。
-     *       - iOS、Mac、Windows平台目前仅支持回调TRTCVideoPixelFormat_I420或TRTCVideoPixelFormat_BGRA32像素格式的视频帧
-     *       - Android平台目前仅支持传入TRTCVideoPixelFormat_I420像素格式的视频帧
+     *       - iOS、Mac、Windows 平台目前仅支持回调 TRTCVideoPixelFormat_I420 或 TRTCVideoPixelFormat_BGRA32 像素格式的视频帧
+     *       - Android 平台目前仅支持回调 TRTCVideoPixelFormat_I420 或 TRTCVideoPixelFormat_RGBA32 像素格式的视频帧
      * @param pixelFormat 指定回调的像素格式
-     * @param bufferType  指定视频数据结构类型，目前只支持TRTCVideoBufferType_Buffer
+     * @param bufferType  指定视频数据结构类型，目前只支持 TRTCVideoBufferType_Buffer
      * @param callback    自定义渲染回调
      * @return 0：成功；<0：错误
      */
     virtual int setLocalVideoRenderCallback(TRTCVideoPixelFormat pixelFormat, TRTCVideoBufferType bufferType, ITRTCVideoRenderCallback* callback) = 0;
 
     /**
-     * 9.6 设置远端视频自定义渲染
+     * 9.8 设置远端视频自定义渲染
      *
      * 此方法同 setLocalVideoRenderDelegate，区别在于一个是本地画面的渲染回调， 一个是远程画面的渲染回调。
      *
      * @note - 设置此方法，SDK 内部会把远端的数据解码后回调出来，SDK 跳过 TXView 渲染逻辑
      *       - 调用 setRemoteVideoRenderCallback(userId, TRTCVideoPixelFormat_Unknown,  TRTCVideoBufferType_Unknown, nullptr) 停止回调。
-     *       - iOS、Mac、Windows平台目前仅支持回调TRTCVideoPixelFormat_I420或TRTCVideoPixelFormat_BGRA32像素格式的视频帧
-     *       - Android平台目前仅支持传入TRTCVideoPixelFormat_I420像素格式的视频帧
+     *       - iOS、Mac、Windows 平台目前仅支持回调 TRTCVideoPixelFormat_I420 或 TRTCVideoPixelFormat_BGRA32 像素格式的视频帧
+     *       - Android 平台目前仅支持回调 TRTCVideoPixelFormat_I420 或 TRTCVideoPixelFormat_RGBA32 像素格式的视频帧
      * @param userId      用户标识
      * @param pixelFormat  指定回调的像素格式
-     * @param bufferType  指定视频数据结构类型，目前只支持TRTCVideoBufferType_Buffer
+     * @param bufferType  指定视频数据结构类型，目前只支持 TRTCVideoBufferType_Buffer
      * @param callback    自定义渲染回调
      * @return 0：成功；<0：错误
      */
     virtual int setRemoteVideoRenderCallback(const char* userId, TRTCVideoPixelFormat pixelFormat, TRTCVideoBufferType bufferType, ITRTCVideoRenderCallback* callback) = 0;
 
+#if __APPLE__
     /**
-     * 9.7 设置音频数据回调
+     * 9.9 第三方美颜的视频数据回调
+     *
+     * @note - 设置此方法后，SDK 内部会在本地渲染前，把采集到的视频纹理回调出来，用于第三方美颜处理。
+     * @param pixelFormat 指定回调的像素格式
+     * @param bufferType  指定视频数据结构类型
+     * @param callback    自定义渲染回调
+     * @return 0：成功；<0：错误
+     */
+    virtual int setLocalVideoProcessCallback(TRTCVideoPixelFormat pixelFormat, TRTCVideoBufferType bufferType, ITRTCVideoFrameCallback* callback) = 0;
+#endif
+    
+    /**
+     * 9.10 设置音频数据回调
      *
      * 设置此方法，SDK 内部会把声音模块的数据（PCM 格式）回调出来，包括：
      * - onCapturedAudioFrame：本机麦克风采集到的音频数据
@@ -1115,9 +1228,10 @@ public:
      * @param callback  声音帧数据（PCM 格式）的回调，callback = nullptr 则停止回调数据
      * @return 0：成功；<0：错误
      */
+    
     virtual int setAudioFrameCallback(ITRTCAudioFrameCallback* callback) = 0;
     /**
-     * 9.8 生成自定义采集时间戳
+     * 9.11 生成自定义采集时间戳
      *
      * 此函数仅适合自定义视频采集时使用，当您的 App 自己或由第三方美颜 SDK 调用摄像头 API 采集视频时，由于可能引入一些耗时的外部操作（比如美颜），这会导致视频的节奏和 SDK 内部的音频节奏不一致，进而导致音画不同步。
      * 为避免发生音画不同步的问题，请按照如下步骤正确使用该接口：
@@ -1176,8 +1290,8 @@ public:
      *       - 发送消息到房间内所有用户，每秒最多能发送30条消息（与 sendCustomCmdMsg 共享限制）。
      *       - 每个包最大为1KB，若发送大量数据，会导致视频码率增大，可能导致视频画质下降甚至卡顿（与 sendCustomCmdMsg 共享限制）。
      *       - 每个客户端每秒最多能发送总计8KB数据（与 sendCustomCmdMsg 共享限制）。
-     *       - 若指定多次发送（repeatCount>1），则数据会被带在后续的连续 repeatCount 个视频帧中发送出去，同样会导致视频码率增大。
-     *       - 如果 repeatCount>1，多次发送，接收消息 onRecvSEIMsg 回调也可能会收到多次相同的消息，需要去重。
+     *       - 若指定多次发送（repeatCount > 1），则数据会被带在后续的连续 repeatCount 个视频帧中发送出去，同样会导致视频码率增大。
+     *       - 如果 repeatCount > 1，多次发送，接收消息 onRecvSEIMsg 回调也可能会收到多次相同的消息，需要去重。
      */
     virtual bool sendSEIMsg(const uint8_t* data, uint32_t dataSize, int32_t repeatCount) = 0;
     /// @}
@@ -1250,8 +1364,12 @@ public:
     /**
      * 12.5 设置日志保存路径
      *
-     * @note 日志文件默认保存在 C:/Users/[系统用户名]/AppData/Roaming/Tencent/liteav/log，即 %appdata%/Tencent/liteav/log 下，如需修改，必须在所有方法前调用。
-     * @param path 存储日志的文件夹，例如 "D:\\Log"，UTF-8 编码
+     * @note 日志文件默认保存位置：
+     * - Windows 平台：在 C:/Users/[系统用户名]/AppData/Roaming/Tencent/liteav/log，即 %appdata%/Tencent/liteav/log 下
+     * - iOS 或 Mac 平台：在 sandbox Documents/log 下
+     * - Android 平台：在 /app私有目录/files/log/tencent/liteav/ 下
+     * @note 如需修改，必须在所有方法前调用，并且保证目录存在及应用有目录的读写权限。
+     * @param path 存储日志的文件夹，请使用 UTF-8 编码
      */
     virtual void setLogDirPath(const char* path) = 0;
 
@@ -1293,6 +1411,8 @@ public:
     using IDeprecatedTRTCCloud::startScreenCapture;
     using IDeprecatedTRTCCloud::stopRemoteView;
     using IDeprecatedTRTCCloud::selectScreenCaptureTarget;
+    using IDeprecatedTRTCCloud::enableCustomVideoCapture;
+    using IDeprecatedTRTCCloud::sendCustomVideoData;
 #endif  // _WIN32
     /// @}
 };

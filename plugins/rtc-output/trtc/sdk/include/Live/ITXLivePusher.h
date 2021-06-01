@@ -110,7 +110,7 @@ public:
 
     /**
     * \brief：查询已选择麦克风的能量值，指示音量的大小
-    * \return：能量值，范围是[0, 65535]
+    * \return：能量值，范围是[0, 100]
     */
     virtual uint32_t micVolumeIndication() = 0;
 
