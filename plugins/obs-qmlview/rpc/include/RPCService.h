@@ -6,7 +6,6 @@
 #include <QByteArray>
 #include <QJsonObject>
 #include <QJsonValue>
-#include <QMutex>
 #include "invoke_def.h"
 #include <cassert>
 
@@ -23,22 +22,26 @@ class RPCService : public QThread
 public:
 	RPCService(QString key, uint32_t sharedMemorySize = DEFAULT_SHARED_MEMORY_SIZE);
 	~RPCService();
-	void StopRpc();
-protected:
 	//调用远程方法
-	inline void Invoke(QString funcName);
+	bool inline Invoke(QString funcName);
 	template<typename T>
-	void Invoke(QString funcName, T);
+	bool Invoke(QString funcName, T);
 	template<typename T1, typename T2>
-	void Invoke(QString funcName, T1, T2);
+	bool Invoke(QString funcName, T1, T2);
 	template<typename T1, typename T2, typename T3>
-	void Invoke(QString funcName, T1, T2, T3);
-	virtual void ParseInvoke() = 0;
-	QJsonDocument   m_funcPackObj;
+	bool Invoke(QString funcName, T1, T2, T3);
+	void StopRpc();
+
+protected:
+	//对方RPC服务启动成功通知
+	virtual void OnRPCReady() {};
+
 private:
-	virtual void run();
-	void InternalInvoke(const char* data, int size);
+	virtual void run() override;
+	bool InternalInvoke(const char* data, int size);
 	void InternalRecv();
+	virtual void ParseInvoke(const QJsonDocument& jsonObject) = 0;
+
 private:
 	//内部区分server/client,首先初始化的对象为server,后初始化的为client
 	bool                          m_isServer = false;
@@ -46,11 +49,13 @@ private:
 
 	int maxSharedMemorySize_ = DEFAULT_SHARED_MEMORY_SIZE;
 
-	QMutex stopMutex_;
+	QSharedMemory    ServerExistsFlag_;
+	QSharedMemory    ClientExistsFlag_;
+	//当前进程写锁,保证本进程同时只有一个线程写
+	std::mutex writeMutex_;
+	std::mutex stopMutex_;
 	//同步初始化
 	QSystemSemaphore serverAquire_;
-	//当前进程写锁,保证本进程同时只有一个线程写
-	QMutex    m_WriteMutex;
 	//等待client处理完数据
 	QSystemSemaphore m_waitClientReadSemaphore;
 	//通知server有数据到达
@@ -62,11 +67,10 @@ private:
 	//server读client写通道
 	QSharedMemory    sharedMemory_;
 
-	QSharedMemory    ServerExistsFlag_;
-	QSharedMemory    ClientExistsFlag_;
+	QJsonDocument m_funcPackObj;
 };
 
-void RPCService::Invoke(QString funcName)
+bool RPCService::Invoke(QString funcName)
 {
 	QJsonObject packData;
 	packData["function"] = funcName;
@@ -74,12 +78,12 @@ void RPCService::Invoke(QString funcName)
 	if (maxSharedMemorySize_ < sendData.size())
 	{
 		assert(("invoke data size too big", false));
-		return;
+		return false;
 	}
-	InternalInvoke(sendData.constData(), sendData.size());
+	return InternalInvoke(sendData.constData(), sendData.size());
 }
 template<typename T>
-void RPCService::Invoke(QString funcName, T param)
+bool RPCService::Invoke(QString funcName, T param)
 {
 	QJsonObject packData;
 	packData["function"] = funcName;
@@ -88,13 +92,13 @@ void RPCService::Invoke(QString funcName, T param)
 	if (maxSharedMemorySize_ < sendData.size())
 	{
 		assert(("invoke data size too big", false));
-		return;
+		return false;
 	}
-	InternalInvoke(sendData.constData(), sendData.size());
+	return InternalInvoke(sendData.constData(), sendData.size());
 }
 
 template<typename T1, typename T2>
-void RPCService::Invoke(QString funcName, T1 param1, T2 param2)
+bool RPCService::Invoke(QString funcName, T1 param1, T2 param2)
 {
 	QJsonObject packData;
 	packData["function"] = funcName;
@@ -105,13 +109,13 @@ void RPCService::Invoke(QString funcName, T1 param1, T2 param2)
 	if (maxSharedMemorySize_ < sendData.size())
 	{
 		assert(("invoke data size too big",false));
-		return;
+		return false;
 	}
-	InternalInvoke(sendData.toStdString().c_str(), sendData.size());
+	return InternalInvoke(sendData.constData(), sendData.size());
 }
 
 template<typename T1, typename T2, typename T3>
-void RPCService::Invoke(QString funcName, T1 param1, T2 param2, T3 param3)
+bool RPCService::Invoke(QString funcName, T1 param1, T2 param2, T3 param3)
 {
 	QJsonObject packData;
 	packData["function"] = funcName;
@@ -123,8 +127,8 @@ void RPCService::Invoke(QString funcName, T1 param1, T2 param2, T3 param3)
 	if (maxSharedMemorySize_ < sendData.size())
 	{
 		assert(("invoke data size too big", false));
-		return;
+		return false;
 	}
-	InternalInvoke(sendData.toStdString().c_str(), sendData.size());
+	return InternalInvoke(sendData.constData, sendData.size());
 }
 

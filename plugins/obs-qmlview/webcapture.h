@@ -20,7 +20,7 @@ protected:
 private:
 	WebCapture *m_capture;
 	QSharedMemory m_memory;
-	bool m_created = false;
+	bool m_created = false; 
 };
 
 class WebCapture {
