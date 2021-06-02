@@ -1,4 +1,4 @@
-#define PSAPI_VERSION 1
+﻿#define PSAPI_VERSION 1
 #include <obs.h>
 #include <util/dstr.h>
 
@@ -131,12 +131,21 @@ void get_window_class(struct dstr *class, HWND hwnd)
 
 /* not capturable or internal windows */
 static const char *internal_microsoft_exes[] = {
-	"applicationframehost",
-	"shellexperiencehost",
-	"windowsinternal",
-	"winstore.app",
-	"searchui",
-	"lockapp",
+	"startmenuexperiencehost.exe",
+	"applicationframehost.exe",
+	"peopleexperiencehost.exe",
+	"shellexperiencehost.exe",
+	"microsoft.notes.exe",
+	"systemsettings.exe",
+	"textinputhost.exe",
+	"searchapp.exe",
+	"video.ui.exe",
+	"searchui.exe",
+	"lockapp.exe",
+	"cortana.exe",
+	"gamebar.exe",
+	"tabtip.exe",
+	"time.exe",
 	NULL,
 };
 
@@ -387,7 +396,8 @@ static int window_rating(HWND window, enum window_priority priority,
 }
 
 HWND find_window(enum window_search_mode mode, enum window_priority priority,
-		 const char *class, const char *title, const char *exe, bool isPrivate)
+		 const char *class, const char *title, const char *exe,
+		 bool isPrivate)
 {
 	HWND parent;
 	bool use_findwindowex = false;
@@ -430,8 +440,7 @@ HWND xxq_find_window(enum window_search_mode mode, LONG hwnd)
 		LONG ud = GetWindowLong(window, GWL_USERDATA);
 		GetWindowThreadProcessId(window, &id);
 
-		if (ud == hwnd && id == GetCurrentProcessId())
-		{
+		if (ud == hwnd && id == GetCurrentProcessId()) {
 			best_window = window;
 			break;
 		}
