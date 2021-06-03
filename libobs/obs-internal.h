@@ -758,6 +758,17 @@ enum view_type {
 	AUX_VIEW,
 };
 
+static inline void obs_source_private_dosignal(struct obs_source *source,
+					       const char *signal_obs)
+{
+	struct calldata data;
+	uint8_t stack[128];
+
+	calldata_init_fixed(&data, stack, sizeof(stack));
+	calldata_set_ptr(&data, "source", source);
+	signal_handler_signal(obs->signals, signal_obs, &data);
+}
+
 static inline void obs_source_dosignal(struct obs_source *source,
 				       const char *signal_obs,
 				       const char *signal_source)

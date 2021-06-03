@@ -396,7 +396,7 @@ obs_source_create_internal(const char *id, const char *name,
 	if (!isprivate) {
 		obs_source_dosignal(source, "source_create", NULL);
 	} else
-		obs_source_dosignal(source, "source_private_create", NULL);
+		obs_source_private_dosignal(source, "source_private_create", NULL);
 
 	obs_source_init_finalize(source);
 	return source;
@@ -611,7 +611,7 @@ void obs_source_destroy(struct obs_source *source)
 
 	obs_source_dosignal(source, "source_destroy", "destroy");
 	if (source->context.private)
-		obs_source_dosignal(source, "source_private_destroy", NULL);
+		obs_source_private_dosignal(source, "source_private_destroy", NULL);
 
 	if (source->context.data) {
 		source->info.destroy(source->context.data);
