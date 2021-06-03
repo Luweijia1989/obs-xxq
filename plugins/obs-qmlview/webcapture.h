@@ -16,4 +16,5 @@ public:
 	gs_texture_t *m_imageTexture;
 	int width;
 	int height;
+	bool textureCreated = false;
 };

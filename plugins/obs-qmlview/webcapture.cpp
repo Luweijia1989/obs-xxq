@@ -17,12 +17,16 @@ WebCapture::~WebCapture()
 
 void WebCapture::createTexture(int w, int h)
 {
+	if (textureCreated)
+		return;
+
 	width = w;
 	height = h;
 	obs_enter_graphics();
 	m_imageTexture =
 		gs_texture_create(width, height, GS_BGRA, 1, NULL, GS_DYNAMIC);
 	obs_leave_graphics();
+	textureCreated = true;
 }
 
 void WebCapture::updateTextureData(uint8_t *data)
@@ -109,7 +113,7 @@ static void webcapture_command(void *data, obs_data_t *command)
 	if (strcmp(type, "create") == 0) {
 		capture->createTexture(obs_data_get_int(command, "width"), obs_data_get_int(command, "height"));
 	} else if (strcmp(type, "update") == 0) {
-		capture->updateTextureData((uint8_t*)obs_data_get_string(command, "imageData"));
+		capture->updateTextureData((uint8_t*)obs_data_get_int(command, "imageData"));
 	}
 }
 
