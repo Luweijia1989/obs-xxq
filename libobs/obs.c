@@ -699,6 +699,7 @@ static void obs_free_data(void)
 
 static const char *obs_signals[] = {
 	"void source_create(ptr source)",
+	"void source_private_create(ptr source)",
 	"void source_destroy(ptr source)",
 	"void source_remove(ptr source)",
 	"void source_save(ptr source)",

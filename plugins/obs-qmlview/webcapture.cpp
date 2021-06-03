@@ -1,44 +1,9 @@
 #include "webcapture.h"
 #include <QDebug>
 
-BEGIN_INVOKE(WebCaptureRPC)
-ON_INVOKE_2(paramParse, int, QString)
-END_INVOKE
-
-WebCaptureRPC::WebCaptureRPC(QString name, WebCapture *cap)
-	: RPCService(name, 1024), m_capture(cap), m_memory(name + "suffix")
-{
-}
-
-void WebCaptureRPC::paramParse(int actionType, const QString &strParam)
-{
-	QJsonDocument jd = QJsonDocument::fromJson(strParam.toUtf8());
-	QJsonObject obj = jd.object();
-	switch (actionType) {
-	case 0: {
-		if (!m_created) {
-			int w = obj["width"].toInt();
-			int h = obj["height"].toInt();
-			if (!m_memory.create(w * h * 4))
-				m_memory.attach();
-			m_capture->createTexture(w, h);
-			m_created = true;
-		}
-		if (m_memory.lock()) {
-			m_capture->updateTextureData(
-				(uint8_t *)m_memory.data());
-			m_memory.unlock();
-		}
-	} break;
-	default:
-		break;
-	}
-}
-
 WebCapture::WebCapture(QString memoryName)
 	: m_source(nullptr), m_imageTexture(nullptr), width(0), height(0)
 {
-	m_rpc = new WebCaptureRPC(memoryName, this);
 }
 
 WebCapture::~WebCapture()
@@ -48,8 +13,6 @@ WebCapture::~WebCapture()
 		gs_texture_destroy(m_imageTexture);
 		obs_leave_graphics();
 	}
-
-	delete m_rpc;
 }
 
 void WebCapture::createTexture(int w, int h)
@@ -136,6 +99,20 @@ static void webcapture_source_render(void *data, gs_effect_t *effect)
 	obs_source_draw(capture->m_imageTexture, 0, 0, 0, 0, false);
 }
 
+static void webcapture_command(void *data, obs_data_t *command)
+{
+	if (!data)
+		return;
+	WebCapture *capture = (WebCapture *)data;
+
+	const char *type = obs_data_get_string(command, "type");
+	if (strcmp(type, "create") == 0) {
+		capture->createTexture(obs_data_get_int(command, "width"), obs_data_get_int(command, "height"));
+	} else if (strcmp(type, "update") == 0) {
+		capture->updateTextureData((uint8_t*)obs_data_get_string(command, "imageData"));
+	}
+}
+
 struct obs_source_info webcapture_source_info = {
 	"webcapture_source",
 	OBS_SOURCE_TYPE_INPUT,
@@ -174,4 +151,4 @@ struct obs_source_info webcapture_source_info = {
 	nullptr,
 	nullptr,
 	nullptr,
-	nullptr};
+	webcapture_command};

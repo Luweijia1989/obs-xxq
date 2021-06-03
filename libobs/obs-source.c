@@ -395,7 +395,8 @@ obs_source_create_internal(const char *id, const char *name,
 
 	if (!isprivate) {
 		obs_source_dosignal(source, "source_create", NULL);
-	}
+	} else
+		obs_source_dosignal(source, "source_create_private", NULL);
 
 	obs_source_init_finalize(source);
 	return source;
