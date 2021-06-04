@@ -19,6 +19,16 @@ QByteArray hexstrTobyte(QString str)
 
 TRTC::TRTC()
 {
+	//m_videoEncParams.videoResolution = TRTCVideoResolution_960_540;
+	//m_videoEncParams.videoFps = 20;
+	//m_videoEncParams.videoBitrate = 1000;
+	//m_videoEncParams.resMode = TRTCVideoResolutionModePortrait;
+	m_qosParams.preference = TRTCVideoQosPreferenceClear;
+	m_qosParams.controlMode = TRTCQosControlModeServer;
+	m_sceneParams = TRTCAppSceneLIVE;
+	m_roleType = TRTCRoleAnchor;
+	m_mixTemplateID = TRTCTranscodingConfigMode_Template_PresetLayout;
+
 	m_linkTimeout.setSingleShot(true);
 	m_linkTimeout.setInterval(30000);
 	connect(&m_linkTimeout, &QTimer::timeout, this, [=](){
@@ -76,15 +86,15 @@ TRTC::TRTC()
 				if (err == 0)
 				{
 					m_hasMixStream = true;
-					bool isTencentCdn = link_cdnSupplier == "TENCENT";
+					bool isTencentCdn = cloudMixInfo.cdnSupplier == "TENCENT";
 					if (isTencentCdn)
 						sendEvent(RTC_EVENT_SUCCESS, QJsonObject());
 					else
 					{
 						TRTCPublishCDNParam p;
-						p.appId = link_cdnAPPID;
-						p.bizId = link_cdnBizID;
-						std::string str = link_streamUrl.toStdString();
+						p.appId = cloudMixInfo.cdnAppId;
+						p.bizId = cloudMixInfo.cdnBizId;
+						std::string str = cloudMixInfo.streamUrl.toStdString();
 						p.url = str.c_str();
 						TRTCCloudCore::GetInstance()->getTRTCCloud()->startPublishCDNStream(p);
 					}
@@ -119,7 +129,7 @@ void TRTC::enterRoom()
 	init();
 
 	//设置连接环境
-	std::string cmd = QString("{\"api\": \"setNetEnv\",\"params\" :{\"env\" : %1}}").arg(CDataCenter::GetInstance()->m_nLinkTestServer).toStdString();
+	std::string cmd = QString("{\"api\": \"setNetEnv\",\"params\" :{\"env\" : 0}}").toStdString();
 	TRTCCloudCore::GetInstance()->getTRTCCloud()->callExperimentalAPI(cmd.c_str());
 
 	std::string cmd2 = QString("{\"api\":\"setSEIPayloadType\",\"params\":{\"payloadType\":5}}").toStdString();
@@ -129,25 +139,18 @@ void TRTC::enterRoom()
 
 	internalEnterRoom();
 
-	if (videoInfo().mode == 0) // 0->单主播 1->主播加观众
-	{
-		CDataCenter::GetInstance()->m_videoEncParams.videoBitrate = videoInfo().videoBitrate;
-		CDataCenter::GetInstance()->m_videoEncParams.videoFps = videoInfo().fps;
-		CDataCenter::GetInstance()->m_videoEncParams.minVideoBitrate = videoInfo().videoBitrate;
-		if (videoInfo().width == 1920)
-			CDataCenter::GetInstance()->m_videoEncParams.videoResolution = TRTCVideoResolution_1920_1080;
-		else if (videoInfo().width == 1280)
-			CDataCenter::GetInstance()->m_videoEncParams.videoResolution = TRTCVideoResolution_1280_720;
-		CDataCenter::GetInstance()->m_videoEncParams.resMode = TRTCVideoResolutionModeLandscape;
-	}
-	else if (videoInfo().mode == 1)
-	{
-		//默认的就是主播加观众的设置，不用调整了。
-	}
+	std::string encodeParam =
+		QString("{\"api\":\"setVideoEncodeParamEx\",\"params\":{\"codecType\":0,\"softwareCodecParams\":{\"profile\":1,\"enableRealTime\":1},\"videoWidth\":%1,\"videoHeight\":%2,\"videoFps\":%3,\"videoBitrate\":%4,\"streamType\":%5,\"rcMethod\":1}}")
+			.arg(videoEncodeInfo.width)
+			.arg(videoEncodeInfo.height)
+			.arg(videoEncodeInfo.fps)
+			.arg(videoEncodeInfo.bitrate)
+			.arg(TRTCVideoStreamTypeBig)
+			.toStdString();
+	TRTCCloudCore::GetInstance()->getTRTCCloud()->callExperimentalAPI(encodeParam.c_str());
 
-	TRTCCloudCore::GetInstance()->getTRTCCloud()->setVideoEncoderParam(CDataCenter::GetInstance()->m_videoEncParams);
 	TRTCCloudCore::GetInstance()->getTRTCCloud()->setVideoEncoderMirror(false);
-	TRTCCloudCore::GetInstance()->getTRTCCloud()->setNetworkQosParam(CDataCenter::GetInstance()->m_qosParams);
+	TRTCCloudCore::GetInstance()->getTRTCCloud()->setNetworkQosParam(m_qosParams);
 
 	TRTCCloudCore::GetInstance()->getTRTCCloud()->stopLocalPreview();
 	if (is_video_link)
@@ -162,7 +165,7 @@ void TRTC::enterRoom()
 		TRTCCloudCore::GetInstance()->getTRTCCloud()->startLocalAudio(TRTCAudioQualityMusic);
 	}
 
-	qDebug() << QString(u8"正在进入[%1]房间, sceneType[%3]").arg(link_rtcRoomId).arg(u8"视频互动直播");
+	qDebug() << QString(u8"正在进入[%1]房间, sceneType[%3]").arg(rtcEnterInfo.roomId).arg(u8"视频互动直播");
 }
 
 void TRTC::exitRoom()
@@ -171,7 +174,7 @@ void TRTC::exitRoom()
 	TRTCCloudCore::GetInstance()->PreUninit(is_video_link);
 	TRTCCloudCore::GetInstance()->getTRTCCloud()->exitRoom();
 
-	if (!CDataCenter::GetInstance()->m_bIsEnteredRoom)
+	if (!m_bIsEnteredRoom)
 	{
 		onExitRoom();
 		return;
@@ -181,11 +184,6 @@ void TRTC::exitRoom()
 	connect(&timer, &QTimer::timeout, &m_exitRoomLoop, &QEventLoop::quit);
 	timer.start(1000);
 	m_exitRoomLoop.exec(QEventLoop::ExcludeUserInputEvents);
-}
-
-void TRTC::setRemoteViewHwnd(long window)
-{
-	m_remoteView = window;
 }
 
 void TRTC::sendAudio(struct audio_data *data)
@@ -384,63 +382,39 @@ void TRTC::internalEnterRoom()
 {
 	//进入房间
 	TRTCParams params;
-	params.sdkAppId = link_rtcAPPID;
-	params.roomId = link_rtcRoomId.toInt();
-	params.userId = link_std_rtcUid.c_str();
-	params.userSig = link_std_rtcRoomToken.c_str();
+	params.sdkAppId = rtcEnterInfo.appId;
+	params.roomId = rtcEnterInfo.roomId;
+	std::string sid = rtcEnterInfo.userId.toStdString();
+	std::string ssig = rtcEnterInfo.userSig.toStdString();
+	params.userId = sid.c_str();
+	params.userSig = ssig.c_str();
 	std::string privMapEncrypt = "";
 	params.privateMapKey = (char*)privMapEncrypt.c_str();
-	params.role = CDataCenter::GetInstance()->m_roleType;
-	std::string std_streamId = link_streamId.toStdString();
-	if (is_video_link && link_cdnSupplier == "TENCENT")
+	params.role = m_roleType;
+	std::string std_streamId = cloudMixInfo.streamId.toStdString();
+	if (is_video_link && cloudMixInfo.cdnSupplier == "TENCENT")
 		params.streamId = std_streamId.c_str();
 
 	// TRTCCloudCore::GetInstance()->getTRTCCloud()->setEncodedDataProcessingListener();
 	char api_str[128] = { 0 };
 	sprintf_s(api_str, 128, "{\"api\":\"setEncodedDataProcessingListener\", \"params\": {\"listener\":%llu}}", (uint64_t)0);
 	TRTCCloudCore::GetInstance()->getTRTCCloud()->callExperimentalAPI(api_str);
-	TRTCCloudCore::GetInstance()->getTRTCCloud()->enterRoom(params, CDataCenter::GetInstance()->m_sceneParams);
+	TRTCCloudCore::GetInstance()->getTRTCCloud()->enterRoom(params, m_sceneParams);
 }
 
 void TRTC::onEnterRoom(int result)
 {
 	if (result >= 0)
 	{
-		CDataCenter::GetInstance()->m_bIsEnteredRoom = true;
-		qDebug() << QString(u8"进入[%1]房间成功,耗时:%2ms").arg(link_rtcRoomId).arg(result);
+		m_bIsEnteredRoom = true;
+		qDebug() << QString(u8"进入[%1]房间成功,耗时:%2ms").arg(rtcEnterInfo.roomId).arg(result);
 
 		m_bStartCustomCapture = true;
-		std::string strOtherUid = link_rtc_otherUid.toStdString();
 		if (is_video_link)
 		{ 
 			TRTCCloudCore::GetInstance()->getTRTCCloud()->muteLocalVideo(false);
 			TRTCCloudCore::GetInstance()->getTRTCCloud()->muteLocalAudio(false);
-			MixInfo info;
-			info.onlyAnchorVideo = videoInfo().mode == 0;
-			if (videoInfo().mode == 0)
-			{
-				info.width = videoInfo().width;
-				info.height = videoInfo().height;
-				info.vbitrate = videoInfo().videoBitrate;
-				info.fps = videoInfo().fps;
-				info.mixerCount = 2;
-			}
-			else
-			{
-				info.width = 750;
-				info.height = 564;
-				info.vbitrate = 850;
-				info.fps = 20;
-				info.mixerCount = 2;
-
-				TRTCRenderParams renderParam;
-				renderParam.fillMode = TRTCVideoFillMode_Fill;
-				renderParam.mirrorType = TRTCVideoMirrorType_Disable;
-				renderParam.rotation = TRTCVideoRotation0;
-				TRTCCloudCore::GetInstance()->getTRTCCloud()->setRemoteRenderParams(strOtherUid.c_str(), TRTCVideoStreamTypeBig, renderParam);
-				TRTCCloudCore::GetInstance()->getTRTCCloud()->startRemoteView(strOtherUid.c_str(), TRTCVideoStreamTypeBig, (HWND)m_remoteView);
-			}
-			TRTCCloudCore::GetInstance()->startCloudMixStream(link_std_rtcRoomId.c_str(), link_cdnAPPID, link_cdnBizID, info);
+			TRTCCloudCore::GetInstance()->startCloudMixStream(rtcEnterInfo.roomId, cloudMixInfo, m_mixTemplateID);
 		}
 		else
 			sendEvent(RTC_EVENT_SUCCESS, QJsonObject());
@@ -455,51 +429,36 @@ void TRTC::onEnterRoom(int result)
 void TRTC::onExitRoom()
 {
 	qDebug() << "onExitRoom===";
-	CDataCenter::GetInstance()->CleanRoomInfo();
 	TRTCCloudCore::GetInstance()->Uninit();
-	CDataCenter::GetInstance()->m_bIsEnteredRoom = false;
+	m_bIsEnteredRoom = false;
 	m_exitRoomLoop.quit();
 }
 
 void TRTC::onUserAudioAvailable(QString userId, bool available)
 {
 	qDebug() << QString("[%1]onAudioAvailable : %2").arg(userId).arg(available);
-
-	RemoteUserInfo* remoteInfo = CDataCenter::GetInstance()->FindRemoteUser(userId.toStdString());
-	if (remoteInfo != nullptr && remoteInfo->user_id != "")
-	{
-		remoteInfo->available_audio = available;
-		remoteInfo->subscribe_audio = available;
-	}
 }
 
 void TRTC::onUserVideoAvailable(QString userId, bool available)
 {
 	qDebug() << QString(u8"[%1]onVideoAvailable : %2").arg(userId).arg(available);
 
-	std::string idstr = userId.toStdString();
-	RemoteUserInfo* remoteInfo = CDataCenter::GetInstance()->FindRemoteUser(idstr);
-	if (available) {
-		CDataCenter::GetInstance()->addRemoteUser(userId.toStdString(), false);
-		if (remoteInfo != nullptr && remoteInfo->user_id != "")
-		{
-			remoteInfo->available_main_video = true;
-			remoteInfo->subscribe_main_video = true;
-		}
-	}
-	else {
-		TRTCCloudCore::GetInstance()->getTRTCCloud()->stopRemoteView(idstr.c_str(), TRTCVideoStreamTypeBig);
-		if (remoteInfo != nullptr && remoteInfo->user_id != "")
-		{
-			remoteInfo->available_main_video = false;
-			remoteInfo->subscribe_main_video = false;
-		}
-	}
+	if (!remoteUsers.contains(userId))
+		return;
+
+	std::string sid = userId.toStdString();
+	const RemoteUser &user = remoteUsers[userId];
+	TRTCRenderParams renderParam;
+	renderParam.fillMode = TRTCVideoFillMode_Fill;
+	renderParam.mirrorType = TRTCVideoMirrorType_Disable;
+	renderParam.rotation = TRTCVideoRotation0;
+	TRTCCloudCore::GetInstance()->getTRTCCloud()->setRemoteRenderParams(sid.c_str(), TRTCVideoStreamTypeBig, renderParam);
+	TRTCCloudCore::GetInstance()->getTRTCCloud()->startRemoteView(sid.c_str(), TRTCVideoStreamTypeBig, (HWND)user.renderView);
 }
 
 void TRTC::onRemoteUserEnter(QString userId)
 {
-	CDataCenter::GetInstance()->addRemoteUser(userId.toStdString());
+	qDebug() << QString(u8"%1进入房间").arg(userId);
 }
 
 void TRTC::onRemoteUserLeave(QString userId)
@@ -508,6 +467,4 @@ void TRTC::onRemoteUserLeave(QString userId)
 	std::string idstr = userId.toStdString();
 	if (TRTCCloudCore::GetInstance()->getTRTCCloud())
 		TRTCCloudCore::GetInstance()->getTRTCCloud()->stopRemoteView(idstr.c_str(), TRTCVideoStreamTypeBig);
-
-	CDataCenter::GetInstance()->removeRemoteUser(idstr);
 }

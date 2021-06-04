@@ -1,26 +1,16 @@
 #pragma once
 #include "ITRTCCloud.h"
-#include "DataCenter.h"
 #include <map>
 #include <string>
 #include <mutex>
 #include <QObject>
 #include <QJsonObject>
+#include "rtc-base.h"
 
 class TRTC;
 
 typedef ITRTCCloud *(__cdecl *GetTRTCShareInstance)();
 typedef void(__cdecl *DestroyTRTCShareInstance)();
-
-struct MixInfo
-{
-	uint32_t width;
-	uint32_t height;
-	uint32_t vbitrate;
-	uint32_t fps;
-	int mixerCount;
-	bool onlyAnchorVideo;
-};
 
 class TRTCCloudCore : public QObject,
 		      public ITRTCCloudCallback,
@@ -90,11 +80,11 @@ public:
 
 public:
 	void connectOtherRoom(QString userId, uint32_t roomId);
-	void startCloudMixStream(const char *remoteRoomId, int cdnAppID, int bizID, const MixInfo &info);
+	void startCloudMixStream(int roomId, const RTCBase::CloudMixInfo &mixInfo, TRTCTranscodingConfigMode mode);
 	void stopCloudMixStream();
 
 protected:
-	void setPresetLayoutConfig(TRTCTranscodingConfig &config, const char *remoteRoomId, const MixInfo &info);
+	void setPresetLayoutConfig(TRTCTranscodingConfig &config, const char *remoteRoomId, const RTCBase::CloudMixInfo &mixInfo);
 
 private:
 	static TRTCCloudCore *m_instance;

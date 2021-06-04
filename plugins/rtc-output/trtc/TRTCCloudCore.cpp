@@ -73,7 +73,6 @@ void TRTCCloudCore::Init()
 	m_pCloud->addCallback(this);
 	m_pCloud->setLogCallback(this);
 	m_pCloud->setAudioFrameCallback(this);
-	CDataCenter::GetInstance()->Init();
 }
 
 void TRTCCloudCore::Uninit()
@@ -202,18 +201,14 @@ void TRTCCloudCore::onUserVoiceVolume(TRTCVolumeInfo *userVolumes,
 				      uint32_t totalVolume)
 {
 	QJsonObject obj;
+	QJsonArray ret;
 	for (int i=0; i<userVolumesCount; i++)
 	{
 		TRTCVolumeInfo info = userVolumes[i];
-		if (strcmp(info.userId, "") == 0)
-		{
-			obj["self"] = info.volume > 0;
-		}
-		else
-		{
-			obj["remote"] = info.volume > 0;
-		}
+		if (info.volume > 0)
+			ret.append(QString(info.userId));
 	}
+	obj["users"] = ret;
 	emit trtcEvent(RTC_EVENT_USER_VOLUME, obj);
 }
 
@@ -326,21 +321,21 @@ void TRTCCloudCore::stopCloudMixStream()
 	}
 }
 
-void TRTCCloudCore::startCloudMixStream(const char *remoteRoomId, int cdnAppID, int bizID, const MixInfo &info)
+void TRTCCloudCore::startCloudMixStream(int roomId, const RTCBase::CloudMixInfo &mixInfo, TRTCTranscodingConfigMode mode)
 {
 	blog(LOG_INFO, "startCloudMixStream");
-
-	int appId = cdnAppID;
-	int bizId = bizID;
 	
 	TRTCTranscodingConfig config;
-	config.mode = (TRTCTranscodingConfigMode)CDataCenter::GetInstance()->m_mixTemplateID;
-	config.appId = appId;
-	config.bizId = bizId;
+	config.mode = mode;
+	config.appId = mixInfo.cdnAppId;
+	config.bizId = mixInfo.cdnBizId;
+
+	QString strRoomId = QString::number(roomId);
+	std::string rid = strRoomId.toStdString();
 
 	if (config.mode > TRTCTranscodingConfigMode_Manual) {
 		if (config.mode == TRTCTranscodingConfigMode_Template_PresetLayout) {
-			setPresetLayoutConfig(config, remoteRoomId, info);
+			setPresetLayoutConfig(config, rid.c_str(), mixInfo);
 		}
 
 		m_pCloud->setMixTranscodingConfig(&config);
@@ -352,21 +347,21 @@ void TRTCCloudCore::startCloudMixStream(const char *remoteRoomId, int cdnAppID, 
 	}
 }
 
-void TRTCCloudCore::setPresetLayoutConfig(TRTCTranscodingConfig &config, const char *remoteRoomId, const MixInfo &info)
+void TRTCCloudCore::setPresetLayoutConfig(TRTCTranscodingConfig &config, const char *remoteRoomId, const RTCBase::CloudMixInfo &mixInfo)
 {
 
-	int canvasWidth = info.width;
-	int canvasHeight = info.height;
+	int canvasWidth = mixInfo.mixWidth;
+	int canvasHeight = mixInfo.mixHeight;
 	config.videoWidth = canvasWidth;
 	config.videoHeight = canvasHeight;
-	config.videoBitrate = info.vbitrate;
-	config.videoFramerate = info.fps;
+	config.videoBitrate = mixInfo.mixVideoBitRate;
+	config.videoFramerate = mixInfo.mixFps;
 	config.videoGOP = 2;
 	config.audioSampleRate = 48000;
 	config.audioBitrate = 128;
 	config.audioChannels = 2;
 
-	config.mixUsersArraySize = info.mixerCount;
+	config.mixUsersArraySize = mixInfo.mixUsers;
 
 	TRTCMixUser *mixUsersArray = new TRTCMixUser[config.mixUsersArraySize];
 	config.mixUsersArray = mixUsersArray;
@@ -385,9 +380,9 @@ void TRTCCloudCore::setPresetLayoutConfig(TRTCTranscodingConfig &config, const c
 	};
 	//本地主路信息
 
-	if (info.onlyAnchorVideo)
+	if (mixInfo.onlyMixAnchorVideo)
 	{
-		for (int i = 0; i < info.mixerCount; i++)
+		for (int i = 0; i < mixInfo.mixUsers; i++)
 		{
 			if (i == 0)
 				setMixUser("$PLACE_HOLDER_LOCAL_MAIN$", index, zOrder, 0, 0, canvasWidth, canvasHeight, remoteRoomId);
@@ -399,9 +394,9 @@ void TRTCCloudCore::setPresetLayoutConfig(TRTCTranscodingConfig &config, const c
 	}
 	else
 	{
-		for (int i = 0; i < info.mixerCount; i++)
+		for (int i = 0; i < mixInfo.mixUsers; i++)
 		{
-			setMixUser(i == 0 ? "$PLACE_HOLDER_LOCAL_MAIN$" : "$PLACE_HOLDER_REMOTE$", index, zOrder, canvasWidth / info.mixerCount * i, 0, canvasWidth / info.mixerCount, canvasHeight, remoteRoomId);
+			setMixUser(i == 0 ? "$PLACE_HOLDER_LOCAL_MAIN$" : "$PLACE_HOLDER_REMOTE$", index, zOrder, canvasWidth / mixInfo.mixUsers * i, 0, canvasWidth / mixInfo.mixUsers, canvasHeight, remoteRoomId);
 			index++;
 			zOrder++;
 		}
