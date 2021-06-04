@@ -342,8 +342,21 @@ static void shader_filter_destroy(void *data)
 	struct shader_filter_data *filter = data;
 
 	dstr_free(&filter->last_path);
+
+	size_t count = filter->stored_param_list.num;
+	for (size_t param_index = 0; param_index < count; param_index++) {
+		dstr_free(
+			&(filter->stored_param_list.array + param_index)->name);
+		gs_image_file_free(
+			(filter->stored_param_list.array + param_index)->image);
+	}
+
 	da_free(filter->stored_param_list);
 
+	obs_enter_graphics();
+	gs_effect_destroy(filter->effect);
+	filter->effect = NULL;
+	obs_leave_graphics();
 	bfree(filter);
 }
 
