@@ -1,7 +1,7 @@
 uniform int corner_radius;
 uniform int border_thickness;
 uniform bool lt_corner_enable = true;
-uniform bool lr_corner_enable = true;
+uniform bool rt_corner_enable = true;
 uniform bool lb_corner_enable = true;
 uniform bool rb_corner_enable = true;
 
@@ -22,7 +22,7 @@ float4 mainImage(VertData v_in) : TARGET
         {
             is_in_corner = false;
         }
-        else if(v_in.uv.x > 0.5 && v_in.uv.y < 0.5 && !lr_corner_enable)
+        else if(v_in.uv.x > 0.5 && v_in.uv.y < 0.5 && !rt_corner_enable)
         {
             is_in_corner = false;
         }
