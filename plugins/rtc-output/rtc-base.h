@@ -18,6 +18,7 @@ class RTCBase : public QObject {
 	Q_OBJECT
 public:
 	struct RtcEnterInfo {
+		bool videoOnly;
 		int appId;
 		int roomId;
 		QString uid;
@@ -81,6 +82,7 @@ public:
 	{
 		QJsonDocument jd = QJsonDocument::fromJson(str);
 		QJsonObject data = jd.object();
+		rtcEnterInfo.videoOnly = data["videoOnly"].toBool();
 		rtcEnterInfo.appId = data["appId"].toString().toInt();
 		rtcEnterInfo.roomId = data["roomId"].toString().toInt();
 		rtcEnterInfo.uid = data["uid"].toString();
@@ -185,7 +187,6 @@ public:
 	CloudMixInfo cloudMixInfo;
 	QMap<QString, RemoteUser> remoteUsers;
 
-	bool is_video_link;
 	QString last_audio_input_device;
 };
 

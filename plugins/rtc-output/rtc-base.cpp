@@ -19,10 +19,6 @@ QByteArray hexstrTobyte(QString str)
 
 TRTC::TRTC()
 {
-	//m_videoEncParams.videoResolution = TRTCVideoResolution_960_540;
-	//m_videoEncParams.videoFps = 20;
-	//m_videoEncParams.videoBitrate = 1000;
-	//m_videoEncParams.resMode = TRTCVideoResolutionModePortrait;
 	m_qosParams.preference = TRTCVideoQosPreferenceClear;
 	m_qosParams.controlMode = TRTCQosControlModeServer;
 	m_sceneParams = TRTCAppSceneLIVE;
@@ -153,7 +149,7 @@ void TRTC::enterRoom()
 	TRTCCloudCore::GetInstance()->getTRTCCloud()->setNetworkQosParam(m_qosParams);
 
 	TRTCCloudCore::GetInstance()->getTRTCCloud()->stopLocalPreview();
-	if (is_video_link)
+	if (rtcEnterInfo.videoOnly)
 	{
 		TRTCCloudCore::GetInstance()->getTRTCCloud()->stopLocalAudio();
 		TRTCCloudCore::GetInstance()->getTRTCCloud()->enableCustomAudioCapture(true);
@@ -171,7 +167,7 @@ void TRTC::enterRoom()
 void TRTC::exitRoom()
 {
 	m_bStartCustomCapture = false;
-	TRTCCloudCore::GetInstance()->PreUninit(is_video_link);
+	TRTCCloudCore::GetInstance()->PreUninit(rtcEnterInfo.videoOnly);
 	TRTCCloudCore::GetInstance()->getTRTCCloud()->exitRoom();
 
 	if (!m_bIsEnteredRoom)
@@ -188,7 +184,7 @@ void TRTC::exitRoom()
 
 void TRTC::sendAudio(struct audio_data *data)
 {
-	if (!m_bStartCustomCapture || !is_video_link)
+	if (!m_bStartCustomCapture || !rtcEnterInfo.videoOnly)
 		return;
 
 	TRTCAudioFrame frame;
@@ -242,7 +238,7 @@ static void cropYUV(struct video_data *data, char *dst, int px, int py, int w, i
 
 void TRTC::sendVideo(struct video_data *data)
 {
-	if (!m_bStartCustomCapture || !is_video_link)
+	if (!m_bStartCustomCapture || !rtcEnterInfo.videoOnly)
 		return;
 
 	if (!m_yuvBuffer)
@@ -261,7 +257,7 @@ void TRTC::sendVideo(struct video_data *data)
 
 void TRTC::setSei(const QJsonObject &data, int insetType)
 {
-	if (!is_video_link)
+	if (!rtcEnterInfo.videoOnly)
 		return;
 
 	m_seiData = QJsonDocument(data).toJson(QJsonDocument::Compact);
@@ -271,7 +267,7 @@ void TRTC::setSei(const QJsonObject &data, int insetType)
 
 void TRTC::setAudioInputDevice(const QString &deviceId)
 {
-	if (is_video_link)
+	if (rtcEnterInfo.videoOnly)
 		return;
 
 	if (deviceId == "disabled")
@@ -313,7 +309,7 @@ void TRTC::setAudioInputDevice(const QString &deviceId)
 
 void TRTC::setAudioInputMute(bool mute)
 {
-	if (is_video_link)
+	if (rtcEnterInfo.videoOnly)
 		return;
 
 	TRTCCloudCore::GetInstance()->getTRTCCloud()->muteLocalAudio(mute);
@@ -321,7 +317,7 @@ void TRTC::setAudioInputMute(bool mute)
 
 void TRTC::setAudioInputVolume(int volume)
 {
-	if (is_video_link)
+	if (rtcEnterInfo.videoOnly)
 		return;
 
 	TRTCCloudCore::GetInstance()->getTRTCCloud()->setAudioCaptureVolume(volume);
@@ -392,7 +388,7 @@ void TRTC::internalEnterRoom()
 	params.privateMapKey = (char*)privMapEncrypt.c_str();
 	params.role = m_roleType;
 	std::string std_streamId = cloudMixInfo.streamId.toStdString();
-	if (is_video_link && cloudMixInfo.cdnSupplier == "TENCENT")
+	if (rtcEnterInfo.videoOnly && cloudMixInfo.cdnSupplier == "TENCENT")
 		params.streamId = std_streamId.c_str();
 
 	// TRTCCloudCore::GetInstance()->getTRTCCloud()->setEncodedDataProcessingListener();
@@ -410,7 +406,7 @@ void TRTC::onEnterRoom(int result)
 		qDebug() << QString(u8"进入[%1]房间成功,耗时:%2ms").arg(rtcEnterInfo.roomId).arg(result);
 
 		m_bStartCustomCapture = true;
-		if (is_video_link)
+		if (rtcEnterInfo.videoOnly)
 		{ 
 			TRTCCloudCore::GetInstance()->getTRTCCloud()->muteLocalVideo(false);
 			TRTCCloudCore::GetInstance()->getTRTCCloud()->muteLocalAudio(false);
