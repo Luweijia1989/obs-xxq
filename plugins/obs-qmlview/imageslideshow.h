@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include <QObject>
 #include <QMutex>
@@ -24,7 +24,9 @@ public:
 	DEFINE_PROPERTY(Qt::Alignment, horizontalAlignment)
 	DEFINE_PROPERTY(Qt::Alignment, verticalAlignment)
 	DEFINE_PROPERTY(QColor, fillColor)
-
+	DEFINE_PROPERTY(int, moveTime)
+	DEFINE_PROPERTY(int, stopTime)
+	DEFINE_PROPERTY(bool, isNew)
 public:
 	ImageSlideShow(QObject *parent = nullptr);
 	static void default(obs_data_t *settings);

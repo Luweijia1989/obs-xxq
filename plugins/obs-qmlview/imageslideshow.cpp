@@ -30,6 +30,10 @@ void ImageSlideShow::default(obs_data_t *settings)
 				 Qt::AlignHCenter);
 	obs_data_set_default_int(settings, "verticalAlignment",
 				 Qt::AlignVCenter);
+
+	obs_data_set_default_bool(settings, "isNew", false);
+	obs_data_set_default_int(settings, "stopTime", 5000);
+	obs_data_set_default_int(settings, "moveTime", 500);
 }
 
 static const char *quickview_source_get_name(void *unused)
@@ -42,12 +46,21 @@ static void quickview_source_update(void *data, obs_data_t *settings)
 {
 	ImageSlideShow *s = (ImageSlideShow *)data;
 	s->baseUpdate(settings);
-	
+
 	quint32 speed = obs_data_get_int(settings, "speed");
 	s->setspeed((ImageSlideShow::SlideSpeed)speed);
 
 	quint32 direction = obs_data_get_int(settings, "direction");
 	s->setdirection((ImageSlideShow::SlideDirection)direction);
+
+	bool isNew = obs_data_get_bool(settings, "isNew");
+	s->setisNew(isNew);
+
+	int moveTime = obs_data_get_int(settings, "moveTime");
+	s->setmoveTime(moveTime);
+
+	int stopTime = obs_data_get_int(settings, "stopTime");
+	s->setstopTime(stopTime);
 
 	QStringList newFiles;
 	obs_data_array_t *array = obs_data_get_array(settings, "imageUrls");

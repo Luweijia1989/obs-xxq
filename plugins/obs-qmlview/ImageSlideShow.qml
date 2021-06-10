@@ -7,14 +7,33 @@ Item {
     height: engine.height
     focus: true
 
-    function speed2time(speed)
+    function speed2time(speed,isNew,moveTime,stopTime)
     {
-        if (speed === 1)
-            return 3000;
-        else if (speed === 2)
-            return 2000;
+        if(isNew)
+        {
+            return moveTime + stopTime;
+        }
         else
-            return 1000;
+        {
+            if (speed === 1)
+                return 3000;
+            else if (speed === 2)
+                return 2000;
+            else
+                return 1000;
+        }
+    }
+
+    function stop2time(isNew,stopTime)
+    {
+        if(isNew)
+        {
+            return stopTime;
+        }
+        else
+        {
+            return 500;
+        }
     }
 
     function direction2path(direction)
@@ -107,6 +126,7 @@ Item {
         cacheItemCount: 2
         pathItemCount: 2
         path: direction2path(imageSlideProperties.direction)
+        highlightMoveDuration: stop2time(imageSlideProperties.isNew,imageSlideProperties.moveTime)
     }
 
     Path {
@@ -131,7 +151,7 @@ Item {
     }
 
     Timer {
-        interval: speed2time(imageSlideProperties.speed)
+        interval: speed2time(imageSlideProperties.speed,imageSlideProperties.isNew,imageSlideProperties.moveTime,imageSlideProperties.stopTime)
         running: true
         repeat: true
         onTriggered: {
@@ -145,9 +165,9 @@ Item {
     Connections {
         target: imageSlideProperties
         onReplay:{
-			view.currentIndex = view.count - 1
-			if(view.currentIndex < 0)
-				view.currentIndex = 0
+            view.currentIndex = view.count - 1
+            if(view.currentIndex < 0)
+                view.currentIndex = 0
         }
     }
 }

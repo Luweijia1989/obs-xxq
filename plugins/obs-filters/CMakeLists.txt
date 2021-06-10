@@ -52,7 +52,9 @@ set(obs-filters_SOURCES
 	compressor-filter.c
 	limiter-filter.c
 	expander-filter.c
-	luma-key-filter.c)
+	luma-key-filter.c
+	obs-shader-filter.c
+	)
 
 add_library(obs-filters MODULE
 	${obs-filters_SOURCES}
