@@ -118,6 +118,8 @@ void TRTC::init()
 
 void TRTC::enterRoom()
 {
+	m_mixUsers.clear();
+
 	MixUserInfo self;
 	self.isSelf = true;
 	self.userId = rtcEnterInfo.userId.toStdString();
