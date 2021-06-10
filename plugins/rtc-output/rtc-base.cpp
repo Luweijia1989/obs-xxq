@@ -154,6 +154,7 @@ void TRTC::enterRoom()
 	}
 	else
 	{
+		TRTCCloudCore::GetInstance()->getTRTCCloud()->stopAllRemoteView();
 		TRTCCloudCore::GetInstance()->getTRTCCloud()->enableAudioVolumeEvaluation(3000);
 		TRTCCloudCore::GetInstance()->getTRTCCloud()->startLocalAudio(TRTCAudioQualityMusic);
 	}
@@ -400,7 +401,9 @@ void TRTC::muteRemoteAnchor(bool mute)
 		user.mute = mute;
 	}
 
-	TRTCCloudCore::GetInstance()->updateCloudMixStream(cloudMixInfo, m_mixUsers);
+	if (!cloudMixInfo.usePresetLayout)
+		TRTCCloudCore::GetInstance()->updateCloudMixStream(cloudMixInfo, m_mixUsers);
+
 	std::string ud = m_remoteAnchorInfo.first.toStdString();
 	TRTCCloudCore::GetInstance()->getTRTCCloud()->muteRemoteAudio(ud.c_str(), mute);
 }
