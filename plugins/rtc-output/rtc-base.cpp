@@ -68,7 +68,7 @@ TRTC::TRTC()
 			if (err != 0)
 				sendEvent(RTC_EVENT_FAIL, data);
 			else
-				sendEvent(RTC_EVENT_SUCCESS, QJsonObject());
+				TRTCCloudCore::GetInstance()->updateCloudMixStream(cloudMixInfo, m_mixUsers);
 		}
 		else if (type == RTC_EVENT_FIRST_VIDEO)
 		{
@@ -81,18 +81,7 @@ TRTC::TRTC()
 				if (err == 0)
 				{
 					m_hasMixStream = true;
-					bool isTencentCdn = cloudMixInfo.cdnSupplier == "TENCENT";
-					if (isTencentCdn)
-						sendEvent(RTC_EVENT_SUCCESS, QJsonObject());
-					else
-					{
-						TRTCPublishCDNParam p;
-						p.appId = cloudMixInfo.cdnAppId;
-						p.bizId = cloudMixInfo.cdnBizId;
-						std::string str = cloudMixInfo.streamUrl.toStdString();
-						p.url = str.c_str();
-						TRTCCloudCore::GetInstance()->getTRTCCloud()->startPublishCDNStream(p);
-					}
+					sendEvent(RTC_EVENT_SUCCESS, QJsonObject());
 				}
 				else
 					sendEvent(RTC_EVENT_FAIL, data);
@@ -452,7 +441,19 @@ void TRTC::onEnterRoom(int result)
 		{ 
 			TRTCCloudCore::GetInstance()->getTRTCCloud()->muteLocalVideo(false);
 			TRTCCloudCore::GetInstance()->getTRTCCloud()->muteLocalAudio(false);
-			TRTCCloudCore::GetInstance()->updateCloudMixStream(cloudMixInfo, m_mixUsers);
+			
+			bool isTencentCdn = cloudMixInfo.cdnSupplier == "TENCENT";
+			if (isTencentCdn)
+				TRTCCloudCore::GetInstance()->updateCloudMixStream(cloudMixInfo, m_mixUsers);
+			else
+			{
+				TRTCPublishCDNParam p;
+				p.appId = cloudMixInfo.cdnAppId;
+				p.bizId = cloudMixInfo.cdnBizId;
+				std::string str = cloudMixInfo.streamUrl.toStdString();
+				p.url = str.c_str();
+				TRTCCloudCore::GetInstance()->getTRTCCloud()->startPublishCDNStream(p);
+			}
 		}
 		else
 			sendEvent(RTC_EVENT_SUCCESS, QJsonObject());
