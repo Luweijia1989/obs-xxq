@@ -17,9 +17,6 @@
 #include <util/threading.h>
 
 /* clang-format off */
-
-#define nullptr ((void*)0)
-
 static const char *effect_template_begin =
 "\
 uniform float4x4 ViewProj;\
@@ -163,7 +160,7 @@ static unsigned int rand_interval(unsigned int min, unsigned int max)
 static void shader_filter_reload_effect(struct shader_filter_data *filter)
 {
 	obs_data_t *settings = obs_source_get_settings(filter->context);
-
+	obs_data_release(settings);
 	// First, clean up the old effect and all references to it.
 	filter->shader_start_time = 0.0;
 	size_t param_count = filter->stored_param_list.num;
@@ -178,6 +175,7 @@ static void shader_filter_reload_effect(struct shader_filter_data *filter)
 			bfree(param->image);
 			param->image = NULL;
 		}
+		dstr_free(&param->name);
 	}
 
 	da_free(filter->stored_param_list);
@@ -201,6 +199,7 @@ static void shader_filter_reload_effect(struct shader_filter_data *filter)
 
 	// Load text and build the effect from the template, if necessary.
 	const char *shader_text = NULL;
+
 	bool use_template =
 		!obs_data_get_bool(settings, "override_entire_effect");
 
@@ -345,18 +344,33 @@ static void shader_filter_destroy(void *data)
 
 	size_t count = filter->stored_param_list.num;
 	for (size_t param_index = 0; param_index < count; param_index++) {
-		dstr_free(
-			&(filter->stored_param_list.array + param_index)->name);
-		gs_image_file_free(
-			(filter->stored_param_list.array + param_index)->image);
+		struct effect_param_data *param =
+			(filter->stored_param_list.array + param_index);
+		dstr_free(&param->name);
+		if (param->image != NULL) {
+			obs_enter_graphics();
+			gs_image_file_free(param->image);
+			obs_leave_graphics();
+			bfree(param->image);
+		}
+		param->image = NULL;
+		param->param = NULL;
 	}
-
-	da_free(filter->stored_param_list);
+	filter->param_elapsed_time = NULL;
+	filter->param_uv_offset = NULL;
+	filter->param_uv_pixel_interval = NULL;
+	filter->param_uv_scale = NULL;
+	filter->param_uv_size = NULL;
+	filter->param_rand_f = NULL;
+	filter->param_rand_activation_f = NULL;
+	filter->param_loops = NULL;
+	filter->param_local_time = NULL;
 
 	obs_enter_graphics();
 	gs_effect_destroy(filter->effect);
 	filter->effect = NULL;
 	obs_leave_graphics();
+	da_free(filter->stored_param_list);
 	bfree(filter);
 }
 
@@ -609,41 +623,35 @@ static void shader_filter_update(void *data, obs_data_t *settings)
 		dstr_ncat(&display_name, param_name, param->name.len);
 		dstr_replace(&display_name, "_", " ");
 		bool is_source = false;
-
+		void *default_data = gs_effect_get_default_val(param->param);
 		switch (param->type) {
 		case GS_SHADER_PARAM_BOOL:
-			if (gs_effect_get_default_val(param->param) != NULL)
+			if (default_data != NULL)
 				obs_data_set_default_bool(
 					settings, param_name,
-					*(bool *)gs_effect_get_default_val(
-						param->param));
+					*(bool *)default_data);
 			param->value.i =
 				obs_data_get_bool(settings, param_name);
 			break;
 		case GS_SHADER_PARAM_FLOAT:
-			if (gs_effect_get_default_val(param->param) != NULL)
+			if (default_data != NULL)
 				obs_data_set_default_double(
 					settings, param_name,
-					*(float *)gs_effect_get_default_val(
-						param->param));
+					*(float *)default_data);
 			param->value.f =
 				obs_data_get_double(settings, param_name);
 			break;
 		case GS_SHADER_PARAM_INT:
-			if (gs_effect_get_default_val(param->param) != NULL)
-				obs_data_set_default_int(
-					settings, param_name,
-					*(int *)gs_effect_get_default_val(
-						param->param));
+			if (default_data != NULL)
+				obs_data_set_default_int(settings, param_name,
+							 *(int *)default_data);
 			param->value.i = obs_data_get_int(settings, param_name);
 			break;
 		case GS_SHADER_PARAM_VEC4: // Assumed to be a color.
-			if (gs_effect_get_default_val(param->param) != NULL) {
+			if (default_data != NULL) {
 				obs_data_set_default_int(
 					settings, param_name,
-					*(unsigned int *)
-						gs_effect_get_default_val(
-							param->param));
+					*(unsigned int *)default_data);
 			} else {
 				// Hack to ensure we have a default...(white)
 				obs_data_set_default_int(settings, param_name,
@@ -658,6 +666,8 @@ static void shader_filter_update(void *data, obs_data_t *settings)
 				obs_enter_graphics();
 				gs_image_file_free(param->image);
 				obs_leave_graphics();
+				bfree(param->image);
+				param->image = NULL;
 			}
 
 			gs_image_file_init(param->image,
@@ -669,15 +679,18 @@ static void shader_filter_update(void *data, obs_data_t *settings)
 			obs_leave_graphics();
 			break;
 		case GS_SHADER_PARAM_STRING:
-			if (gs_effect_get_default_val(param->param) != NULL)
+			if (default_data != NULL)
 				obs_data_set_default_string(
 					settings, param_name,
-					(const char *)gs_effect_get_default_val(
-						param->param));
+					(const char *)default_data);
 			param->value.string =
 				(char)obs_data_get_string(settings, param_name);
 			break;
 		}
+
+		if (default_data != NULL)
+			bfree(default_data);
+		dstr_free(&display_name);
 	}
 }
 
