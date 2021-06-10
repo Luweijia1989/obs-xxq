@@ -290,6 +290,19 @@ void TRTCCloudCore::onStopPublishCDNStream(int err, const char *errMsg)
 }
 
 
+void TRTCCloudCore::onConnectOtherRoom(const char *userId,
+				       TXLiteAVError errCode,
+				       const char *errMsg)
+{
+	blog(LOG_INFO, "onConnectOtherRoom err[%d], errMsg[%s], userId[%s], remoteRoomId[%ld]", errCode, errMsg, userId, m_remoteRoomId);
+}
+
+void TRTCCloudCore::onDisconnectOtherRoom(TXLiteAVError errCode,
+					  const char *errMsg)
+{
+	
+}
+
 void TRTCCloudCore::onConnectionLost()
 {
 	blog(LOG_INFO, "onConnectionLost");
@@ -310,7 +323,16 @@ void TRTCCloudCore::connectOtherRoom(QString userId, uint32_t roomId)
 	QString json = QString("{\"roomId\":%1,\"userId\":\"%2\"}").arg(roomId).arg(userId);
 	std::string str = json.toStdString();
 	if (m_pCloud) {
+		m_remoteRoomId = roomId;
 		m_pCloud->connectOtherRoom(str.c_str());
+	}
+}
+
+void TRTCCloudCore::disconnectOtherRoom()
+{
+	if (m_pCloud) {
+		m_remoteRoomId = -1;
+		m_pCloud->disconnectOtherRoom();
 	}
 }
 
@@ -321,56 +343,84 @@ void TRTCCloudCore::stopCloudMixStream()
 	}
 }
 
-void TRTCCloudCore::startCloudMixStream(int roomId, const RTCBase::CloudMixInfo &mixInfo, TRTCTranscodingConfigMode mode)
+void TRTCCloudCore::updateCloudMixStream(const RTCBase::CloudMixInfo &mixInfo, const QList<MixUserInfo> &mixUsers)
 {
-	blog(LOG_INFO, "startCloudMixStream");
-	
-	TRTCTranscodingConfig config;
-	config.mode = mode;
-	config.appId = mixInfo.cdnAppId;
-	config.bizId = mixInfo.cdnBizId;
+	blog(LOG_INFO, "updateCloudMixStream");
 
-	QString strRoomId = QString::number(roomId);
-	std::string rid = strRoomId.toStdString();
+	m_config.mode = mixInfo.usePresetLayout ? TRTCTranscodingConfigMode_Template_PresetLayout : TRTCTranscodingConfigMode_Manual;
+	m_config.appId = mixInfo.cdnAppId;
+	m_config.bizId = mixInfo.cdnBizId;
+	m_config.videoWidth = mixInfo.mixWidth;
+	m_config.videoHeight = mixInfo.mixHeight;
+	m_config.videoBitrate = mixInfo.mixVideoBitRate;
+	m_config.videoFramerate = mixInfo.mixFps;
+	m_config.videoGOP = 2;
+	m_config.audioSampleRate = 48000;
+	m_config.audioBitrate = 128;
+	m_config.audioChannels = 2;
 
-	if (config.mode > TRTCTranscodingConfigMode_Manual) {
-		if (config.mode == TRTCTranscodingConfigMode_Template_PresetLayout) {
-			setPresetLayoutConfig(config, rid.c_str(), mixInfo);
-		}
-
-		m_pCloud->setMixTranscodingConfig(&config);
-		if (config.mixUsersArray) {
-			delete[] config.mixUsersArray;
-			config.mixUsersArray = nullptr;
-		}
-		return;
-	}
+	if (mixInfo.usePresetLayout)
+		setPresetLayoutConfig(m_config, mixInfo);
+	else
+		setManualLayoutConfig(mixInfo.mixWidth, mixInfo.mixHeight, m_config, mixUsers);
 }
 
-void TRTCCloudCore::setPresetLayoutConfig(TRTCTranscodingConfig &config, const char *remoteRoomId, const RTCBase::CloudMixInfo &mixInfo)
+void TRTCCloudCore::setManualLayoutConfig(int width, int height, TRTCTranscodingConfig &config, const QList<MixUserInfo> &mixUsers)
 {
+	QVector<TRTCMixUser> mixUserArray;
+	int zOrder = 1;
+	for (auto iter=mixUsers.begin(); iter!=mixUsers.end(); iter++)
+	{
+		const MixUserInfo &user = *iter;
+		if (!user.audioAvailable || user.mute)
+			continue;
 
+		TRTCMixUser one;
+		one.roomId = user.roomId.c_str();
+		one.userId = user.userId.c_str();
+		one.zOrder = zOrder++;
+		if (user.isSelf)
+		{
+			one.inputType = TRTCMixInputTypeAudioVideo;
+			one.streamType = TRTCVideoStreamTypeBig;
+			one.rect.left = 0;
+			one.rect.top = 0;
+			one.rect.right = width;
+			one.rect.bottom = height;
+		}
+		else
+		{
+			one.inputType = TRTCMixInputTypePureAudio;
+		}
+		mixUserArray.append(one);
+	}
+
+	m_config.mixUsersArraySize = mixUserArray.count();
+	m_config.mixUsersArray = mixUserArray.data();
+	m_pCloud->setMixTranscodingConfig(&m_config);
+	m_config.mixUsersArray = nullptr;
+}
+
+void TRTCCloudCore::setPresetLayoutConfig(TRTCTranscodingConfig &config, const RTCBase::CloudMixInfo &mixInfo)
+{
 	int canvasWidth = mixInfo.mixWidth;
 	int canvasHeight = mixInfo.mixHeight;
-	config.videoWidth = canvasWidth;
-	config.videoHeight = canvasHeight;
-	config.videoBitrate = mixInfo.mixVideoBitRate;
-	config.videoFramerate = mixInfo.mixFps;
-	config.videoGOP = 2;
-	config.audioSampleRate = 48000;
-	config.audioBitrate = 128;
-	config.audioChannels = 2;
 
 	config.mixUsersArraySize = mixInfo.mixUsers;
 
 	TRTCMixUser *mixUsersArray = new TRTCMixUser[config.mixUsersArraySize];
 	config.mixUsersArray = mixUsersArray;
 	int zOrder = 1, index = 0;
-	auto setMixUser = [&](const char *_userid, int _index, int _zOrder,
+	auto setMixUser = [&](bool onlyAudio, const char *_userid, int _index, int _zOrder,
 			      int left, int top, int width, int height, const char *roomId) {
 		mixUsersArray[_index].roomId = roomId;
 		mixUsersArray[_index].userId = _userid;
 		mixUsersArray[_index].zOrder = _zOrder;
+		if (onlyAudio)
+			mixUsersArray[_index].inputType = TRTCMixInputTypePureAudio;
+		else
+			mixUsersArray[_index].inputType = TRTCMixInputTypeAudioVideo;
+
 		{
 			mixUsersArray[_index].rect.left = left;
 			mixUsersArray[_index].rect.top = top;
@@ -385,9 +435,9 @@ void TRTCCloudCore::setPresetLayoutConfig(TRTCTranscodingConfig &config, const c
 		for (int i = 0; i < mixInfo.mixUsers; i++)
 		{
 			if (i == 0)
-				setMixUser("$PLACE_HOLDER_LOCAL_MAIN$", index, zOrder, 0, 0, canvasWidth, canvasHeight, remoteRoomId);
+				setMixUser(false, "$PLACE_HOLDER_LOCAL_MAIN$", index, zOrder, 0, 0, canvasWidth, canvasHeight, nullptr);
 			else
-				setMixUser("$PLACE_HOLDER_REMOTE$", index, zOrder, 0, 0, 0, 0, remoteRoomId);
+				setMixUser(true, "$PLACE_HOLDER_REMOTE$", index, zOrder, 0, 0, 0, 0, nullptr);
 			index++;
 			zOrder++;
 		}
@@ -396,9 +446,16 @@ void TRTCCloudCore::setPresetLayoutConfig(TRTCTranscodingConfig &config, const c
 	{
 		for (int i = 0; i < mixInfo.mixUsers; i++)
 		{
-			setMixUser(i == 0 ? "$PLACE_HOLDER_LOCAL_MAIN$" : "$PLACE_HOLDER_REMOTE$", index, zOrder, canvasWidth / mixInfo.mixUsers * i, 0, canvasWidth / mixInfo.mixUsers, canvasHeight, remoteRoomId);
+			setMixUser(false, i == 0 ? "$PLACE_HOLDER_LOCAL_MAIN$" : "$PLACE_HOLDER_REMOTE$", index, zOrder, canvasWidth / mixInfo.mixUsers * i, 0, canvasWidth / mixInfo.mixUsers, canvasHeight, nullptr);
 			index++;
 			zOrder++;
 		}
+	}
+
+	m_pCloud->setMixTranscodingConfig(&m_config);
+
+	if (m_config.mixUsersArray) {
+		delete[] m_config.mixUsersArray;
+		m_config.mixUsersArray = nullptr;
 	}
 }

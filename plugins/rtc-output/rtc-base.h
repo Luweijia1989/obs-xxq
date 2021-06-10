@@ -14,6 +14,14 @@
 
 typedef std::function< void(int type, QJsonObject data) > RtcEventCallback;
 
+struct MixUserInfo {
+	bool isSelf = false;
+	std::string userId;
+	std::string roomId;
+	bool audioAvailable = false;
+	bool mute = false;
+};
+
 class RTCBase : public QObject {
 	Q_OBJECT
 public:
@@ -50,6 +58,7 @@ public:
 		int mixFps;
 		int mixUsers;
 		bool onlyMixAnchorVideo;
+		bool usePresetLayout;
 		QString cdnSupplier;
 		QString streamUrl;
 		QString streamId;
@@ -69,6 +78,9 @@ public:
 	virtual uint64_t getTotalBytes() = 0;
 	virtual void startRecord(const QString &path) = 0;
 	virtual void stopRecord() = 0;
+	virtual void connectOtherRoom(const QString &userId, int roomId) = 0;
+	virtual void disconnectOtherRoom() = 0;
+	virtual void muteRemoteAnchor(bool mute) = 0;
 	void setCropInfo(int x, int cropWidth)
 	{
 		m_cropInfo = QRect(x, 0, cropWidth, videoEncodeInfo.canvasHeight);
@@ -132,6 +144,7 @@ public:
 		cloudMixInfo.cdnSupplier = data["cdnSupplier"].toString();
 		cloudMixInfo.streamUrl = data["streamUrl"].toString();
 		cloudMixInfo.streamId = data["streamId"].toString();
+		cloudMixInfo.usePresetLayout = data["usePresetLayout"].toBool();
 	}
 
 	void setMicInfo(QString str)
@@ -209,6 +222,9 @@ public:
 	virtual uint64_t getTotalBytes();
 	virtual void startRecord(const QString &path);
 	virtual void stopRecord();
+	virtual void connectOtherRoom(const QString &userId, int roomId);
+	virtual void disconnectOtherRoom();
+	virtual void muteRemoteAnchor(bool mute);
 
 private:
 	void internalEnterRoom();
@@ -233,5 +249,6 @@ private:
 	TRTCNetworkQosParam m_qosParams;
 	TRTCAppScene m_sceneParams = TRTCAppSceneLIVE;
 	TRTCRoleType m_roleType = TRTCRoleAnchor;
-	TRTCTranscodingConfigMode m_mixTemplateID = TRTCTranscodingConfigMode_Template_PresetLayout;
+	QList<MixUserInfo> m_mixUsers;
+	QPair<QString, int> m_remoteAnchorInfo;
 };

@@ -23,7 +23,6 @@ TRTC::TRTC()
 	m_qosParams.controlMode = TRTCQosControlModeServer;
 	m_sceneParams = TRTCAppSceneLIVE;
 	m_roleType = TRTCRoleAnchor;
-	m_mixTemplateID = TRTCTranscodingConfigMode_Template_PresetLayout;
 
 	m_linkTimeout.setSingleShot(true);
 	m_linkTimeout.setInterval(30000);
@@ -119,6 +118,13 @@ void TRTC::init()
 
 void TRTC::enterRoom()
 {
+	MixUserInfo self;
+	self.isSelf = true;
+	self.userId = rtcEnterInfo.userId.toStdString();
+	self.roomId = QString::number(rtcEnterInfo.roomId).toStdString();
+	self.audioAvailable = true;
+	m_mixUsers.append(self);
+
 	m_linkTimeout.start();
 
 	m_hasMixStream = false;
@@ -374,6 +380,40 @@ void TRTC::stopRecord()
 	TRTCCloudCore::GetInstance()->getTRTCCloud()->stopLocalRecording();
 }
 
+void TRTC::connectOtherRoom(const QString &userId, int roomId)
+{
+	MixUserInfo remoteAnchor;
+	remoteAnchor.userId = userId.toStdString();
+	remoteAnchor.roomId = QString::number(roomId).toStdString();
+	remoteAnchor.audioAvailable = false;
+	m_mixUsers.append(remoteAnchor);
+
+	m_remoteAnchorInfo.first = userId;
+	m_remoteAnchorInfo.second = roomId;
+	TRTCCloudCore::GetInstance()->connectOtherRoom(userId, roomId);
+}
+
+void TRTC::disconnectOtherRoom()
+{
+	TRTCCloudCore::GetInstance()->disconnectOtherRoom();
+}
+
+void TRTC::muteRemoteAnchor(bool mute)
+{
+	for (auto iter = m_mixUsers.begin(); iter != m_mixUsers.end(); iter++)
+	{
+		MixUserInfo &user = *iter;
+		if (QString::fromStdString(user.userId) != m_remoteAnchorInfo.first)
+			continue;
+
+		user.mute = mute;
+	}
+
+	TRTCCloudCore::GetInstance()->updateCloudMixStream(cloudMixInfo, m_mixUsers);
+	std::string ud = m_remoteAnchorInfo.first.toStdString();
+	TRTCCloudCore::GetInstance()->getTRTCCloud()->muteRemoteAudio(ud.c_str(), mute);
+}
+
 void TRTC::internalEnterRoom()
 {
 	//进入房间
@@ -410,7 +450,7 @@ void TRTC::onEnterRoom(int result)
 		{ 
 			TRTCCloudCore::GetInstance()->getTRTCCloud()->muteLocalVideo(false);
 			TRTCCloudCore::GetInstance()->getTRTCCloud()->muteLocalAudio(false);
-			TRTCCloudCore::GetInstance()->startCloudMixStream(rtcEnterInfo.roomId, cloudMixInfo, m_mixTemplateID);
+			TRTCCloudCore::GetInstance()->updateCloudMixStream(cloudMixInfo, m_mixUsers);
 		}
 		else
 			sendEvent(RTC_EVENT_SUCCESS, QJsonObject());
@@ -433,6 +473,29 @@ void TRTC::onExitRoom()
 void TRTC::onUserAudioAvailable(QString userId, bool available)
 {
 	qDebug() << QString("[%1]onAudioAvailable : %2").arg(userId).arg(available);
+
+	auto iter = m_mixUsers.begin();
+	for (; iter != m_mixUsers.end(); iter++)
+	{
+		MixUserInfo &user = *iter;
+		if (QString::fromStdString(user.userId) == userId)
+		{
+			user.audioAvailable = available;
+			break;
+		}
+	}
+
+	if (iter == m_mixUsers.end())
+	{
+		MixUserInfo user;
+		user.audioAvailable = available;
+		user.userId = userId.toStdString();
+		user.roomId = QString::number(rtcEnterInfo.roomId).toStdString();
+		m_mixUsers.append(user);
+	}
+	 
+	if (!cloudMixInfo.usePresetLayout)
+		TRTCCloudCore::GetInstance()->updateCloudMixStream(cloudMixInfo, m_mixUsers);
 }
 
 void TRTC::onUserVideoAvailable(QString userId, bool available)

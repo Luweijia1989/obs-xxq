@@ -77,20 +77,26 @@ public:
 	virtual void onStopPublishing(int err, const char *errMsg);
 	virtual void onStartPublishCDNStream(int err, const char *errMsg);
 	virtual void onStopPublishCDNStream(int err, const char *errMsg);
+	virtual void onConnectOtherRoom(const char* userId, TXLiteAVError errCode, const char* errMsg);
+	virtual void onDisconnectOtherRoom(TXLiteAVError errCode, const char* errMsg);
 
 public:
 	void connectOtherRoom(QString userId, uint32_t roomId);
-	void startCloudMixStream(int roomId, const RTCBase::CloudMixInfo &mixInfo, TRTCTranscodingConfigMode mode);
+	void disconnectOtherRoom();
+	void updateCloudMixStream(const RTCBase::CloudMixInfo &mixInfo, const QList<MixUserInfo> &mixUsers);
 	void stopCloudMixStream();
 
 protected:
-	void setPresetLayoutConfig(TRTCTranscodingConfig &config, const char *remoteRoomId, const RTCBase::CloudMixInfo &mixInfo);
+	void setPresetLayoutConfig(TRTCTranscodingConfig &config, const RTCBase::CloudMixInfo &mixInfo);
+	void setManualLayoutConfig(int width, int height, TRTCTranscodingConfig &config, const QList<MixUserInfo> &mixUsers);
 
 private:
 	static TRTCCloudCore *m_instance;
 	TRTC *m_rtcInstance = nullptr;
 	ITRTCCloud *m_pCloud = nullptr;
 	uint32_t sentBytes = 0;
+	int32_t m_remoteRoomId = -1;
+	TRTCTranscodingConfig m_config;
 
 private:
 	HMODULE trtc_module_;

@@ -120,6 +120,17 @@ static void rtc_output_custom_command(void *data, obs_data_t *param)
 	else if (strcmp(func, "stopRecord") == 0) {
 		context->m_rtcBase->stopRecord();
 	}
+	else if (strcmp(func, "connectOtherRoom") == 0) {
+		auto obj = QJsonDocument::fromJson(obs_data_get_string(param, "param")).object();
+		context->m_rtcBase->connectOtherRoom(obj["userId"].toString(), obj["roomId"].toInt());
+	}
+	else if (strcmp(func, "disconnectOtherRtcRoom") == 0) {
+		context->m_rtcBase->disconnectOtherRoom();
+	}
+	else if (strcmp(func, "muteRemoteAnchor") == 0) {
+		auto obj = QJsonDocument::fromJson(obs_data_get_string(param, "param")).object();
+		context->m_rtcBase->muteRemoteAnchor(obj["mute"].toBool());
+	}
 }
 
 static void rtc_output_update(void *data, obs_data_t *settings)
