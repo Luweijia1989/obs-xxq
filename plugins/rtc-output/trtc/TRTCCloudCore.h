@@ -80,6 +80,8 @@ public:
 	virtual void onConnectOtherRoom(const char* userId, TXLiteAVError errCode, const char* errMsg);
 	virtual void onDisconnectOtherRoom(TXLiteAVError errCode, const char* errMsg);
 
+	virtual void onRecvCustomCmdMsg(const char* userId, int32_t cmdID, uint32_t seq, const uint8_t* message, uint32_t messageSize);
+
 public:
 	void connectOtherRoom(QString userId, uint32_t roomId);
 	void disconnectOtherRoom();

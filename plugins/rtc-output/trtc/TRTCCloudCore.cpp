@@ -303,6 +303,16 @@ void TRTCCloudCore::onDisconnectOtherRoom(TXLiteAVError errCode,
 	
 }
 
+void TRTCCloudCore::onRecvCustomCmdMsg(const char *userId, int32_t cmdID,
+				       uint32_t seq, const uint8_t *message,
+				       uint32_t messageSize)
+{
+	QJsonDocument jd = QJsonDocument::fromJson(QByteArray((const char *)message, (int)messageSize));
+	QJsonObject obj;
+	obj["cmd"] = jd.array();
+	emit trtcEvent(RTC_EVENT_CMD_MSG, obj);
+}
+
 void TRTCCloudCore::onConnectionLost()
 {
 	blog(LOG_INFO, "onConnectionLost");

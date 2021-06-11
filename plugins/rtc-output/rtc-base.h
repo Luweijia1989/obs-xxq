@@ -22,6 +22,14 @@ struct MixUserInfo {
 	bool mute = false;
 };
 
+struct RoomUser {
+	QString uid;
+	QString userId;
+	int roomId;
+	bool isAnchor;
+	bool isCross;
+};
+
 class RTCBase : public QObject {
 	Q_OBJECT
 public:
@@ -78,7 +86,7 @@ public:
 	virtual uint64_t getTotalBytes() = 0;
 	virtual void startRecord(const QString &path) = 0;
 	virtual void stopRecord() = 0;
-	virtual void connectOtherRoom(const QString &userId, int roomId) = 0;
+	virtual void connectOtherRoom(const QString &userId, int roomId, const QString &uid, bool selfDoConnect) = 0;
 	virtual void disconnectOtherRoom() = 0;
 	virtual void muteRemoteAnchor(bool mute) = 0;
 	void setCropInfo(int x, int cropWidth)
@@ -112,8 +120,10 @@ public:
 			RemoteUser user;
 			user.uid = one["uid"].toString();
 			user.userId = one["userId"].toString();
-			user.renderView = one["renderView"].toInt();
+			user.renderView = one["renderView"].toInt(0);
 			remoteUsers.insert(user.userId, user);
+
+			m_roomUsers.insert(user.userId, {user.uid, user.userId, rtcEnterInfo.roomId, false, false});
 		}
 	}
 
@@ -177,15 +187,18 @@ public slots:
 	{
 		QJsonObject ret;
 		QJsonArray users = data["users"].toArray();
+		QJsonArray retArray;
+
 		for (int i=0; i<users.count(); i++)
 		{
 			QString userid = users.at(i).toString();
 			if (userid.isEmpty())
-				ret["self"] = rtcEnterInfo.uid;
-			else
-				ret["other"] = remoteUsers[userid].uid;
+				retArray.append(rtcEnterInfo.uid);
+			else if (m_roomUsers.contains(userid))
+				retArray.append(m_roomUsers.value(userid).uid);
 		}
 
+		ret["speakers"] = retArray;
 		sendEvent(RTC_EVENT_USER_VOLUME, ret);
 	}
 
@@ -199,6 +212,7 @@ public:
 	VideoEncodeInfo videoEncodeInfo;
 	CloudMixInfo cloudMixInfo;
 	QMap<QString, RemoteUser> remoteUsers;
+	QMap<QString, RoomUser> m_roomUsers;
 
 	QString last_audio_input_device;
 };
@@ -222,7 +236,7 @@ public:
 	virtual uint64_t getTotalBytes();
 	virtual void startRecord(const QString &path);
 	virtual void stopRecord();
-	virtual void connectOtherRoom(const QString &userId, int roomId);
+	virtual void connectOtherRoom(const QString &userId, int roomId, const QString &uid, bool selfDoConnect);
 	virtual void disconnectOtherRoom();
 	virtual void muteRemoteAnchor(bool mute);
 
@@ -235,6 +249,7 @@ private:
 	void onUserVideoAvailable(QString userId, bool available);
 	void onRemoteUserEnter(QString userId);
 	void onRemoteUserLeave(QString userId);
+	void updateRoomUsers();
 
 private:
 	bool m_bStartCustomCapture = false;
@@ -250,5 +265,4 @@ private:
 	TRTCAppScene m_sceneParams = TRTCAppSceneLIVE;
 	TRTCRoleType m_roleType = TRTCRoleAnchor;
 	QList<MixUserInfo> m_mixUsers;
-	QPair<QString, int> m_remoteAnchorInfo;
 };

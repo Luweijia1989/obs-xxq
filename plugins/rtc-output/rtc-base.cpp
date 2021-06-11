@@ -91,6 +91,21 @@ TRTC::TRTC()
 		{
 			onSpeakerEvent(data);
 		}
+		else if (type == RTC_EVENT_CMD_MSG)
+		{
+			QJsonArray arr = data["cmd"].toArray();
+			for (int i = 0; i < arr.size(); i++)
+			{
+				QJsonObject one = arr.at(i).toObject();
+
+				auto userId = one["userId"].toString();
+				if (!m_roomUsers.contains(userId))
+				{
+					m_roomUsers.insert(userId, { one["uid"].toString(), userId, one["roomId"].toInt(), one["isAnchor"].toBool(), one["isCross"].toBool() });
+				}
+			}
+			updateRoomUsers();
+		}
 	}, Qt::DirectConnection);
 }
 
@@ -107,14 +122,14 @@ void TRTC::init()
 
 void TRTC::enterRoom()
 {
-	m_mixUsers.clear();
-
 	MixUserInfo self;
 	self.isSelf = true;
 	self.userId = rtcEnterInfo.userId.toStdString();
 	self.roomId = QString::number(rtcEnterInfo.roomId).toStdString();
 	self.audioAvailable = true;
 	m_mixUsers.append(self);
+
+	m_roomUsers.insert(rtcEnterInfo.userId, {rtcEnterInfo.uid, rtcEnterInfo.userId, rtcEnterInfo.roomId, true, false});
 
 	m_linkTimeout.start();
 
@@ -164,6 +179,9 @@ void TRTC::enterRoom()
 
 void TRTC::exitRoom()
 {
+	m_mixUsers.clear();
+	m_roomUsers.clear();
+
 	m_bStartCustomCapture = false;
 	TRTCCloudCore::GetInstance()->PreUninit(rtcEnterInfo.videoOnly);
 	TRTCCloudCore::GetInstance()->getTRTCCloud()->exitRoom();
@@ -370,19 +388,20 @@ void TRTC::startRecord(const QString &path)
 void TRTC::stopRecord()
 {
 	TRTCCloudCore::GetInstance()->getTRTCCloud()->stopLocalRecording();
-}
+} 
 
-void TRTC::connectOtherRoom(const QString &userId, int roomId)
+void TRTC::connectOtherRoom(const QString &userId, int roomId, const QString &uid, bool selfDoConnect)
 {
 	MixUserInfo remoteAnchor;
 	remoteAnchor.userId = userId.toStdString();
 	remoteAnchor.roomId = QString::number(roomId).toStdString();
 	remoteAnchor.audioAvailable = false;
 	m_mixUsers.append(remoteAnchor);
+	
+	m_roomUsers.insert(userId, {uid, userId, roomId, true, true});
 
-	m_remoteAnchorInfo.first = userId;
-	m_remoteAnchorInfo.second = roomId;
-	TRTCCloudCore::GetInstance()->connectOtherRoom(userId, roomId);
+	if (selfDoConnect)
+		TRTCCloudCore::GetInstance()->connectOtherRoom(userId, roomId);
 }
 
 void TRTC::disconnectOtherRoom()
@@ -392,10 +411,21 @@ void TRTC::disconnectOtherRoom()
 
 void TRTC::muteRemoteAnchor(bool mute)
 {
+	QString remoteAnchorUserId;
+	for (auto iter = m_roomUsers.begin(); iter != m_roomUsers.end(); iter++)
+	{
+		const RoomUser &user = *iter;
+		if (user.isCross && user.isAnchor)
+		{
+			remoteAnchorUserId = user.userId;
+			break;
+		}
+	}
+
 	for (auto iter = m_mixUsers.begin(); iter != m_mixUsers.end(); iter++)
 	{
 		MixUserInfo &user = *iter;
-		if (QString::fromStdString(user.userId) != m_remoteAnchorInfo.first)
+		if (QString::fromStdString(user.userId) != remoteAnchorUserId)
 			continue;
 
 		user.mute = mute;
@@ -404,7 +434,7 @@ void TRTC::muteRemoteAnchor(bool mute)
 	if (!cloudMixInfo.usePresetLayout)
 		TRTCCloudCore::GetInstance()->updateCloudMixStream(cloudMixInfo, m_mixUsers);
 
-	std::string ud = m_remoteAnchorInfo.first.toStdString();
+	std::string ud = remoteAnchorUserId.toStdString();
 	TRTCCloudCore::GetInstance()->getTRTCCloud()->muteRemoteAudio(ud.c_str(), mute);
 }
 
@@ -511,8 +541,11 @@ void TRTC::onUserVideoAvailable(QString userId, bool available)
 	if (!remoteUsers.contains(userId))
 		return;
 
-	std::string sid = userId.toStdString();
 	const RemoteUser &user = remoteUsers[userId];
+	if (!user.renderView)
+		return;
+
+	std::string sid = userId.toStdString();
 	TRTCRenderParams renderParam;
 	renderParam.fillMode = TRTCVideoFillMode_Fill;
 	renderParam.mirrorType = TRTCVideoMirrorType_Disable;
@@ -529,7 +562,32 @@ void TRTC::onRemoteUserEnter(QString userId)
 void TRTC::onRemoteUserLeave(QString userId)
 {
 	qDebug() << QString(u8"%1离开房间").arg(userId);
+	if (m_roomUsers.contains(userId))
+		m_roomUsers.remove(userId);
+
+	updateRoomUsers();
+
 	std::string idstr = userId.toStdString();
 	if (TRTCCloudCore::GetInstance()->getTRTCCloud())
 		TRTCCloudCore::GetInstance()->getTRTCCloud()->stopRemoteView(idstr.c_str(), TRTCVideoStreamTypeBig);
+}
+
+void TRTC::updateRoomUsers()
+{
+	QJsonArray arr;
+	for (auto iter = m_roomUsers.begin(); iter != m_roomUsers.end(); iter++)
+	{
+		const RoomUser &user = iter.value();
+		QJsonObject obj;
+		obj["uid"] = user.uid;
+		obj["userId"] = user.userId;
+		obj["roomId"] = user.roomId;
+		obj["isAnchor"] = user.isAnchor;
+		obj["isCross"] = user.isCross;
+		arr.append(obj);
+	}
+
+	QJsonDocument jd(arr);
+	auto data = jd.toJson(QJsonDocument::Compact);
+	TRTCCloudCore::GetInstance()->getTRTCCloud()->sendCustomCmdMsg(1, (const uint8_t *)data.data(), data.size(), true, true);
 }

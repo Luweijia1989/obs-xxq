@@ -122,7 +122,7 @@ static void rtc_output_custom_command(void *data, obs_data_t *param)
 	}
 	else if (strcmp(func, "connectOtherRoom") == 0) {
 		auto obj = QJsonDocument::fromJson(obs_data_get_string(param, "param")).object();
-		context->m_rtcBase->connectOtherRoom(obj["userId"].toString(), obj["roomId"].toInt());
+		context->m_rtcBase->connectOtherRoom(obj["userId"].toString(), obj["roomId"].toInt(), obj["uid"].toString(), obj["selfDoConnect"].toBool());
 	}
 	else if (strcmp(func, "disconnectOtherRtcRoom") == 0) {
 		context->m_rtcBase->disconnectOtherRoom();
@@ -202,9 +202,12 @@ void RTCOutput::sigEvent(int type, QJsonObject data)
 {
 	if (type == RTC_EVENT_SUCCESS)
 		obs_output_begin_data_capture(m_output, 0);
-		
+
 	data["event_type"] = type;
-	obs_data_t *p = obs_data_create_from_json(QJsonDocument(data).toJson(QJsonDocument::Compact).data());
+	obs_data_t *p = obs_data_create();
+	QString str = QJsonDocument(data).toJson(QJsonDocument::Compact);
+	std::string sr = str.toStdString();
+	obs_data_set_string(p, "param", sr.c_str());
 	struct calldata params = { 0 };
 	calldata_set_ptr(&params, "output", m_output);
 	calldata_set_ptr(&params, "data", p);
