@@ -196,9 +196,8 @@ static void shader_filter_reload_effect(struct shader_filter_data *filter)
 		filter->effect = NULL;
 		obs_leave_graphics();
 	}
-
 	// Load text and build the effect from the template, if necessary.
-	const char *shader_text = NULL;
+	char *shader_text = NULL;
 
 	bool use_template =
 		!obs_data_get_bool(settings, "override_entire_effect");
@@ -216,7 +215,6 @@ static void shader_filter_reload_effect(struct shader_filter_data *filter)
 	if (shader_text == NULL) {
 		shader_text = "";
 	}
-
 	size_t effect_header_length = strlen(effect_template_begin);
 	size_t effect_body_length = strlen(shader_text);
 	size_t effect_footer_length = strlen(effect_template_end);
@@ -247,9 +245,8 @@ static void shader_filter_reload_effect(struct shader_filter_data *filter)
 	obs_enter_graphics();
 	filter->effect = gs_effect_create(effect_text.array, NULL, &errors);
 	obs_leave_graphics();
-
 	dstr_free(&effect_text);
-
+	bfree(shader_text);
 	if (filter->effect == NULL) {
 		blog(LOG_WARNING,
 		     "[obs-shaderfilter] Unable to create effect. Errors returned from parser:\n%s",
