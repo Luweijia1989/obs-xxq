@@ -206,6 +206,26 @@ static void shader_filter_reload_effect(struct shader_filter_data *filter)
 		const char *file_name =
 			obs_data_get_string(settings, "shader_file_name");
 		shader_text = os_quick_read_utf8_file(file_name);
+		if (shader_text == NULL) {
+			// 防止用户更新安装目录加的代码
+			int file_type = (int)obs_data_get_int(
+				settings, "shader_file_type");
+			if (file_type == 1) {
+				char *effect_path1 =
+					obs_module_file("transparent.shader");
+				shader_text =
+					os_quick_read_utf8_file(effect_path1);
+				bfree(effect_path1);
+
+			} else if (file_type == 2) {
+				char *effect_path2 =
+					obs_module_file("rounded_rect.shader");
+				shader_text =
+					os_quick_read_utf8_file(effect_path2);
+				bfree(effect_path2);
+			}
+		}
+
 	} else {
 		shader_text =
 			bstrdup(obs_data_get_string(settings, "shader_text"));
@@ -591,7 +611,6 @@ static void shader_filter_update(void *data, obs_data_t *settings)
 	struct shader_filter_data *filter = data;
 
 	// Get expansions. Will be used in the video_tick() callback.
-
 	filter->expand_left = (int)obs_data_get_int(settings, "expand_left");
 	filter->expand_right = (int)obs_data_get_int(settings, "expand_right");
 	filter->expand_top = (int)obs_data_get_int(settings, "expand_top");
