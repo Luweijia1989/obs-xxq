@@ -246,7 +246,8 @@ static void shader_filter_reload_effect(struct shader_filter_data *filter)
 	filter->effect = gs_effect_create(effect_text.array, NULL, &errors);
 	obs_leave_graphics();
 	dstr_free(&effect_text);
-	bfree(shader_text);
+	if (strcmp(shader_text, "") != 0)
+		bfree(shader_text);
 	if (filter->effect == NULL) {
 		blog(LOG_WARNING,
 		     "[obs-shaderfilter] Unable to create effect. Errors returned from parser:\n%s",
