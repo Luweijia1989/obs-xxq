@@ -213,6 +213,7 @@ public:
 	CloudMixInfo cloudMixInfo;
 	QMap<QString, RemoteUser> remoteUsers;
 	QMap<QString, RoomUser> m_roomUsers;
+	int m_rtcCrossRoomId = -1;
 
 	QString last_audio_input_device;
 };

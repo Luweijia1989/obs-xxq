@@ -295,6 +295,11 @@ void TRTCCloudCore::onConnectOtherRoom(const char *userId,
 				       const char *errMsg)
 {
 	blog(LOG_INFO, "onConnectOtherRoom err[%d], errMsg[%s], userId[%s], remoteRoomId[%ld]", errCode, errMsg, userId, m_remoteRoomId);
+	QJsonObject data;
+	data["userId"] = userId;
+	data["errCode"] = errCode;
+	data["errMsg"] = errMsg;
+	emit trtcEvent(RTC_EVENT_CONNECT_OTHER_ROOM, data);
 }
 
 void TRTCCloudCore::onDisconnectOtherRoom(TXLiteAVError errCode,

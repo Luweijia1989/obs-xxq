@@ -106,6 +106,12 @@ TRTC::TRTC()
 			}
 			updateRoomUsers();
 		}
+		else if (type == RTC_EVENT_CONNECT_OTHER_ROOM)
+		{
+			data["rtcRoomId"] = rtcEnterInfo.roomId;
+			data["rtcCrossRoomId"] = m_rtcCrossRoomId;
+			sendEvent(RTC_EVENT_CONNECT_OTHER_ROOM, data);
+		}
 	}, Qt::DirectConnection);
 }
 
@@ -392,6 +398,7 @@ void TRTC::stopRecord()
 
 void TRTC::connectOtherRoom(const QString &userId, int roomId, const QString &uid, bool selfDoConnect)
 {
+	m_rtcCrossRoomId = roomId;
 	MixUserInfo remoteAnchor;
 	remoteAnchor.userId = userId.toStdString();
 	remoteAnchor.roomId = QString::number(roomId).toStdString();
