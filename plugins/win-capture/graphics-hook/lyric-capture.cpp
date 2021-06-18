@@ -136,7 +136,7 @@ static BOOL WINAPI hook_update_layered_window(
 	char buf1[512] = {0};
 	wchar_to_utf8(buf, 0, buf1, 512);
 
-	if (strcmp(buf1, "桌面歌词") == 0)
+	if (strstr(buf1, "桌面歌词") != NULL)
 		lyric_capture(hdcSrc, psize->cx, psize->cy);
 
 	unhook(&updatelayeredwindow);
@@ -157,7 +157,7 @@ static BOOL WINAPI hook_update_layered_window_indirect(
 	char buf1[512] = {0};
 	wchar_to_utf8(buf, 0, buf1, 512);
 
-	if (strcmp(buf1, "桌面歌词") == 0)
+	if (strstr(buf1, "桌面歌词") != NULL)
 		lyric_capture(pULWInfo->hdcSrc, pULWInfo->psize->cx, pULWInfo->psize->cy);
 
 	unhook(&updateLayeredWindowIndirect);
