@@ -38,6 +38,7 @@
 #define SETTING_CAPTURE_OVERLAYS "capture_overlays"
 #define SETTING_ANTI_CHEAT_HOOK  "anti_cheat_hook"
 #define SETTING_HOOK_RATE        "hook_rate"
+#define SETTING_ONLY_LYRIC       "only_lyric"
 
 /* deprecated */
 #define SETTING_ANY_FULLSCREEN   "capture_any_fullscreen"
@@ -111,6 +112,7 @@ struct game_capture_config {
 	bool limit_framerate;
 	bool capture_overlays;
 	bool anticheat_hook;
+	bool only_lyric;
 	enum hook_rate hook_rate;
 };
 
@@ -444,6 +446,8 @@ static inline void get_config(struct game_capture_config *cfg,
 		obs_data_get_bool(settings, SETTING_ANTI_CHEAT_HOOK);
 	cfg->hook_rate =
 		(enum hook_rate)obs_data_get_int(settings, SETTING_HOOK_RATE);
+	cfg->only_lyric =
+		obs_data_get_bool(settings, SETTING_ONLY_LYRIC);
 
 	scale_str = obs_data_get_string(settings, SETTING_SCALE_RES);
 	ret = sscanf(scale_str, "%" PRIu32 "x%" PRIu32, &cfg->scale_cx,
@@ -782,6 +786,7 @@ static inline bool init_hook_info(struct game_capture *gc)
 		     "(multi-adapter compatibility mode)");
 	}
 
+	gc->global_hook_info->only_lyric = gc->config.only_lyric;
 	gc->global_hook_info->offsets = gc->process_is_64bit ? offsets64
 							     : offsets32;
 	gc->global_hook_info->capture_overlay = gc->config.capture_overlays;
@@ -2129,6 +2134,8 @@ static obs_properties_t *game_capture_properties(void *data)
 	obs_property_list_add_int(p, TEXT_HOOK_RATE_NORMAL, HOOK_RATE_NORMAL);
 	obs_property_list_add_int(p, TEXT_HOOK_RATE_FAST, HOOK_RATE_FAST);
 	obs_property_list_add_int(p, TEXT_HOOK_RATE_FASTEST, HOOK_RATE_FASTEST);
+
+	obs_properties_add_bool(ppts, SETTING_ONLY_LYRIC, "only lyric");
 
 	UNUSED_PARAMETER(data);
 	return ppts;
