@@ -46,6 +46,8 @@ static bool lyric_shmem_init(HWND window)
 
 static void lyric_data_free()
 {
+	capture_free();
+
 	if (data.hdc) {
 		SelectObject(data.hdc, data.old_bmp);
 		DeleteDC(data.hdc);
@@ -100,8 +102,6 @@ static void lyric_capture(HDC hdc, uint32_t width, uint32_t height)
 		if (width != data.base_cx || height != data.base_cy) {
 			if (width != 0 && height != 0) {
 				lyric_data_free();
-				/*lyric_data_init(width, height,
-						WindowFromDC(hdc));*/
 			}
 			return;
 		}
