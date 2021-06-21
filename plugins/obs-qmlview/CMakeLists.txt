@@ -49,6 +49,7 @@ set(qmlview_SOURCES
     gift-tv.cpp
     mask.cpp
     webcapture.cpp
+    fans-target.cpp
 )
 
 set( qmlview_HEADERS
@@ -67,6 +68,7 @@ set( qmlview_HEADERS
     gift-tv.h
     mask.h
     webcapture.h
+    fans-target.h
 )
 
 set(qmlview_QRC qmlview.qrc)

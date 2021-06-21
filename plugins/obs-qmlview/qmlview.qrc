@@ -84,5 +84,20 @@
         <file>image/fail.apng</file>
         <file>image/img_tips_selecting.png</file>
         <file>image/popup_5.png</file>
+        <file>image/fanstarget/background_fans.png</file>
+        <file>image/fanstarget/background_fans@2x.png</file>
+        <file>image/listfirst/zhuti_bangyi.png</file>
+        <file>image/listfirst/zhuti_bangyi@2x.png</file>
+        <file>image/newfollow/zhuti_guanzhu.png</file>
+        <file>image/newfollow/zhuti_guanzhu@2x.png</file>
+        <file>image/newreward/zhuti_dashang.png</file>
+        <file>image/newreward/zhuti_dashang@2x.png</file>
+        <file>image/fans_background.png</file>
+        <file>image/fans_background@2x.png</file>
+        <file>image/background.png</file>
+        <file>image/background@2x.png</file>
+        <file>image/empty.png</file>
+        <file>image/empty@2x.png</file>
+        <file>FansTarget.qml</file>
     </qresource>
 </RCC>
