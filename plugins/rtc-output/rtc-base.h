@@ -14,22 +14,6 @@
 
 typedef std::function< void(int type, QJsonObject data) > RtcEventCallback;
 
-struct MixUserInfo {
-	bool isSelf = false;
-	std::string userId;
-	std::string roomId;
-	bool audioAvailable = false;
-	bool mute = false;
-};
-
-struct RoomUser {
-	QString uid;
-	QString userId;
-	int roomId;
-	bool isAnchor;
-	bool isCross;
-};
-
 class RTCBase : public QObject {
 	Q_OBJECT
 public:
@@ -42,12 +26,6 @@ public:
 		QString userSig;
 	};
 
-	struct RemoteUser {
-		QString uid;
-		QString userId;
-		int renderView;
-	};
-
 	struct VideoEncodeInfo {
 		int canvasWidth;
 		int canvasHeight;
@@ -55,6 +33,20 @@ public:
 		int height;
 		int fps;
 		int bitrate;
+	};
+
+	struct RoomUser {
+		bool isSelf = false;
+		QString uid;
+		QString userId;
+		int renderView;
+		int roomId;
+		std::string stdUserId;
+		std::string stdRoomId;
+		bool isAnchor;
+		bool isCross;
+		bool audioAvailable = false;
+		bool mute = false;
 	};
 
 	struct CloudMixInfo {
@@ -117,13 +109,10 @@ public:
 		for (int i=0; i<data.size(); i++)
 		{
 			auto one = data.at(i).toObject();
-			RemoteUser user;
-			user.uid = one["uid"].toString();
-			user.userId = one["userId"].toString();
-			user.renderView = one["renderView"].toInt(0);
-			remoteUsers.insert(user.userId, user);
+			QString uid = one["uid"].toString();
+			QString userId = one["userId"].toString();
 
-			m_roomUsers.insert(user.userId, {user.uid, user.userId, rtcEnterInfo.roomId, false, false});
+			m_roomUsers.insert(userId, {false, uid, userId, one["renderView"].toInt(-1), rtcEnterInfo.roomId, userId.toStdString(), QString::number(rtcEnterInfo.roomId).toStdString(), false, false, false, false});
 		}
 	}
 
@@ -211,7 +200,6 @@ public:
 	RtcEnterInfo rtcEnterInfo;
 	VideoEncodeInfo videoEncodeInfo;
 	CloudMixInfo cloudMixInfo;
-	QMap<QString, RemoteUser> remoteUsers;
 	QMap<QString, RoomUser> m_roomUsers;
 	int m_rtcCrossRoomId = -1;
 
@@ -265,5 +253,4 @@ private:
 	TRTCNetworkQosParam m_qosParams;
 	TRTCAppScene m_sceneParams = TRTCAppSceneLIVE;
 	TRTCRoleType m_roleType = TRTCRoleAnchor;
-	QList<MixUserInfo> m_mixUsers;
 };

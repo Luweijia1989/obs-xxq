@@ -68,7 +68,7 @@ TRTC::TRTC()
 			if (err != 0)
 				sendEvent(RTC_EVENT_FAIL, data);
 			else
-				TRTCCloudCore::GetInstance()->updateCloudMixStream(cloudMixInfo, m_mixUsers);
+				TRTCCloudCore::GetInstance()->updateCloudMixStream(cloudMixInfo, m_roomUsers);
 		}
 		else if (type == RTC_EVENT_FIRST_VIDEO)
 		{
@@ -99,9 +99,13 @@ TRTC::TRTC()
 				QJsonObject one = arr.at(i).toObject();
 
 				auto userId = one["userId"].toString();
-				if (!m_roomUsers.contains(userId))
+				if (m_roomUsers.contains(userId))
 				{
-					m_roomUsers.insert(userId, { one["uid"].toString(), userId, one["roomId"].toInt(), one["isAnchor"].toBool(), one["isCross"].toBool() });
+					RoomUser &user = m_roomUsers[userId];
+					user.uid = one["uid"].toString();
+					user.roomId = one["roomId"].toInt();
+					user.isAnchor = one["isAnchor"].toBool();
+					user.isCross = one["isCross"].toBool();
 				}
 			}
 			updateRoomUsers();
@@ -128,14 +132,7 @@ void TRTC::init()
 
 void TRTC::enterRoom()
 {
-	MixUserInfo self;
-	self.isSelf = true;
-	self.userId = rtcEnterInfo.userId.toStdString();
-	self.roomId = QString::number(rtcEnterInfo.roomId).toStdString();
-	self.audioAvailable = true;
-	m_mixUsers.append(self);
-
-	m_roomUsers.insert(rtcEnterInfo.userId, {rtcEnterInfo.uid, rtcEnterInfo.userId, rtcEnterInfo.roomId, true, false});
+	m_roomUsers.insert(rtcEnterInfo.userId, {true, rtcEnterInfo.uid, rtcEnterInfo.userId, -1, rtcEnterInfo.roomId, rtcEnterInfo.userId.toStdString(), QString::number(rtcEnterInfo.roomId).toStdString(), true, false, true, false});
 
 	m_linkTimeout.start();
 
@@ -176,7 +173,7 @@ void TRTC::enterRoom()
 	else
 	{
 		TRTCCloudCore::GetInstance()->getTRTCCloud()->stopAllRemoteView();
-		TRTCCloudCore::GetInstance()->getTRTCCloud()->enableAudioVolumeEvaluation(3000);
+		TRTCCloudCore::GetInstance()->getTRTCCloud()->enableAudioVolumeEvaluation(500);
 		TRTCCloudCore::GetInstance()->getTRTCCloud()->startLocalAudio(TRTCAudioQualityMusic);
 	}
 
@@ -185,7 +182,6 @@ void TRTC::enterRoom()
 
 void TRTC::exitRoom()
 {
-	m_mixUsers.clear();
 	m_roomUsers.clear();
 
 	m_bStartCustomCapture = false;
@@ -399,13 +395,7 @@ void TRTC::stopRecord()
 void TRTC::connectOtherRoom(const QString &userId, int roomId, const QString &uid, bool selfDoConnect)
 {
 	m_rtcCrossRoomId = roomId;
-	MixUserInfo remoteAnchor;
-	remoteAnchor.userId = userId.toStdString();
-	remoteAnchor.roomId = QString::number(roomId).toStdString();
-	remoteAnchor.audioAvailable = false;
-	m_mixUsers.append(remoteAnchor);
-	
-	m_roomUsers.insert(userId, {uid, userId, roomId, true, true});
+	m_roomUsers.insert(userId, {false, uid, userId, -1, roomId, userId.toStdString(), QString::number(roomId).toStdString(), true, true, false, false});
 
 	if (selfDoConnect)
 		TRTCCloudCore::GetInstance()->connectOtherRoom(userId, roomId);
@@ -418,31 +408,19 @@ void TRTC::disconnectOtherRoom()
 
 void TRTC::muteRemoteAnchor(bool mute)
 {
-	QString remoteAnchorUserId;
 	for (auto iter = m_roomUsers.begin(); iter != m_roomUsers.end(); iter++)
 	{
-		const RoomUser &user = *iter;
+		RoomUser &user = iter.value();
 		if (user.isCross && user.isAnchor)
 		{
-			remoteAnchorUserId = user.userId;
+			user.mute = mute;
+			TRTCCloudCore::GetInstance()->getTRTCCloud()->muteRemoteAudio(user.stdUserId.c_str(), mute);
 			break;
 		}
 	}
 
-	for (auto iter = m_mixUsers.begin(); iter != m_mixUsers.end(); iter++)
-	{
-		MixUserInfo &user = *iter;
-		if (QString::fromStdString(user.userId) != remoteAnchorUserId)
-			continue;
-
-		user.mute = mute;
-	}
-
 	if (!cloudMixInfo.usePresetLayout)
-		TRTCCloudCore::GetInstance()->updateCloudMixStream(cloudMixInfo, m_mixUsers);
-
-	std::string ud = remoteAnchorUserId.toStdString();
-	TRTCCloudCore::GetInstance()->getTRTCCloud()->muteRemoteAudio(ud.c_str(), mute);
+		TRTCCloudCore::GetInstance()->updateCloudMixStream(cloudMixInfo, m_roomUsers);
 }
 
 void TRTC::internalEnterRoom()
@@ -484,7 +462,7 @@ void TRTC::onEnterRoom(int result)
 			
 			bool isTencentCdn = cloudMixInfo.cdnSupplier == "TENCENT";
 			if (isTencentCdn)
-				TRTCCloudCore::GetInstance()->updateCloudMixStream(cloudMixInfo, m_mixUsers);
+				TRTCCloudCore::GetInstance()->updateCloudMixStream(cloudMixInfo, m_roomUsers);
 			else
 			{
 				TRTCPublishCDNParam p;
@@ -517,39 +495,25 @@ void TRTC::onUserAudioAvailable(QString userId, bool available)
 {
 	qDebug() << QString("[%1]onAudioAvailable : %2").arg(userId).arg(available);
 
-	auto iter = m_mixUsers.begin();
-	for (; iter != m_mixUsers.end(); iter++)
+	if (m_roomUsers.contains(userId))
 	{
-		MixUserInfo &user = *iter;
-		if (QString::fromStdString(user.userId) == userId)
-		{
-			user.audioAvailable = available;
-			break;
-		}
-	}
-
-	if (iter == m_mixUsers.end())
-	{
-		MixUserInfo user;
+		RoomUser &user = m_roomUsers[userId];
 		user.audioAvailable = available;
-		user.userId = userId.toStdString();
-		user.roomId = QString::number(rtcEnterInfo.roomId).toStdString();
-		m_mixUsers.append(user);
 	}
 	 
 	if (!cloudMixInfo.usePresetLayout)
-		TRTCCloudCore::GetInstance()->updateCloudMixStream(cloudMixInfo, m_mixUsers);
+		TRTCCloudCore::GetInstance()->updateCloudMixStream(cloudMixInfo, m_roomUsers);
 }
 
 void TRTC::onUserVideoAvailable(QString userId, bool available)
 {
 	qDebug() << QString(u8"[%1]onVideoAvailable : %2").arg(userId).arg(available);
 
-	if (!remoteUsers.contains(userId))
+	if (!m_roomUsers.contains(userId))
 		return;
 
-	const RemoteUser &user = remoteUsers[userId];
-	if (!user.renderView)
+	const RoomUser &user = m_roomUsers[userId];
+	if (user.renderView == -1)
 		return;
 
 	std::string sid = userId.toStdString();
@@ -564,6 +528,11 @@ void TRTC::onUserVideoAvailable(QString userId, bool available)
 void TRTC::onRemoteUserEnter(QString userId)
 {
 	qDebug() << QString(u8"%1进入房间").arg(userId);
+
+	if (m_roomUsers.contains(userId))
+		return;
+
+	m_roomUsers.insert(userId, {false, "", userId, -1, rtcEnterInfo.roomId, userId.toStdString(), QString::number(rtcEnterInfo.roomId).toStdString(), false, false, false, false});
 }
 
 void TRTC::onRemoteUserLeave(QString userId)

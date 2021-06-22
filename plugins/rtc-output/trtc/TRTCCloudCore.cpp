@@ -358,7 +358,7 @@ void TRTCCloudCore::stopCloudMixStream()
 	}
 }
 
-void TRTCCloudCore::updateCloudMixStream(const RTCBase::CloudMixInfo &mixInfo, const QList<MixUserInfo> &mixUsers)
+void TRTCCloudCore::updateCloudMixStream(const RTCBase::CloudMixInfo &mixInfo, const QMap<QString, RTCBase::RoomUser> &mixUsers)
 {
 	blog(LOG_INFO, "updateCloudMixStream");
 
@@ -380,19 +380,19 @@ void TRTCCloudCore::updateCloudMixStream(const RTCBase::CloudMixInfo &mixInfo, c
 		setManualLayoutConfig(mixInfo.mixWidth, mixInfo.mixHeight, m_config, mixUsers);
 }
 
-void TRTCCloudCore::setManualLayoutConfig(int width, int height, TRTCTranscodingConfig &config, const QList<MixUserInfo> &mixUsers)
+void TRTCCloudCore::setManualLayoutConfig(int width, int height, TRTCTranscodingConfig &config, const QMap<QString, RTCBase::RoomUser> &mixUsers)
 {
 	QVector<TRTCMixUser> mixUserArray;
 	int zOrder = 1;
 	for (auto iter=mixUsers.begin(); iter!=mixUsers.end(); iter++)
 	{
-		const MixUserInfo &user = *iter;
+		const RTCBase::RoomUser &user = iter.value();
 		if (!user.audioAvailable || user.mute)
 			continue;
 
 		TRTCMixUser one;
-		one.roomId = user.roomId.c_str();
-		one.userId = user.userId.c_str();
+		one.roomId = user.stdRoomId.c_str();
+		one.userId = user.stdUserId.c_str();
 		one.zOrder = zOrder++;
 		if (user.isSelf)
 		{

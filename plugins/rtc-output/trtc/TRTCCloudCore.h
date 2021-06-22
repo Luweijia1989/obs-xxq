@@ -85,12 +85,12 @@ public:
 public:
 	void connectOtherRoom(QString userId, uint32_t roomId);
 	void disconnectOtherRoom();
-	void updateCloudMixStream(const RTCBase::CloudMixInfo &mixInfo, const QList<MixUserInfo> &mixUsers);
+	void updateCloudMixStream(const RTCBase::CloudMixInfo &mixInfo, const QMap<QString, RTCBase::RoomUser> &mixUsers);
 	void stopCloudMixStream();
 
 protected:
 	void setPresetLayoutConfig(TRTCTranscodingConfig &config, const RTCBase::CloudMixInfo &mixInfo);
-	void setManualLayoutConfig(int width, int height, TRTCTranscodingConfig &config, const QList<MixUserInfo> &mixUsers);
+	void setManualLayoutConfig(int width, int height, TRTCTranscodingConfig &config, const QMap<QString, RTCBase::RoomUser> &mixUsers);
 
 private:
 	static TRTCCloudCore *m_instance;
