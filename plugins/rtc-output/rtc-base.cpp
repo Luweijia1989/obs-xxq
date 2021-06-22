@@ -173,7 +173,7 @@ void TRTC::enterRoom()
 	else
 	{
 		TRTCCloudCore::GetInstance()->getTRTCCloud()->stopAllRemoteView();
-		TRTCCloudCore::GetInstance()->getTRTCCloud()->enableAudioVolumeEvaluation(500);
+		TRTCCloudCore::GetInstance()->getTRTCCloud()->enableAudioVolumeEvaluation(3000);
 		TRTCCloudCore::GetInstance()->getTRTCCloud()->startLocalAudio(TRTCAudioQualityMusic);
 	}
 
