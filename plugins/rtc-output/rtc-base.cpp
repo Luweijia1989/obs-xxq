@@ -529,10 +529,24 @@ void TRTC::onRemoteUserEnter(QString userId)
 {
 	qDebug() << QString(u8"%1进入房间").arg(userId);
 
-	if (m_roomUsers.contains(userId))
-		return;
+	if (!m_roomUsers.contains(userId))
+		m_roomUsers.insert(userId, {false, "", userId, -1, rtcEnterInfo.roomId, userId.toStdString(), QString::number(rtcEnterInfo.roomId).toStdString(), false, false, false, false});
 
-	m_roomUsers.insert(userId, {false, "", userId, -1, rtcEnterInfo.roomId, userId.toStdString(), QString::number(rtcEnterInfo.roomId).toStdString(), false, false, false, false});
+	for (auto iter = m_roomUsers.begin(); iter != m_roomUsers.end(); iter++)
+	{
+		const RoomUser &user = iter.value();
+		if (user.isCross && user.isAnchor)
+		{
+			QJsonObject data;
+			data["userId"] = userId;
+			data["errCode"] = 0;
+			data["errMsg"] = "";
+			data["rtcRoomId"] = rtcEnterInfo.roomId;
+			data["rtcCrossRoomId"] = m_rtcCrossRoomId;
+			sendEvent(RTC_EVENT_CONNECT_OTHER_ROOM, data);
+			break;
+		}
+	}
 }
 
 void TRTC::onRemoteUserLeave(QString userId)
