@@ -99,5 +99,12 @@
         <file>image/empty.png</file>
         <file>image/empty@2x.png</file>
         <file>FansTarget.qml</file>
+        <file>FirstRankList.qml</file>
+        <file>image/boke2.png</file>
+        <file>image/boke2@2x.png</file>
+        <file>image/boke1.png</file>
+        <file>image/boke1@2x.png</file>
+        <file>image/boke3.png</file>
+        <file>image/boke3@2x.png</file>
     </qresource>
 </RCC>

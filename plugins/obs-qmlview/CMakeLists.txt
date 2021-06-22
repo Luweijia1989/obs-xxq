@@ -50,6 +50,7 @@ set(qmlview_SOURCES
     mask.cpp
     webcapture.cpp
     fans-target.cpp
+    first-rank-list.cpp
 )
 
 set( qmlview_HEADERS
@@ -69,6 +70,7 @@ set( qmlview_HEADERS
     mask.h
     webcapture.h
     fans-target.h
+    first-rank-list.h
 )
 
 set(qmlview_QRC qmlview.qrc)
