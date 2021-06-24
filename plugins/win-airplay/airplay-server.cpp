@@ -1,4 +1,4 @@
-﻿#include <obs-module.h>
+#include <obs-module.h>
 #include "airplay-server.h"
 #include "resource.h"
 #include <cstdio>
@@ -401,6 +401,8 @@ void ScreenMirrorServer::handleMirrorStatus(int status)
 
 bool ScreenMirrorServer::handleMediaData()
 {
+	static size_t max_packet_size = 1024 * 1024 * 10;
+
 	size_t header_size = sizeof(struct av_packet_info);
 	if (m_avBuffer.size < header_size)
 		return false;
@@ -419,6 +421,11 @@ bool ScreenMirrorServer::handleMediaData()
 		}
 	} else if (header_info.type == FFM_MEDIA_INFO) {
 		if (req_size != sizeof(struct media_info)) {
+			circlebuf_free(&m_avBuffer);
+			return false;
+		}
+	} else {
+		if (req_size > max_packet_size) {
 			circlebuf_free(&m_avBuffer);
 			return false;
 		}
