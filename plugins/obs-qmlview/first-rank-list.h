@@ -27,8 +27,5 @@ public:
 	static void default(obs_data_t *settings);
 signals:
 	void replay();
-
-public:
-	int index = 1;
-	QMutex m_mutex;
+	void update();
 };

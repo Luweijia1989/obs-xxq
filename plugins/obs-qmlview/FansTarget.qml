@@ -11,11 +11,11 @@ Item {
     {
         if(themeType === 1)
         {
-            return "image/fanstarget/background_fans.png";
+            return "qrc:/qmlfiles/image/fanstarget/background_fans.png";
         }
         else
         {
-            return "image/fans_background.png";
+            return "qrc:/qmlfiles/image/fans_background.png";
         }
     }
 

@@ -11,11 +11,11 @@ Item {
     {
         if(themeType === 1)
         {
-            return "image/listfirst/zhuti_bangyi.png";
+            return "qrc:/qmlfiles/image/listfirst/zhuti_bangyi.png";
         }
         else
         {
-            return "image/background.png";
+            return "qrc:/qmlfiles/image/background.png";
         }
     }
 
@@ -71,7 +71,7 @@ Item {
     {
         if(namePath === "")
         {
-            return "image/empty.png";
+            return "qrc:/qmlfiles/image/empty.png";
         }
         else
         {
@@ -167,7 +167,7 @@ Item {
             onReplay:{
                 if(index <4)
                 {
-                    avartar.imgSrc = sprintf("image/boke%d.png",index)
+                    avartar.imgSrc = sprintf("qrc:/qmlfiles/image/boke%d.png",index)
                     text2.text = sprintf("啵克%d号",index)
                     index = index+1;
                }
@@ -179,6 +179,11 @@ Item {
                }
                previewtimer.start();
         }
+            onUpdate:{
+                avartar.imgSrc = avartarPath(firstRankListProperties.avatarpath)
+                text2.text = firNameText(firstRankListProperties.firstname)
+                index = 1
+            }
     }
 }
 

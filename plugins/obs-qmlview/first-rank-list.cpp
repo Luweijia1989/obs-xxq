@@ -85,6 +85,7 @@ static void firstranklist_source_update(void *data, obs_data_t *settings)
 	float transparence = (float)obs_data_get_int(settings, "transparence");
 	transparence = transparence / 100.0f;
 	s->settransparence(transparence);
+	emit s->update();
 }
 
 static void *firstranklist_source_create(obs_data_t *settings,

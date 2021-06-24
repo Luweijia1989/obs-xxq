@@ -22,7 +22,4 @@ public:
 public:
 	FansTarget(QObject *parent = nullptr);
 	static void default(obs_data_t *settings);
-
-public:
-	QMutex m_mutex;
 };
