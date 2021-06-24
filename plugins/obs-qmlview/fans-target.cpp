@@ -13,11 +13,12 @@ void FansTarget::default(obs_data_t *settings)
 {
 	obs_data_set_default_string(settings, "file",
 				    "qrc:/qmlfiles/FansTarget.qml");
-	obs_data_set_default_string(settings, "themefont", u8"微软雅黑");
+	obs_data_set_default_string(settings, "themefont",
+				    u8"阿里巴巴普惠体 M");
 	obs_data_set_default_bool(settings, "themebold", false);
 	obs_data_set_default_bool(settings, "themeitalic", false);
 
-	obs_data_set_default_string(settings, "datafont", u8"微软雅黑");
+	obs_data_set_default_string(settings, "datafont", u8"阿里巴巴普惠体 R");
 	obs_data_set_default_bool(settings, "databold", false);
 	obs_data_set_default_bool(settings, "dataitalic", false);
 

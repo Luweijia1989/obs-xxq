@@ -141,8 +141,8 @@ Item {
                 id: text2
                 anchors.left: avartar.right
                 anchors.leftMargin: firstRankListProperties.themetype ===1 ? 30 : 6
-                anchors.top:text1.bottom
-                anchors.topMargin: 2
+                anchors.bottom:parent.bottom
+                anchors.bottomMargin: 21
                 text: firNameText(firstRankListProperties.firstname)
                 font.family: firstRankListProperties.datafont
                 font.pixelSize: 12
@@ -155,36 +155,29 @@ Item {
     property var index: 1
     Timer {
         id:previewtimer
-        interval: 1000
+        interval: 18000
         triggeredOnStart: true;
-        repeat: true
+        repeat: false
         onTriggered: {
-        if(index <4)
-        {
-                avartar.imgSrc = sprintf("image/boke%d.png",index)
-                text2.text = sprintf("啵克%d号",index)
-                index = index+1;
-       }
-       else if(index === 4)
-       {
-                avartar.imgSrc = "image/empty.png"
-                text2.text = "还没有人上榜"
-                index = index+1;
-       }
-       else
-       {
-                avartar.imgSrc = avartarPath(firstRankListProperties.avatarpath)
-                text2.text = firNameText(firstRankListProperties.firstname)
-                index = 1
-                previewtimer.stop();
-       }
+                index = 1;
        }
     }
     Connections {
             target: firstRankListProperties
             onReplay:{
-            index = 1;
-            previewtimer.start();
+                if(index <4)
+                {
+                    avartar.imgSrc = sprintf("image/boke%d.png",index)
+                    text2.text = sprintf("啵克%d号",index)
+                    index = index+1;
+               }
+               else if(index === 4)
+               {
+                    avartar.imgSrc = avartarPath(firstRankListProperties.avatarpath)
+                    text2.text = firNameText(firstRankListProperties.firstname)
+                    index = 1
+               }
+               previewtimer.start();
         }
     }
 }
