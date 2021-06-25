@@ -113,6 +113,16 @@ static void rtc_output_custom_command(void *data, obs_data_t *param)
 		auto obj = QJsonDocument::fromJson(obs_data_get_string(param, "param")).object();
 		context->m_rtcBase->setAudioOutputDevice(obj["device"].toString());
 	}
+	else if (strcmp(func, "output_device_mute") == 0)
+	{
+		auto obj = QJsonDocument::fromJson(obs_data_get_string(param, "param")).object();
+		context->m_rtcBase->setAudioOutputMute(obj["mute"].toBool());
+	}
+	else if (strcmp(func, "output_device_volume") == 0)
+	{
+		auto obj = QJsonDocument::fromJson(obs_data_get_string(param, "param")).object();
+		context->m_rtcBase->setAudioOutputVolume(obj["volume"].toInt());
+	}
 	else if (strcmp(func, "startRecord") == 0) {
 		auto obj = QJsonDocument::fromJson(obs_data_get_string(param, "param")).object();
 		context->m_rtcBase->startRecord(obj["path"].toString());
@@ -143,7 +153,7 @@ static void rtc_output_update(void *data, obs_data_t *settings)
 	context->m_rtcBase->setMixInfo(obs_data_get_string(settings, "mixInfo"));
 	context->m_rtcBase->setCropInfo(obs_data_get_int(settings, "cropX"), obs_data_get_int(settings, "cropWidth"));
 	context->m_rtcBase->setMicInfo(obs_data_get_string(settings, "micInfo"));
-	context->m_rtcBase->setAudioOutputDevice(obs_data_get_string(settings, "playout_device"));
+	context->m_rtcBase->setDesktopAudioInfo(obs_data_get_string(settings, "desktopAudioInfo"));
 }
 
 static uint64_t rtc_get_total_bytes(void *data)

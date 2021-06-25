@@ -95,7 +95,10 @@ void TRTCCloudCore::PreUninit(bool isVideoLink)
 		m_pCloud->muteLocalAudio(true);
 	}
 	else
+	{
 		m_pCloud->stopLocalAudio();
+		m_pCloud->stopSystemAudioLoopback();
+	}
 }
 
 ITRTCCloud *TRTCCloudCore::getTRTCCloud()

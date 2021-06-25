@@ -175,6 +175,7 @@ void TRTC::enterRoom()
 		TRTCCloudCore::GetInstance()->getTRTCCloud()->stopAllRemoteView();
 		TRTCCloudCore::GetInstance()->getTRTCCloud()->enableAudioVolumeEvaluation(3000);
 		TRTCCloudCore::GetInstance()->getTRTCCloud()->startLocalAudio(TRTCAudioQualityMusic);
+		TRTCCloudCore::GetInstance()->getTRTCCloud()->startSystemAudioLoopback(nullptr);
 	}
 
 	qDebug() << QString(u8"正在进入[%1]房间, sceneType[%3]").arg(rtcEnterInfo.roomId).arg(u8"视频互动直播");
@@ -330,7 +331,7 @@ void TRTC::setAudioInputMute(bool mute)
 	if (rtcEnterInfo.videoOnly)
 		return;
 
-	TRTCCloudCore::GetInstance()->getTRTCCloud()->muteLocalAudio(mute);
+	TRTCCloudCore::GetInstance()->getTRTCCloud()->setAudioCaptureVolume(mute ? 0 : m_cacheAudioInputVolume);
 }
 
 void TRTC::setAudioInputVolume(int volume)
@@ -338,6 +339,7 @@ void TRTC::setAudioInputVolume(int volume)
 	if (rtcEnterInfo.videoOnly)
 		return;
 
+	m_cacheAudioInputVolume = volume;
 	TRTCCloudCore::GetInstance()->getTRTCCloud()->setAudioCaptureVolume(volume);
 }
 
@@ -367,6 +369,23 @@ void TRTC::setAudioOutputDevice(const QString &deviceId)
 		}
 	}
 	devices->release();
+}
+
+void TRTC::setAudioOutputMute(bool mute)
+{
+	if (rtcEnterInfo.videoOnly)
+		return;
+
+	TRTCCloudCore::GetInstance()->getTRTCCloud()->setSystemAudioLoopbackVolume(mute ? 0 : m_cacheAudioOutputVolume);
+}
+
+void TRTC::setAudioOutputVolume(int volume)
+{
+	if (rtcEnterInfo.videoOnly)
+		return;
+
+	m_cacheAudioOutputVolume = volume;
+	TRTCCloudCore::GetInstance()->getTRTCCloud()->setSystemAudioLoopbackVolume(volume);
 }
 
 void TRTC::stopTimeoutTimer()

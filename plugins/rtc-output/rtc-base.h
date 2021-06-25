@@ -74,6 +74,8 @@ public:
 	virtual void setAudioInputMute(bool mute) = 0;
 	virtual void setAudioInputVolume(int volume) = 0;
 	virtual void setAudioOutputDevice(const QString &deviceId) = 0;
+	virtual void setAudioOutputMute(bool mute) = 0;
+	virtual void setAudioOutputVolume(int volume) = 0;
 	virtual void stopTimeoutTimer() = 0;
 	virtual uint64_t getTotalBytes() = 0;
 	virtual void startRecord(const QString &path) = 0;
@@ -150,9 +152,18 @@ public:
 	{
 		QJsonDocument jd = QJsonDocument::fromJson(str.toUtf8());
 		QJsonObject obj = jd.object();
+		setAudioInputVolume(obj["volume"].toInt());
 		setAudioInputDevice(obj["device"].toString());
 		setAudioInputMute(obj["mute"].toBool());
-		setAudioInputVolume(obj["volume"].toInt());
+	}
+
+	void setDesktopAudioInfo(QString str)
+	{
+		QJsonDocument jd = QJsonDocument::fromJson(str.toUtf8());
+		QJsonObject obj = jd.object();
+		setAudioOutputVolume(obj["volume"].toInt());
+		setAudioOutputDevice(obj["device"].toString());
+		setAudioOutputMute(obj["mute"].toBool());
 	}
 
 	void setRtcEventCallback(RtcEventCallback cb)
@@ -221,6 +232,8 @@ public:
 	virtual void setAudioInputMute(bool mute);
 	virtual void setAudioInputVolume(int volume);
 	virtual void setAudioOutputDevice(const QString &deviceId);
+	virtual void setAudioOutputMute(bool mute);
+	virtual void setAudioOutputVolume(int volume);
 	virtual void stopTimeoutTimer();
 	virtual uint64_t getTotalBytes();
 	virtual void startRecord(const QString &path);
@@ -253,4 +266,7 @@ private:
 	TRTCNetworkQosParam m_qosParams;
 	TRTCAppScene m_sceneParams = TRTCAppSceneLIVE;
 	TRTCRoleType m_roleType = TRTCRoleAnchor;
+
+	int m_cacheAudioInputVolume = 0;
+	int m_cacheAudioOutputVolume = 0;
 };
