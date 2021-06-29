@@ -396,7 +396,8 @@ obs_source_create_internal(const char *id, const char *name,
 	if (!isprivate) {
 		obs_source_dosignal(source, "source_create", NULL);
 	} else
-		obs_source_private_dosignal(source, "source_private_create", NULL);
+		obs_source_private_dosignal(source, "source_private_create",
+					    NULL);
 
 	obs_source_init_finalize(source);
 	return source;
@@ -611,7 +612,8 @@ void obs_source_destroy(struct obs_source *source)
 
 	obs_source_dosignal(source, "source_destroy", "destroy");
 	if (source->context.private)
-		obs_source_private_dosignal(source, "source_private_destroy", NULL);
+		obs_source_private_dosignal(source, "source_private_destroy",
+					    NULL);
 
 	if (source->context.data) {
 		source->info.destroy(source->context.data);
@@ -4802,6 +4804,25 @@ void obs_source_signal_event(const obs_source_t *source, obs_data_t *event_data)
 	calldata_set_ptr(&cd, "source", source);
 	calldata_set_ptr(&cd, "event", event_data);
 	signal_handler_signal(handler, "signal_event", &cd);
+}
+
+void obs_source_preview_click(const obs_source_t *source, float xPos,
+			      float yPos)
+{
+	if (!data_valid(source, "obs_source_preview_click"))
+		return;
+
+	if (source->info.preview_click)
+		source->info.preview_click(source->context.data, xPos, yPos);
+}
+
+void obs_source_extra_draw(const obs_source_t *source)
+{
+	if (!data_valid(source, "obs_source_extra_draw"))
+		return;
+
+	if (source->info.extra_draw)
+		source->info.extra_draw(source->context.data);
 }
 
 void obs_source_set_videoframe(obs_source_t *source,

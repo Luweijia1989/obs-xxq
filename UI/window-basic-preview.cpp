@@ -303,6 +303,68 @@ bool OBSBasicPreview::SelectedAtPos(const vec2 &pos)
 	return !!data.item;
 }
 
+static bool CheckItemClicked(obs_scene_t *scene, obs_sceneitem_t *item,
+			     void *param)
+{
+	SceneFindData *data = reinterpret_cast<SceneFindData *>(param);
+	matrix4 transform;
+	vec3 transformedPos;
+	vec3 pos3;
+
+	if (!SceneItemHasVideo(item))
+		return true;
+	if (obs_sceneitem_is_group(item)) {
+		data->group = item;
+		obs_sceneitem_group_reverse_enum_items(item, CheckItemClicked, param);
+		data->group = nullptr;
+
+		if (data->item) {
+			return false;
+		}
+	}
+
+	vec3_set(&pos3, data->pos.x, data->pos.y, 0.0f);
+
+	obs_sceneitem_get_box_transform(item, &transform);
+
+	if (data->group) {
+		matrix4 parent_transform;
+		obs_sceneitem_get_draw_transform(data->group,
+						 &parent_transform);
+		matrix4_mul(&transform, &transform, &parent_transform);
+	}
+
+	matrix4_inv(&transform, &transform);
+	vec3_transform(&transformedPos, &pos3, &transform);
+
+	if (transformedPos.x >= 0.0f && transformedPos.x <= 1.0f &&
+	    transformedPos.y >= 0.0f && transformedPos.y <= 1.0f) {
+		if ((data->group && obs_sceneitem_selected(data->group)) ||
+		    obs_sceneitem_selected(item)) {
+			obs_source_preview_click(obs_sceneitem_get_source(item),
+						 transformedPos.x,
+						 transformedPos.y);
+			data->item = item;
+			return false;
+		}
+	}
+
+	UNUSED_PARAMETER(scene);
+	return true;
+}
+
+void OBSBasicPreview::sendPreviewClickEvent(const vec2 &pos)
+{
+	OBSBasic *main = reinterpret_cast<OBSBasic *>(App()->GetMainWindow());
+
+	OBSScene scene = main->GetCurrentScene();
+	if (!scene)
+		return;
+
+	SceneFindData data(pos, false);
+	obs_scene_reverse_enum_items(scene, CheckItemClicked, &data);
+}
+
 struct HandleFindData {
 	const vec2 &pos;
 	const float radius;
@@ -617,7 +679,7 @@ void OBSBasicPreview::DoSelect(const vec2 &pos)
 	OBSBasic *main = reinterpret_cast<OBSBasic *>(App()->GetMainWindow());
 
 	OBSScene scene = main->GetCurrentScene();
-	OBSSceneItem item = GetItemAtPos(pos, true);
+	OBSSceneItem item = GetItemAtPos(pos, false);
 
 	obs_scene_enum_items(scene, select_one, (obs_sceneitem_t *)item);
 }
@@ -640,6 +702,8 @@ void OBSBasicPreview::ProcessClick(const vec2 &pos)
 		DoCtrlSelect(pos);
 	else
 		DoSelect(pos);
+
+	sendPreviewClickEvent(pos);
 }
 
 void OBSBasicPreview::mouseReleaseEvent(QMouseEvent *event)
@@ -2087,8 +2151,7 @@ void OBSBasicPreview::DrawTest()
 	}
 
 	ImGui::SetCursorPos(ImVec2(40 * ratio, 0));
-	ImGui::Image(m_textures["editNormal"],
-		     ImVec2(28 * ratio, 28 * ratio));
+	ImGui::Image(m_textures["editNormal"], ImVec2(28 * ratio, 28 * ratio));
 	ImGui::SetItemAllowOverlap();
 	if (ImGui::IsItemHovered(
 		    ImGuiHoveredFlags_AllowWhenBlockedByActiveItem)) {

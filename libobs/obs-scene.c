@@ -577,6 +577,9 @@ static inline void render_item(struct obs_scene_item *item)
 	} else {
 		obs_source_video_render(item->source);
 	}
+
+	obs_source_extra_draw(item->source);
+
 	gs_matrix_pop();
 
 cleanup:
@@ -1500,6 +1503,44 @@ void obs_scene_enum_items(obs_scene_t *scene,
 	full_unlock(scene);
 }
 
+void obs_scene_reverse_enum_items(obs_scene_t *scene,
+				  bool (*callback)(obs_scene_t *,
+						   obs_sceneitem_t *, void *),
+				  void *param)
+{
+	struct obs_scene_item *item;
+
+	if (!scene || !callback)
+		return;
+
+	full_lock(scene);
+
+	item = scene->first_item;
+	while (item) {
+		struct obs_scene_item *next = item->next;
+		if (!next)
+			break;
+		item = next;
+	}
+
+	while (item) {
+		struct obs_scene_item *prev = item->prev;
+
+		obs_sceneitem_addref(item);
+
+		if (!callback(scene, item, param)) {
+			obs_sceneitem_release(item);
+			break;
+		}
+
+		obs_sceneitem_release(item);
+
+		item = prev;
+	}
+
+	full_unlock(scene);
+}
+
 static obs_sceneitem_t *sceneitem_get_ref(obs_sceneitem_t *si)
 {
 	long owners = si->ref;
@@ -1710,12 +1751,10 @@ static obs_sceneitem_t *obs_scene_add_internal(obs_scene_t *scene,
 	item->private_settings = obs_data_create();
 	item->toggle_visibility = OBS_INVALID_HOTKEY_PAIR_ID;
 
-	obs_data_t* settings =  obs_source_get_settings(source);
-	if (settings)
-	{
+	obs_data_t *settings = obs_source_get_settings(source);
+	if (settings) {
 		obs_data_t *need2crop = obs_data_get_obj(settings, "need2crop");
-		if (need2crop)
-		{
+		if (need2crop) {
 			struct obs_sceneitem_crop crop;
 			crop.left = obs_data_get_int(need2crop, "left");
 			crop.right = obs_data_get_int(need2crop, "right");
@@ -2690,8 +2729,8 @@ obs_sceneitem_t *obs_scene_insert_group(obs_scene_t *scene, const char *name,
 	obs_scene_t *sub_scene = create_id("group", name);
 	obs_sceneitem_t *last_item = items ? items[count - 1] : NULL;
 
-	obs_sceneitem_t *item =
-		obs_scene_add_internal(scene, sub_scene->source, last_item, false);
+	obs_sceneitem_t *item = obs_scene_add_internal(scene, sub_scene->source,
+						       last_item, false);
 
 	obs_scene_release(sub_scene);
 
@@ -2791,7 +2830,8 @@ void obs_sceneitem_group_ungroup(obs_sceneitem_t *item)
 		obs_sceneitem_t *dst;
 
 		remove_group_transform(item, last);
-		dst = obs_scene_add_internal(scene, last->source, insert_after, true);
+		dst = obs_scene_add_internal(scene, last->source, insert_after,
+					     true);
 		duplicate_item_data(dst, last, true, true, true);
 		apply_group_transform(last, item);
 
@@ -3095,6 +3135,18 @@ void obs_sceneitem_group_enum_items(obs_sceneitem_t *group,
 	obs_scene_t *scene = group->source->context.data;
 	if (scene)
 		obs_scene_enum_items(scene, callback, param);
+}
+
+void obs_sceneitem_group_reverse_enum_items(
+	obs_sceneitem_t *group,
+	bool (*callback)(obs_scene_t *, obs_sceneitem_t *, void *), void *param)
+{
+	if (!group || !group->is_group)
+		return;
+
+	obs_scene_t *scene = group->source->context.data;
+	if (scene)
+		obs_scene_reverse_enum_items(scene, callback, param);
 }
 
 void obs_sceneitem_force_update_transform(obs_sceneitem_t *item)

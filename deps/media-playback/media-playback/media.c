@@ -494,7 +494,7 @@ static bool mp_media_reset(mp_media_t *m)
 	if (!active && m->is_local_file && m->v_preload_cb)
 		mp_media_next_video(m, true);
 	if (stopping && m->stop_cb)
-		m->stop_cb(m->opaque);
+		m->stop_cb(m->opaque, false);
 	return true;
 }
 
@@ -609,11 +609,12 @@ static bool init_avformat(mp_media_t *m)
 	return true;
 }
 
-static inline bool mp_media_thread(mp_media_t *m)
+static inline bool mp_media_thread(mp_media_t *m, bool *is_open_fail)
 {
 	os_set_thread_name("mp_media_thread");
 
 	if (!init_avformat(m)) {
+		*is_open_fail = true;
 		return false;
 	}
 	if (!mp_media_reset(m)) {
@@ -674,10 +675,10 @@ static inline bool mp_media_thread(mp_media_t *m)
 static void *mp_media_thread_start(void *opaque)
 {
 	mp_media_t *m = opaque;
-
-	if (!mp_media_thread(m)) {
+	bool is_open_fail = false;
+	if (!mp_media_thread(m, &is_open_fail)) {
 		if (m->stop_cb) {
-			m->stop_cb(m->opaque);
+			m->stop_cb(m->opaque, is_open_fail);
 		}
 	}
 
