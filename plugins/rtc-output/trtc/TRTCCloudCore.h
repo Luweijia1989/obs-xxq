@@ -1,26 +1,16 @@
 #pragma once
 #include "ITRTCCloud.h"
-#include "DataCenter.h"
 #include <map>
 #include <string>
 #include <mutex>
 #include <QObject>
 #include <QJsonObject>
+#include "rtc-base.h"
 
 class TRTC;
 
 typedef ITRTCCloud *(__cdecl *GetTRTCShareInstance)();
 typedef void(__cdecl *DestroyTRTCShareInstance)();
-
-struct MixInfo
-{
-	uint32_t width;
-	uint32_t height;
-	uint32_t vbitrate;
-	uint32_t fps;
-	int mixerCount;
-	bool onlyAnchorVideo;
-};
 
 class TRTCCloudCore : public QObject,
 		      public ITRTCCloudCallback,
@@ -87,20 +77,28 @@ public:
 	virtual void onStopPublishing(int err, const char *errMsg);
 	virtual void onStartPublishCDNStream(int err, const char *errMsg);
 	virtual void onStopPublishCDNStream(int err, const char *errMsg);
+	virtual void onConnectOtherRoom(const char* userId, TXLiteAVError errCode, const char* errMsg);
+	virtual void onDisconnectOtherRoom(TXLiteAVError errCode, const char* errMsg);
+
+	virtual void onRecvCustomCmdMsg(const char* userId, int32_t cmdID, uint32_t seq, const uint8_t* message, uint32_t messageSize);
 
 public:
 	void connectOtherRoom(QString userId, uint32_t roomId);
-	void startCloudMixStream(const char *remoteRoomId, int cdnAppID, int bizID, const MixInfo &info);
+	void disconnectOtherRoom();
+	void updateCloudMixStream(const RTCBase::CloudMixInfo &mixInfo, const QMap<QString, RTCBase::RoomUser> &mixUsers);
 	void stopCloudMixStream();
 
 protected:
-	void setPresetLayoutConfig(TRTCTranscodingConfig &config, const char *remoteRoomId, const MixInfo &info);
+	void setPresetLayoutConfig(TRTCTranscodingConfig &config, const RTCBase::CloudMixInfo &mixInfo);
+	void setManualLayoutConfig(int width, int height, TRTCTranscodingConfig &config, const QMap<QString, RTCBase::RoomUser> &mixUsers);
 
 private:
 	static TRTCCloudCore *m_instance;
 	TRTC *m_rtcInstance = nullptr;
 	ITRTCCloud *m_pCloud = nullptr;
 	uint32_t sentBytes = 0;
+	int32_t m_remoteRoomId = -1;
+	TRTCTranscodingConfig m_config;
 
 private:
 	HMODULE trtc_module_;

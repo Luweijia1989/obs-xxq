@@ -26,7 +26,6 @@ include_directories(SYSTEM ${ZLIB_INCLUDE_DIR})
 set(rtc-output_SOURCES
 	rtc-output.cpp
 	trtc/TRTCCloudCore.cpp
-	trtc/DataCenter.cpp
 	rtc-param.cpp
 	rtc-base.cpp
 )
@@ -35,7 +34,6 @@ set(rtc-output_SOURCES
 set(rtc-output_HEADERS
 	rtc-output.h
 	trtc/TRTCCloudCore.h
-	trtc/DataCenter.h
 	rtc-param.h
 	rtc-base.h
 	rtc-define.h
@@ -63,6 +61,18 @@ add_custom_command(TARGET rtc-output POST_BUILD
 		COMMAND "${CMAKE_COMMAND}" -E copy
 			"${PROJECT_SOURCE_DIR}/trtc/sdk/lib/${target}"
 			"$<TARGET_FILE_DIR:rtc-output>/${target}"
+		VERBATIM)
+
+add_custom_command(TARGET rtc-output POST_BUILD
+		COMMAND "${CMAKE_COMMAND}" -E copy
+			"F:/obs-xxq/build32/plugins/rtc-output/Debug/rtc-output.dll"
+			"F:/xxq-recon/Win32/Debug/plugins/obs-plugins/32bit/rtc-output.dll"
+		VERBATIM)
+
+add_custom_command(TARGET rtc-output POST_BUILD
+		COMMAND "${CMAKE_COMMAND}" -E copy
+			"F:/obs-xxq/build32/plugins/rtc-output/Debug/rtc-output.pdb"
+			"F:/xxq-recon/Win32/Debug/plugins/obs-plugins/32bit/rtc-output.pdb"
 		VERBATIM)
 endfunction()
 
