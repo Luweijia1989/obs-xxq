@@ -48,6 +48,11 @@ enum broadcast_state {
 	SUCCESS,
 };
 
+enum media_subtype {
+	MEDIA,
+	BROADCAST,
+};
+
 struct ffmpeg_source {
 	mp_media_t media;
 	bool media_valid;
@@ -75,7 +80,11 @@ struct ffmpeg_source {
 	bool close_when_inactive;
 	bool seekable;
 
-	bool is_broadcast;
+	enum media_subtype subtype;
+	const char *bg_wait;
+	const char *bg_connecting;
+	const char *bg_fail;
+	const char *btn_finish;
 	enum broadcast_state state;
 	struct obs_source_frame2 image_frame;
 	gs_image_file2_t if2;
@@ -126,17 +135,20 @@ static void ffmpeg_source_update_broadcast_state(struct ffmpeg_source *s,
 	const char *path = NULL;
 	switch (s->state) {
 	case WAITING:
-		path = "F:\\xxq-recon\\Win32\\Debug\\resource\\bg_wait.png";
+		path = s->bg_wait;
 		break;
 	case CONNECTING:
-		path = "F:\\xxq-recon\\Win32\\Debug\\resource\\bg_connecting.png";
+		path = s->bg_connecting;
 		break;
 	case FAILED:
-		path = "F:\\xxq-recon\\Win32\\Debug\\resource\\bg_fail.png";
+		path = s->bg_fail;
 		break;
 	default:
 		break;
 	}
+
+	if (!path)
+		return;
 
 	enum gs_color_format format;
 	uint32_t cx, cy;
@@ -311,7 +323,7 @@ static void dump_source_info(struct ffmpeg_source *s, const char *input,
 static void get_frame(void *opaque, struct obs_source_frame *f)
 {
 	struct ffmpeg_source *s = opaque;
-	if (s->is_broadcast && s->state != SUCCESS)
+	if (s->subtype == BROADCAST && s->state != SUCCESS)
 		s->state = SUCCESS;
 
 	obs_source_output_video(s->source, f);
@@ -342,7 +354,7 @@ static void media_stopped(void *opaque, bool is_open_fail)
 			s->destroy_media = true;
 	}
 
-	if (s->is_broadcast) {
+	if (s->subtype == BROADCAST) {
 		if (is_open_fail)
 			ffmpeg_source_update_broadcast_state(s, FAILED);
 		else
@@ -391,7 +403,7 @@ static void ffmpeg_source_start(struct ffmpeg_source *s)
 		ffmpeg_source_open(s);
 
 	if (s->media_valid) {
-		if (s->is_broadcast)
+		if (s->subtype == BROADCAST)
 			ffmpeg_source_update_broadcast_state(s, CONNECTING);
 
 		mp_media_play(&s->media, s->is_looping);
@@ -537,8 +549,11 @@ static void *ffmpeg_source_create(obs_data_t *settings, obs_source_t *source)
 
 	struct ffmpeg_source *s = bzalloc(sizeof(struct ffmpeg_source));
 	s->source = source;
-	//s->is_broadcast = obs_data_get_bool(settings, "is_broadcast");
-	s->is_broadcast = true;
+	s->subtype = obs_data_get_int(settings, "subtype");
+	s->bg_wait = obs_data_get_string(settings, "bg_wait");
+	s->bg_connecting = obs_data_get_string(settings, "bg_connecting");
+	s->bg_fail = obs_data_get_string(settings, "bg_fail");
+	s->btn_finish = obs_data_get_string(settings, "btn_finish");
 
 	memset(&s->image_frame, 0, sizeof(&s->image_frame));
 	s->image_frame.range = VIDEO_RANGE_PARTIAL;
@@ -547,7 +562,7 @@ static void *ffmpeg_source_create(obs_data_t *settings, obs_source_t *source)
 				    s->image_frame.color_range_min,
 				    s->image_frame.color_range_max);
 
-	if (s->is_broadcast)
+	if (s->subtype == BROADCAST)
 		ffmpeg_source_update_broadcast_state(s, WAITING);
 
 	s->hotkey = obs_hotkey_register_source(source, "MediaSource.Restart",
@@ -662,11 +677,9 @@ static void ffmpeg_source_extra_draw(void *data)
 	if (!w)
 		return;
 
-	if (s->is_broadcast && s->state == SUCCESS) {
+	if (s->subtype == BROADCAST && s->state == SUCCESS && s->btn_finish) {
 		if (!s->if2.image.texture) {
-			gs_image_file2_init(
-				&s->if2,
-				"F:\\xxq-recon\\Win32\\Debug\\resource\\btn_finish.png");
+			gs_image_file2_init(&s->if2, s->btn_finish);
 			gs_image_file2_init_texture(&s->if2);
 		}
 		if (s->if2.image.loaded) {
