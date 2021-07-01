@@ -354,7 +354,8 @@ obs_source_create_internal(const char *id, const char *name,
 			isprivate = true;
 	}
 
-	source->async_video_keep_last_frame = obs_data_get_bool(settings, "keep_last_frame");
+	source->async_video_keep_last_frame =
+		obs_data_get_bool(settings, "keep_last_frame");
 	source->mute_unmute_key = OBS_INVALID_HOTKEY_PAIR_ID;
 	source->push_to_mute_key = OBS_INVALID_HOTKEY_ID;
 	source->push_to_talk_key = OBS_INVALID_HOTKEY_ID;
@@ -2033,6 +2034,7 @@ static void obs_source_update_async_video(obs_source_t *source)
 
 		source->async_rendered = true;
 		if (frame) {
+			frame->has_shown = true;
 			check_to_swap_bgrx_bgra(source, frame);
 
 			if (!source->async_decoupled ||
@@ -3261,11 +3263,21 @@ static inline struct obs_source_frame *get_closest_frame(obs_source_t *source,
 	if (!source->async_frames.num)
 		return NULL;
 
+	if (source->async_video_keep_last_frame) {
+		struct obs_source_frame *frame = source->async_frames.array[0];
+		if (source->async_frames.num == 1)
+			return frame;
+		else {
+			if (frame->has_shown) {
+				da_erase(source->async_frames, 0);
+				return get_closest_frame(source, sys_time);
+			}
+		}
+	}
+
 	if (!source->last_frame_ts || ready_async_frame(source, sys_time)) {
 		struct obs_source_frame *frame = source->async_frames.array[0];
-		if (!source->async_video_keep_last_frame ||
-		    source->async_frames.num > 1)
-			da_erase(source->async_frames, 0);
+		da_erase(source->async_frames, 0);
 
 		if (!source->last_frame_ts)
 			source->last_frame_ts = frame->timestamp;
