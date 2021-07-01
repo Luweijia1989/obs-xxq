@@ -122,9 +122,8 @@ static void ffmpeg_source_update_image_data(struct ffmpeg_source *s,
 	s->image_frame.linesize[0] = cx * 4;
 	s->image_frame.linesize[1] = 0;
 	s->image_frame.linesize[2] = 0;
-	if (s->image_frame.data[0]) {
+	if (s->image_frame.data[0])
 		obs_source_output_video2(s->source, &s->image_frame);
-	}
 }
 
 static void ffmpeg_source_update_broadcast_state(struct ffmpeg_source *s,

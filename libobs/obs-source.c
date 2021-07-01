@@ -354,6 +354,7 @@ obs_source_create_internal(const char *id, const char *name,
 			isprivate = true;
 	}
 
+	source->async_video_keep_last_frame = obs_data_get_bool(settings, "keep_last_frame");
 	source->mute_unmute_key = OBS_INVALID_HOTKEY_PAIR_ID;
 	source->push_to_mute_key = OBS_INVALID_HOTKEY_ID;
 	source->push_to_talk_key = OBS_INVALID_HOTKEY_ID;
@@ -396,8 +397,7 @@ obs_source_create_internal(const char *id, const char *name,
 	if (!isprivate) {
 		obs_source_dosignal(source, "source_create", NULL);
 	} else
-		obs_source_private_dosignal(source, "source_private_create",
-					    NULL);
+		obs_source_private_dosignal(source, "source_private_create");
 
 	obs_source_init_finalize(source);
 	return source;
@@ -612,8 +612,7 @@ void obs_source_destroy(struct obs_source *source)
 
 	obs_source_dosignal(source, "source_destroy", "destroy");
 	if (source->context.private)
-		obs_source_private_dosignal(source, "source_private_destroy",
-					    NULL);
+		obs_source_private_dosignal(source, "source_private_destroy");
 
 	if (source->context.data) {
 		source->info.destroy(source->context.data);
@@ -3264,7 +3263,9 @@ static inline struct obs_source_frame *get_closest_frame(obs_source_t *source,
 
 	if (!source->last_frame_ts || ready_async_frame(source, sys_time)) {
 		struct obs_source_frame *frame = source->async_frames.array[0];
-		da_erase(source->async_frames, 0);
+		if (!source->async_video_keep_last_frame ||
+		    source->async_frames.num > 1)
+			da_erase(source->async_frames, 0);
 
 		if (!source->last_frame_ts)
 			source->last_frame_ts = frame->timestamp;
@@ -4797,7 +4798,7 @@ void obs_source_do_custom_command(const obs_source_t *source,
 
 void obs_source_signal_event(const obs_source_t *source, obs_data_t *event_data)
 {
-	auto handler = obs_source_get_signal_handler(source);
+	signal_handler_t *handler = obs_source_get_signal_handler(source);
 	struct calldata cd;
 	uint8_t stack[128];
 	calldata_init_fixed(&cd, stack, sizeof(stack));
