@@ -51,6 +51,8 @@ set(qmlview_SOURCES
     webcapture.cpp
     fans-target.cpp
     first-rank-list.cpp
+    new-reward.cpp
+    new-follow.cpp
 )
 
 set( qmlview_HEADERS
@@ -71,6 +73,8 @@ set( qmlview_HEADERS
     webcapture.h
     fans-target.h
     first-rank-list.h
+    new-reward.h
+    new-follow.h
 )
 
 set(qmlview_QRC qmlview.qrc)

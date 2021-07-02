@@ -1,19 +1,18 @@
-﻿#include "first-rank-list.h"
+﻿#include "new-follow.h"
 #include "renderer.h"
 #include "qmlhelper.h"
 
 //QML_REGISTER_CREATABLE_TYPE(TextSlideShow, TextSlideShow)
 
-FirstRankList::FirstRankList(QObject *parent /* = nullptr */)
-	: QmlSourceBase(parent)
+NewFollow::NewFollow(QObject *parent /* = nullptr */) : QmlSourceBase(parent)
 {
-	addProperties("firstRankListProperties", this);
+	addProperties("newFollowProperties", this);
 }
 
-void FirstRankList::default(obs_data_t *settings)
+void NewFollow::default(obs_data_t *settings)
 {
 	obs_data_set_default_string(settings, "file",
-				    "qrc:/qmlfiles/FirstRankList.qml");
+				    "qrc:/qmlfiles/NewFollow.qml");
 	obs_data_set_default_string(settings, "themefont",
 				    u8"阿里巴巴普惠体 M");
 	obs_data_set_default_bool(settings, "themebold", false);
@@ -24,24 +23,25 @@ void FirstRankList::default(obs_data_t *settings)
 	obs_data_set_default_bool(settings, "dataitalic", false);
 
 	obs_data_set_default_int(settings, "themetype", 1);
-	obs_data_set_default_int(settings, "listtype", 1); // 1:日版 2:周版
 	obs_data_set_default_string(settings, "firstname", "");
 	obs_data_set_default_string(settings, "avatarPath", "");
 
 	obs_data_set_default_string(settings, "themefontcolor", "#FFFFFF");
 	obs_data_set_default_string(settings, "datafontcolor", "#FFC80B");
 	obs_data_set_default_int(settings, "transparence", 100);
+	obs_data_set_default_bool(settings, "rewardLimitCheck", false);
+	obs_data_set_default_int(settings, "rewardLimit", 10);
 }
 
-static const char *firstranklist_source_get_name(void *unused)
+static const char *newfollow_source_get_name(void *unused)
 {
 	UNUSED_PARAMETER(unused);
-	return obs_module_text("quickfirstranklistshow");
+	return obs_module_text("quicknewfollowshow");
 }
 
-static void firstranklist_source_update(void *data, obs_data_t *settings)
+static void newfollow_source_update(void *data, obs_data_t *settings)
 {
-	FirstRankList *s = (FirstRankList *)data;
+	NewFollow *s = (NewFollow *)data;
 	s->baseUpdate(settings);
 
 	bool bold1 = obs_data_get_bool(settings, "databold");
@@ -73,13 +73,10 @@ static void firstranklist_source_update(void *data, obs_data_t *settings)
 	int themeType = obs_data_get_int(settings, "themetype");
 	s->setthemetype(themeType);
 
-	int listtype = obs_data_get_int(settings, "listtype");
-	s->setlisttype(listtype);
-
 	const char *firstname = obs_data_get_string(settings, "firstname");
 	s->setfirstname(firstname);
 
-	const char *avatarpath = obs_data_get_string(settings, "avatarpath");
+	const char *avatarpath = obs_data_get_string(settings, "avatarPath");
 	s->setavatarpath(avatarpath);
 
 	float transparence = (float)obs_data_get_int(settings, "transparence");
@@ -88,43 +85,42 @@ static void firstranklist_source_update(void *data, obs_data_t *settings)
 	emit s->update();
 }
 
-static void *firstranklist_source_create(obs_data_t *settings,
-					 obs_source_t *source)
+static void *newfollow_source_create(obs_data_t *settings, obs_source_t *source)
 {
-	FirstRankList *context = new FirstRankList();
+	NewFollow *context = new NewFollow();
 	context->setSource(source);
 
-	firstranklist_source_update(context, settings);
+	newfollow_source_update(context, settings);
 	return context;
 }
 
-static void firstranklist_source_destroy(void *data)
+static void newfollow_source_destroy(void *data)
 {
 	if (!data)
 		return;
-	FirstRankList *s = (FirstRankList *)data;
+	NewFollow *s = (NewFollow *)data;
 	s->baseDestroy();
 	s->deleteLater();
 }
 
-static void firstranklist_source_defaults(obs_data_t *settings)
+static void newfollow_source_defaults(obs_data_t *settings)
 {
 	QmlSourceBase::baseDefault(settings);
 	obs_data_set_default_int(settings, "width", 602);
 	obs_data_set_default_int(settings, "height", 164);
-	FirstRankList::default(settings);
+	NewFollow::default(settings);
 }
 
-static obs_properties_t *firstranklist_source_properties(void *data)
+static obs_properties_t *newfollow_source_properties(void *data)
 {
 	if (!data)
 		return nullptr;
-	FirstRankList *s = (FirstRankList *)data;
+	NewFollow *s = (NewFollow *)data;
 	obs_properties_t *props = s->baseProperties();
 	return props;
 }
 
-static void quickview_firstlistsource_make_custom(void *data,
+static void quickview_newfollowsource_make_custom(void *data,
 						  obs_data_t *command)
 {
 	if (!data)
@@ -132,23 +128,23 @@ static void quickview_firstlistsource_make_custom(void *data,
 
 	const char *cmdType = obs_data_get_string(command, "type");
 	if (strcmp("replay", cmdType) == 0) {
-		FirstRankList *s = (FirstRankList *)data;
+		NewFollow *s = (NewFollow *)data;
 		emit s->replay();
 	}
 }
 
-struct obs_source_info quickfirstranklistshow_source_info = {
-	"quickfirstranklistshow_source",
+struct obs_source_info quicknewfollowshow_source_info = {
+	"quicknewfollowshow_source",
 	OBS_SOURCE_TYPE_INPUT,
 	OBS_SOURCE_VIDEO | OBS_SOURCE_INTERACTION,
-	firstranklist_source_get_name,
-	firstranklist_source_create,
-	firstranklist_source_destroy,
+	newfollow_source_get_name,
+	newfollow_source_create,
+	newfollow_source_destroy,
 	base_source_getwidth,
 	base_source_getheight,
-	firstranklist_source_defaults,
-	firstranklist_source_properties,
-	firstranklist_source_update,
+	newfollow_source_defaults,
+	newfollow_source_properties,
+	newfollow_source_update,
 	nullptr,
 	nullptr,
 	base_source_show,
@@ -175,4 +171,4 @@ struct obs_source_info quickfirstranklistshow_source_info = {
 	nullptr,
 	nullptr,
 	nullptr,
-	quickview_firstlistsource_make_custom};
+	quickview_newfollowsource_make_custom};

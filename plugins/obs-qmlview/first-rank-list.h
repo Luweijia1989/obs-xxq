@@ -1,7 +1,6 @@
 ﻿#pragma once
 
 #include <QObject>
-#include <QMutex>
 #include "qmlsourcebase.h"
 #include <QTimer>
 #include <QPointer>

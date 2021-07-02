@@ -11,11 +11,11 @@ Item {
     {
         if(themeType === 1)
         {
-            return "qrc:/qmlfiles/image/fanstarget/background_fans.png";
+            return "qrc:/qmlfiles/image/fanstarget/background_fans1.png";
         }
         else
         {
-            return "qrc:/qmlfiles/image/fans_background.png";
+            return "qrc:/qmlfiles/image/fanstarget/background_fans2.png";
         }
     }
 
@@ -51,11 +51,11 @@ Item {
     {
         if(themeType === 1)
         {
-            return 250;
+            return 602;
         }
         else
         {
-            return 225;
+            return 593;
         }
     }
 
@@ -63,11 +63,11 @@ Item {
     {
         if(themeType === 1)
         {
-            return 80;
+            return 164;
         }
         else
         {
-            return 82;
+            return 174;
         }
     }
 
@@ -111,11 +111,11 @@ Item {
     {
         if(themeType === 1)
         {
-            return 220
+            return 578
         }
         else
         {
-             return 158
+             return 448
         }
     }
 
@@ -139,8 +139,7 @@ Item {
                 return c
         }
     }
-    //Component {
-        //id: itemCompont
+
     Rectangle {
         id:rec1
         width: backGroundWidth(fansTargetProperties.themetype)
@@ -159,18 +158,18 @@ Item {
         Item{
             id:item1
             anchors.left: parent.left
-            anchors.leftMargin: fansTargetProperties.themetype === 1 ? 19:21
+            anchors.leftMargin: fansTargetProperties.themetype === 1 ? 32:45
             anchors.top: parent.top
-            anchors.topMargin: fansTargetProperties.themetype === 1 ? 25:27
+            anchors.topMargin: fansTargetProperties.themetype === 1 ? 30:40
             anchors.bottom: parent.bottom
-            anchors.bottomMargin: 27
-            width: fansTargetProperties.themetype === 1 ? 212 :158
-            height: 34
+            anchors.bottomMargin:73
+            height: 84
+			width:fansTargetProperties.themetype === 1 ? 546:448
             Text {
                 id: text1
                 text: "目标粉丝"
                 font.family: fansTargetProperties.themefont
-                font.pixelSize:fansTargetProperties.themetype ===1 ? 16 : 14
+                font.pixelSize:32
                 font.bold: fansTargetProperties.themebold
                 font.italic: fansTargetProperties.themeitalic
                 color: fansTargetProperties.themefontcolor//titleTextColor(fansTargetProperties.themetype)
@@ -179,21 +178,21 @@ Item {
             Text {
                 id: text2
                 anchors.right:parent.right
-                anchors.bottom:fansTargetProperties.themetype === 1 ? parent.bottom : text1.bottom
+                anchors.bottom:text1.bottom
                 text: progressText(fansTargetProperties.realfans,fansTargetProperties.totalfans)
                 font.family: fansTargetProperties.datafont
-                font.pixelSize: 12
+                font.pixelSize: 32
                 font.bold: fansTargetProperties.databold
                 font.italic: fansTargetProperties.dataitalic
-                color: fansTargetProperties.datafontcolor//progressTextColor(fansTargetProperties.themetype)
+                color: fansTargetProperties.datafontcolor
             }
         }
         ProgressBar {
             id: progressBar1
             width: processWidth(fansTargetProperties.themetype)
-            height: fansTargetProperties.themetype === 1 ? 8:10
-            x:fansTargetProperties.themetype === 1 ? 15 : 21
-            y:fansTargetProperties.themetype === 1 ? 57 :50
+            height: fansTargetProperties.themetype === 1 ? 22:24
+            x:fansTargetProperties.themetype === 1 ? 12 : 44
+            y:fansTargetProperties.themetype === 1 ? 128 :117
             value:caculateProcessValue(fansTargetProperties.realfans,fansTargetProperties.totalfans)
             maximumValue: 100
             minimumValue: 0
@@ -204,11 +203,10 @@ Item {
             }
             progress: Rectangle{
             color: progressColor(fansTargetProperties.themetype)
-            radius:fansTargetProperties.themetype === 1 ? 0:5
+            radius:fansTargetProperties.themetype === 1 ? 0:12
             }
           }
          }
     }
-    //}
 }
 

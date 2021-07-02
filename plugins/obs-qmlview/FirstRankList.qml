@@ -11,11 +11,11 @@ Item {
     {
         if(themeType === 1)
         {
-            return "qrc:/qmlfiles/image/listfirst/zhuti_bangyi.png";
+            return "qrc:/qmlfiles/image/listfirst/background_zhoubang1.png";
         }
         else
         {
-            return "qrc:/qmlfiles/image/background.png";
+            return "qrc:/qmlfiles/image/listfirst/background_zhoubang2.png";
         }
     }
 
@@ -23,11 +23,11 @@ Item {
     {
         if(themeType === 1)
         {
-            return 250;
+            return 602;
         }
         else
         {
-            return 245;
+            return 593;
         }
     }
 
@@ -35,11 +35,11 @@ Item {
     {
         if(themeType === 1)
         {
-            return 80;
+            return 164;
         }
         else
         {
-            return 82;
+            return 174;
         }
     }
 
@@ -106,33 +106,32 @@ Item {
         Item{
             id:item1
             anchors.left: parent.left
-            anchors.leftMargin: 15
+            anchors.leftMargin: firstRankListProperties.themetype ===1 ? 12 : 17
             anchors.top: parent.top
-            anchors.topMargin: 15
-            width: parent.width - 15
-            height:parent.height - 15
-
+            anchors.topMargin:  firstRankListProperties.themetype ===1 ? 12 : 17
+            width:firstRankListProperties.themetype ===1 ? parent.width - 24 : parent.width - 34
+            height:firstRankListProperties.themetype ===1 ? parent.height - 24 : parent.height - 34
             CircularRectangle{
                 id: avartar
-                anchors.leftMargin: firstRankListProperties.themetype ===1 ? 9 : 4
+                anchors.leftMargin: firstRankListProperties.themetype ===1 ? 24 : 12
                 anchors.left: parent.left
                 anchors.top: parent.top
-                anchors.topMargin: 4
-                width: 44
-                height: 44
-                radius: 22
+                anchors.topMargin: 11
+                width: 118
+                height: 118
+                radius: 59
                 imgSrc: avartarPath(firstRankListProperties.avatarpath)
             }
 
             Text {
                 id: text1
                 anchors.left: avartar.right
-                anchors.leftMargin: firstRankListProperties.themetype ===1 ? 30 : 6
+                anchors.leftMargin: firstRankListProperties.themetype ===1 ? 82 : 24
                 anchors.top: avartar.top
-                anchors.topMargin: firstRankListProperties.themetype ===1 ?3:1
+                anchors.topMargin: firstRankListProperties.themetype ===1 ?17:15
                 text: theNameText(firstRankListProperties.listtype)
                 font.family: firstRankListProperties.themefont
-                font.pixelSize:firstRankListProperties.themetype ===1 ? 14 : 16
+                font.pixelSize:32
                 font.bold: firstRankListProperties.themebold
                 font.italic: firstRankListProperties.themeitalic
                 color: firstRankListProperties.themefontcolor
@@ -140,15 +139,16 @@ Item {
             Text {
                 id: text2
                 anchors.left: avartar.right
-                anchors.leftMargin: firstRankListProperties.themetype ===1 ? 30 : 6
+                anchors.leftMargin: firstRankListProperties.themetype ===1 ? 82 : 24
                 anchors.bottom:parent.bottom
-                anchors.bottomMargin: 21
+                anchors.bottomMargin: firstRankListProperties.themetype ===1 ? 22 : 25
                 text: firNameText(firstRankListProperties.firstname)
                 font.family: firstRankListProperties.datafont
-                font.pixelSize: 12
+                font.pixelSize: 26
                 font.bold: firstRankListProperties.databold
                 font.italic: firstRankListProperties.dataitalic
                 color: firstRankListProperties.datafontcolor
+                verticalAlignment: Text.AlignVBottom
             }
         }
     }

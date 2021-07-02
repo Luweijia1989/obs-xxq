@@ -2,13 +2,15 @@
 
 #include <QObject>
 #include "qmlsourcebase.h"
+#include <QTimer>
+#include <QPointer>
 
-class FansTarget : public QmlSourceBase {
+class NewReward : public QmlSourceBase {
 	Q_OBJECT
 public:
 	DEFINE_PROPERTY(float, transparence)
-	DEFINE_PROPERTY(int, totalfans)
-	DEFINE_PROPERTY(int, realfans)
+	DEFINE_PROPERTY(QString, firstname)
+	DEFINE_PROPERTY(QString, avatarpath)
 	DEFINE_PROPERTY(int, themetype)
 	DEFINE_PROPERTY(QString, themefont)
 	DEFINE_PROPERTY(bool, themebold)
@@ -19,6 +21,9 @@ public:
 	DEFINE_PROPERTY(bool, dataitalic)
 	DEFINE_PROPERTY(QString, datafontcolor)
 public:
-	FansTarget(QObject *parent = nullptr);
+	NewReward(QObject *parent = nullptr);
 	static void default(obs_data_t *settings);
+signals:
+	void replay();
+	void update();
 };
