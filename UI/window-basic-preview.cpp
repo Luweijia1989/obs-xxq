@@ -1970,6 +1970,7 @@ OBSBasicPreview *OBSBasicPreview::Get()
 
 void OBSBasicPreview::CreateImGuiTextures()
 {
+	return;
 	auto func = [=](QString path) {
 		ID3D11ShaderResourceView *view = nullptr;
 		QImage or = QImage(path);
@@ -2015,6 +2016,7 @@ void OBSBasicPreview::CreateImGuiTextures()
 
 void OBSBasicPreview::ClearImGuiTextures()
 {
+	return;
 	for (auto iter = m_textures.begin(); iter != m_textures.end(); iter++) {
 		auto view = iter.value();
 		view->Release();
@@ -2025,6 +2027,7 @@ void OBSBasicPreview::ClearImGuiTextures()
 
 void OBSBasicPreview::initIMGui(void *device, void *context, void *data)
 {
+	return;
 	auto view = static_cast<OBSBasicPreview *>(data);
 	IMGUI_CHECKVERSION();
 	ImGui::CreateContext();
@@ -2050,6 +2053,7 @@ void OBSBasicPreview::initIMGui(void *device, void *context, void *data)
 
 void OBSBasicPreview::DrawTest()
 {
+	return;
 	auto ratio = screen()->devicePixelRatio();
 	// Start the Dear ImGui frame
 	ImGui_ImplDX11_NewFrame();
@@ -2118,17 +2122,18 @@ extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd,
 bool OBSBasicPreview::nativeEvent(const QByteArray &eventType, void *message,
 				  long *result)
 {
-	if (eventType == "windows_generic_MSG") {
+	/*if (eventType == "windows_generic_MSG") {
 		MSG *msg = static_cast<MSG *>(message);
 		ImGui_ImplWin32_WndProcHandler(msg->hwnd, msg->message,
 					       msg->wParam, msg->lParam);
-	}
+	}*/
 
 	return OBSQTDisplay::nativeEvent(eventType, message, result);
 }
 
 bool OBSBasicPreview::needProcessMouse()
 {
+	return true;
 	if (ImGui::GetCurrentContext() == NULL)
 		return true;
 
