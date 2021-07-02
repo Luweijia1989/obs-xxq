@@ -2034,7 +2034,6 @@ static void obs_source_update_async_video(obs_source_t *source)
 
 		source->async_rendered = true;
 		if (frame) {
-			frame->has_shown = true;
 			check_to_swap_bgrx_bgra(source, frame);
 
 			if (!source->async_decoupled ||
@@ -3307,6 +3306,7 @@ struct obs_source_frame *obs_source_get_frame(obs_source_t *source)
 	source->cur_async_frame = NULL;
 
 	if (frame) {
+		frame->has_shown = true;
 		os_atomic_inc_long(&frame->refs);
 	}
 
