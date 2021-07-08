@@ -98,6 +98,7 @@ struct hook_info {
 	bool use_scale;
 	bool force_shmem;
 	bool capture_overlay;
+	bool only_lyric;
 
 	/* hook addresses */
 	struct graphics_offsets offsets;

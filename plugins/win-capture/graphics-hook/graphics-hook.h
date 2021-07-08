@@ -42,6 +42,7 @@ extern bool hook_d3d8(void);
 extern bool hook_d3d9(void);
 extern bool hook_dxgi(void);
 extern bool hook_gl(void);
+extern bool hook_lyric(void);
 
 extern void d3d10_capture(void *swap, void *backbuffer, bool capture_overlay);
 extern void d3d10_free(void);

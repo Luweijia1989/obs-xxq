@@ -312,47 +312,57 @@ static inline bool attempt_hook(void)
 	static bool d3d9_hooked = false;
 	static bool dxgi_hooked = false;
 	static bool gl_hooked = false;
+	static bool lyric_hooked = false;
 
-	if (!d3d9_hooked) {
-		if (!d3d9_hookable()) {
-			DbgOut("no D3D9 hook address found!\n");
-			d3d9_hooked = true;
-		} else {
-			d3d9_hooked = hook_d3d9();
-			if (d3d9_hooked) {
+	if (global_hook_info->only_lyric) {
+		if (!lyric_hooked) {
+			lyric_hooked = hook_lyric();
+			if (lyric_hooked) {
 				return true;
 			}
 		}
-	}
-
-	if (!dxgi_hooked) {
-		if (!dxgi_hookable()) {
-			DbgOut("no DXGI hook address found!\n");
-			dxgi_hooked = true;
-		} else {
-			dxgi_hooked = hook_dxgi();
-			if (dxgi_hooked) {
-				return true;
+	} else {
+		if (!d3d9_hooked) {
+			if (!d3d9_hookable()) {
+				DbgOut("no D3D9 hook address found!\n");
+				d3d9_hooked = true;
+			} else {
+				d3d9_hooked = hook_d3d9();
+				if (d3d9_hooked) {
+					return true;
+				}
 			}
 		}
-	}
 
-	if (!gl_hooked) {
-		gl_hooked = hook_gl();
-		if (gl_hooked) {
-			return true;
+		if (!dxgi_hooked) {
+			if (!dxgi_hookable()) {
+				DbgOut("no DXGI hook address found!\n");
+				dxgi_hooked = true;
+			} else {
+				dxgi_hooked = hook_dxgi();
+				if (dxgi_hooked) {
+					return true;
+				}
+			}
 		}
-		/*} else {
+
+		if (!gl_hooked) {
+			gl_hooked = hook_gl();
+			if (gl_hooked) {
+				return true;
+			}
+			/*} else {
 		rehook_gl();*/
-	}
+		}
 
-	if (!d3d8_hooked) {
-		if (!d3d8_hookable()) {
-			d3d8_hooked = true;
-		} else {
-			d3d8_hooked = hook_d3d8();
-			if (d3d8_hooked) {
-				return true;
+		if (!d3d8_hooked) {
+			if (!d3d8_hookable()) {
+				d3d8_hooked = true;
+			} else {
+				d3d8_hooked = hook_d3d8();
+				if (d3d8_hooked) {
+					return true;
+				}
 			}
 		}
 	}

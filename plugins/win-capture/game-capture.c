@@ -38,6 +38,7 @@
 #define SETTING_CAPTURE_OVERLAYS "capture_overlays"
 #define SETTING_ANTI_CHEAT_HOOK  "anti_cheat_hook"
 #define SETTING_HOOK_RATE        "hook_rate"
+#define SETTING_ONLY_LYRIC       "only_lyric"
 
 /* deprecated */
 #define SETTING_ANY_FULLSCREEN   "capture_any_fullscreen"
@@ -51,6 +52,7 @@
 
 #define TEXT_MODE                obs_module_text("Mode")
 #define TEXT_GAME_CAPTURE        obs_module_text("GameCapture")
+#define TEXT_LYRIC_CAPTURE       obs_module_text("LyricCapture")
 #define TEXT_ANY_FULLSCREEN      obs_module_text("GameCapture.AnyFullscreen")
 #define TEXT_SLI_COMPATIBILITY   obs_module_text("SLIFix")
 #define TEXT_ALLOW_TRANSPARENCY  obs_module_text("AllowTransparency")
@@ -111,6 +113,7 @@ struct game_capture_config {
 	bool limit_framerate;
 	bool capture_overlays;
 	bool anticheat_hook;
+	bool only_lyric;
 	enum hook_rate hook_rate;
 };
 
@@ -444,6 +447,8 @@ static inline void get_config(struct game_capture_config *cfg,
 		obs_data_get_bool(settings, SETTING_ANTI_CHEAT_HOOK);
 	cfg->hook_rate =
 		(enum hook_rate)obs_data_get_int(settings, SETTING_HOOK_RATE);
+	cfg->only_lyric =
+		obs_data_get_bool(settings, SETTING_ONLY_LYRIC);
 
 	scale_str = obs_data_get_string(settings, SETTING_SCALE_RES);
 	ret = sscanf(scale_str, "%" PRIu32 "x%" PRIu32, &cfg->scale_cx,
@@ -782,6 +787,7 @@ static inline bool init_hook_info(struct game_capture *gc)
 		     "(multi-adapter compatibility mode)");
 	}
 
+	gc->global_hook_info->only_lyric = gc->config.only_lyric;
 	gc->global_hook_info->offsets = gc->process_is_64bit ? offsets64
 							     : offsets32;
 	gc->global_hook_info->capture_overlay = gc->config.capture_overlays;
@@ -1894,6 +1900,12 @@ static const char *game_capture_name(void *unused)
 	return TEXT_GAME_CAPTURE;
 }
 
+static const char *lyric_capture_name(void *unused)
+{
+	UNUSED_PARAMETER(unused);
+	return TEXT_LYRIC_CAPTURE;
+}
+
 static void game_capture_defaults(obs_data_t *settings)
 {
 	obs_data_set_default_string(settings, SETTING_MODE, SETTING_MODE_ANY);
@@ -2130,6 +2142,8 @@ static obs_properties_t *game_capture_properties(void *data)
 	obs_property_list_add_int(p, TEXT_HOOK_RATE_FAST, HOOK_RATE_FAST);
 	obs_property_list_add_int(p, TEXT_HOOK_RATE_FASTEST, HOOK_RATE_FASTEST);
 
+	obs_properties_add_bool(ppts, SETTING_ONLY_LYRIC, "only lyric");
+
 	UNUSED_PARAMETER(data);
 	return ppts;
 }
@@ -2140,6 +2154,23 @@ struct obs_source_info game_capture_info = {
 	.output_flags = OBS_SOURCE_VIDEO | OBS_SOURCE_CUSTOM_DRAW |
 			OBS_SOURCE_DO_NOT_DUPLICATE,
 	.get_name = game_capture_name,
+	.create = game_capture_create,
+	.destroy = game_capture_destroy,
+	.get_width = game_capture_width,
+	.get_height = game_capture_height,
+	.get_defaults = game_capture_defaults,
+	.get_properties = game_capture_properties,
+	.update = game_capture_update,
+	.video_tick = game_capture_tick,
+	.video_render = game_capture_render,
+};
+
+struct obs_source_info lyric_capture_info = {
+	.id = "lyric_capture",
+	.type = OBS_SOURCE_TYPE_INPUT,
+	.output_flags = OBS_SOURCE_VIDEO | OBS_SOURCE_CUSTOM_DRAW |
+			OBS_SOURCE_DO_NOT_DUPLICATE,
+	.get_name = lyric_capture_name,
 	.create = game_capture_create,
 	.destroy = game_capture_destroy,
 	.get_width = game_capture_width,
