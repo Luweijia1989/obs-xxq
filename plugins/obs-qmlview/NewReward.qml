@@ -128,7 +128,7 @@ Item {
                 anchors.left: avartar.right
                 anchors.leftMargin: newRewardProperties.themetype ===1 ? 82 : 24
                 anchors.top: avartar.top
-                anchors.topMargin: newRewardProperties.themetype ===1 ?17:15
+                anchors.topMargin: 13
                 text: newRewardProperties.firstname
                 font.family: newRewardProperties.themefont
                 font.pixelSize:32
@@ -143,9 +143,9 @@ Item {
                 anchors.left: avartar.right
                 anchors.leftMargin: newRewardProperties.themetype ===1 ? 82 : 24
                 anchors.bottom:parent.bottom
-                anchors.bottomMargin:newRewardProperties.firstname === ""?52:(newRewardProperties.themetype === 1)? 22 : 25
+                anchors.bottomMargin:newRewardProperties.firstname === ""?48:24
                 font.family: newRewardProperties.datafont
-                font.pixelSize: 26
+                font.pixelSize: 32
                 font.bold: newRewardProperties.databold
                 font.italic: newRewardProperties.dataitalic
                 color: newRewardProperties.datafontcolor
@@ -172,7 +172,7 @@ Item {
                     text1.text = sprintf("啵克%d号",index)
 					text1.visible = true
                     text2.text = descText(text1.text)
-					text2.anchors.bottomMargin = text1.text === ""?52:(newRewardProperties.themetype === 1)? 22 : 25
+					text2.anchors.bottomMargin = text1.text === ""?48:24
                     index = index+1;
                }
                else if(index === 4)
@@ -181,7 +181,7 @@ Item {
                     text1.text = newRewardProperties.firstname
 					text1.visible = newRewardProperties.firstname === ""? false: true
                     text2.text = descText(newRewardProperties.firstname)
-					text2.anchors.bottomMargin = newRewardProperties.firstname === ""?52:(newRewardProperties.themetype === 1)? 22 : 25
+					text2.anchors.bottomMargin = newRewardProperties.firstname === ""?48:24
                     index = 1
                }
                previewtimer.start();
@@ -191,7 +191,7 @@ Item {
                     text1.text = newRewardProperties.firstname
 					text1.visible = newRewardProperties.firstname === ""? false: true
                     text2.text = descText(newRewardProperties.firstname)
-					text2.anchors.bottomMargin = newRewardProperties.firstname === ""?52:(newRewardProperties.themetype === 1)? 22 : 25
+					text2.anchors.bottomMargin = newRewardProperties.firstname === ""?48:24
                     index = 1
         }
     }
