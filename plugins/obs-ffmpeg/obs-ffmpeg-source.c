@@ -19,6 +19,7 @@
 #include <util/dstr.h>
 #include <graphics/image-file.h>
 #include <graphics/matrix4.h>
+#include <obs.h>
 
 #include "obs-ffmpeg-compat.h"
 #include "obs-ffmpeg-formats.h"
@@ -623,13 +624,26 @@ static void ffmpeg_source_deactivate(void *data)
 	}
 }
 
-static void ffmpeg_source_send_open_control_pannel_event(void *data)
+static void ffmpeg_source_send_event(void *data, int type)
 {
 	struct ffmpeg_source *s = data;
 	obs_data_t *event = obs_data_create();
-	obs_data_set_string(event, "eventType", "openControlPannel");
+	if (type == 0)
+		obs_data_set_string(event, "eventType", "openControlPannel");
+	else if (type == 1)
+		obs_data_set_string(event, "eventType", "endBroadcast");
 	obs_source_signal_event(s->source, event);
 	obs_data_release(event);
+}
+
+static void ffmpeg_source_clear_settings(void *data, obs_data_t *settings)
+{
+	struct ffmpeg_source *s = data;
+	if (s->subtype == BROADCAST) {
+		obs_data_erase(settings, "broadcast_room_id");
+		obs_data_erase(settings, "local_file");
+		obs_data_erase(settings, "broadcastAnchorInfo");
+	}
 }
 
 static void ffmpeg_source_on_click(void *data, float xPos, float yPos)
@@ -641,14 +655,14 @@ static void ffmpeg_source_on_click(void *data, float xPos, float yPos)
 		if (xPos >= click_pos[index] && yPos >= click_pos[index + 1] &&
 		    xPos <= click_pos[index + 2] &&
 		    yPos <= click_pos[index + 3]) {
-			ffmpeg_source_send_open_control_pannel_event(data);
+			ffmpeg_source_send_event(data, 0);
 		}
 	} else if (s->state == FAILED) {
 		index = 4;
 		if (xPos >= click_pos[index] && yPos >= click_pos[index + 1] &&
 		    xPos <= click_pos[index + 2] &&
 		    yPos <= click_pos[index + 3])
-			ffmpeg_source_send_open_control_pannel_event(data);
+			ffmpeg_source_send_event(data, 0);
 		else if (xPos >= click_pos[index + 4] &&
 			 yPos >= click_pos[index + 5] &&
 			 xPos <= click_pos[index + 6] &&
@@ -664,8 +678,13 @@ static void ffmpeg_source_on_click(void *data, float xPos, float yPos)
 		index = 16;
 		if (xPos >= click_pos[index] && yPos >= click_pos[index + 1] &&
 		    xPos <= click_pos[index + 2] &&
-		    yPos <= click_pos[index + 3])
+		    yPos <= click_pos[index + 3]) {
 			mp_media_stop(&s->media);
+			ffmpeg_source_send_event(data, 1);
+			obs_data_t *ss = obs_source_get_settings(s->source);
+			ffmpeg_source_clear_settings(s->source, ss);
+			obs_data_release(ss);
+		}
 	}
 }
 
@@ -726,4 +745,5 @@ struct obs_source_info ffmpeg_source = {
 	.update = ffmpeg_source_update,
 	.preview_click = ffmpeg_source_on_click,
 	.extra_draw = ffmpeg_source_extra_draw,
+	.save = ffmpeg_source_clear_settings,
 };
