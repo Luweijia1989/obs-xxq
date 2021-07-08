@@ -1,6 +1,8 @@
 #include <windows.h>
+#include "../obfuscate.h"
 #include <dxgi.h>
 #include <tchar.h>
+#include <shlwapi.h>
 #include "graphics-hook.h"
 #include "../funchook.h"
 
@@ -136,7 +138,14 @@ static BOOL WINAPI hook_update_layered_window(
 	char buf1[512] = {0};
 	wchar_to_utf8(buf, 0, buf1, 512);
 
-	if (strstr(buf1, "桌面歌词") != NULL)
+	bool isKw = false;
+	char dll_path[MAX_PATH];
+	DWORD size = GetModuleFileNameA(NULL, dll_path, MAX_PATH);
+	if (size && strstr(dll_path, "kwmusic.exe")) {
+		isKw = true;
+	}
+
+	if ((!isKw && strstr(buf1, "桌面歌词") != NULL) || (isKw && strstr(buf1, "") != NULL))
 		lyric_capture(hdcSrc, psize->cx, psize->cy);
 
 	unhook(&updatelayeredwindow);
@@ -158,7 +167,8 @@ static BOOL WINAPI hook_update_layered_window_indirect(
 	wchar_to_utf8(buf, 0, buf1, 512);
 
 	if (strstr(buf1, "桌面歌词") != NULL)
-		lyric_capture(pULWInfo->hdcSrc, pULWInfo->psize->cx, pULWInfo->psize->cy);
+		lyric_capture(pULWInfo->hdcSrc, pULWInfo->psize->cx,
+			      pULWInfo->psize->cy);
 
 	unhook(&updateLayeredWindowIndirect);
 	UpdateLayeredWindowIndirectProc call =
@@ -207,5 +217,6 @@ bool hook_lyric()
 	}
 
 	hlog("Hooked Lyric");
+
 	return true;
 }

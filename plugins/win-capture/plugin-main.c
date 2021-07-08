@@ -1,4 +1,4 @@
-﻿#include <windows.h>
+#include <windows.h>
 #include <obs-module.h>
 #include <util/windows/win-version.h>
 #include <util/platform.h>
@@ -16,6 +16,7 @@ extern struct obs_source_info duplicator_capture_info;
 extern struct obs_source_info monitor_capture_info;
 extern struct obs_source_info window_capture_info;
 extern struct obs_source_info game_capture_info;
+extern struct obs_source_info lyric_capture_info;
 
 static HANDLE init_hooks_thread = NULL;
 
@@ -44,6 +45,7 @@ static DWORD WINAPI init_hooks(LPVOID param)
 
 		load_cached_graphics_offsets(!IS32BIT, config_path);
 		obs_register_source(&game_capture_info);
+		obs_register_source(&lyric_capture_info);
 
 	} else if (load_graphics_offsets(IS32BIT, config_path)) {
 		load_graphics_offsets(!IS32BIT, config_path);
@@ -126,6 +128,7 @@ bool obs_module_load(void)
 	init_hooks_thread =
 		CreateThread(NULL, 0, init_hooks, config_path, 0, NULL);
 	obs_register_source(&game_capture_info);
+	obs_register_source(&lyric_capture_info);
 
 	return true;
 }

@@ -52,6 +52,7 @@
 
 #define TEXT_MODE                obs_module_text("Mode")
 #define TEXT_GAME_CAPTURE        obs_module_text("GameCapture")
+#define TEXT_LYRIC_CAPTURE       obs_module_text("LyricCapture")
 #define TEXT_ANY_FULLSCREEN      obs_module_text("GameCapture.AnyFullscreen")
 #define TEXT_SLI_COMPATIBILITY   obs_module_text("SLIFix")
 #define TEXT_ALLOW_TRANSPARENCY  obs_module_text("AllowTransparency")
@@ -1899,6 +1900,12 @@ static const char *game_capture_name(void *unused)
 	return TEXT_GAME_CAPTURE;
 }
 
+static const char *lyric_capture_name(void *unused)
+{
+	UNUSED_PARAMETER(unused);
+	return TEXT_LYRIC_CAPTURE;
+}
+
 static void game_capture_defaults(obs_data_t *settings)
 {
 	obs_data_set_default_string(settings, SETTING_MODE, SETTING_MODE_ANY);
@@ -2147,6 +2154,23 @@ struct obs_source_info game_capture_info = {
 	.output_flags = OBS_SOURCE_VIDEO | OBS_SOURCE_CUSTOM_DRAW |
 			OBS_SOURCE_DO_NOT_DUPLICATE,
 	.get_name = game_capture_name,
+	.create = game_capture_create,
+	.destroy = game_capture_destroy,
+	.get_width = game_capture_width,
+	.get_height = game_capture_height,
+	.get_defaults = game_capture_defaults,
+	.get_properties = game_capture_properties,
+	.update = game_capture_update,
+	.video_tick = game_capture_tick,
+	.video_render = game_capture_render,
+};
+
+struct obs_source_info lyric_capture_info = {
+	.id = "lyric_capture",
+	.type = OBS_SOURCE_TYPE_INPUT,
+	.output_flags = OBS_SOURCE_VIDEO | OBS_SOURCE_CUSTOM_DRAW |
+			OBS_SOURCE_DO_NOT_DUPLICATE,
+	.get_name = lyric_capture_name,
 	.create = game_capture_create,
 	.destroy = game_capture_destroy,
 	.get_width = game_capture_width,
