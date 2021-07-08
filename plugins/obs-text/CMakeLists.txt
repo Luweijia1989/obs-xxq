@@ -1,4 +1,4 @@
-if (NOT WIN32)
+﻿if (NOT WIN32)
 	return()
 endif()
 
@@ -9,6 +9,7 @@ if(WIN32)
 		gdiplus/obs-text.cpp
 		gdiplus/SlideTextSource.cpp
 		gdiplus/ScrollTextSource.cpp
+		gdiplus/GauseBlur.cpp
 		)
 	set(obs-text_PLATFORM_DEPS
 		gdiplus)
@@ -18,6 +19,7 @@ if(WIN32)
 	gdiplus/SlideTextSource.h
 	gdiplus/ScrollTextSource.h
 	gdiplus/Common.h
+	gdiplus/GauseBlur.h
 	)
 
 endif()

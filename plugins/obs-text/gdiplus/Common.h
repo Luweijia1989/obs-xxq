@@ -70,6 +70,13 @@ using namespace Gdiplus;
 #define S_EXTENTS_CY "extents_cy"
 #define S_TRANSFORM "transform"
 
+//阴影相关
+#define S_USE_SHADOW "shadow"
+#define S_SHADOW_DIS "shadow_dis"
+#define S_SHADOW_COLOR "shadow_color"
+#define S_SHADOW_OPACITY "shadow_opacity"
+#define S_SHADOW_DIRECTION "shadow_dir"
+
 #define S_ALIGN_LEFT "left"
 #define S_ALIGN_CENTER "center"
 #define S_ALIGN_RIGHT "right"

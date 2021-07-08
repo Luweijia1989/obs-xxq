@@ -1,9 +1,9 @@
 ﻿#include "SlideTextSource.h"
 #include "ScrollTextSource.h"
+#include "GauseBlur.h"
 #include "Common.h"
 struct TextSource {
 	obs_source_t *source = nullptr;
-
 	gs_texture_t *tex = nullptr;
 	uint32_t cx = 0;
 	uint32_t cy = 0;
@@ -57,6 +57,13 @@ struct TextSource {
 	FontFamily families[1];
 	Font *font_set;
 	bool special_source = false;
+
+	// 阴影相关
+	bool use_shadow = true;
+	uint32_t shadow_color = 0x000000;
+	int shadow_opacity = 50;
+	float shadow_distance = 2.0f;
+	int shadow_dir = 0; // 0:左下 1：左上 2：右下 3：右上
 	/* --------------------------- */
 
 	inline TextSource(obs_source_t *source_, obs_data_t *settings)
@@ -83,8 +90,14 @@ struct TextSource {
 				SIZE &text_size);
 	void RenderOutlineText(Graphics &graphics, const GraphicsPath &path,
 			       const Brush &brush);
+	void RenderOutlineShadowText(Graphics &graphics,
+				     const GraphicsPath &path,
+				     const Brush &brush);
 	void RenderText();
+	void RenderShadow(const RectF &box, const SIZE &size,
+			  const StringFormat &format, Graphics &graphics);
 	void LoadFileText();
+	void CaculateShadowDis(float &dx, float &dy);
 
 	const char *GetMainString(const char *str);
 
@@ -92,6 +105,23 @@ struct TextSource {
 	inline void Tick(float seconds);
 	inline void Render();
 };
+
+void TextSource::CaculateShadowDis(float &dx, float &dy)
+{
+	if (shadow_dir == 1) {
+		dx = -abs(dx);
+		dy = -abs(dy);
+	} else if (shadow_dir == 0) {
+		dx = -abs(dx);
+		dy = abs(dy);
+	} else if (shadow_dir == 3) {
+		dx = abs(dx);
+		dy = -abs(dy);
+	} else if (shadow_dir == 2) {
+		dx = abs(dx);
+		dy = abs(dy);
+	}
+}
 
 void TextSource::UpdateFont()
 {
@@ -366,6 +396,24 @@ void TextSource::CalculateTextSizes(const StringFormat &format,
 	}
 }
 
+void TextSource::RenderOutlineShadowText(Graphics &graphics,
+					 const GraphicsPath &path,
+					 const Brush &brush)
+{
+	DWORD outline_rgba = calc_color(shadow_color, shadow_opacity);
+	Status stat;
+
+	Pen pen(Color(outline_rgba), outline_size);
+	stat = pen.SetLineJoin(LineJoinRound);
+	warn_stat("penshaow.SetLineJoin");
+
+	stat = graphics.DrawPath(&pen, &path);
+	warn_stat("graphicsshaow.DrawPath");
+
+	stat = graphics.FillPath(&brush, &path);
+	warn_stat("graphicsshaow.FillPath");
+}
+
 void TextSource::RenderOutlineText(Graphics &graphics, const GraphicsPath &path,
 				   const Brush &brush)
 {
@@ -383,6 +431,43 @@ void TextSource::RenderOutlineText(Graphics &graphics, const GraphicsPath &path,
 	warn_stat("graphics.FillPath");
 }
 
+void TextSource::RenderShadow(const RectF &box, const SIZE &size,
+			      const StringFormat &format, Graphics &graphics)
+{
+	if (!use_shadow)
+		return;
+	RectF box1 = box;
+	LONG width = size.cx;
+	LONG height = size.cy;
+	if (!text.empty()) {
+		float dx = shadow_distance;
+		float dy = shadow_distance;
+		DWORD color1 = shadow_color & 0xFFFFFF;
+		color1 |= get_alpha_val(shadow_opacity);
+		CaculateShadowDis(dx, dy);
+		SolidBrush bk_brush = Color(color1);
+		if (use_outline) {
+			box1.Offset(dx, dy);
+			GraphicsPath path;
+			path.AddString(text.c_str(), (int)text.size(),
+				       &families[0], font->GetStyle(),
+				       font->GetSize(), box1, &format);
+			RenderOutlineShadowText(graphics, path, bk_brush);
+
+		} else {
+			graphics.SetTextRenderingHint(
+				TextRenderingHintAntiAlias);
+			Matrix mx(1.0f, 0, 0, 1.0f, dx, dy);
+			graphics.SetTransform(&mx);
+			graphics.DrawString(text.c_str(), (int)text.size(),
+					    font.get(), box1, &format,
+					    &bk_brush);
+			Matrix mx1(1.0f, 0, 0, 1.0f, -dx, -dy);
+			graphics.SetTransform(&mx1);
+		}
+	}
+}
+
 void TextSource::RenderText()
 {
 	StringFormat format(StringFormat::GenericTypographic());
@@ -393,7 +478,6 @@ void TextSource::RenderText()
 
 	GetStringFormat(format);
 	CalculateTextSizes(format, box, size);
-
 	unique_ptr<uint8_t> bits(new uint8_t[size.cx * size.cy * 4]);
 	Bitmap bitmap(size.cx, size.cy, 4 * size.cx, PixelFormat32bppARGB,
 		      bits.get());
@@ -404,7 +488,6 @@ void TextSource::RenderText()
 				  Color(calc_color(color2, opacity2)),
 				  gradient_dir, 1);
 	DWORD full_bk_color = bk_color & 0xFFFFFF;
-
 	if (!text.empty() || use_extents)
 		full_bk_color |= get_alpha_val(bk_opacity);
 
@@ -424,6 +507,12 @@ void TextSource::RenderText()
 	graphics_bitmap.SetCompositingMode(CompositingModeSourceOver);
 	graphics_bitmap.SetSmoothingMode(SmoothingModeAntiAlias);
 
+	if (use_shadow) {
+		RenderShadow(box, size, format, graphics_bitmap);
+		UINT *dataShadow = (UINT *)bits.get();
+		GauseBlur gauseBlur(5.0, 2);
+		gauseBlur.Do(dataShadow, size.cx, size.cy);
+	}
 	if (!text.empty()) {
 		if (use_outline) {
 			box.Offset(outline_size / 2, outline_size / 2);
@@ -442,7 +531,7 @@ void TextSource::RenderText()
 			warn_stat("graphics_bitmap.DrawString");
 		}
 	}
-
+	bool change = false;
 	if (!tex || (LONG)cx != size.cx || (LONG)cy != size.cy) {
 		obs_enter_graphics();
 		if (tex)
@@ -453,14 +542,16 @@ void TextSource::RenderText()
 					GS_DYNAMIC);
 
 		obs_leave_graphics();
-
-		cx = (uint32_t)size.cx;
-		cy = (uint32_t)size.cy;
+		change = true;
 
 	} else if (tex) {
 		obs_enter_graphics();
 		gs_texture_set_image(tex, bits.get(), size.cx * 4, false);
 		obs_leave_graphics();
+	}
+	if (change) {
+		cx = (uint32_t)size.cx;
+		cy = (uint32_t)size.cy;
 	}
 }
 
@@ -536,6 +627,14 @@ inline void TextSource::Update(obs_data_t *s)
 
 	uint32_t new_bk_color = obs_data_get_uint32(s, S_BKCOLOR);
 	uint32_t new_bk_opacity = obs_data_get_uint32(s, S_BKOPACITY);
+
+	// 阴影相关
+	bool new_use_shadow = obs_data_get_bool(s, S_USE_SHADOW);
+	uint32_t new_shadow_color = obs_data_get_uint32(s, S_SHADOW_COLOR);
+	uint32_t new_shadow_opacity = obs_data_get_uint32(s, S_SHADOW_OPACITY);
+	int new_shadow_dis = obs_data_get_int(s, S_SHADOW_DIS);
+	int new_shadow_dir = obs_data_get_int(s, S_SHADOW_DIRECTION);
+
 	int subtype = obs_data_get_int(s, "subtype");
 	if (subtype == RewardText || subtype == FollowText)
 		special_source = true;
@@ -565,7 +664,7 @@ inline void TextSource::Update(obs_data_t *s)
 	new_color2 = rgb_to_bgr(new_color2);
 	new_o_color = rgb_to_bgr(new_o_color);
 	new_bk_color = rgb_to_bgr(new_bk_color);
-
+	new_shadow_color = rgb_to_bgr(new_shadow_color);
 	color = new_color;
 	opacity = new_opacity;
 	color2 = new_color2;
@@ -619,6 +718,12 @@ inline void TextSource::Update(obs_data_t *s)
 	outline_color = new_o_color;
 	outline_opacity = new_o_opacity;
 	outline_size = roundf(float(new_o_size));
+
+	use_shadow = new_use_shadow;
+	shadow_color = new_shadow_color;
+	shadow_opacity = new_shadow_opacity;
+	shadow_distance = new_shadow_dis * 4.0f / 100.0f;
+	shadow_dir = new_shadow_dir;
 
 	if (strcmp(align_str, S_ALIGN_CENTER) == 0)
 		align = Align::Center;
@@ -676,7 +781,6 @@ inline void TextSource::Render()
 
 	gs_technique_begin(tech);
 	gs_technique_begin_pass(tech, 0);
-
 	gs_effect_set_texture(gs_effect_get_param_by_name(effect, "image"),
 			      tex);
 	gs_draw_sprite(tex, 0, cx, cy);
@@ -899,7 +1003,11 @@ bool obs_module_load(void)
 		obs_data_set_default_int(settings, S_EXTENTS_CY, 100);
 		obs_data_set_default_int(settings, S_TRANSFORM,
 					 S_TRANSFORM_NONE);
-
+		obs_data_set_default_bool(settings, S_USE_SHADOW, false);
+		obs_data_set_default_int(settings, S_SHADOW_COLOR, 0x000000);
+		obs_data_set_default_int(settings, S_SHADOW_OPACITY, 50);
+		obs_data_set_default_int(settings, S_SHADOW_DIRECTION, 2);
+		obs_data_set_default_int(settings, S_SHADOW_DIS, 50);
 		obs_data_release(font_obj);
 	};
 	si.update = [](void *data, obs_data_t *settings) {
