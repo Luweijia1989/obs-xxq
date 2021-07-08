@@ -33,6 +33,16 @@ void NewReward::default(obs_data_t *settings)
 	obs_data_set_default_int(settings, "rewardLimit", 10);
 }
 
+void NewReward::setText(const QString &text)
+{
+	m_text = text;
+}
+
+QString NewReward::text()
+{
+	return m_text;
+}
+
 static const char *newreward_source_get_name(void *unused)
 {
 	UNUSED_PARAMETER(unused);
@@ -41,6 +51,7 @@ static const char *newreward_source_get_name(void *unused)
 
 static void newreward_source_update(void *data, obs_data_t *settings)
 {
+	bool textChange = false;
 	NewReward *s = (NewReward *)data;
 	s->baseUpdate(settings);
 
@@ -73,8 +84,13 @@ static void newreward_source_update(void *data, obs_data_t *settings)
 	int themeType = obs_data_get_int(settings, "themetype");
 	s->setthemetype(themeType);
 
-	const char *firstname = obs_data_get_string(settings, "firstname");
+	QString firstname = obs_data_get_string(settings, "firstname");
 	s->setfirstname(firstname);
+
+	if (s->text() != firstname) {
+		s->setText(firstname);
+		textChange = true;
+	}
 
 	const char *avatarpath = obs_data_get_string(settings, "avatarPath");
 	s->setavatarpath(avatarpath);
@@ -82,7 +98,9 @@ static void newreward_source_update(void *data, obs_data_t *settings)
 	float transparence = (float)obs_data_get_int(settings, "transparence");
 	transparence = transparence / 100.0f;
 	s->settransparence(transparence);
-	emit s->update();
+
+	if (textChange)
+		emit s->update();
 }
 
 static void *newreward_source_create(obs_data_t *settings, obs_source_t *source)
@@ -128,8 +146,11 @@ static void quickview_newrewardsource_make_custom(void *data,
 
 	const char *cmdType = obs_data_get_string(command, "type");
 	if (strcmp("replay", cmdType) == 0) {
-		NewReward *s = (NewReward *)data;
-		emit s->replay();
+		NewReward *s1 = (NewReward *)data;
+		emit s1->replay();
+	} else if (strcmp("update", cmdType) == 0) {
+		NewReward *s2 = (NewReward *)data;
+		emit s2->update();
 	}
 }
 

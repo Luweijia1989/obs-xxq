@@ -21,7 +21,12 @@ public:
 public:
 	NewFollow(QObject *parent = nullptr);
 	static void default(obs_data_t *settings);
+	void setText(const QString &text);
+	QString text();
 signals:
 	void replay();
 	void update();
+
+private:
+	QString m_text;
 };

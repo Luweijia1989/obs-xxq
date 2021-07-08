@@ -33,6 +33,16 @@ void FirstRankList::default(obs_data_t *settings)
 	obs_data_set_default_int(settings, "transparence", 100);
 }
 
+void FirstRankList::setText(const QString &text)
+{
+	m_text = text;
+}
+
+QString FirstRankList::text()
+{
+	return m_text;
+}
+
 static const char *firstranklist_source_get_name(void *unused)
 {
 	UNUSED_PARAMETER(unused);
@@ -41,6 +51,7 @@ static const char *firstranklist_source_get_name(void *unused)
 
 static void firstranklist_source_update(void *data, obs_data_t *settings)
 {
+	bool textChange = false;
 	FirstRankList *s = (FirstRankList *)data;
 	s->baseUpdate(settings);
 
@@ -76,8 +87,12 @@ static void firstranklist_source_update(void *data, obs_data_t *settings)
 	int listtype = obs_data_get_int(settings, "listtype");
 	s->setlisttype(listtype);
 
-	const char *firstname = obs_data_get_string(settings, "firstname");
+	QString firstname = obs_data_get_string(settings, "firstname");
 	s->setfirstname(firstname);
+	if (s->text() != firstname) {
+		s->setText(firstname);
+		textChange = true;
+	}
 
 	const char *avatarpath = obs_data_get_string(settings, "avatarpath");
 	s->setavatarpath(avatarpath);
@@ -85,7 +100,8 @@ static void firstranklist_source_update(void *data, obs_data_t *settings)
 	float transparence = (float)obs_data_get_int(settings, "transparence");
 	transparence = transparence / 100.0f;
 	s->settransparence(transparence);
-	emit s->update();
+	if (textChange)
+		emit s->update();
 }
 
 static void *firstranklist_source_create(obs_data_t *settings,
