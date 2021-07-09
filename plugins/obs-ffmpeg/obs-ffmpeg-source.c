@@ -734,6 +734,14 @@ static void ffmpeg_source_extra_draw(void *data)
 	}
 }
 
+void ffmpeg_source_make_command(void *data, obs_data_t *command)
+{
+	struct ffmpeg_source *s = data;
+	const char *type = obs_data_get_string(command, "type");
+	if (strcmp(type, "stop") == 0)
+		mp_media_stop(&s->media);
+}
+
 struct obs_source_info ffmpeg_source = {
 	.id = "ffmpeg_source",
 	.type = OBS_SOURCE_TYPE_INPUT,
@@ -751,4 +759,5 @@ struct obs_source_info ffmpeg_source = {
 	.preview_click = ffmpeg_source_on_click,
 	.extra_draw = ffmpeg_source_extra_draw,
 	.save = ffmpeg_source_clear_settings,
+	.make_command = ffmpeg_source_make_command,
 };
