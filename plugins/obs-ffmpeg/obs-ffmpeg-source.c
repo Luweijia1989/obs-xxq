@@ -687,8 +687,8 @@ static void ffmpeg_source_on_click(void *data, float xPos, float yPos)
 		if (xPos >= click_pos[index] && yPos >= click_pos[index + 1] &&
 		    xPos <= click_pos[index + 2] &&
 		    yPos <= click_pos[index + 3]) {
-			mp_media_stop(&s->media);
 			ffmpeg_source_send_event(data, 1);
+			mp_media_stop(&s->media);
 		}
 	}
 }
