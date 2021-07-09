@@ -39,7 +39,6 @@ float click_pos[] = {
 	46. / 334.,  100. / 188., 161. / 334., 132. / 188., //打开查房面板
 	173. / 334., 100. / 188., 288. / 334., 132. / 188., //重试
 	110. / 334., 100. / 188., 225. / 334., 132. / 188., //取消连接
-	242. / 334., 12. / 188.,  322. / 334., 48. / 188.,  //结束转播
 };
 
 enum broadcast_state {
@@ -683,10 +682,18 @@ static void ffmpeg_source_on_click(void *data, float xPos, float yPos)
 		    yPos <= click_pos[index + 3])
 			mp_media_stop(&s->media);
 	} else if (s->state == SUCCESS) {
-		index = 16;
-		if (xPos >= click_pos[index] && yPos >= click_pos[index + 1] &&
-		    xPos <= click_pos[index + 2] &&
-		    yPos <= click_pos[index + 3]) {
+		uint32_t w = obs_source_get_width(s->source);
+		uint32_t h = obs_source_get_height(s->source);
+		if (!h || !w)
+			return;
+
+		float xleft = (w - 12 - 230) / (float)w;
+		float xright = (w - 12) / (float)w;
+		float ytop = 12.0 / (float)h;
+		float ybottom = (12 + 103) / (float)h;
+
+		if (xPos >= xleft && xPos <= xright && yPos >= ytop &&
+		    yPos <= ybottom) {
 			ffmpeg_source_send_event(data, 1);
 			mp_media_stop(&s->media);
 		}
