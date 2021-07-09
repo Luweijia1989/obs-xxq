@@ -385,7 +385,7 @@ static void media_stopped(void *opaque, bool is_open_fail)
 			ffmpeg_source_update_broadcast_state(s, WAITING);
 
 		obs_data_t *ss = obs_source_get_settings(s->source);
-		ffmpeg_source_clear_settings(s->source, ss);
+		ffmpeg_source_clear_settings(s, ss);
 		obs_data_release(ss);
 
 		ffmpeg_source_send_event(opaque, 2);
