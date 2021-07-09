@@ -345,6 +345,30 @@ static void get_audio(void *opaque, struct obs_source_audio *a)
 	obs_source_output_audio(s->source, a);
 }
 
+static void ffmpeg_source_clear_settings(void *data, obs_data_t *settings)
+{
+	struct ffmpeg_source *s = data;
+	if (s->subtype == BROADCAST) {
+		obs_data_erase(settings, "broadcast_room_id");
+		obs_data_erase(settings, "local_file");
+		obs_data_erase(settings, "broadcastAnchorInfo");
+	}
+}
+
+static void ffmpeg_source_send_event(void *data, int type)
+{
+	struct ffmpeg_source *s = data;
+	obs_data_t *event = obs_data_create();
+	if (type == 0)
+		obs_data_set_string(event, "eventType", "openControlPannel");
+	else if (type == 1)
+		obs_data_set_string(event, "eventType", "endBroadcast");
+	else if (type == 2)
+		obs_data_set_string(event, "eventType", "clearBroadcastInfo");
+	obs_source_signal_event(s->source, event);
+	obs_data_release(event);
+}
+
 static void media_stopped(void *opaque, bool is_open_fail)
 {
 	struct ffmpeg_source *s = opaque;
@@ -359,6 +383,12 @@ static void media_stopped(void *opaque, bool is_open_fail)
 			ffmpeg_source_update_broadcast_state(s, FAILED);
 		else
 			ffmpeg_source_update_broadcast_state(s, WAITING);
+
+		obs_data_t *ss = obs_source_get_settings(s->source);
+		ffmpeg_source_clear_settings(s->source, ss);
+		obs_data_release(ss);
+
+		ffmpeg_source_send_event(opaque, 2);
 	}
 }
 
@@ -624,28 +654,6 @@ static void ffmpeg_source_deactivate(void *data)
 	}
 }
 
-static void ffmpeg_source_send_event(void *data, int type)
-{
-	struct ffmpeg_source *s = data;
-	obs_data_t *event = obs_data_create();
-	if (type == 0)
-		obs_data_set_string(event, "eventType", "openControlPannel");
-	else if (type == 1)
-		obs_data_set_string(event, "eventType", "endBroadcast");
-	obs_source_signal_event(s->source, event);
-	obs_data_release(event);
-}
-
-static void ffmpeg_source_clear_settings(void *data, obs_data_t *settings)
-{
-	struct ffmpeg_source *s = data;
-	if (s->subtype == BROADCAST) {
-		obs_data_erase(settings, "broadcast_room_id");
-		obs_data_erase(settings, "local_file");
-		obs_data_erase(settings, "broadcastAnchorInfo");
-	}
-}
-
 static void ffmpeg_source_on_click(void *data, float xPos, float yPos)
 {
 	int index = 0;
@@ -681,9 +689,6 @@ static void ffmpeg_source_on_click(void *data, float xPos, float yPos)
 		    yPos <= click_pos[index + 3]) {
 			mp_media_stop(&s->media);
 			ffmpeg_source_send_event(data, 1);
-			obs_data_t *ss = obs_source_get_settings(s->source);
-			ffmpeg_source_clear_settings(s->source, ss);
-			obs_data_release(ss);
 		}
 	}
 }

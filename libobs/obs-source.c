@@ -3305,7 +3305,7 @@ struct obs_source_frame *obs_source_get_frame(obs_source_t *source)
 	frame = source->cur_async_frame;
 	source->cur_async_frame = NULL;
 
-	if (frame) {
+	if (frame && !frame->has_shown) {
 		frame->has_shown = true;
 		os_atomic_inc_long(&frame->refs);
 	}
