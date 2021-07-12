@@ -679,7 +679,7 @@ static void ffmpeg_source_on_click(void *data, float xPos, float yPos)
 		index = 12;
 		if (xPos >= click_pos[index] && yPos >= click_pos[index + 1] &&
 		    xPos <= click_pos[index + 2] &&
-		    yPos <= click_pos[index + 3])
+		    yPos <= click_pos[index + 3] && s->media_valid)
 			mp_media_stop(&s->media);
 	} else if (s->state == SUCCESS) {
 		uint32_t w = obs_source_get_width(s->source);
@@ -693,7 +693,7 @@ static void ffmpeg_source_on_click(void *data, float xPos, float yPos)
 		float ybottom = (12 + 103) / (float)h;
 
 		if (xPos >= xleft && xPos <= xright && yPos >= ytop &&
-		    yPos <= ybottom) {
+		    yPos <= ybottom && s->media_valid) {
 			ffmpeg_source_send_event(data, 1);
 			mp_media_stop(&s->media);
 		}
@@ -745,7 +745,7 @@ void ffmpeg_source_make_command(void *data, obs_data_t *command)
 {
 	struct ffmpeg_source *s = data;
 	const char *type = obs_data_get_string(command, "type");
-	if (strcmp(type, "stop") == 0)
+	if (strcmp(type, "stop") == 0 && s->media_valid)
 		mp_media_stop(&s->media);
 }
 
