@@ -17,6 +17,9 @@
 #include <obs-module.h>
 #include <util/platform.h>
 #include <util/dstr.h>
+#include <graphics/image-file.h>
+#include <graphics/matrix4.h>
+#include <obs.h>
 
 #include "obs-ffmpeg-compat.h"
 #include "obs-ffmpeg-formats.h"
@@ -30,6 +33,25 @@
 	     obs_source_get_name(source), ##__VA_ARGS__)
 #define FF_BLOG(level, format, ...) \
 	FF_LOG_S(s->source, level, format, ##__VA_ARGS__)
+
+float click_pos[] = {
+	110. / 334., 100. / 188., 225. / 334., 132. / 188., //打开查房面板
+	46. / 334.,  100. / 188., 161. / 334., 132. / 188., //打开查房面板
+	173. / 334., 100. / 188., 288. / 334., 132. / 188., //重试
+	110. / 334., 100. / 188., 225. / 334., 132. / 188., //取消连接
+};
+
+enum broadcast_state {
+	WAITING,
+	FAILED,
+	CONNECTING,
+	SUCCESS,
+};
+
+enum media_subtype {
+	MEDIA,
+	BROADCAST,
+};
 
 struct ffmpeg_source {
 	mp_media_t media;
@@ -57,7 +79,83 @@ struct ffmpeg_source {
 	bool restart_on_activate;
 	bool close_when_inactive;
 	bool seekable;
+
+	enum media_subtype subtype;
+	const char *bg_wait;
+	const char *bg_connecting;
+	const char *bg_fail;
+	const char *btn_finish;
+	enum broadcast_state state;
+	struct obs_source_frame2 image_frame;
+	gs_image_file2_t if2;
 };
+
+static enum video_format gs_format_to_video_format(enum gs_color_format format)
+{
+	if (format == GS_RGBA)
+		return VIDEO_FORMAT_RGBA;
+	else if (format == GS_BGRA)
+		return VIDEO_FORMAT_BGRA;
+	else if (format == GS_BGRX)
+		return VIDEO_FORMAT_BGRX;
+
+	return VIDEO_FORMAT_NONE;
+}
+
+static void ffmpeg_source_update_image_data(struct ffmpeg_source *s,
+					    uint8_t *data, uint32_t cx,
+					    uint32_t cy,
+					    enum gs_color_format format)
+{
+	s->image_frame.timestamp = 0;
+	s->image_frame.width = cx;
+	s->image_frame.height = cy;
+	s->image_frame.format = gs_format_to_video_format(format);
+	s->image_frame.flip = false;
+	s->image_frame.flip_h = false;
+
+	s->image_frame.data[0] = data;
+	s->image_frame.data[1] = NULL;
+
+	s->image_frame.data[2] = NULL;
+
+	s->image_frame.linesize[0] = cx * 4;
+	s->image_frame.linesize[1] = 0;
+	s->image_frame.linesize[2] = 0;
+	if (s->image_frame.data[0])
+		obs_source_output_video2(s->source, &s->image_frame);
+}
+
+static void ffmpeg_source_update_broadcast_state(struct ffmpeg_source *s,
+						 enum broadcast_state state)
+{
+	s->state = state;
+
+	const char *path = NULL;
+	switch (s->state) {
+	case WAITING:
+		path = s->bg_wait;
+		break;
+	case CONNECTING:
+		path = s->bg_connecting;
+		break;
+	case FAILED:
+		path = s->bg_fail;
+		break;
+	default:
+		break;
+	}
+
+	if (!path)
+		return;
+
+	enum gs_color_format format;
+	uint32_t cx, cy;
+	uint8_t *data = gs_create_texture_file_data(path, &format, &cx, &cy);
+
+	ffmpeg_source_update_image_data(s, data, cx, cy, format);
+	bfree(data);
+}
 
 static bool is_local_file_modified(obs_properties_t *props,
 				   obs_property_t *prop, obs_data_t *settings)
@@ -224,6 +322,9 @@ static void dump_source_info(struct ffmpeg_source *s, const char *input,
 static void get_frame(void *opaque, struct obs_source_frame *f)
 {
 	struct ffmpeg_source *s = opaque;
+	if (s->subtype == BROADCAST && s->state != SUCCESS)
+		s->state = SUCCESS;
+
 	obs_source_output_video(s->source, f);
 }
 
@@ -243,13 +344,48 @@ static void get_audio(void *opaque, struct obs_source_audio *a)
 	obs_source_output_audio(s->source, a);
 }
 
-static void media_stopped(void *opaque)
+static void ffmpeg_source_clear_settings(void *data, obs_data_t *settings)
+{
+	struct ffmpeg_source *s = data;
+	if (s->subtype == BROADCAST) {
+		obs_data_erase(settings, "broadcast_room_id");
+		obs_data_erase(settings, "local_file");
+		obs_data_erase(settings, "broadcastAnchorInfo");
+	}
+}
+
+static void ffmpeg_source_send_event(void *data, int type)
+{
+	struct ffmpeg_source *s = data;
+	obs_data_t *event = obs_data_create();
+	if (type == 0)
+		obs_data_set_string(event, "eventType", "openControlPannel");
+	else if (type == 1)
+		obs_data_set_string(event, "eventType", "endBroadcast");
+	obs_source_signal_event(s->source, event);
+	obs_data_release(event);
+}
+
+static void media_stopped(void *opaque, bool is_open_fail)
 {
 	struct ffmpeg_source *s = opaque;
 	if (s->is_clear_on_media_end) {
 		obs_source_output_video(s->source, NULL);
 		if (s->close_when_inactive && s->media_valid)
 			s->destroy_media = true;
+	}
+
+	if (s->subtype == BROADCAST) {
+		if (is_open_fail)
+			ffmpeg_source_update_broadcast_state(s, FAILED);
+		else
+			ffmpeg_source_update_broadcast_state(s, WAITING);
+
+		ffmpeg_source_send_event(opaque, 1);
+
+		obs_data_t *ss = obs_source_get_settings(s->source);
+		ffmpeg_source_clear_settings(s, ss);
+		obs_data_release(ss);
 	}
 }
 
@@ -294,6 +430,9 @@ static void ffmpeg_source_start(struct ffmpeg_source *s)
 		ffmpeg_source_open(s);
 
 	if (s->media_valid) {
+		if (s->subtype == BROADCAST)
+			ffmpeg_source_update_broadcast_state(s, CONNECTING);
+
 		mp_media_play(&s->media, s->is_looping);
 		if (s->is_local_file)
 			obs_source_show_preloaded_video(s->source);
@@ -355,8 +494,9 @@ static void ffmpeg_source_update(void *data, obs_data_t *settings)
 		ffmpeg_source_open(s);
 
 	dump_source_info(s, input, input_format);
-	if (!s->restart_on_activate || active)
+	if (!s->restart_on_activate || active) {
 		ffmpeg_source_start(s);
+	}
 }
 
 static const char *ffmpeg_source_getname(void *unused)
@@ -436,6 +576,21 @@ static void *ffmpeg_source_create(obs_data_t *settings, obs_source_t *source)
 
 	struct ffmpeg_source *s = bzalloc(sizeof(struct ffmpeg_source));
 	s->source = source;
+	s->subtype = obs_data_get_int(settings, "subtype");
+	s->bg_wait = obs_data_get_string(settings, "bg_wait");
+	s->bg_connecting = obs_data_get_string(settings, "bg_connecting");
+	s->bg_fail = obs_data_get_string(settings, "bg_fail");
+	s->btn_finish = obs_data_get_string(settings, "btn_finish");
+
+	memset(&s->image_frame, 0, sizeof(&s->image_frame));
+	s->image_frame.range = VIDEO_RANGE_PARTIAL;
+	video_format_get_parameters(VIDEO_CS_601, s->image_frame.range,
+				    s->image_frame.color_matrix,
+				    s->image_frame.color_range_min,
+				    s->image_frame.color_range_max);
+
+	if (s->subtype == BROADCAST)
+		ffmpeg_source_update_broadcast_state(s, WAITING);
 
 	s->hotkey = obs_hotkey_register_source(source, "MediaSource.Restart",
 					       obs_module_text("RestartMedia"),
@@ -449,12 +604,17 @@ static void *ffmpeg_source_create(obs_data_t *settings, obs_source_t *source)
 			 get_nb_frames, s);
 
 	ffmpeg_source_update(s, settings);
+
 	return s;
 }
 
 static void ffmpeg_source_destroy(void *data)
 {
 	struct ffmpeg_source *s = data;
+
+	obs_enter_graphics();
+	gs_image_file2_free(&s->if2);
+	obs_leave_graphics();
 
 	if (s->hotkey)
 		obs_hotkey_unregister(s->hotkey);
@@ -491,6 +651,101 @@ static void ffmpeg_source_deactivate(void *data)
 	}
 }
 
+static void ffmpeg_source_on_click(void *data, float xPos, float yPos)
+{
+	int index = 0;
+	struct ffmpeg_source *s = data;
+	if (s->state == WAITING) {
+		index = 0;
+		if (xPos >= click_pos[index] && yPos >= click_pos[index + 1] &&
+		    xPos <= click_pos[index + 2] &&
+		    yPos <= click_pos[index + 3]) {
+			ffmpeg_source_send_event(data, 0);
+		}
+	} else if (s->state == FAILED) {
+		index = 4;
+		if (xPos >= click_pos[index] && yPos >= click_pos[index + 1] &&
+		    xPos <= click_pos[index + 2] &&
+		    yPos <= click_pos[index + 3])
+			ffmpeg_source_send_event(data, 0);
+		else if (xPos >= click_pos[index + 4] &&
+			 yPos >= click_pos[index + 5] &&
+			 xPos <= click_pos[index + 6] &&
+			 yPos <= click_pos[index + 7])
+			ffmpeg_source_start(s);
+	} else if (s->state == CONNECTING) {
+		index = 12;
+		if (xPos >= click_pos[index] && yPos >= click_pos[index + 1] &&
+		    xPos <= click_pos[index + 2] &&
+		    yPos <= click_pos[index + 3] && s->media_valid)
+			mp_media_stop(&s->media);
+	} else if (s->state == SUCCESS) {
+		uint32_t w = obs_source_get_width(s->source);
+		uint32_t h = obs_source_get_height(s->source);
+		if (!h || !w)
+			return;
+
+		float xleft = (w - 12 - 230) / (float)w;
+		float xright = (w - 12) / (float)w;
+		float ytop = 12.0 / (float)h;
+		float ybottom = (12 + 103) / (float)h;
+
+		if (xPos >= xleft && xPos <= xright && yPos >= ytop &&
+		    yPos <= ybottom && s->media_valid) {
+			mp_media_stop(&s->media);
+		}
+	}
+}
+
+static void ffmpeg_source_extra_draw(void *data)
+{
+	struct ffmpeg_source *s = data;
+	uint32_t w = obs_source_get_width(s->source);
+	if (!w)
+		return;
+
+	if (s->subtype == BROADCAST && s->state == SUCCESS && s->btn_finish) {
+		if (!s->if2.image.texture) {
+			gs_image_file2_init(&s->if2, s->btn_finish);
+			gs_image_file2_init_texture(&s->if2);
+		}
+		if (s->if2.image.loaded) {
+			struct matrix4 tl;
+			matrix4_identity(&tl);
+			matrix4_translate3f(&tl, &tl, w - 12 - 230, 12., 0.);
+			gs_matrix_mul(&tl);
+
+			gs_effect_t *effect =
+				obs_get_base_effect(OBS_EFFECT_DEFAULT);
+			gs_technique_t *tech =
+				gs_effect_get_technique(effect, "Draw");
+			size_t passes, i;
+
+			passes = gs_technique_begin(tech);
+			for (i = 0; i < passes; i++) {
+				gs_technique_begin_pass(tech, i);
+				gs_effect_set_texture(
+					gs_effect_get_param_by_name(effect,
+								    "image"),
+					s->if2.image.texture);
+				gs_draw_sprite(s->if2.image.texture, 0,
+					       s->if2.image.cx,
+					       s->if2.image.cy);
+				gs_technique_end_pass(tech);
+			}
+			gs_technique_end(tech);
+		}
+	}
+}
+
+void ffmpeg_source_make_command(void *data, obs_data_t *command)
+{
+	struct ffmpeg_source *s = data;
+	const char *type = obs_data_get_string(command, "type");
+	if (strcmp(type, "stop") == 0 && s->media_valid)
+		mp_media_stop(&s->media);
+}
+
 struct obs_source_info ffmpeg_source = {
 	.id = "ffmpeg_source",
 	.type = OBS_SOURCE_TYPE_INPUT,
@@ -505,4 +760,8 @@ struct obs_source_info ffmpeg_source = {
 	.deactivate = ffmpeg_source_deactivate,
 	.video_tick = ffmpeg_source_tick,
 	.update = ffmpeg_source_update,
+	.preview_click = ffmpeg_source_on_click,
+	.extra_draw = ffmpeg_source_extra_draw,
+	.save = ffmpeg_source_clear_settings,
+	.make_command = ffmpeg_source_make_command,
 };

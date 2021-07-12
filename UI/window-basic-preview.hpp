@@ -89,6 +89,7 @@ private:
 
 	static OBSSceneItem GetItemAtPos(const vec2 &pos, bool selectBelow);
 	static bool SelectedAtPos(const vec2 &pos);
+	static void sendPreviewClickEvent(const vec2 &pos);
 
 	static void DoSelect(const vec2 &pos);
 	static void DoCtrlSelect(const vec2 &pos);

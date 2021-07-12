@@ -493,6 +493,17 @@ struct obs_source_info {
 	* transfer custom command to source
 	*/
 	void (*make_command)(void *data, obs_data_t *command);
+
+	/**
+	* click source on preview
+	*/
+	void (*preview_click)(void *data, float xPos, float yPos);
+
+	/**
+	 * extra draw after source rendered
+	 */
+
+	void (*extra_draw)(void *data);
 };
 
 EXPORT void obs_register_source_s(const struct obs_source_info *info,

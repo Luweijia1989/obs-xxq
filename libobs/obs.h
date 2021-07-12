@@ -249,6 +249,7 @@ struct obs_source_frame {
 	/* used internally by libobs */
 	volatile long refs;
 	bool prev_frame;
+	bool has_shown;
 };
 
 struct obs_source_frame2 {
@@ -788,9 +789,9 @@ EXPORT void obs_view_render(obs_view_t *view, void *output_order);
  * @param  graphics_data  The swap chain initialization data.
  * @return                The new display context, or NULL if failed.
  */
-EXPORT obs_display_t *
-obs_display_create(const struct gs_init_data *graphics_data,
-		   uint32_t backround_color, void(*imgui_init)(void *device, void *context, void *data), void *p);
+EXPORT obs_display_t *obs_display_create(
+	const struct gs_init_data *graphics_data, uint32_t backround_color,
+	void (*imgui_init)(void *device, void *context, void *data), void *p);
 
 /** Destroys a display context */
 EXPORT void obs_display_destroy(obs_display_t *display);
@@ -1347,7 +1348,13 @@ EXPORT uint32_t obs_source_get_last_obs_version(const obs_source_t *source);
 EXPORT void obs_source_do_custom_command(const obs_source_t *source,
 					 obs_data_t *command);
 
-EXPORT void obs_source_signal_event(const obs_source_t *source, obs_data_t *event_data);
+EXPORT void obs_source_signal_event(const obs_source_t *source,
+				    obs_data_t *event_data);
+
+EXPORT void obs_source_preview_click(const obs_source_t *source, float xPos,
+				     float yPos);
+
+EXPORT void obs_source_extra_draw(const obs_source_t *source);
 
 /* ------------------------------------------------------------------------- */
 /* Transition-specific functions */
@@ -1485,6 +1492,11 @@ EXPORT void obs_scene_enum_items(obs_scene_t *scene,
 				 bool (*callback)(obs_scene_t *,
 						  obs_sceneitem_t *, void *),
 				 void *param);
+EXPORT void obs_scene_reverse_enum_items(obs_scene_t *scene,
+					 bool (*callback)(obs_scene_t *,
+							  obs_sceneitem_t *,
+							  void *),
+					 void *param);
 
 EXPORT bool obs_scene_reorder_items(obs_scene_t *scene,
 				    obs_sceneitem_t *const *item_order,
@@ -1504,7 +1516,9 @@ obs_scene_reorder_items2(obs_scene_t *scene,
 
 /** Adds/creates a new scene item for a source */
 EXPORT obs_sceneitem_t *obs_scene_add(obs_scene_t *scene, obs_source_t *source);
-EXPORT obs_sceneitem_t *obs_scene_insert_after(obs_scene_t *scene, obs_source_t *source, obs_sceneitem_t *item);
+EXPORT obs_sceneitem_t *obs_scene_insert_after(obs_scene_t *scene,
+					       obs_source_t *source,
+					       obs_sceneitem_t *item);
 
 typedef void (*obs_scene_atomic_update_func)(void *, obs_scene_t *scene);
 EXPORT void obs_scene_atomic_update(obs_scene_t *scene,
@@ -1646,6 +1660,10 @@ EXPORT void obs_sceneitem_group_enum_items(obs_sceneitem_t *group,
 							    obs_sceneitem_t *,
 							    void *),
 					   void *param);
+EXPORT void obs_sceneitem_group_reverse_enum_items(
+	obs_sceneitem_t *group,
+	bool (*callback)(obs_scene_t *, obs_sceneitem_t *, void *),
+	void *param);
 
 EXPORT void obs_sceneitem_defer_group_resize_begin(obs_sceneitem_t *item);
 EXPORT void obs_sceneitem_defer_group_resize_end(obs_sceneitem_t *item);
@@ -1655,7 +1673,8 @@ EXPORT void obs_sceneitem_defer_group_resize_end(obs_sceneitem_t *item);
 
 EXPORT const char *obs_output_get_display_name(const char *id);
 
-EXPORT void obs_output_set_sei_count_per_second(obs_output_t *output, uint32_t freq);
+EXPORT void obs_output_set_sei_count_per_second(obs_output_t *output,
+						uint32_t freq);
 /**
  * Creates an output.
  *
@@ -2075,7 +2094,8 @@ EXPORT const char *obs_encoder_get_id(const obs_encoder_t *encoder);
 EXPORT uint32_t obs_get_encoder_caps(const char *encoder_id);
 EXPORT uint32_t obs_encoder_get_caps(const obs_encoder_t *encoder);
 
-EXPORT void obs_encoder_set_sei(const obs_encoder_t *encoder, char *sei, int len);
+EXPORT void obs_encoder_set_sei(const obs_encoder_t *encoder, char *sei,
+				int len);
 EXPORT void obs_encoder_clear_sei(const obs_encoder_t *encoder);
 
 #ifndef SWIG
