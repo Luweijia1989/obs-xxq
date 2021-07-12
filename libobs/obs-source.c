@@ -3270,6 +3270,7 @@ static inline struct obs_source_frame *get_closest_frame(obs_source_t *source,
 			if (frame->has_shown) {
 				da_erase(source->async_frames, 0);
 				remove_async_frame(source, frame);
+				frame->has_shown = false;
 				return get_closest_frame(source, sys_time);
 			}
 		}
