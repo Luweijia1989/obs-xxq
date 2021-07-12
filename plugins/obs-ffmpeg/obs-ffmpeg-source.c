@@ -362,8 +362,6 @@ static void ffmpeg_source_send_event(void *data, int type)
 		obs_data_set_string(event, "eventType", "openControlPannel");
 	else if (type == 1)
 		obs_data_set_string(event, "eventType", "endBroadcast");
-	else if (type == 2)
-		obs_data_set_string(event, "eventType", "clearBroadcastInfo");
 	obs_source_signal_event(s->source, event);
 	obs_data_release(event);
 }
@@ -383,11 +381,11 @@ static void media_stopped(void *opaque, bool is_open_fail)
 		else
 			ffmpeg_source_update_broadcast_state(s, WAITING);
 
+		ffmpeg_source_send_event(opaque, 1);
+
 		obs_data_t *ss = obs_source_get_settings(s->source);
 		ffmpeg_source_clear_settings(s, ss);
 		obs_data_release(ss);
-
-		ffmpeg_source_send_event(opaque, 2);
 	}
 }
 
@@ -694,7 +692,6 @@ static void ffmpeg_source_on_click(void *data, float xPos, float yPos)
 
 		if (xPos >= xleft && xPos <= xright && yPos >= ytop &&
 		    yPos <= ybottom && s->media_valid) {
-			ffmpeg_source_send_event(data, 1);
 			mp_media_stop(&s->media);
 		}
 	}
