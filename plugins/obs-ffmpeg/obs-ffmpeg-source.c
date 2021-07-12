@@ -354,14 +354,16 @@ static void ffmpeg_source_clear_settings(void *data, obs_data_t *settings)
 	}
 }
 
-static void ffmpeg_source_send_event(void *data, int type)
+static void ffmpeg_source_send_event(void *data, int type, long long param)
 {
 	struct ffmpeg_source *s = data;
 	obs_data_t *event = obs_data_create();
 	if (type == 0)
 		obs_data_set_string(event, "eventType", "openControlPannel");
-	else if (type == 1)
+	else if (type == 1) {
 		obs_data_set_string(event, "eventType", "endBroadcast");
+		obs_data_set_int(event, "param", param);
+	}
 	obs_source_signal_event(s->source, event);
 	obs_data_release(event);
 }
@@ -381,11 +383,10 @@ static void media_stopped(void *opaque, bool is_open_fail)
 		else
 			ffmpeg_source_update_broadcast_state(s, WAITING);
 
-		ffmpeg_source_send_event(opaque, 1);
-
 		obs_data_t *ss = obs_source_get_settings(s->source);
-		ffmpeg_source_clear_settings(s, ss);
 		obs_data_release(ss);
+		ffmpeg_source_send_event(opaque, 1, obs_data_get_int(ss, "broadcast_room_id"));
+		ffmpeg_source_clear_settings(s, ss);
 	}
 }
 
@@ -660,14 +661,14 @@ static void ffmpeg_source_on_click(void *data, float xPos, float yPos)
 		if (xPos >= click_pos[index] && yPos >= click_pos[index + 1] &&
 		    xPos <= click_pos[index + 2] &&
 		    yPos <= click_pos[index + 3]) {
-			ffmpeg_source_send_event(data, 0);
+			ffmpeg_source_send_event(data, 0, 0);
 		}
 	} else if (s->state == FAILED) {
 		index = 4;
 		if (xPos >= click_pos[index] && yPos >= click_pos[index + 1] &&
 		    xPos <= click_pos[index + 2] &&
 		    yPos <= click_pos[index + 3])
-			ffmpeg_source_send_event(data, 0);
+			ffmpeg_source_send_event(data, 0, 0);
 		else if (xPos >= click_pos[index + 4] &&
 			 yPos >= click_pos[index + 5] &&
 			 xPos <= click_pos[index + 6] &&
