@@ -344,16 +344,6 @@ static void get_audio(void *opaque, struct obs_source_audio *a)
 	obs_source_output_audio(s->source, a);
 }
 
-static void ffmpeg_source_clear_settings(void *data, obs_data_t *settings)
-{
-	struct ffmpeg_source *s = data;
-	if (s->subtype == BROADCAST) {
-		obs_data_erase(settings, "broadcast_room_id");
-		obs_data_erase(settings, "local_file");
-		obs_data_erase(settings, "broadcastAnchorInfo");
-	}
-}
-
 static void ffmpeg_source_send_event(void *data, int type, long long param)
 {
 	struct ffmpeg_source *s = data;
@@ -386,7 +376,6 @@ static void media_stopped(void *opaque, bool is_open_fail)
 		obs_data_t *ss = obs_source_get_settings(s->source);
 		obs_data_release(ss);
 		ffmpeg_source_send_event(opaque, 1, obs_data_get_int(ss, "broadcast_room_id"));
-		ffmpeg_source_clear_settings(s, ss);
 	}
 }
 
@@ -763,6 +752,5 @@ struct obs_source_info ffmpeg_source = {
 	.update = ffmpeg_source_update,
 	.preview_click = ffmpeg_source_on_click,
 	.extra_draw = ffmpeg_source_extra_draw,
-	.save = ffmpeg_source_clear_settings,
 	.make_command = ffmpeg_source_make_command,
 };
