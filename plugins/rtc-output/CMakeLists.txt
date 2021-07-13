@@ -62,18 +62,6 @@ add_custom_command(TARGET rtc-output POST_BUILD
 			"${PROJECT_SOURCE_DIR}/trtc/sdk/lib/${target}"
 			"$<TARGET_FILE_DIR:rtc-output>/${target}"
 		VERBATIM)
-
-add_custom_command(TARGET rtc-output POST_BUILD
-		COMMAND "${CMAKE_COMMAND}" -E copy
-			"F:/obs-xxq/build32/plugins/rtc-output/Debug/rtc-output.dll"
-			"F:/xxq-recon/Win32/Debug/plugins/obs-plugins/32bit/rtc-output.dll"
-		VERBATIM)
-
-add_custom_command(TARGET rtc-output POST_BUILD
-		COMMAND "${CMAKE_COMMAND}" -E copy
-			"F:/obs-xxq/build32/plugins/rtc-output/Debug/rtc-output.pdb"
-			"F:/xxq-recon/Win32/Debug/plugins/obs-plugins/32bit/rtc-output.pdb"
-		VERBATIM)
 endfunction()
 
 install_dependency("liteav.dll")
