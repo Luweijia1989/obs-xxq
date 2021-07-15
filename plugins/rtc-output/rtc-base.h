@@ -29,6 +29,8 @@ public:
 	struct VideoEncodeInfo {
 		int canvasWidth;
 		int canvasHeight;
+		int outputWidth;
+		int outputHeight;
 		int width;
 		int height;
 		int fps;
@@ -85,7 +87,7 @@ public:
 	virtual void muteRemoteAnchor(bool mute) = 0;
 	void setCropInfo(int x, int cropWidth)
 	{
-		m_cropInfo = QRect(x, 0, cropWidth, videoEncodeInfo.canvasHeight);
+		m_cropInfo = QRect(x, 0, cropWidth, videoEncodeInfo.outputHeight);
 	}
 
 	const QRect &cropInfo() { return m_cropInfo; }
@@ -128,6 +130,8 @@ public:
 		videoEncodeInfo.height = data["height"].toInt();
 		videoEncodeInfo.fps = data["fps"].toInt();
 		videoEncodeInfo.bitrate = data["bitrate"].toInt();
+		videoEncodeInfo.outputWidth = data["outputWidth"].toInt();
+		videoEncodeInfo.outputHeight = data["outputHeight"].toInt();
 	}
 
 	void setMixInfo(const char *str)
