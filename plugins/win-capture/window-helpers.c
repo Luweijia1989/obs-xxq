@@ -1,4 +1,4 @@
-﻿#define PSAPI_VERSION 1
+#define PSAPI_VERSION 1
 #include <obs.h>
 #include <util/dstr.h>
 
@@ -429,7 +429,8 @@ HWND find_window(enum window_search_mode mode, enum window_priority priority,
 
 HWND xxq_find_window(enum window_search_mode mode, LONG hwnd)
 {
-	HWND parent;
+	return NULL;
+	/*HWND parent;
 	HWND best_window = NULL;
 	bool use_findwindowex = false;
 	DWORD id;
@@ -447,5 +448,5 @@ HWND xxq_find_window(enum window_search_mode mode, LONG hwnd)
 		window = next_window(window, mode, &parent, use_findwindowex);
 	}
 
-	return best_window;
+	return best_window;*/
 }

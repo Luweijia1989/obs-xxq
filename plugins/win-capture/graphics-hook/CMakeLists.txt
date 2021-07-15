@@ -6,6 +6,31 @@ configure_file(
 	"${CMAKE_CURRENT_SOURCE_DIR}/graphics-hook-config.h.in"
 	"${CMAKE_BINARY_DIR}/plugins/win-capture/graphics-hook/config/graphics-hook-config.h")
 
+include_directories(third-party)
+include_directories(third-party/imgui)
+
+set(third-party_HEADERS
+	./third-party/ImRender.hpp
+	./third-party/imguidx9_danmu.h
+	./third-party/imgui/imconfig.h
+	./third-party/imgui/imgui_impl_win32.h
+	./third-party/imgui/imgui.h
+	./third-party/imgui/imgui_internal.h
+	./third-party/imgui/imstb_rectpack.h
+	./third-party/imgui/imstb_textedit.h
+	./third-party/imgui/imstb_truetype.h
+	./third-party/imgui_impl_dx9/imgui_impl_dx9.h)
+	
+set(third-party_SOURCES
+	./third-party/ImRender.cpp
+	./third-party/imguidx9_danmu.cpp
+	./third-party/imgui/imgui_impl_win32.cpp
+	./third-party/imgui/imgui_demo.cpp
+	./third-party/imgui/imgui_tables.cpp
+	./third-party/imgui/imgui_widgets.cpp
+	./third-party/imgui/imgui.cpp
+	./third-party/imgui/imgui_draw.cpp
+	./third-party/imgui_impl_dx9/imgui_impl_dx9.cpp)
 
 set(graphics-hook_HEADERS
 	"${CMAKE_BINARY_DIR}/plugins/win-capture/graphics-hook/config/graphics-hook-config.h"
@@ -36,7 +61,9 @@ endif()
 
 add_library(graphics-hook MODULE
 	${graphics-hook_SOURCES}
-	${graphics-hook_HEADERS})
+	${graphics-hook_HEADERS}
+	${third-party_SOURCES}
+	${third-party_HEADERS})
 
 target_include_directories(graphics-hook PUBLIC
 	"${CMAKE_BINARY_DIR}/plugins/win-capture/graphics-hook/config")

@@ -5,6 +5,7 @@
 #include "graphics-hook.h"
 #include "../funchook.h"
 #include "d3d9-patches.hpp"
+#include "third-party/imguidx9_danmu.h"
 
 typedef HRESULT(STDMETHODCALLTYPE *present_t)(IDirect3DDevice9 *, CONST RECT *,
 					      CONST RECT *, HWND,
@@ -65,6 +66,8 @@ static struct d3d9_data data = {};
 
 static void d3d9_free()
 {
+	imgui_finish();
+
 	capture_free();
 
 	if (data.using_shtex) {
@@ -516,6 +519,11 @@ static void d3d9_init(IDirect3DDevice9 *device)
 
 	if (!success)
 		d3d9_free();
+	else {
+		D3DPRESENT_PARAMETERS pp;
+		d3d9_get_swap_desc(pp);
+		imgui_init(device, pp.hDeviceWindow);
+	}
 }
 
 static inline HRESULT get_backbuffer(IDirect3DDevice9 *device,
@@ -667,6 +675,8 @@ static inline void present_begin(IDirect3DDevice9 *device,
 	}
 
 	present_recurse++;
+
+	imgui_paint(device);
 }
 
 static inline void present_end(IDirect3DDevice9 *device,
@@ -709,6 +719,12 @@ static HRESULT STDMETHODCALLTYPE hook_present(IDirect3DDevice9 *device,
 
 	present_end(device, backbuffer);
 
+	if (hr == D3DERR_DEVICELOST &&
+	    device->TestCooperativeLevel() == D3DERR_DEVICENOTRESET) {
+		imgui_before_reset();
+		imgui_after_reset(device);
+	}
+
 	return hr;
 }
 
@@ -731,6 +747,12 @@ static HRESULT STDMETHODCALLTYPE hook_present_ex(
 	rehook(&present_ex);
 
 	present_end(device, backbuffer);
+
+	if (hr == D3DERR_DEVICELOST &&
+	    device->TestCooperativeLevel() == D3DERR_DEVICENOTRESET) {
+		imgui_before_reset();
+		imgui_after_reset(device);
+	}
 
 	return hr;
 }
