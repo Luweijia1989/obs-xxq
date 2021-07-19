@@ -18,6 +18,7 @@ public:
 	DEFINE_PROPERTY(bool, databold)
 	DEFINE_PROPERTY(bool, dataitalic)
 	DEFINE_PROPERTY(QString, datafontcolor)
+	DEFINE_PROPERTY(int, uitype)
 public:
 	NewFollow(QObject *parent = nullptr);
 	static void default(obs_data_t *settings);

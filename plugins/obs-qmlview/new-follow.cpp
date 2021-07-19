@@ -6,13 +6,14 @@
 
 NewFollow::NewFollow(QObject *parent /* = nullptr */) : QmlSourceBase(parent)
 {
-	addProperties("newFollowProperties", this);
+	addProperties("newProperties", this);
+	setuitype(2);
 }
 
 void NewFollow::default(obs_data_t *settings)
 {
 	obs_data_set_default_string(settings, "file",
-				    "qrc:/qmlfiles/NewFollow.qml");
+				    "qrc:/qmlfiles/NewCommon.qml");
 	obs_data_set_default_string(settings, "themefont",
 				    u8"阿里巴巴普惠体 M");
 	obs_data_set_default_bool(settings, "themebold", false);

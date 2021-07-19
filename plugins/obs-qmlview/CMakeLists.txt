@@ -53,6 +53,7 @@ set(qmlview_SOURCES
     first-rank-list.cpp
     new-reward.cpp
     new-follow.cpp
+    new-timer.cpp
 )
 
 set( qmlview_HEADERS
@@ -75,6 +76,7 @@ set( qmlview_HEADERS
     first-rank-list.h
     new-reward.h
     new-follow.h
+    new-timer.h
 )
 
 set(qmlview_QRC qmlview.qrc)
