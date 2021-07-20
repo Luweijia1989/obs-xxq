@@ -13,9 +13,21 @@ Item {
         {
             return "qrc:/qmlfiles/image/fanstarget/background_fans1.png";
         }
-        else
+        else if(themeType === 2)
         {
             return "qrc:/qmlfiles/image/fanstarget/background_fans2.png";
+        }
+        else if(themeType === 3)
+        {
+            return "qrc:/qmlfiles/image/fanstarget/tip.png";
+        }
+        else if(themeType === 4)
+        {
+            return "qrc:/qmlfiles/image/fanstarget/switch.png";
+        }
+        else
+        {
+            return "qrc:/qmlfiles/image/fanstarget/deepblue.png";
         }
     }
 
@@ -53,9 +65,21 @@ Item {
         {
             return 602;
         }
-        else
+        else if(themeType === 2)
         {
             return 593;
+        }
+        else if(themeType === 3)
+        {
+            return 482;
+        }
+        else if(themeType === 4)
+        {
+            return 643;
+        }
+        else
+        {
+            return 568;
         }
     }
 
@@ -65,33 +89,21 @@ Item {
         {
             return 164;
         }
-        else
+        else if(themeType === 2)
         {
             return 174;
         }
-    }
-
-    function titleTextColor(themeType)
-    {
-        if(themeType === 1)
+        else if(themeType === 3)
         {
-            return "#333333";
+            return 247;
+        }
+        else if(themeType === 4)
+        {
+            return 171;
         }
         else
         {
-            return "#FFFFFF";
-        }
-    }
-
-    function progressTextColor(themeType)
-    {
-        if(themeType === 1)
-        {
-            return "#FFC70B";
-        }
-        else
-        {
-            return "#FFFFFF";
+            return 166;
         }
     }
 
@@ -101,9 +113,21 @@ Item {
         {
             return "#FFFFFF";
         }
-        else
+        else if(themeType === 2)
         {
             return "#C3E3EE";
+        }
+        else if(themeType === 3)
+        {
+            return "#8692C7";
+        }
+        else if(themeType === 4)
+        {
+            return "#71E776";
+        }
+        else
+        {
+            return "#7E94C8";
         }
     }
 
@@ -113,12 +137,120 @@ Item {
         {
             return 578
         }
-        else
+        else if(themeType === 2)
         {
              return 448
         }
+        else if(themeType === 3)
+        {
+             return 310
+        }
+        else if(themeType === 4)
+        {
+             return 403
+        }
+        else
+        {
+             return 478
+        }
     }
+	
+    function processHeight(themeType)
+    {
+        if(themeType === 1)
+        {
+            return 22
+        }
+        else if(themeType === 2)
+        {
+             return 24
+        }
+        else if(themeType === 3)
+        {
+             return 18
+        }
+        else if(themeType === 4)
+        {
+             return 16
+        }
+        else
+        {
+             return 20
+        }
+    }
+	
+	function processPosX()
+	{
+        if(fansTargetProperties.themetype === 1)
+        {
+            return 12
+        }
+        else if(fansTargetProperties.themetype === 2)
+        {
+             return 44
+        }
+        else if(fansTargetProperties.themetype === 3)
+        {
+             return 81
+        }
+        else if(fansTargetProperties.themetype === 4)
+        {
+             return 136
+        }
+        else
+        {
+             return 46
+        }
+	}
 
+	function processPosY()
+	{
+	    if(fansTargetProperties.themetype === 1)
+        {
+            return 128
+        }
+        else if(fansTargetProperties.themetype === 2)
+        {
+             return 117
+        }
+        else if(fansTargetProperties.themetype === 3)
+        {
+             return 162
+        }
+        else if(fansTargetProperties.themetype === 4)
+        {
+             return 108
+        }
+        else
+        {
+             return 107
+        }
+	}
+	
+	function processRadius()
+	{
+	    if(fansTargetProperties.themetype === 1)
+        {
+            return 0
+        }
+        else if(fansTargetProperties.themetype === 2)
+        {
+             return 12
+        }
+        else if(fansTargetProperties.themetype === 3)
+        {
+             return 18
+        }
+        else if(fansTargetProperties.themetype === 4)
+        {
+             return 16
+        }
+        else
+        {
+             return 20
+        }
+	}
+	
     function caculateProcessValue(realfans,totalfans)
     {
         if(totalfans === 0)
@@ -139,6 +271,150 @@ Item {
                 return c
         }
     }
+	
+	function itemPosX()
+	{
+	    if(fansTargetProperties.themetype === 1)
+        {
+            return 32
+        }
+        else if(fansTargetProperties.themetype === 2)
+        {
+             return 45
+        }
+        else if(fansTargetProperties.themetype === 3)
+        {
+             return 73
+        }
+        else if(fansTargetProperties.themetype === 4)
+        {
+             return 102
+        }
+        else
+        {
+             return 34
+        }
+	}
+	
+	function itemPosY()
+	{
+	    if(fansTargetProperties.themetype === 1)
+        {
+            return 30
+        }
+        else if(fansTargetProperties.themetype === 2)
+        {
+             return 40
+        }
+        else if(fansTargetProperties.themetype === 3)
+        {
+             return 48
+        }
+        else if(fansTargetProperties.themetype === 4)
+        {
+             return 36
+        }
+        else
+        {
+             return 27
+        }
+	}
+	
+	function itemWidth()
+	{
+	    if(fansTargetProperties.themetype === 1)
+        {
+            return 546
+        }
+        else if(fansTargetProperties.themetype === 2)
+        {
+             return 448
+        }
+        else if(fansTargetProperties.themetype === 3)
+        {
+             return 142
+        }
+        else if(fansTargetProperties.themetype === 4)
+        {
+             return 435
+        }
+        else
+        {
+             return 478
+        }
+	}
+	
+	function itemHeight()
+	{
+	    if(fansTargetProperties.themetype === 1)
+        {
+            return 84
+        }
+        else if(fansTargetProperties.themetype === 2)
+        {
+             return 84
+        }
+        else if(fansTargetProperties.themetype === 3)
+        {
+             return 117
+        }
+        else if(fansTargetProperties.themetype === 4)
+        {
+             return 69
+        }
+        else
+        {
+             return 83
+        }
+	}
+	
+	function topTextSize()
+	{
+	    if(fansTargetProperties.themetype === 1)
+        {
+            return 32
+        }
+        else if(fansTargetProperties.themetype === 2)
+        {
+             return 32
+        }
+        else if(fansTargetProperties.themetype === 3)
+        {
+             return 36
+        }
+        else if(fansTargetProperties.themetype === 4)
+        {
+             return 36
+        }
+        else
+        {
+             return 36
+        }
+	}
+	
+	function bottomTextSize()
+	{
+	    if(fansTargetProperties.themetype === 1)
+        {
+            return 32
+        }
+        else if(fansTargetProperties.themetype === 2)
+        {
+             return 32
+        }
+        else if(fansTargetProperties.themetype === 3)
+        {
+             return 32
+        }
+        else if(fansTargetProperties.themetype === 4)
+        {
+             return 32
+        }
+        else
+        {
+             return 36
+        }
+	}
 
     Rectangle {
         id:rec1
@@ -158,41 +434,55 @@ Item {
         Item{
             id:item1
             anchors.left: parent.left
-            anchors.leftMargin: fansTargetProperties.themetype === 1 ? 32:45
+            anchors.leftMargin: itemPosX()
             anchors.top: parent.top
-            anchors.topMargin: fansTargetProperties.themetype === 1 ? 30:40
-            anchors.bottom: parent.bottom
-            anchors.bottomMargin:73
-            height: 84
-			width:fansTargetProperties.themetype === 1 ? 546:448
+            anchors.topMargin: itemPosY()
+            height: itemHeight()
+			width:itemWidth()
             Text {
                 id: text1
                 text: "目标粉丝"
                 font.family: fansTargetProperties.themefont
-                font.pixelSize:32
+                font.pixelSize:topTextSize()
                 font.bold: fansTargetProperties.themebold
                 font.italic: fansTargetProperties.themeitalic
-                color: fansTargetProperties.themefontcolor//titleTextColor(fansTargetProperties.themetype)
+                color: fansTargetProperties.themefontcolor
             }
 
             Text {
                 id: text2
-                anchors.right:parent.right
+				anchors.right:parent.right
                 anchors.bottom:text1.bottom
                 text: progressText(fansTargetProperties.realfans,fansTargetProperties.totalfans)
                 font.family: fansTargetProperties.datafont
-                font.pixelSize: 32
+                font.pixelSize:bottomTextSize()
                 font.bold: fansTargetProperties.databold
                 font.italic: fansTargetProperties.dataitalic
                 color: fansTargetProperties.datafontcolor
+				visible:fansTargetProperties.themetype!== 3
+            }
+			
+			Text {
+                id: text3
+				anchors.left:parent.left
+                anchors.bottom:parent.bottom
+                anchors.bottomMargin:9
+                text: progressText(fansTargetProperties.realfans,fansTargetProperties.totalfans)
+                font.family: fansTargetProperties.datafont
+                font.pixelSize:bottomTextSize()
+                font.bold: fansTargetProperties.databold
+                font.italic: fansTargetProperties.dataitalic
+                color: fansTargetProperties.datafontcolor
+				visible:fansTargetProperties.themetype=== 3
             }
         }
+		
         ProgressBar {
             id: progressBar1
             width: processWidth(fansTargetProperties.themetype)
-            height: fansTargetProperties.themetype === 1 ? 22:24
-            x:fansTargetProperties.themetype === 1 ? 12 : 44
-            y:fansTargetProperties.themetype === 1 ? 128 :117
+            height: processHeight(fansTargetProperties.themetype)
+            x:processPosX()
+            y:processPosY()
             value:caculateProcessValue(fansTargetProperties.realfans,fansTargetProperties.totalfans)
             maximumValue: 100
             minimumValue: 0
@@ -203,10 +493,21 @@ Item {
             }
             progress: Rectangle{
             color: progressColor(fansTargetProperties.themetype)
-            radius:fansTargetProperties.themetype === 1 ? 0:12
+            radius:processRadius()
+			border.width: fansTargetProperties.themetype === 5 ? 1:0
+			border.color: newProperties.themetype === 5 ?"#7E94C8":"#00000000"
             }
           }
          }
+		Image {
+            id: processIcon
+            opacity: fansTargetProperties.transparence
+            x:processPosX()+caculateProcessValue(fansTargetProperties.realfans,fansTargetProperties.totalfans)*processWidth(fansTargetProperties.themetype)/100 -30
+            y:processPosY()-11
+            source: "qrc:/qmlfiles/image/fanstarget/processIcon.png"
+            fillMode: Image.Pad
+			visible:fansTargetProperties.themetype=== 5&&caculateProcessValue(fansTargetProperties.realfans,fansTargetProperties.totalfans)!=0
+        }
     }
 }
 
