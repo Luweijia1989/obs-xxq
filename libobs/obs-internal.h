@@ -41,7 +41,6 @@
 #define MICROSECOND_DEN 1000000
 #define NUM_ENCODE_TEXTURES 3
 #define NUM_ENCODE_TEXTURE_FRAMES_TO_WAIT 1
-#define NUM_RTC_CHANNEL 8
 
 static inline int64_t packet_dts_usec(struct encoder_packet *packet)
 {
@@ -305,14 +304,6 @@ struct obs_core_video {
 	gs_effect_t *deinterlace_blend_2x_effect;
 	gs_effect_t *deinterlace_yadif_effect;
 	gs_effect_t *deinterlace_yadif_2x_effect;
-
-	//rtc mix info
-	gs_texture_t *rtc_textures[NUM_RTC_CHANNEL];
-	bool render_rtc_textures;
-	uint32_t self_crop_x;
-	uint32_t self_crop_y;
-	uint32_t self_crop_width;
-	uint32_t self_crop_height;
 
 	struct obs_video_info ovi;
 };
