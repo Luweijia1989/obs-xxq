@@ -40,6 +40,8 @@ static inline void make_video_info(struct video_output_info *vi,
 	vi->range = ovi->range;
 	vi->colorspace = ovi->colorspace;
 	vi->cache_size = 6;
+	vi->crop_width = 0;
+	vi->crop_height = 0;
 }
 
 static inline void calc_gpu_conversion_sizes(const struct obs_video_info *ovi)
@@ -2759,4 +2761,28 @@ void obs_source_custom_command_xxqsource(int type, obs_data_t *settings)
 	if (type == 5 && data->mask_source) {
 		obs_source_do_custom_command(data->mask_source, settings);
 	}
+}
+
+void obs_rtc_mix_begin(uint32_t self_crop_x, uint32_t self_crop_y,
+		       uint32_t self_crop_width, uint32_t self_crop_height,
+		       uint32_t crop_width, uint32_t crop_height)
+{
+	struct obs_core_video *video = &obs->video;
+	video->self_crop_x = self_crop_x;
+	video->self_crop_y = self_crop_y;
+	video->self_crop_width = self_crop_width;
+	video->self_crop_height = self_crop_height;
+	video->render_rtc_textures = true;
+	struct video_output_info *info = video_output_get_info(video->video);
+	info->crop_width = crop_width;
+	info->crop_height = crop_height;
+}
+
+void obs_rtc_mix_end()
+{
+	struct obs_core_video *video = &obs->video;
+	video->render_rtc_textures = false;
+	struct video_output_info *info = video_output_get_info(video->video);
+	info->crop_width = 0;
+	info->crop_height = 0;
 }

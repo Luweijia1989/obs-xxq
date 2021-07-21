@@ -41,6 +41,7 @@ enum obs_encoder_type {
 
 /** Encoder output packet */
 struct encoder_packet {
+	bool first_video_packet;
 	uint8_t *data; /**< Packet data */
 	size_t size;   /**< Packet size */
 

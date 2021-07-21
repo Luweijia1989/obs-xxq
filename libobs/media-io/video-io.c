@@ -479,6 +479,43 @@ bool video_output_lock_frame(video_t *video, struct video_frame *frame,
 	return locked;
 }
 
+bool video_output_lock_frame2(video_t *video, struct video_frame **frame,
+			     int count, uint64_t timestamp)
+{
+	struct cached_frame_info *cfi;
+	bool locked;
+
+	if (!video)
+		return false;
+
+	pthread_mutex_lock(&video->data_mutex);
+
+	if (video->available_frames == 0) {
+		video->cache[video->last_added].count += count;
+		video->cache[video->last_added].skipped += count;
+		locked = false;
+
+	} else {
+		if (video->available_frames != video->info.cache_size) {
+			if (++video->last_added == video->info.cache_size)
+				video->last_added = 0;
+		}
+
+		cfi = &video->cache[video->last_added];
+		cfi->frame.timestamp = timestamp;
+		cfi->count = count;
+		cfi->skipped = 0;
+
+		*frame = &cfi->frame;
+
+		locked = true;
+	}
+
+	pthread_mutex_unlock(&video->data_mutex);
+
+	return locked;
+}
+
 void video_output_unlock_frame(video_t *video)
 {
 	if (!video)

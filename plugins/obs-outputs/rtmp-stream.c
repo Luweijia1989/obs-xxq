@@ -578,7 +578,7 @@ static void *send_thread(void *data)
 			}
 		}
 
-		if (!stream->sent_headers) {
+		if (packet.first_video_packet) {
 			if (!send_headers(stream)) {
 				os_atomic_set_bool(&stream->disconnected, true);
 				break;
@@ -637,7 +637,6 @@ static void *send_thread(void *data)
 	free_packets(stream);
 	os_event_reset(stream->stop_event);
 	os_atomic_set_bool(&stream->active, false);
-	stream->sent_headers = false;
 
 	/* reset bitrate on stop */
 	if (stream->dbr_enabled) {
@@ -705,7 +704,6 @@ static bool send_video_header(struct rtmp_stream *stream)
 
 static inline bool send_headers(struct rtmp_stream *stream)
 {
-	stream->sent_headers = true;
 	size_t i = 0;
 	bool next = true;
 

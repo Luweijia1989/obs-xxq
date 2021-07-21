@@ -292,6 +292,83 @@ static inline gs_texture_t *render_output_texture(struct obs_core_video *video)
 	return target;
 }
 
+static inline void render_rtc_textures(gs_effect_t *effect,
+				       gs_technique_t *tech,
+				       gs_texture_t *texture, uint32_t x_pos,
+				       uint32_t y_pos, uint32_t crop_x,
+				       uint32_t crop_y, uint32_t crop_width,
+				       uint32_t crop_height)
+{
+	gs_eparam_t *image = gs_effect_get_param_by_name(effect, "image");
+	size_t passes, i;
+
+	gs_viewport_push();
+	gs_projection_push();
+	gs_matrix_push();
+	gs_matrix_identity();
+
+	uint32_t src_width = gs_texture_get_width(texture);
+	uint32_t src_height = gs_texture_get_height(texture);
+	gs_set_viewport(x_pos, y_pos, crop_width, crop_height);
+	gs_ortho(0.0f, (float)src_width, 0.0f, (float)src_height, -100.0f,
+		 100.0f);
+
+	float cx_scale = (float)src_width / (float)crop_width;
+	float cy_scale = (float)src_height / (float)crop_height;
+	gs_matrix_scale3f(cx_scale, cy_scale, 1.0f);
+	gs_matrix_translate3f(-(float)crop_x,
+			      -(float)crop_y, 0.0f);
+
+	gs_effect_set_texture(image, texture);
+
+	gs_enable_blending(false);
+	passes = gs_technique_begin(tech);
+	for (i = 0; i < passes; i++) {
+		gs_technique_begin_pass(tech, i);
+		gs_draw_sprite(texture, 0, src_width, src_height);
+		gs_technique_end_pass(tech);
+	}
+	gs_technique_end(tech);
+	gs_enable_blending(true);
+
+	gs_matrix_pop();
+	gs_projection_pop();
+	gs_viewport_pop();
+}
+
+static const char *render_rtc_output_texture_name = "render_rtc_output_texture";
+static inline gs_texture_t *
+render_rtc_output_texture(struct obs_core_video *video)
+{
+	gs_texture_t *texture = video->render_texture;
+	gs_texture_t *target = video->output_texture;
+	uint32_t width = gs_texture_get_width(target);
+	uint32_t height = gs_texture_get_height(target);
+
+	gs_effect_t *effect = get_scale_effect(video, width, height);
+	gs_technique_t *tech;
+
+	if (video->ovi.output_format == VIDEO_FORMAT_RGBA) {
+		tech = gs_effect_get_technique(effect, "DrawAlphaDivide");
+	} else {
+		tech = gs_effect_get_technique(effect, "Draw");
+	}
+
+	profile_start(render_rtc_output_texture_name);
+
+	gs_set_render_target(target, NULL);
+
+	struct vec4 clear_color;
+	vec4_zero(&clear_color);
+	gs_clear(GS_CLEAR_COLOR, &clear_color, 0.0f, 0);
+
+	render_rtc_textures(effect, tech, texture, 0, 0, 0, 0, 960, 1080);
+	//render_rtc_textures(effect, tech, texture, 960, 0, 960, 0, 960, 1080);
+	profile_end(render_rtc_output_texture_name);
+
+	return target;
+}
+
 static void render_convert_plane(gs_effect_t *effect, gs_texture_t *target,
 				 const char *tech_name)
 {
@@ -506,7 +583,10 @@ static inline void render_video(struct obs_core_video *video, bool raw_active,
 	render_main_texture(video, output_order);
 
 	if (raw_active || gpu_active) {
-		gs_texture_t *texture = render_output_texture(video);
+		gs_texture_t *texture =
+			video->render_rtc_textures
+				? render_rtc_output_texture(video)
+				: render_output_texture(video);
 
 #ifdef _WIN32
 		if (gpu_active)
@@ -553,10 +633,10 @@ static inline bool download_frame(struct obs_core_video *video,
 	return true;
 }
 
-static const uint8_t *set_gpu_converted_plane(uint32_t width, uint32_t height,
-					      uint32_t linesize_input,
-					      uint32_t linesize_output,
-					      const uint8_t *in, uint8_t *out)
+static const void set_gpu_converted_plane(uint32_t width, uint32_t height,
+					  uint32_t linesize_input,
+					  uint32_t linesize_output,
+					  const uint8_t *in, uint8_t *out)
 {
 	if ((width == linesize_input) && (width == linesize_output)) {
 		size_t total = width * height;
@@ -569,8 +649,6 @@ static const uint8_t *set_gpu_converted_plane(uint32_t width, uint32_t height,
 			in += linesize_input;
 		}
 	}
-
-	return in;
 }
 
 static void set_gpu_converted_data(struct obs_core_video *video,
@@ -578,14 +656,20 @@ static void set_gpu_converted_data(struct obs_core_video *video,
 				   const struct video_data *input,
 				   const struct video_output_info *info)
 {
+	const uint32_t width = info->crop_width == 0 ? info->width
+						     : info->crop_width;
+	const uint32_t height = info->crop_height == 0 ? info->height
+						       : info->crop_height;
 	if (video->using_nv12_tex) {
-		const uint32_t width = info->width;
-		const uint32_t height = info->height;
+		output->linesize[0] = width;
+		output->linesize[1] = width;
 
-		const uint8_t *const in_uv = set_gpu_converted_plane(
-			width, height, input->linesize[0], output->linesize[0],
-			input->data[0], output->data[0]);
+		set_gpu_converted_plane(width, height, input->linesize[0],
+					output->linesize[0], input->data[0],
+					output->data[0]);
 
+		const uint8_t *const in_uv =
+			input->data[0] + input->linesize[0] * info->height;
 		const uint32_t height_d2 = height / 2;
 		set_gpu_converted_plane(width, height_d2, input->linesize[0],
 					output->linesize[1], in_uv,
@@ -593,8 +677,9 @@ static void set_gpu_converted_data(struct obs_core_video *video,
 	} else {
 		switch (info->format) {
 		case VIDEO_FORMAT_I420: {
-			const uint32_t width = info->width;
-			const uint32_t height = info->height;
+			output->linesize[0] = width;
+			output->linesize[1] = width / 2;
+			output->linesize[2] = width / 2;
 
 			set_gpu_converted_plane(width, height,
 						input->linesize[0],
@@ -620,9 +705,8 @@ static void set_gpu_converted_data(struct obs_core_video *video,
 			break;
 		}
 		case VIDEO_FORMAT_NV12: {
-			const uint32_t width = info->width;
-			const uint32_t height = info->height;
-
+			output->linesize[0] = width;
+			output->linesize[1] = width;
 			set_gpu_converted_plane(width, height,
 						input->linesize[0],
 						output->linesize[0],
@@ -639,9 +723,9 @@ static void set_gpu_converted_data(struct obs_core_video *video,
 			break;
 		}
 		case VIDEO_FORMAT_I444: {
-			const uint32_t width = info->width;
-			const uint32_t height = info->height;
-
+			output->linesize[0] = width;
+			output->linesize[1] = width;
+			output->linesize[2] = width;
 			set_gpu_converted_plane(width, height,
 						input->linesize[0],
 						output->linesize[0],
@@ -690,6 +774,11 @@ static inline void copy_rgbx_frame(struct video_frame *output,
 	uint8_t *in_ptr = input->data[0];
 	uint8_t *out_ptr = output->data[0];
 
+	const uint32_t width = info->crop_width == 0 ? info->width
+						     : info->crop_width;
+	const uint32_t height = info->crop_height == 0 ? info->height
+						       : info->crop_height;
+	output->linesize[0] = width * 4;
 	/* if the line sizes match, do a single copy */
 	if (input->linesize[0] == output->linesize[0]) {
 		memcpy(out_ptr, in_ptr, input->linesize[0] * info->height);
@@ -706,19 +795,20 @@ static inline void output_video_data(struct obs_core_video *video,
 				     struct video_data *input_frame, int count)
 {
 	const struct video_output_info *info;
-	struct video_frame output_frame;
+	struct video_frame *output_frame;
 	bool locked;
 
 	info = video_output_get_info(video->video);
 
-	locked = video_output_lock_frame(video->video, &output_frame, count,
-					 input_frame->timestamp);
+	locked = video_output_lock_frame2(video->video, &output_frame, count,
+					  input_frame->timestamp);
 	if (locked) {
 		if (video->gpu_conversion) {
-			set_gpu_converted_data(video, &output_frame,
-					       input_frame, info);
+			set_gpu_converted_data(video, output_frame, input_frame,
+					       info);
 		} else {
-			copy_rgbx_frame(&output_frame, input_frame, info);
+			//never reach here
+			copy_rgbx_frame(output_frame, input_frame, info);
 		}
 
 		video_output_unlock_frame(video->video);

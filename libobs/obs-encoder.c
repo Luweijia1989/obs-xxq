@@ -902,6 +902,7 @@ static void send_first_video_packet(struct obs_encoder *encoder,
 	first_packet = *packet;
 	first_packet.data = data.array;
 	first_packet.size = data.num;
+	first_packet.first_video_packet = true;
 
 	cb->new_packet(cb->param, &first_packet);
 	cb->sent_first_packet = true;
@@ -982,7 +983,17 @@ void send_off_encoder_packet(obs_encoder_t *encoder, bool success,
 }
 
 static const char *do_encode_name = "do_encode";
-bool do_encode(struct obs_encoder *encoder, struct encoder_frame *frame)
+static uint32_t last_linesize[MAX_AV_PLANES];
+static uint32_t emp[MAX_AV_PLANES] = {0};
+static inline bool check_frame_changed(struct encoder_frame *frame)
+{
+	bool changed = false;
+	changed = memcmp(last_linesize, emp, sizeof(last_linesize)) != 0 && memcmp(last_linesize, frame->linesize, sizeof(last_linesize)) != 0;
+	memcpy(last_linesize, frame->linesize, sizeof(last_linesize));
+	return changed;
+}
+
+bool do_encode(struct obs_encoder *encoder, struct encoder_frame *frame, bool is_audio)
 {
 	profile_start(do_encode_name);
 	if (!encoder->profile_encoder_encode_name)
@@ -999,6 +1010,22 @@ bool do_encode(struct obs_encoder *encoder, struct encoder_frame *frame)
 	pkt.encoder = encoder;
 
 	profile_start(encoder->profile_encoder_encode_name);
+	if (!is_audio && check_frame_changed(frame)) {
+		encoder->info.destroy(encoder->context.data);
+		const struct video_output_info *voi;
+		voi = video_output_get_info(encoder->media);
+		encoder->scaled_width = voi->crop_width;
+		encoder->scaled_height = voi->crop_height;
+		encoder->context.data = encoder->info.create(encoder->context.settings, encoder);
+
+		for (size_t i = encoder->callbacks.num; i > 0; i--) {
+			struct encoder_callback *cb;
+			cb = encoder->callbacks.array + (i - 1);
+			cb->sent_first_packet = false;
+		}
+
+		pthread_mutex_unlock(&encoder->callbacks_mutex);
+	}
 	success = encoder->info.encode(encoder->context.data, frame, &pkt,
 				       &received);
 	profile_end(encoder->profile_encoder_encode_name);
@@ -1074,7 +1101,7 @@ static void receive_video(void *param, struct video_data *frame)
 	enc_frame.frames = 1;
 	enc_frame.pts = encoder->cur_pts;
 
-	if (do_encode(encoder, &enc_frame))
+	if (do_encode(encoder, &enc_frame, false))
 		encoder->cur_pts += encoder->timebase_num;
 
 wait_for_audio:
@@ -1202,7 +1229,7 @@ static bool send_audio_data(struct obs_encoder *encoder)
 	enc_frame.frames = (uint32_t)encoder->framesize;
 	enc_frame.pts = encoder->cur_pts;
 
-	if (!do_encode(encoder, &enc_frame))
+	if (!do_encode(encoder, &enc_frame, true))
 		return false;
 
 	encoder->cur_pts += encoder->framesize;
