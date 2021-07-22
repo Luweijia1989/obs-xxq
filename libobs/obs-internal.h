@@ -237,11 +237,13 @@ struct obs_tex_frame {
 struct obs_core_video {
 	graphics_t *graphics;
 	gs_stagesurf_t *copy_surfaces[NUM_TEXTURES][NUM_CHANNELS];
+	gs_stagesurf_t *copy_surfaces_raw[NUM_TEXTURES][NUM_CHANNELS];
 	gs_texture_t *render_texture;
 	gs_texture_t *output_texture;
 	gs_texture_t *convert_textures[NUM_CHANNELS];
 	bool texture_rendered;
 	bool textures_copied[NUM_TEXTURES];
+	bool textures_copied_raw[NUM_TEXTURES];
 	bool texture_converted;
 	bool using_nv12_tex;
 	struct circlebuf vframe_info_buffer;
@@ -259,6 +261,7 @@ struct obs_core_video {
 	gs_effect_t *premultiplied_alpha_effect;
 	gs_samplerstate_t *point_sampler;
 	gs_stagesurf_t *mapped_surfaces[NUM_CHANNELS];
+	gs_stagesurf_t *mapped_surfaces_raw[NUM_CHANNELS];
 	int cur_texture;
 	long raw_active;
 	long gpu_encoder_active;

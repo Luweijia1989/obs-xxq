@@ -85,6 +85,8 @@ enum video_range_type {
 struct video_data {
 	uint8_t *data[MAX_AV_PLANES];
 	uint32_t linesize[MAX_AV_PLANES];
+	uint8_t *data_raw[MAX_AV_PLANES];
+	uint32_t linesize_raw[MAX_AV_PLANES];
 	uint64_t timestamp;
 };
 
