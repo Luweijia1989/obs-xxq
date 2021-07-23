@@ -6,7 +6,7 @@
 #include <Windows.h>
 
 void imgui_init(IDirect3DDevice9 *device, HWND hwnd);
-void imgui_paint(IDirect3DDevice9 *device);
+void imgui_paint();
 void imgui_before_reset();
 void imgui_after_reset(IDirect3DDevice9 *device);
 void imgui_finish();

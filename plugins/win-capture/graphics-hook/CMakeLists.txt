@@ -19,7 +19,10 @@ set(third-party_HEADERS
 	./third-party/imgui/imstb_rectpack.h
 	./third-party/imgui/imstb_textedit.h
 	./third-party/imgui/imstb_truetype.h
-	./third-party/imgui_impl_dx9/imgui_impl_dx9.h)
+	./third-party/imgui_impl_dx9/imgui_impl_dx9.h
+	./third-party/json_tool.h
+	./third-party/shared_helper.h
+	./third-party/shared_mem.h)
 	
 set(third-party_SOURCES
 	./third-party/ImRender.cpp
@@ -30,7 +33,12 @@ set(third-party_SOURCES
 	./third-party/imgui/imgui_widgets.cpp
 	./third-party/imgui/imgui.cpp
 	./third-party/imgui/imgui_draw.cpp
-	./third-party/imgui_impl_dx9/imgui_impl_dx9.cpp)
+	./third-party/imgui_impl_dx9/imgui_impl_dx9.cpp
+	./third-party/json_reader.cpp
+	./third-party/json_value.cpp
+	./third-party/json_writer.cpp
+	./third-party/shared_helper.cpp
+	./third-party/shared_mem.cpp)
 
 set(graphics-hook_HEADERS
 	"${CMAKE_BINARY_DIR}/plugins/win-capture/graphics-hook/config/graphics-hook-config.h"

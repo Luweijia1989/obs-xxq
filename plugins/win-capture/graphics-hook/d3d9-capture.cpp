@@ -676,7 +676,7 @@ static inline void present_begin(IDirect3DDevice9 *device,
 
 	present_recurse++;
 
-	imgui_paint(device);
+	imgui_paint();
 }
 
 static inline void present_end(IDirect3DDevice9 *device,
