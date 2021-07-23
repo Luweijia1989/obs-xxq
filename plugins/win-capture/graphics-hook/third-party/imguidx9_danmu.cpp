@@ -285,7 +285,7 @@ FORCEINLINE void draw_interface()
 
 	ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
 	// Start the Dear ImGui frame
-	ImGui_ImplDX9_NewFrame();
+	ImGui_ImplDX11_NewFrame();
 	ImGui_ImplWin32_NewFrame();
 	ImGui::NewFrame();
 
@@ -315,7 +315,7 @@ FORCEINLINE void draw_interface()
 	 //Rendering
 	ImGui::EndFrame();
 	ImGui::Render();
-	ImGui_ImplDX9_RenderDrawData(ImGui::GetDrawData());
+	ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
 }
 
 std::string WStringToString(const std::wstring &wstr)
@@ -383,6 +383,57 @@ void imgui_init(IDirect3DDevice9 *device, HWND hwnd)
 	is_initialised = true;
 }
 
+void imgui_init(ID3D11Device *device, HWND hwnd, ID3D11DeviceContext *context)
+{
+	if (is_initialised)
+		return;
+
+	IMGUI_CHECKVERSION();
+	ImGui::CreateContext();
+	ImGuiIO &io = ImGui::GetIO();
+
+	StyleColorsYuer(nullptr);
+
+	// Setup Platform/Renderer backends
+	ImGui_ImplWin32_Init(hwnd);
+	ImGui_ImplDX11_Init(device, context);
+	//ImGui_ImplDX9_CreateDeviceObjects();
+
+	TCHAR szBuffer[MAX_PATH] = {0};
+	HMODULE hMod = NULL;
+	TCHAR *dllName = L"graphics-hook64.dll";
+#ifdef _WIN64
+	dllName = L"graphics-hook64.dll";
+#else
+	dllName = L"graphics-hook32.dll";
+#endif
+	hMod = GetModuleHandle(dllName);
+	if (hMod != NULL) {
+		GetModuleFileName(hMod, szBuffer,
+				  sizeof(szBuffer) / sizeof(TCHAR) - 1);
+
+		std::wstring ss;
+		ss.assign(szBuffer);
+		size_t pos = ss.find_last_of(L'\\');
+		ss.resize(pos);
+		ss += L"\\..\\..\\..\\..\\resource\\font\\Alibaba-PuHuiTi-Regular.ttf";
+		std::string fontPath = WStringToString(ss);
+		io.Fonts->AddFontFromFileTTF(
+			fontPath.c_str(), 18.0f, NULL,
+			io.Fonts->GetGlyphRangesChineseFull());
+		io.Fonts->AddFontFromFileTTF(
+			fontPath.c_str(), 20.0f, NULL,
+			io.Fonts->GetGlyphRangesChineseFull());
+		io.Fonts->AddFontFromFileTTF(
+			fontPath.c_str(), 22.0f, NULL,
+			io.Fonts->GetGlyphRangesChineseFull());
+	}
+
+	qBase::connect(g_sharedSize, "YuerGameDanmu");
+
+	is_initialised = true;
+}
+
 void imgui_paint()
 {
 	if (capture_active() && is_initialised) {
@@ -407,7 +458,7 @@ void imgui_after_reset(IDirect3DDevice9 *device)
 void imgui_finish()
 {
 	if (is_initialised) {
-		ImGui_ImplDX9_Shutdown();
+		ImGui_ImplDX11_Shutdown();
 		ImGui_ImplWin32_Shutdown();
 		ImGui::DestroyContext();
 		is_initialised = false;
