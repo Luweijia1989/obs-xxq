@@ -2283,8 +2283,6 @@ static void obs_output_end_data_capture_internal(obs_output_t *output,
 		     output->context.name);
 		end_data_capture_thread(output);
 	}
-	else
-		pthread_join(output->end_data_capture_thread, NULL);
 
 	if (signal) {
 		signal_stop(output);
