@@ -6,13 +6,14 @@
 
 NewReward::NewReward(QObject *parent /* = nullptr */) : QmlSourceBase(parent)
 {
-	addProperties("newRewardProperties", this);
+	addProperties("newProperties", this);
+	setuitype(1);
 }
 
 void NewReward::default(obs_data_t *settings)
 {
 	obs_data_set_default_string(settings, "file",
-				    "qrc:/qmlfiles/NewReward.qml");
+				    "qrc:/qmlfiles/NewCommon.qml");
 	obs_data_set_default_string(settings, "themefont",
 				    u8"阿里巴巴普惠体 M");
 	obs_data_set_default_bool(settings, "themebold", false);
@@ -99,8 +100,8 @@ static void newreward_source_update(void *data, obs_data_t *settings)
 	transparence = transparence / 100.0f;
 	s->settransparence(transparence);
 
-	if (textChange)
-		emit s->update();
+	//if (textChange)
+	emit s->update();
 }
 
 static void *newreward_source_create(obs_data_t *settings, obs_source_t *source)
