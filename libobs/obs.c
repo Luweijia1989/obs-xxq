@@ -452,6 +452,54 @@ static void stop_video(void)
 	}
 }
 
+static void obs_rtc_capture_free(void)
+{
+	struct obs_core_video *video = &obs->video;
+	struct obs_rtc_mix *rtc_mix = &obs->video.rtc_mix;
+	gs_enter_context(video->graphics);
+
+	for (size_t c = 0; c < NUM_CHANNELS; c++) {
+		if (rtc_mix->mapped_surfaces_raw[c]) {
+			gs_stagesurface_unmap(rtc_mix->mapped_surfaces_raw[c]);
+			rtc_mix->mapped_surfaces_raw[c] = NULL;
+		}
+	}
+
+	for (size_t i = 0; i < NUM_TEXTURES; i++) {
+		for (size_t c = 0; c < NUM_CHANNELS; c++) {
+			if (rtc_mix->copy_surfaces_raw[i][c]) {
+				gs_stagesurface_destroy(
+					rtc_mix->copy_surfaces_raw[i][c]);
+				rtc_mix->copy_surfaces_raw[i][c] = NULL;
+			}
+		}
+	}
+
+	gs_texture_destroy(rtc_mix->rtc_frame_texture);
+
+	for (size_t c = 0; c < NUM_CHANNELS; c++) {
+		if (rtc_mix->convert_textures_raw[c]) {
+			gs_texture_destroy(rtc_mix->convert_textures_raw[c]);
+			rtc_mix->convert_textures_raw[c] = NULL;
+		}
+	}
+
+	for (size_t i = 0; i < NUM_TEXTURES; i++) {
+		for (size_t c = 0; c < NUM_CHANNELS; c++) {
+			if (rtc_mix->copy_surfaces_raw[i][c]) {
+				gs_stagesurface_destroy(
+					rtc_mix->copy_surfaces_raw[i][c]);
+				rtc_mix->copy_surfaces_raw[i][c] = NULL;
+			}
+		}
+	}
+
+	rtc_mix->rtc_frame_texture = NULL;
+	video_frame_destroy(rtc_mix->cache_frame);
+
+	gs_leave_context();
+}
+
 static void obs_free_video(void)
 {
 	struct obs_core_video *video = &obs->video;
@@ -524,6 +572,8 @@ static void obs_free_video(void)
 
 		video->gpu_encoder_active = 0;
 		video->cur_texture = 0;
+
+		obs_rtc_capture_free();
 	}
 }
 
@@ -2836,14 +2886,19 @@ static bool obs_init_rtc_textures(struct obs_rtc_mix *rtc_mix)
 	return true;
 }
 
-void obs_rtc_output_begin(uint32_t self_crop_x, uint32_t self_crop_y,
+void obs_rtc_capture_begin(uint32_t self_crop_x, uint32_t self_crop_y,
 		       uint32_t self_crop_width, uint32_t self_crop_height,
 		       uint32_t self_output_width, uint32_t self_output_height)
 {
 	struct obs_rtc_mix *rtc_mix = &obs->video.rtc_mix;
-	if (self_output_height != rtc_mix->rtc_texture_width ||
-	    self_output_height != rtc_mix->rtc_texture_height &&
-		    (self_output_width && self_output_height)) {
+	bool capture_param_changed =
+		self_output_height != rtc_mix->rtc_texture_width ||
+		self_output_height != rtc_mix->rtc_texture_height &&
+			(self_output_width && self_output_height);
+
+	if (capture_param_changed) {
+		obs_rtc_capture_free();
+
 		rtc_mix->rtc_texture_width = self_output_width;
 		rtc_mix->rtc_texture_height = self_output_height;
 		rtc_mix->self_crop_x = self_crop_x;

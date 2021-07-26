@@ -250,12 +250,12 @@ struct obs_rtc_mix {
 
 	float color_matrix[16];
 	gs_stagesurf_t *copy_surfaces_raw[NUM_TEXTURES][NUM_CHANNELS];
+	gs_stagesurf_t *mapped_surfaces_raw[NUM_CHANNELS];
 	gs_texture_t *convert_textures_raw[NUM_CHANNELS];
 	bool textures_copied_raw[NUM_TEXTURES];
 	bool texture_converted_raw;
-	gs_stagesurf_t *mapped_surfaces_raw[NUM_CHANNELS];
-	const char *conversion_techs[NUM_CHANNELS];
 	bool conversion_needed;
+	const char *conversion_techs[NUM_CHANNELS];
 	float conversion_width_i_raw;
 
 	struct video_frame *cache_frame;
