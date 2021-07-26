@@ -861,9 +861,14 @@ static inline void render_video(struct obs_core_video *video, bool raw_active,
 				set_gpu_converted_data_internal(false,
 								rtc_mix->cache_frame,
 								&frame, VIDEO_FORMAT_I420,
-								rtc_mix->rtc_texture_width,
-								rtc_mix->rtc_texture_height);
+								rtc_mix->output_texture_width,
+								rtc_mix->output_texture_height);
 			}
+
+			FILE *f = fopen("E:\\cccc.nv12", "wb");
+			fwrite(rtc_mix->cache_frame->data[0], 1, 720 * 1080 * 1.5, f);
+			fclose(f);
+
 		}
 	}
 

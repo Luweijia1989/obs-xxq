@@ -243,8 +243,10 @@ struct obs_rtc_mix {
 	uint32_t self_crop_y;
 	uint32_t self_crop_width;
 	uint32_t self_crop_height;
-	uint32_t rtc_texture_width;
-	uint32_t rtc_texture_height;
+	uint32_t output_texture_width;
+	uint32_t output_texture_height;
+	uint32_t capture_texture_width;
+	uint32_t capture_texture_height;
 	volatile bool rtc_mix_active;
 	volatile bool rtc_output_active;
 

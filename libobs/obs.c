@@ -2833,18 +2833,21 @@ static bool obs_init_rtc_gpu_conversion(struct obs_rtc_mix *rtc_mix)
 	rtc_mix->conversion_techs[0] = "Planar_Y";
 	rtc_mix->conversion_techs[1] = "Planar_U_Left";
 	rtc_mix->conversion_techs[2] = "Planar_V_Left";
-	rtc_mix->conversion_width_i_raw = 1.f / (float)rtc_mix->rtc_texture_width;
+	rtc_mix->conversion_width_i_raw =
+		1.f / (float)rtc_mix->output_texture_width;
 
-	rtc_mix->convert_textures_raw[0] =
-		gs_texture_create(rtc_mix->rtc_texture_width, rtc_mix->rtc_texture_height, GS_R8,
-				  1, NULL, GS_RENDER_TARGET);
+	rtc_mix->convert_textures_raw[0] = gs_texture_create(
+		rtc_mix->output_texture_width, rtc_mix->output_texture_height,
+		GS_R8, 1, NULL, GS_RENDER_TARGET);
 
-	rtc_mix->convert_textures_raw[1] = gs_texture_create(
-		rtc_mix->rtc_texture_width / 2, rtc_mix->rtc_texture_height / 2, GS_R8, 1,
-		NULL, GS_RENDER_TARGET);
-	rtc_mix->convert_textures_raw[2] = gs_texture_create(
-		rtc_mix->rtc_texture_width / 2, rtc_mix->rtc_texture_height / 2, GS_R8, 1,
-		NULL, GS_RENDER_TARGET);
+	rtc_mix->convert_textures_raw[1] =
+		gs_texture_create(rtc_mix->output_texture_width / 2,
+				  rtc_mix->output_texture_height / 2, GS_R8, 1,
+				  NULL, GS_RENDER_TARGET);
+	rtc_mix->convert_textures_raw[2] =
+		gs_texture_create(rtc_mix->output_texture_width / 2,
+				  rtc_mix->output_texture_height / 2, GS_R8, 1,
+				  NULL, GS_RENDER_TARGET);
 	if (!rtc_mix->convert_textures_raw[2])
 		return false;
 
@@ -2860,26 +2863,26 @@ static bool obs_init_rtc_textures(struct obs_rtc_mix *rtc_mix)
 {
 	for (size_t i = 0; i < NUM_TEXTURES; i++) {
 		rtc_mix->copy_surfaces_raw[i][0] = gs_stagesurface_create(
-			rtc_mix->rtc_texture_width, rtc_mix->rtc_texture_height, GS_R8);
+			rtc_mix->output_texture_width,
+			rtc_mix->output_texture_height, GS_R8);
 		if (!rtc_mix->copy_surfaces_raw[i][0])
 			return false;
 
 		rtc_mix->copy_surfaces_raw[i][1] = gs_stagesurface_create(
-			rtc_mix->rtc_texture_width / 2, rtc_mix->rtc_texture_height / 2,
-			GS_R8);
+			rtc_mix->output_texture_width / 2,
+			rtc_mix->output_texture_height / 2, GS_R8);
 		if (!rtc_mix->copy_surfaces_raw[i][1])
 			return false;
 		rtc_mix->copy_surfaces_raw[i][2] = gs_stagesurface_create(
-			rtc_mix->rtc_texture_width / 2, rtc_mix->rtc_texture_height / 2,
-			GS_R8);
+			rtc_mix->output_texture_width / 2,
+			rtc_mix->output_texture_height / 2, GS_R8);
 		if (!rtc_mix->copy_surfaces_raw[i][2])
 			return false;
 	}
 
-	rtc_mix->rtc_frame_texture = gs_texture_create(rtc_mix->rtc_texture_width,
-						   rtc_mix->rtc_texture_height,
-						   GS_RGBA, 1, NULL,
-						   GS_RENDER_TARGET);
+	rtc_mix->rtc_frame_texture = gs_texture_create(
+		rtc_mix->output_texture_width, rtc_mix->output_texture_height,
+		GS_RGBA, 1, NULL, GS_RENDER_TARGET);
 
 	if (!rtc_mix->rtc_frame_texture)
 		return false;
@@ -2888,13 +2891,17 @@ static bool obs_init_rtc_textures(struct obs_rtc_mix *rtc_mix)
 }
 
 void obs_rtc_capture_begin(uint32_t self_crop_x, uint32_t self_crop_y,
-		       uint32_t self_crop_width, uint32_t self_crop_height,
-		       uint32_t self_output_width, uint32_t self_output_height)
+			   uint32_t self_crop_width, uint32_t self_crop_height,
+			   uint32_t self_output_width,
+			   uint32_t self_output_height, uint32_t capture_width,
+			   uint32_t capture_height)
 {
 	struct obs_rtc_mix *rtc_mix = &obs->video.rtc_mix;
 
-	rtc_mix->rtc_texture_width = self_output_width;
-	rtc_mix->rtc_texture_height = self_output_height;
+	rtc_mix->output_texture_width = self_output_width;
+	rtc_mix->output_texture_height = self_output_height;
+	rtc_mix->capture_texture_width = capture_width;
+	rtc_mix->capture_texture_height = capture_height;
 	rtc_mix->self_crop_x = self_crop_x;
 	rtc_mix->self_crop_y = self_crop_y;
 	rtc_mix->self_crop_width = self_crop_width;
@@ -2903,8 +2910,7 @@ void obs_rtc_capture_begin(uint32_t self_crop_x, uint32_t self_crop_y,
 	//force using nv12 texture
 	obs_enter_graphics();
 	if (!obs_init_rtc_gpu_conversion(rtc_mix))
-		blog(LOG_INFO,
-			"obs_init_rtc_gpu_conversion call false");
+		blog(LOG_INFO, "obs_init_rtc_gpu_conversion call false");
 	if (!obs_init_rtc_textures(rtc_mix))
 		blog(LOG_INFO, "obs_init_rtc_textures call false");
 	obs_leave_graphics();
@@ -2912,7 +2918,7 @@ void obs_rtc_capture_begin(uint32_t self_crop_x, uint32_t self_crop_y,
 	struct matrix4 mat;
 	struct vec4 r_row;
 	video_format_get_parameters(VIDEO_CS_601, VIDEO_RANGE_PARTIAL,
-					(float *)&mat, NULL, NULL);
+				    (float *)&mat, NULL, NULL);
 	matrix4_inv(&mat, &mat);
 	r_row = mat.x;
 	mat.x = mat.y;
@@ -2921,8 +2927,8 @@ void obs_rtc_capture_begin(uint32_t self_crop_x, uint32_t self_crop_y,
 
 	rtc_mix->cache_frame = bmalloc(sizeof(struct video_frame));
 	video_frame_init(rtc_mix->cache_frame, VIDEO_FORMAT_I420,
-				rtc_mix->rtc_texture_width,
-				rtc_mix->rtc_texture_height);
+			 rtc_mix->output_texture_width,
+			 rtc_mix->output_texture_height);
 
 	os_atomic_set_bool(&rtc_mix->rtc_mix_active, true);
 }
