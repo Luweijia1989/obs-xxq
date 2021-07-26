@@ -227,6 +227,50 @@ static inline gs_effect_t *get_scale_effect(struct obs_core_video *video,
 	}
 }
 
+static inline void
+render_texture_scale_internal(gs_texture_t *texture, gs_texture_t *target,
+			      gs_effect_t *effect, gs_technique_t *tech,
+			      uint32_t base_width, uint32_t base_height)
+{
+	uint32_t width = gs_texture_get_width(target);
+	uint32_t height = gs_texture_get_height(target);
+
+	gs_eparam_t *image = gs_effect_get_param_by_name(effect, "image");
+	gs_eparam_t *bres =
+		gs_effect_get_param_by_name(effect, "base_dimension");
+	gs_eparam_t *bres_i =
+		gs_effect_get_param_by_name(effect, "base_dimension_i");
+	size_t passes, i;
+
+	gs_set_render_target(target, NULL);
+	set_render_size(width, height);
+
+	if (bres) {
+		struct vec2 base;
+		vec2_set(&base, (float)base_width, (float)base_height);
+		gs_effect_set_vec2(bres, &base);
+	}
+
+	if (bres_i) {
+		struct vec2 base_i;
+		vec2_set(&base_i, 1.0f / (float)base_width,
+			 1.0f / (float)base_height);
+		gs_effect_set_vec2(bres_i, &base_i);
+	}
+
+	gs_effect_set_texture(image, texture);
+
+	gs_enable_blending(false);
+	passes = gs_technique_begin(tech);
+	for (i = 0; i < passes; i++) {
+		gs_technique_begin_pass(tech, i);
+		gs_draw_sprite(texture, 0, width, height);
+		gs_technique_end_pass(tech);
+	}
+	gs_technique_end(tech);
+	gs_enable_blending(true);
+}
+
 static const char *render_output_texture_name = "render_output_texture";
 static inline gs_texture_t *render_output_texture(struct obs_core_video *video)
 {
@@ -251,41 +295,8 @@ static inline gs_texture_t *render_output_texture(struct obs_core_video *video)
 
 	profile_start(render_output_texture_name);
 
-	gs_eparam_t *image = gs_effect_get_param_by_name(effect, "image");
-	gs_eparam_t *bres =
-		gs_effect_get_param_by_name(effect, "base_dimension");
-	gs_eparam_t *bres_i =
-		gs_effect_get_param_by_name(effect, "base_dimension_i");
-	size_t passes, i;
-
-	gs_set_render_target(target, NULL);
-	set_render_size(width, height);
-
-	if (bres) {
-		struct vec2 base;
-		vec2_set(&base, (float)video->base_width,
-			 (float)video->base_height);
-		gs_effect_set_vec2(bres, &base);
-	}
-
-	if (bres_i) {
-		struct vec2 base_i;
-		vec2_set(&base_i, 1.0f / (float)video->base_width,
-			 1.0f / (float)video->base_height);
-		gs_effect_set_vec2(bres_i, &base_i);
-	}
-
-	gs_effect_set_texture(image, texture);
-
-	gs_enable_blending(false);
-	passes = gs_technique_begin(tech);
-	for (i = 0; i < passes; i++) {
-		gs_technique_begin_pass(tech, i);
-		gs_draw_sprite(texture, 0, width, height);
-		gs_technique_end_pass(tech);
-	}
-	gs_technique_end(tech);
-	gs_enable_blending(true);
+	render_texture_scale_internal(texture, target, effect, tech,
+				      video->base_width, video->base_height);
 
 	profile_end(render_output_texture_name);
 
@@ -579,53 +590,6 @@ render_rtc_output_texture(struct obs_core_video *video) //final output
 	return target;
 }
 
-static inline void render_rtc_frame_texture_scale(struct obs_rtc_mix *rtc_mix)
-{
-	gs_texture_t *texture = rtc_mix->rtc_frame_texture;
-	gs_texture_t *target = rtc_mix->rtc_frame_output_texture;
-	uint32_t width = gs_texture_get_width(target);
-	uint32_t height = gs_texture_get_height(target);
-
-	gs_effect_t *effect = obs->video.bicubic_effect;
-	gs_technique_t *tech = gs_effect_get_technique(effect, "Draw");
-
-	gs_eparam_t *image = gs_effect_get_param_by_name(effect, "image");
-	gs_eparam_t *bres =
-		gs_effect_get_param_by_name(effect, "base_dimension");
-	gs_eparam_t *bres_i =
-		gs_effect_get_param_by_name(effect, "base_dimension_i");
-	size_t passes, i;
-
-	gs_set_render_target(target, NULL);
-	set_render_size(width, height);
-
-	if (bres) {
-		struct vec2 base;
-		vec2_set(&base, (float)rtc_mix->capture_texture_width,
-			 (float)rtc_mix->capture_texture_height);
-		gs_effect_set_vec2(bres, &base);
-	}
-
-	if (bres_i) {
-		struct vec2 base_i;
-		vec2_set(&base_i, 1.0f / (float)rtc_mix->capture_texture_width,
-			 1.0f / (float)rtc_mix->capture_texture_height);
-		gs_effect_set_vec2(bres_i, &base_i);
-	}
-
-	gs_effect_set_texture(image, texture);
-
-	gs_enable_blending(false);
-	passes = gs_technique_begin(tech);
-	for (i = 0; i < passes; i++) {
-		gs_technique_begin_pass(tech, i);
-		gs_draw_sprite(texture, 0, width, height);
-		gs_technique_end_pass(tech);
-	}
-	gs_technique_end(tech);
-	gs_enable_blending(true);
-}
-
 static inline gs_texture_t *
 render_rtc_frame_texture(struct obs_core_video *video,
 			 struct obs_rtc_mix *rtc_mix)
@@ -633,17 +597,9 @@ render_rtc_frame_texture(struct obs_core_video *video,
 	gs_texture_t *ret = rtc_mix->rtc_frame_texture;
 	gs_texture_t *texture = video->render_texture;
 	gs_texture_t *target = rtc_mix->rtc_frame_texture;
-	uint32_t width = gs_texture_get_width(target);
-	uint32_t height = gs_texture_get_height(target);
 
 	gs_effect_t *effect = video->default_effect;
-	gs_technique_t *tech;
-
-	if (video->ovi.output_format == VIDEO_FORMAT_RGBA) {
-		tech = gs_effect_get_technique(effect, "DrawAlphaDivide");
-	} else {
-		tech = gs_effect_get_technique(effect, "Draw");
-	}
+	gs_technique_t *tech = gs_effect_get_technique(effect, "Draw");
 
 	gs_set_render_target(target, NULL);
 
@@ -657,7 +613,13 @@ render_rtc_frame_texture(struct obs_core_video *video,
 
 	if (rtc_mix->output_texture_width != rtc_mix->capture_texture_width ||
 	    rtc_mix->output_texture_height != rtc_mix->capture_texture_height) {
-		render_rtc_frame_texture_scale(rtc_mix);
+		render_texture_scale_internal(
+			rtc_mix->rtc_frame_texture,
+			rtc_mix->rtc_frame_output_texture,
+			video->bicubic_effect,
+			gs_effect_get_technique(video->bicubic_effect, "Draw"),
+			rtc_mix->capture_texture_width,
+			rtc_mix->capture_texture_height);
 		ret = rtc_mix->rtc_frame_output_texture;
 	}
 
@@ -923,16 +885,24 @@ static inline void render_video(struct obs_core_video *video, bool raw_active,
 					VIDEO_FORMAT_I420,
 					rtc_mix->output_texture_width,
 					rtc_mix->output_texture_height);
-			}
 
-			//FILE *f = fopen("E:\\cccc.nv12", "wb");
-			//fwrite(rtc_mix->cache_frame->data[0], 1,
-			//       rtc_mix->output_texture_width * rtc_mix->output_texture_height, f);
-			//fwrite(rtc_mix->cache_frame->data[1], 1,
-			//       rtc_mix->output_texture_width * rtc_mix->output_texture_height/4, f);
-			//fwrite(rtc_mix->cache_frame->data[2], 1,
-			//       rtc_mix->output_texture_width * rtc_mix->output_texture_height/4, f);
-			//fclose(f);
+				//FILE *f = fopen("E:\\cccc.nv12", "wb");
+				//fwrite(rtc_mix->cache_frame->data[0], 1,
+				//       rtc_mix->output_texture_width *
+				//	       rtc_mix->output_texture_height,
+				//       f);
+				//fwrite(rtc_mix->cache_frame->data[1], 1,
+				//       rtc_mix->output_texture_width *
+				//	       rtc_mix->output_texture_height /
+				//	       4,
+				//       f);
+				//fwrite(rtc_mix->cache_frame->data[2], 1,
+				//       rtc_mix->output_texture_width *
+				//	       rtc_mix->output_texture_height /
+				//	       4,
+				//       f);
+				//fclose(f);
+			}
 		}
 	}
 
