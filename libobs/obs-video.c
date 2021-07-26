@@ -505,6 +505,11 @@ static inline void render_video(struct obs_core_video *video, bool raw_active,
 
 	render_main_texture(video, output_order);
 
+	struct obs_rtc_mix *rtc_mix = &obs->video.rtc_mix;
+	if (os_atomic_load_bool(&rtc_mix->rtc_mix_active)) {
+
+	}
+
 	if (raw_active || gpu_active) {
 		gs_texture_t *texture = render_output_texture(video);
 

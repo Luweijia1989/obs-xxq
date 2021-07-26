@@ -5480,6 +5480,10 @@ void OBSBasic::AutoRemux()
 
 void OBSBasic::StartRecording()
 {
+	//QTimer::singleShot(5000, this, [=](){
+		obs_rtc_mix_begin(0, 0, 720, 1080, 720, 1080);
+	//});
+	return;
 	if (outputHandler->RecordingActive())
 		return;
 	if (disableOutputsRef)

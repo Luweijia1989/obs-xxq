@@ -41,6 +41,7 @@
 #define MICROSECOND_DEN 1000000
 #define NUM_ENCODE_TEXTURES 3
 #define NUM_ENCODE_TEXTURE_FRAMES_TO_WAIT 1
+#define NUM_RTC_CHANNEL 8
 
 static inline int64_t packet_dts_usec(struct encoder_packet *packet)
 {
@@ -234,6 +235,28 @@ struct obs_tex_frame {
 	bool released;
 };
 
+struct obs_rtc_mix {
+	gs_texture_t *rtc_textures[NUM_RTC_CHANNEL];
+	gs_texture_t *rtc_frame_texture;
+	bool render_rtc_textures;
+	uint32_t self_crop_x;
+	uint32_t self_crop_y;
+	uint32_t self_crop_width;
+	uint32_t self_crop_height;
+	uint32_t rtc_texture_width;
+	uint32_t rtc_texture_height;
+	volatile bool rtc_mix_active;
+
+	gs_stagesurf_t *copy_surfaces_raw[NUM_TEXTURES][NUM_CHANNELS];
+	gs_texture_t *convert_textures_raw[NUM_CHANNELS];
+	bool textures_copied_raw[NUM_TEXTURES];
+	bool texture_converted_raw;
+	gs_stagesurf_t *mapped_surfaces_raw[NUM_CHANNELS];
+	const char *conversion_techs[NUM_CHANNELS];
+	bool conversion_needed;
+	float conversion_width_i_raw;
+};
+
 struct obs_core_video {
 	graphics_t *graphics;
 	gs_stagesurf_t *copy_surfaces[NUM_TEXTURES][NUM_CHANNELS];
@@ -306,6 +329,7 @@ struct obs_core_video {
 	gs_effect_t *deinterlace_yadif_2x_effect;
 
 	struct obs_video_info ovi;
+	struct obs_rtc_mix rtc_mix;
 };
 
 struct audio_monitor;

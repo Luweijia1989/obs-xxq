@@ -1895,7 +1895,7 @@ static void hook_data_capture(struct obs_output *output, bool encoded,
 		if (has_audio)
 			start_audio_encoders(output, encoded_callback);
 		if (has_video) {
-			double fps = (double)obs->video.ovi.fps_num / (double)obs->video.ovi.fps_den;
+			uint32_t fps = obs->video.ovi.fps_num / obs->video.ovi.fps_den;
 			uint32_t target_freq = output->sei_count_per_second == 0 ? 5 : output->sei_count_per_second;
 			output->video_encoder->sei_rate = fps / target_freq;
 			obs_encoder_start(output->video_encoder,

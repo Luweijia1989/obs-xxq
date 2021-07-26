@@ -2514,7 +2514,7 @@ obs_source_t *obs_source_filter_get_by_name(obs_source_t *source,
 	obs_source_t *ret = NULL;
 
 	pthread_mutex_lock(&source->filter_mutex);
-	for (int i = 0; i < source->filters.num; i++) {
+	for (size_t i = 0; i < source->filters.num; i++) {
 		struct obs_source *filter = source->filters.array[i];
 		if (strcmp(obs_source_get_name(filter), name) == 0) {
 			ret = filter;
@@ -4816,7 +4816,7 @@ void obs_source_signal_event(const obs_source_t *source, obs_data_t *event_data)
 	struct calldata cd;
 	uint8_t stack[128];
 	calldata_init_fixed(&cd, stack, sizeof(stack));
-	calldata_set_ptr(&cd, "source", source);
+	calldata_set_ptr(&cd, "source", (obs_source_t *)source);
 	calldata_set_ptr(&cd, "event", event_data);
 	signal_handler_signal(handler, "signal_event", &cd);
 }
