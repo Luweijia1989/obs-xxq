@@ -494,6 +494,113 @@ end:
 }
 #endif
 
+static inline void render_rtc_textures(gs_effect_t *effect,
+				       gs_technique_t *tech,
+				       gs_texture_t *texture, uint32_t x_pos,
+				       uint32_t y_pos, uint32_t crop_x,
+				       uint32_t crop_y, uint32_t crop_width,
+				       uint32_t crop_height)
+{
+	gs_eparam_t *image = gs_effect_get_param_by_name(effect, "image");
+	size_t passes, i;
+
+	gs_viewport_push();
+	gs_projection_push();
+	gs_matrix_push();
+	gs_matrix_identity();
+
+	uint32_t src_width = gs_texture_get_width(texture);
+	uint32_t src_height = gs_texture_get_height(texture);
+	gs_set_viewport(x_pos, y_pos, crop_width, crop_height);
+	gs_ortho(0.0f, (float)src_width, 0.0f, (float)src_height, -100.0f,
+		 100.0f);
+
+	float cx_scale = (float)src_width / (float)crop_width;
+	float cy_scale = (float)src_height / (float)crop_height;
+	gs_matrix_scale3f(cx_scale, cy_scale, 1.0f);
+	gs_matrix_translate3f(-(float)crop_x, -(float)crop_y, 0.0f);
+
+	gs_effect_set_texture(image, texture);
+
+	gs_enable_blending(false);
+	passes = gs_technique_begin(tech);
+	for (i = 0; i < passes; i++) {
+		gs_technique_begin_pass(tech, i);
+		gs_draw_sprite(texture, 0, src_width, src_height);
+		gs_technique_end_pass(tech);
+	}
+	gs_technique_end(tech);
+	gs_enable_blending(true);
+
+	gs_matrix_pop();
+	gs_projection_pop();
+	gs_viewport_pop();
+}
+
+static const char *render_rtc_output_texture_name = "render_rtc_output_texture";
+static inline gs_texture_t *
+render_rtc_output_texture(struct obs_core_video *video)
+{
+	gs_texture_t *texture = video->render_texture;
+	gs_texture_t *target = video->output_texture;
+	uint32_t width = gs_texture_get_width(target);
+	uint32_t height = gs_texture_get_height(target);
+
+	gs_effect_t *effect = video->default_effect;
+	gs_technique_t *tech;
+
+	if (video->ovi.output_format == VIDEO_FORMAT_RGBA) {
+		tech = gs_effect_get_technique(effect, "DrawAlphaDivide");
+	} else {
+		tech = gs_effect_get_technique(effect, "Draw");
+	}
+
+	profile_start(render_rtc_output_texture_name);
+
+	gs_set_render_target(target, NULL);
+
+	struct vec4 clear_color;
+	vec4_zero(&clear_color);
+	gs_clear(GS_CLEAR_COLOR, &clear_color, 0.0f, 0);
+
+	//to do, auto texture layout, here we only user rtc_texture channel 0
+
+	//two
+	render_rtc_textures(effect, tech, texture, 0, 0, 0, 0, 720,
+			    1080); // self data do not need to do a y offset
+	if (video->rtc_textures[0])
+		render_rtc_textures(effect, tech, video->rtc_textures[0], 720,
+				    -100, 0, 0, 720, 1280);
+	profile_end(render_rtc_output_texture_name);
+
+	return target;
+}
+
+static inline void render_rtc_frame_texture(struct obs_core_video *video)
+{
+	gs_texture_t *texture = video->render_texture;
+	gs_texture_t *target = video->rtc_frame_texture;
+	uint32_t width = gs_texture_get_width(target);
+	uint32_t height = gs_texture_get_height(target);
+
+	gs_effect_t *effect = video->default_effect;
+	gs_technique_t *tech;
+
+	if (video->ovi.output_format == VIDEO_FORMAT_RGBA) {
+		tech = gs_effect_get_technique(effect, "DrawAlphaDivide");
+	} else {
+		tech = gs_effect_get_technique(effect, "Draw");
+	}
+
+	gs_set_render_target(target, NULL);
+
+	struct vec4 clear_color;
+	vec4_zero(&clear_color);
+	gs_clear(GS_CLEAR_COLOR, &clear_color, 0.0f, 0);
+
+	render_rtc_textures(effect, tech, texture, 0, 0, 0, 0, 720, 1080);
+}
+
 static inline void render_video(struct obs_core_video *video, bool raw_active,
 				const bool gpu_active, int cur_texture,
 				void *output_order)
@@ -507,7 +614,49 @@ static inline void render_video(struct obs_core_video *video, bool raw_active,
 
 	struct obs_rtc_mix *rtc_mix = &obs->video.rtc_mix;
 	if (os_atomic_load_bool(&rtc_mix->rtc_mix_active)) {
+		render_rtc_frame_texture(video);
 
+		if (video->gpu_conversion)
+			render_convert_texture(video, video->rtc_frame_texture,
+					       true);
+
+		unmap_last_surface_raw(video);
+
+		if (video->texture_converted_raw) {
+			for (int i = 0; i < NUM_CHANNELS; i++) {
+				gs_stagesurf_t *copy =
+					video->copy_surfaces_raw[cur_texture][i];
+				if (copy)
+					gs_stage_texture(
+						copy,
+						video->convert_textures_raw[i]);
+			}
+
+			video->textures_copied_raw[cur_texture] = true;
+		}
+
+		if (video->textures_copied_raw[prev_texture]) {
+			bool success = true;
+			for (int channel = 0; channel < NUM_CHANNELS;
+			     ++channel) {
+				gs_stagesurf_t *surface =
+					video->copy_surfaces_raw[prev_texture]
+								[channel];
+				if (surface) {
+					if (!gs_stagesurface_map(
+						    surface,
+						    &frame->data_raw[channel],
+						    &frame->linesize_raw
+							     [channel])) {
+						success = false;
+						break;
+					}
+
+					video->mapped_surfaces_raw[channel] =
+						surface;
+				}
+			}
+		}
 	}
 
 	if (raw_active || gpu_active) {
