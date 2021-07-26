@@ -687,6 +687,115 @@ static const uint8_t *set_gpu_converted_plane(uint32_t width, uint32_t height,
 	return in;
 }
 
+static void set_gpu_converted_data_internal(bool using_nv12_tex,
+					    struct video_frame *output,
+					    const struct video_data *input,
+					    enum video_format format,
+					    uint32_t width, uint32_t height)
+{
+	if (using_nv12_tex) {
+		const uint8_t *const in_uv = set_gpu_converted_plane(
+			width, height, input->linesize[0], output->linesize[0],
+			input->data[0], output->data[0]);
+
+		const uint32_t height_d2 = height / 2;
+		set_gpu_converted_plane(width, height_d2, input->linesize[0],
+					output->linesize[1], in_uv,
+					output->data[1]);
+	} else {
+		switch (format) {
+		case VIDEO_FORMAT_I420: {
+			set_gpu_converted_plane(width, height,
+						input->linesize[0],
+						output->linesize[0],
+						input->data[0],
+						output->data[0]);
+
+			const uint32_t width_d2 = width / 2;
+			const uint32_t height_d2 = height / 2;
+
+			set_gpu_converted_plane(width_d2, height_d2,
+						input->linesize[1],
+						output->linesize[1],
+						input->data[1],
+						output->data[1]);
+
+			set_gpu_converted_plane(width_d2, height_d2,
+						input->linesize[2],
+						output->linesize[2],
+						input->data[2],
+						output->data[2]);
+
+			break;
+		}
+		case VIDEO_FORMAT_NV12: {
+			set_gpu_converted_plane(width, height,
+						input->linesize[0],
+						output->linesize[0],
+						input->data[0],
+						output->data[0]);
+
+			const uint32_t height_d2 = height / 2;
+			set_gpu_converted_plane(width, height_d2,
+						input->linesize[1],
+						output->linesize[1],
+						input->data[1],
+						output->data[1]);
+
+			break;
+		}
+		case VIDEO_FORMAT_I444: {
+			set_gpu_converted_plane(width, height,
+						input->linesize[0],
+						output->linesize[0],
+						input->data[0],
+						output->data[0]);
+
+			set_gpu_converted_plane(width, height,
+						input->linesize[1],
+						output->linesize[1],
+						input->data[1],
+						output->data[1]);
+
+			set_gpu_converted_plane(width, height,
+						input->linesize[2],
+						output->linesize[2],
+						input->data[2],
+						output->data[2]);
+
+			break;
+		}
+
+		case VIDEO_FORMAT_NONE:
+		case VIDEO_FORMAT_YVYU:
+		case VIDEO_FORMAT_YUY2:
+		case VIDEO_FORMAT_UYVY:
+		case VIDEO_FORMAT_RGBA:
+		case VIDEO_FORMAT_BGRA:
+		case VIDEO_FORMAT_BGRX:
+		case VIDEO_FORMAT_Y800:
+		case VIDEO_FORMAT_BGR3:
+		case VIDEO_FORMAT_I422:
+		case VIDEO_FORMAT_I40A:
+		case VIDEO_FORMAT_I42A:
+		case VIDEO_FORMAT_YUVA:
+		case VIDEO_FORMAT_AYUV:
+			/* unimplemented */
+			;
+		}
+	}
+}
+
+static void set_gpu_converted_data(struct obs_core_video *video,
+				   struct video_frame *output,
+				   const struct video_data *input,
+				   const struct video_output_info *info)
+{
+	set_gpu_converted_data_internal(video->using_nv12_tex, output, input,
+					info->format, info->width,
+					info->height);
+}
+
 static inline void render_video(struct obs_core_video *video, bool raw_active,
 				const bool gpu_active, int cur_texture,
 				int prev_texture, void *output_order)
@@ -749,29 +858,11 @@ static inline void render_video(struct obs_core_video *video, bool raw_active,
 			}
 
 			if (success) {
-				const uint32_t width = rtc_mix->rtc_texture_width;
-				const uint32_t height = rtc_mix->rtc_texture_height;
-
-				set_gpu_converted_plane(width, height,
-							frame.linesize[0],
-							rtc_mix->cache_frame->linesize[0],
-							frame.data[0],
-							rtc_mix->cache_frame->data[0]);
-
-				const uint32_t width_d2 = width / 2;
-				const uint32_t height_d2 = height / 2;
-
-				set_gpu_converted_plane(width_d2, height_d2,
-							frame.linesize[1],
-							rtc_mix->cache_frame->linesize[1],
-							frame.data[1],
-							rtc_mix->cache_frame->data[1]);
-
-				set_gpu_converted_plane(width_d2, height_d2,
-							frame.linesize[2],
-							rtc_mix->cache_frame->linesize[2],
-							frame.data[2],
-							rtc_mix->cache_frame->data[2]);
+				set_gpu_converted_data_internal(false,
+								rtc_mix->cache_frame,
+								&frame, VIDEO_FORMAT_I420,
+								rtc_mix->rtc_texture_width,
+								rtc_mix->rtc_texture_height);
 			}
 		}
 	}
@@ -822,116 +913,6 @@ static inline bool download_frame(struct obs_core_video *video,
 		}
 	}
 	return true;
-}
-
-static void set_gpu_converted_data(struct obs_core_video *video,
-				   struct video_frame *output,
-				   const struct video_data *input,
-				   const struct video_output_info *info)
-{
-	if (video->using_nv12_tex) {
-		const uint32_t width = info->width;
-		const uint32_t height = info->height;
-
-		const uint8_t *const in_uv = set_gpu_converted_plane(
-			width, height, input->linesize[0], output->linesize[0],
-			input->data[0], output->data[0]);
-
-		const uint32_t height_d2 = height / 2;
-		set_gpu_converted_plane(width, height_d2, input->linesize[0],
-					output->linesize[1], in_uv,
-					output->data[1]);
-	} else {
-		switch (info->format) {
-		case VIDEO_FORMAT_I420: {
-			const uint32_t width = info->width;
-			const uint32_t height = info->height;
-
-			set_gpu_converted_plane(width, height,
-						input->linesize[0],
-						output->linesize[0],
-						input->data[0],
-						output->data[0]);
-
-			const uint32_t width_d2 = width / 2;
-			const uint32_t height_d2 = height / 2;
-
-			set_gpu_converted_plane(width_d2, height_d2,
-						input->linesize[1],
-						output->linesize[1],
-						input->data[1],
-						output->data[1]);
-
-			set_gpu_converted_plane(width_d2, height_d2,
-						input->linesize[2],
-						output->linesize[2],
-						input->data[2],
-						output->data[2]);
-
-			break;
-		}
-		case VIDEO_FORMAT_NV12: {
-			const uint32_t width = info->width;
-			const uint32_t height = info->height;
-
-			set_gpu_converted_plane(width, height,
-						input->linesize[0],
-						output->linesize[0],
-						input->data[0],
-						output->data[0]);
-
-			const uint32_t height_d2 = height / 2;
-			set_gpu_converted_plane(width, height_d2,
-						input->linesize[1],
-						output->linesize[1],
-						input->data[1],
-						output->data[1]);
-
-			break;
-		}
-		case VIDEO_FORMAT_I444: {
-			const uint32_t width = info->width;
-			const uint32_t height = info->height;
-
-			set_gpu_converted_plane(width, height,
-						input->linesize[0],
-						output->linesize[0],
-						input->data[0],
-						output->data[0]);
-
-			set_gpu_converted_plane(width, height,
-						input->linesize[1],
-						output->linesize[1],
-						input->data[1],
-						output->data[1]);
-
-			set_gpu_converted_plane(width, height,
-						input->linesize[2],
-						output->linesize[2],
-						input->data[2],
-						output->data[2]);
-
-			break;
-		}
-
-		case VIDEO_FORMAT_NONE:
-		case VIDEO_FORMAT_YVYU:
-		case VIDEO_FORMAT_YUY2:
-		case VIDEO_FORMAT_UYVY:
-		case VIDEO_FORMAT_RGBA:
-		case VIDEO_FORMAT_BGRA:
-		case VIDEO_FORMAT_BGRX:
-		case VIDEO_FORMAT_Y800:
-		case VIDEO_FORMAT_BGR3:
-		case VIDEO_FORMAT_I422:
-		case VIDEO_FORMAT_I40A:
-		case VIDEO_FORMAT_I42A:
-		case VIDEO_FORMAT_YUVA:
-		case VIDEO_FORMAT_AYUV:
-			/* unimplemented */
-			;
-		}
-	}
 }
 
 static inline void copy_rgbx_frame(struct video_frame *output,

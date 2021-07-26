@@ -2263,7 +2263,7 @@ EXPORT void obs_rtc_capture_begin(uint32_t self_crop_x, uint32_t self_crop_y,
 			      uint32_t self_crop_width,
 			      uint32_t self_crop_height, uint32_t self_output_width,
 			      uint32_t self_output_height);
-EXPORT void obs_rtc_mix_end();
+EXPORT void obs_rtc_capture_end();
 
 #ifdef __cplusplus
 }

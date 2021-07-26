@@ -496,6 +496,7 @@ static void obs_rtc_capture_free(void)
 
 	rtc_mix->rtc_frame_texture = NULL;
 	video_frame_destroy(rtc_mix->cache_frame);
+	rtc_mix->cache_frame = NULL;
 
 	gs_leave_context();
 }
@@ -2891,50 +2892,45 @@ void obs_rtc_capture_begin(uint32_t self_crop_x, uint32_t self_crop_y,
 		       uint32_t self_output_width, uint32_t self_output_height)
 {
 	struct obs_rtc_mix *rtc_mix = &obs->video.rtc_mix;
-	bool capture_param_changed =
-		self_output_height != rtc_mix->rtc_texture_width ||
-		self_output_height != rtc_mix->rtc_texture_height &&
-			(self_output_width && self_output_height);
 
-	if (capture_param_changed) {
-		obs_rtc_capture_free();
+	rtc_mix->rtc_texture_width = self_output_width;
+	rtc_mix->rtc_texture_height = self_output_height;
+	rtc_mix->self_crop_x = self_crop_x;
+	rtc_mix->self_crop_y = self_crop_y;
+	rtc_mix->self_crop_width = self_crop_width;
+	rtc_mix->self_crop_height = self_crop_height;
 
-		rtc_mix->rtc_texture_width = self_output_width;
-		rtc_mix->rtc_texture_height = self_output_height;
-		rtc_mix->self_crop_x = self_crop_x;
-		rtc_mix->self_crop_y = self_crop_y;
-		rtc_mix->self_crop_width = self_crop_width;
-		rtc_mix->self_crop_height = self_crop_height;
+	//force using nv12 texture
+	obs_enter_graphics();
+	if (!obs_init_rtc_gpu_conversion(rtc_mix))
+		blog(LOG_INFO,
+			"obs_init_rtc_gpu_conversion call false");
+	if (!obs_init_rtc_textures(rtc_mix))
+		blog(LOG_INFO, "obs_init_rtc_textures call false");
+	obs_leave_graphics();
 
-		//force using nv12 texture
-		obs_enter_graphics();
-		if (!obs_init_rtc_gpu_conversion(rtc_mix))
-			blog(LOG_INFO,
-			     "obs_init_rtc_gpu_conversion call false");
-		if (!obs_init_rtc_textures(rtc_mix))
-			blog(LOG_INFO, "obs_init_rtc_textures call false");
-		obs_leave_graphics();
+	struct matrix4 mat;
+	struct vec4 r_row;
+	video_format_get_parameters(VIDEO_CS_601, VIDEO_RANGE_PARTIAL,
+					(float *)&mat, NULL, NULL);
+	matrix4_inv(&mat, &mat);
+	r_row = mat.x;
+	mat.x = mat.y;
+	mat.y = r_row;
+	memcpy(rtc_mix->color_matrix, &mat, sizeof(float) * 16);
 
-		struct matrix4 mat;
-		struct vec4 r_row;
-		video_format_get_parameters(VIDEO_CS_601, VIDEO_RANGE_PARTIAL,
-						(float *)&mat, NULL, NULL);
-		matrix4_inv(&mat, &mat);
-		r_row = mat.x;
-		mat.x = mat.y;
-		mat.y = r_row;
-		memcpy(rtc_mix->color_matrix, &mat, sizeof(float) * 16);
+	rtc_mix->cache_frame = bmalloc(sizeof(struct video_frame));
+	video_frame_init(rtc_mix->cache_frame, VIDEO_FORMAT_I420,
+				rtc_mix->rtc_texture_width,
+				rtc_mix->rtc_texture_height);
 
-		rtc_mix->cache_frame = bmalloc(sizeof(struct video_frame));
-		video_frame_init(rtc_mix->cache_frame, VIDEO_FORMAT_I420,
-				 rtc_mix->rtc_texture_width,
-				 rtc_mix->rtc_texture_height);
-	}
 	os_atomic_set_bool(&rtc_mix->rtc_mix_active, true);
 }
 
-void obs_rtc_mix_end()
+void obs_rtc_capture_end()
 {
 	struct obs_rtc_mix *rtc_mix = &obs->video.rtc_mix;
 	os_atomic_set_bool(&rtc_mix->rtc_mix_active, false);
+
+	obs_rtc_capture_free();
 }
