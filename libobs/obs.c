@@ -454,9 +454,12 @@ static void stop_video(void)
 
 static void obs_rtc_capture_free(void)
 {
+	obs_enter_graphics();
+
 	struct obs_core_video *video = &obs->video;
 	struct obs_rtc_mix *rtc_mix = &obs->video.rtc_mix;
-	gs_enter_context(video->graphics);
+
+	rtc_mix->output_cb = NULL;
 
 	for (size_t c = 0; c < NUM_CHANNELS; c++) {
 		if (rtc_mix->mapped_surfaces_raw[c]) {
@@ -497,10 +500,11 @@ static void obs_rtc_capture_free(void)
 
 	rtc_mix->rtc_frame_texture = NULL;
 	rtc_mix->rtc_frame_output_texture = NULL;
+
 	video_frame_destroy(rtc_mix->cache_frame);
 	rtc_mix->cache_frame = NULL;
 
-	gs_leave_context();
+	obs_leave_graphics();
 }
 
 static void obs_free_video(void)
@@ -2903,9 +2907,15 @@ void obs_rtc_capture_begin(uint32_t self_crop_x, uint32_t self_crop_y,
 			   uint32_t self_crop_width, uint32_t self_crop_height,
 			   uint32_t self_output_width,
 			   uint32_t self_output_height, uint32_t capture_width,
-			   uint32_t capture_height)
+			   uint32_t capture_height,
+			   void (*new_rtc_frame_output)(uint8_t **data,
+							uint32_t *linesize))
 {
 	struct obs_rtc_mix *rtc_mix = &obs->video.rtc_mix;
+	os_atomic_set_bool(&rtc_mix->rtc_mix_active, true);
+
+	//force using nv12 texture
+	obs_enter_graphics();
 
 	rtc_mix->output_texture_width = self_output_width;
 	rtc_mix->output_texture_height = self_output_height;
@@ -2916,13 +2926,10 @@ void obs_rtc_capture_begin(uint32_t self_crop_x, uint32_t self_crop_y,
 	rtc_mix->self_crop_width = self_crop_width;
 	rtc_mix->self_crop_height = self_crop_height;
 
-	//force using nv12 texture
-	obs_enter_graphics();
 	if (!obs_init_rtc_gpu_conversion(rtc_mix))
 		blog(LOG_INFO, "obs_init_rtc_gpu_conversion call false");
 	if (!obs_init_rtc_textures(rtc_mix))
 		blog(LOG_INFO, "obs_init_rtc_textures call false");
-	obs_leave_graphics();
 
 	struct matrix4 mat;
 	struct vec4 r_row;
@@ -2939,7 +2946,9 @@ void obs_rtc_capture_begin(uint32_t self_crop_x, uint32_t self_crop_y,
 			 rtc_mix->output_texture_width,
 			 rtc_mix->output_texture_height);
 
-	os_atomic_set_bool(&rtc_mix->rtc_mix_active, true);
+	rtc_mix->output_cb = new_rtc_frame_output;
+
+	obs_leave_graphics();
 }
 
 void obs_rtc_capture_end()

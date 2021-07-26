@@ -5480,9 +5480,19 @@ void OBSBasic::AutoRemux()
 
 void OBSBasic::StartRecording()
 {
-	//QTimer::singleShot(5000, this, [=](){
-		obs_rtc_mix_begin(0, 0, 720, 1080, 720, 1080);
+	//QTimer *timer = new QTimer(this);
+	//connect(timer, &QTimer::timeout, this, [=](){
+		obs_rtc_capture_begin(0, 0, 720, 1080, 720, 1080, 720, 1080, NULL);
+
+	/*	QTimer::singleShot(10, this, [=](){
+			obs_rtc_capture_end();
+		});*/
+	//	QThread::msleep(30);
+	//	obs_rtc_capture_end();
 	//});
+	//timer->start(100);
+	//
+	//
 	return;
 	if (outputHandler->RecordingActive())
 		return;

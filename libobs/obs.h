@@ -2258,11 +2258,12 @@ EXPORT void obs_source_destroy_xxqsource(int type);
 
 EXPORT void obs_source_custom_command_xxqsource(int type, obs_data_t *settings);
 
-EXPORT void
-obs_rtc_capture_begin(uint32_t self_crop_x, uint32_t self_crop_y,
-		      uint32_t self_crop_width, uint32_t self_crop_height,
-		      uint32_t self_output_width, uint32_t self_output_height,
-		      uint32_t capture_width, uint32_t capture_height);
+EXPORT void obs_rtc_capture_begin(
+	uint32_t self_crop_x, uint32_t self_crop_y, uint32_t self_crop_width,
+	uint32_t self_crop_height, uint32_t self_output_width,
+	uint32_t self_output_height, uint32_t capture_width,
+	uint32_t capture_height,
+	void (*new_rtc_frame_output)(uint8_t **data, uint32_t *linesize));
 EXPORT void obs_rtc_capture_end();
 
 #ifdef __cplusplus

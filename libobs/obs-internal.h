@@ -235,6 +235,7 @@ struct obs_tex_frame {
 	bool released;
 };
 
+typedef void (*rtc_frame_output_t)(uint8_t **data, uint32_t *linesize);
 struct obs_rtc_mix {
 	gs_texture_t *rtc_textures[NUM_RTC_CHANNEL];
 	gs_texture_t *rtc_frame_texture;
@@ -250,6 +251,8 @@ struct obs_rtc_mix {
 	uint32_t capture_texture_height;
 	volatile bool rtc_mix_active;
 	volatile bool rtc_output_active;
+
+	rtc_frame_output_t output_cb;
 
 	float color_matrix[16];
 	gs_stagesurf_t *copy_surfaces_raw[NUM_TEXTURES][NUM_CHANNELS];
@@ -1114,7 +1117,7 @@ struct obs_encoder {
 
 	const char *profile_encoder_encode_name;
 
-	uint32_t sei_rate; 
+	uint32_t sei_rate;
 };
 
 extern struct obs_encoder_info *find_encoder(const char *id);
