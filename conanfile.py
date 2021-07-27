@@ -92,10 +92,10 @@ class ObsXXQConan(ConanFile):
             self.copy("*.pdb", dst="plugins/obs-plugins/32bit", src="build32/plugins/win-airplay/Debug", keep_path=False)
             self.copy("rtc-output.dll", dst="plugins/obs-plugins/32bit", src="build32/plugins/rtc-output/Debug", keep_path=False)
             self.copy("rtc-output.pdb", dst="plugins/obs-plugins/32bit", src="build32/plugins/rtc-output/Debug", keep_path=False)
-            self.copy("*.dll", dst="plugins/data/obs-plugins/win-capture", src="build32/plugins/win-capture/graphics-hook/Debug", keep_path=False)
-            self.copy("*.pdb*", dst="plugins/data/obs-plugins/win-capture", src="build32/plugins/win-capture/graphics-hook/Debug", keep_path=False)
-            self.copy("*.dll", dst="plugins/data/obs-plugins/win-capture", src="build64/plugins/win-capture/graphics-hook/Debug", keep_path=False)
-            self.copy("*.pdb*", dst="plugins/data/obs-plugins/win-capture", src="build64/plugins/win-capture/graphics-hook/Debug", keep_path=False)
+            self.copy("*.dll", dst="plugins/data/obs-plugins/win-capture", src="build32/plugins/win-capture/lyric-graphics-hook/Debug", keep_path=False)
+            self.copy("*.pdb*", dst="plugins/data/obs-plugins/win-capture", src="build32/plugins/win-capture/lyric-graphics-hook/Debug", keep_path=False)
+            self.copy("*.dll", dst="plugins/data/obs-plugins/win-capture", src="build64/plugins/win-capture/lyric-graphics-hook/Debug", keep_path=False)
+            self.copy("*.pdb*", dst="plugins/data/obs-plugins/win-capture", src="build64/plugins/win-capture/lyric-graphics-hook/Debug", keep_path=False)
             self.copy("*.exe*", dst="plugins/data/obs-plugins/enc-amf", src="build32/plugins/enc-amf/amf-test/Debug", keep_path=True)
         else:
             self.copy("*.dll", dst="bin", src="build32/libobs/RelWithDebInfo", keep_path=False)
@@ -168,10 +168,10 @@ class ObsXXQConan(ConanFile):
             self.copy("*.pdb", dst="plugins/obs-plugins/32bit", src="build32/plugins/win-airplay/RelWithDebInfo", keep_path=False)
             self.copy("rtc-output.dll", dst="plugins/obs-plugins/32bit", src="build32/plugins/rtc-output/RelWithDebInfo", keep_path=False)
             self.copy("rtc-output.pdb", dst="plugins/obs-plugins/32bit", src="build32/plugins/rtc-output/RelWithDebInfo", keep_path=False)
-            self.copy("*.dll", dst="plugins/data/obs-plugins/win-capture", src="build32/plugins/win-capture/graphics-hook/RelWithDebInfo", keep_path=False)
-            self.copy("*.pdb", dst="plugins/data/obs-plugins/win-capture", src="build32/plugins/win-capture/graphics-hook/RelWithDebInfo", keep_path=False)
-            self.copy("*.dll", dst="plugins/data/obs-plugins/win-capture", src="build64/plugins/win-capture/graphics-hook/RelWithDebInfo", keep_path=False)
-            self.copy("*.pdb", dst="plugins/data/obs-plugins/win-capture", src="build64/plugins/win-capture/graphics-hook/RelWithDebInfo", keep_path=False)
+            self.copy("*.dll", dst="plugins/data/obs-plugins/win-capture", src="build32/plugins/win-capture/lyric-graphics-hook/RelWithDebInfo", keep_path=False)
+            self.copy("*.pdb", dst="plugins/data/obs-plugins/win-capture", src="build32/plugins/win-capture/lyric-graphics-hook/RelWithDebInfo", keep_path=False)
+            self.copy("*.dll", dst="plugins/data/obs-plugins/win-capture", src="build64/plugins/win-capture/lyric-graphics-hook/RelWithDebInfo", keep_path=False)
+            self.copy("*.pdb", dst="plugins/data/obs-plugins/win-capture", src="build64/plugins/win-capture/lyric-graphics-hook/RelWithDebInfo", keep_path=False)
             self.copy("*.exe*", dst="plugins/data/obs-plugins/enc-amf", src="build32/plugins/enc-amf/amf-test/RelWithDebInfo", keep_path=True)
             
             
@@ -195,7 +195,7 @@ class ObsXXQConan(ConanFile):
         self.copy("*.*", dst="plugins/data/obs-plugins/win-dshow", src="plugins/win-dshow/data", keep_path=True)
         self.copy("*.*", dst="plugins/data/obs-plugins/win-mf", src="plugins/win-mf/data", keep_path=True)
         self.copy("*.*", dst="plugins/data/obs-plugins/win-wasapi", src="plugins/win-wasapi/data", keep_path=True)
-        self.copy("*.exe", dst="plugins/data/obs-plugins/win-capture", src="win-capture-data", keep_path=True)
+        self.copy("*.*", dst="plugins/data/obs-plugins/win-capture", src="win-capture-data", keep_path=True)
         self.copy("*.*", dst="plugins/data/obs-plugins/enc-amf", src="plugins/enc-amf/resources", keep_path=True)
         
         if self.settings.build_type!="Debug":
