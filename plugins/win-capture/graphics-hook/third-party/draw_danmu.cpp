@@ -182,7 +182,7 @@ unsigned int ARGBstringColor2UINT(std::string color)
 	return IM_COL32(r, g, b, a);
 }
 
-void addDanmu(Json::Value item, bool end = false)
+void addDanmu(Json::Value item, bool end)
 {
 	ImGuiContext &g = *GImGui;
 	float textWidth =
@@ -221,22 +221,25 @@ void addDanmu(Json::Value item, bool end = false)
 
 			ImGui::AlignTextToFramePadding();
 			ImGui::TextColored(
-				ImGui::ColorConvertU32ToFloat4(ARGBstringColor2UINT(
-					field["color"].asString())),
+				ImGui::ColorConvertU32ToFloat4(
+					ARGBstringColor2UINT(
+						field["color"].asString())),
 				temp);
 			ImGui::SetCursorPosY(ImGui::GetCursorPosY() - 8.0f);
 			ImGui::PushTextWrapPos();
 			//ImGui::AlignTextToFramePadding();
 			ImGui::TextColored(
-				ImGui::ColorConvertU32ToFloat4(ARGBstringColor2UINT(
-					field["color"].asString())),
+				ImGui::ColorConvertU32ToFloat4(
+					ARGBstringColor2UINT(
+						field["color"].asString())),
 				p_remainder);
 			ImGui::PopTextWrapPos();
 		} else {
 			ImGui::AlignTextToFramePadding();
 			ImGui::TextColored(
-				ImGui::ColorConvertU32ToFloat4(ARGBstringColor2UINT(
-					field["color"].asString())),
+				ImGui::ColorConvertU32ToFloat4(
+					ARGBstringColor2UINT(
+						field["color"].asString())),
 				text);
 			ImGui::SameLine(0, 0);
 			remainder -= width;
@@ -250,15 +253,15 @@ void addDanmu(Json::Value item, bool end = false)
 		std::string lineId = "line" + id;
 		ImGui::BeginChild(lineId.c_str(), ImVec2(0, 1.0f));
 		ImVec2 p = ImGui::GetCursorScreenPos();
-		ImGui::GetWindowDrawList()->AddLine(ImVec2(p.x, p.y),
-						    ImVec2(p.x + 384 - 16, p.y),
-						    IM_COL32(255, 255, 255, 38.25),
-						    1.0f);
+		ImGui::GetWindowDrawList()->AddLine(
+			ImVec2(p.x, p.y), ImVec2(p.x + 384 - 16, p.y),
+			IM_COL32(255, 255, 255, 38.25), 1.0f);
 		ImGui::EndChild();
 	}
 }
 
-void render_danmu(Json::Value& root) 	{
+void render_danmu(Json::Value &root)
+{
 	ImGui::NewFrame();
 
 	ImGui::Begin(
@@ -304,8 +307,9 @@ std::string WStringToString(const std::wstring &wstr)
 	return str;
 }
 
-void add_fonts() {
-	ImGuiIO& io = ImGui::GetIO();
+void add_fonts()
+{
+	ImGuiIO &io = ImGui::GetIO();
 
 	TCHAR szBuffer[MAX_PATH] = {0};
 	HMODULE hMod = NULL;
@@ -338,3 +342,15 @@ void add_fonts() {
 	}
 }
 
+bool checkDanmu(Json::Value &root)
+{
+	char buff[g_sharedSize] = {0};
+	qBase::readShare(g_sharedSize, buff);
+	Json::Reader reader;
+	if (!reader.parse(buff, root, false))
+		return false;
+
+	if (!root["isOpen"].asBool())
+		return false;
+	return true;
+}

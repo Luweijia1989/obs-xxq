@@ -4,6 +4,7 @@
 #include "dxgi-helpers.hpp"
 #include "graphics-hook.h"
 #include "../funchook.h"
+#include "imguidx10_danmu.h"
 
 struct d3d10_data {
 	ID3D10Device *device; /* do not release */
@@ -57,6 +58,8 @@ static struct d3d10_data data = {};
 
 void d3d10_free(void)
 {
+	imgui_finish_dx10();
+
 	if (data.scale_tex)
 		data.scale_tex->Release();
 	if (data.scale_resource)
@@ -556,6 +559,8 @@ static void d3d10_init(IDXGISwapChain *swap)
 
 	if (!success)
 		d3d10_free();
+	else
+		imgui_init_dx10(data.device, window);
 }
 
 #define MAX_RENDER_TARGETS D3D10_SIMULTANEOUS_RENDER_TARGET_COUNT
@@ -810,4 +815,6 @@ void d3d10_capture(void *swap_ptr, void *backbuffer_ptr, bool)
 
 		backbuffer->Release();
 	}
+
+	imgui_paint_dx10();
 }

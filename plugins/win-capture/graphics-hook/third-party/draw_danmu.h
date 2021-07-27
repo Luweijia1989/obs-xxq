@@ -23,3 +23,5 @@ void render_danmu(Json::Value &root);
 std::string WStringToString(const std::wstring &wstr);
 
 void add_fonts();
+
+bool checkDanmu(Json::Value &root);

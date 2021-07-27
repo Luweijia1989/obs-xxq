@@ -66,7 +66,7 @@ static struct d3d9_data data = {};
 
 static void d3d9_free()
 {
-	imgui_finish();
+	imgui_finish_dx9();
 
 	capture_free();
 
@@ -522,7 +522,7 @@ static void d3d9_init(IDirect3DDevice9 *device)
 	else {
 		D3DPRESENT_PARAMETERS pp;
 		d3d9_get_swap_desc(pp);
-		imgui_init(device, pp.hDeviceWindow);
+		imgui_init_dx9(device, pp.hDeviceWindow);
 	}
 }
 
@@ -676,7 +676,7 @@ static inline void present_begin(IDirect3DDevice9 *device,
 
 	present_recurse++;
 
-	imgui_paint();
+	imgui_paint_dx9();
 }
 
 static inline void present_end(IDirect3DDevice9 *device,
@@ -721,8 +721,8 @@ static HRESULT STDMETHODCALLTYPE hook_present(IDirect3DDevice9 *device,
 
 	if (hr == D3DERR_DEVICELOST &&
 	    device->TestCooperativeLevel() == D3DERR_DEVICENOTRESET) {
-		imgui_before_reset();
-		imgui_after_reset(device);
+		imgui_before_reset_dx9();
+		imgui_after_reset_dx9(device);
 	}
 
 	return hr;
@@ -750,8 +750,8 @@ static HRESULT STDMETHODCALLTYPE hook_present_ex(
 
 	if (hr == D3DERR_DEVICELOST &&
 	    device->TestCooperativeLevel() == D3DERR_DEVICENOTRESET) {
-		imgui_before_reset();
-		imgui_after_reset(device);
+		imgui_before_reset_dx9();
+		imgui_after_reset_dx9(device);
 	}
 
 	return hr;

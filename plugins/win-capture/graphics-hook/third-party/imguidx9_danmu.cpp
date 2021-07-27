@@ -13,29 +13,7 @@ extern IMGUI_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND, UINT, WPARAM,
 
 static bool is_initialised = false;
 
-FORCEINLINE void draw_interface()
-{
-	char buff[g_sharedSize] = {0};
-	qBase::readShare(g_sharedSize, buff);
-	Json::Reader reader;
-	Json::Value root;
-	if (!reader.parse(buff, root, false))
-		return;
-
-	if (!root["isOpen"].asBool())
-		return;
-
-	ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
-	// Start the Dear ImGui frame
-	ImGui_ImplDX9_NewFrame();
-	ImGui_ImplWin32_NewFrame();
-
-	render_danmu(root);
-
-	ImGui_ImplDX9_RenderDrawData(ImGui::GetDrawData());
-}
-
-void imgui_init(IDirect3DDevice9 *device, HWND hwnd)
+void imgui_init_dx9(IDirect3DDevice9 *device, HWND hwnd)
 {
 	if (is_initialised)
 		return;
@@ -49,7 +27,6 @@ void imgui_init(IDirect3DDevice9 *device, HWND hwnd)
 	// Setup Platform/Renderer backends
 	ImGui_ImplWin32_Init(hwnd);
 	ImGui_ImplDX9_Init(device);
-	//ImGui_ImplDX9_CreateDeviceObjects();
 
 	add_fonts();
 
@@ -58,19 +35,30 @@ void imgui_init(IDirect3DDevice9 *device, HWND hwnd)
 	is_initialised = true;
 }
 
-void imgui_paint()
+void imgui_paint_dx9()
 {
 	if (capture_active() && is_initialised) {
-		draw_interface();
+		Json::Value root;
+		if (!checkDanmu(root))
+			return;
+
+		ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
+		// Start the Dear ImGui frame
+		ImGui_ImplDX9_NewFrame();
+		ImGui_ImplWin32_NewFrame();
+
+		render_danmu(root);
+
+		ImGui_ImplDX9_RenderDrawData(ImGui::GetDrawData());
 	}
 }
 
-void imgui_before_reset()
+void imgui_before_reset_dx9()
 {
 	ImGui_ImplDX9_InvalidateDeviceObjects();
 }
 
-void imgui_after_reset(IDirect3DDevice9 *device)
+void imgui_after_reset_dx9(IDirect3DDevice9 *device)
 {
 	D3DPRESENT_PARAMETERS g_d3dpp = {};
 	HRESULT hr = device->Reset(&g_d3dpp);
@@ -79,7 +67,7 @@ void imgui_after_reset(IDirect3DDevice9 *device)
 	ImGui_ImplDX9_CreateDeviceObjects();
 }
 
-void imgui_finish()
+void imgui_finish_dx9()
 {
 	if (is_initialised) {
 		ImGui_ImplDX9_Shutdown();
