@@ -1,4 +1,4 @@
-﻿#define PSAPI_VERSION 1
+#define PSAPI_VERSION 1
 #include <obs.h>
 #include <util/dstr.h>
 
@@ -421,29 +421,6 @@ HWND find_window(enum window_search_mode mode, enum window_priority priority,
 				break;
 		}
 
-		window = next_window(window, mode, &parent, use_findwindowex);
-	}
-
-	return best_window;
-}
-
-HWND xxq_find_window(enum window_search_mode mode, LONG hwnd)
-{
-	HWND parent;
-	HWND best_window = NULL;
-	bool use_findwindowex = false;
-	DWORD id;
-
-	HWND window = first_window(mode, &parent, &use_findwindowex);
-
-	while (window) {
-		LONG ud = GetWindowLong(window, GWL_USERDATA);
-		GetWindowThreadProcessId(window, &id);
-
-		if (ud == hwnd && id == GetCurrentProcessId()) {
-			best_window = window;
-			break;
-		}
 		window = next_window(window, mode, &parent, use_findwindowex);
 	}
 

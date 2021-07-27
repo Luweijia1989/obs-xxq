@@ -189,10 +189,6 @@ static void wc_tick(void *data, float seconds)
 						 wc->title, wc->executable,
 						 isPrivate);
 		}
-		else {
-			if (wc->hwnd_type > 0)
-				wc->window = xxq_find_window(EXCLUDE_MINIMIZED, wc->hwnd_type);
-		}
 
 		if (!wc->window) {
 			if (wc->capture.valid)
