@@ -235,7 +235,9 @@ struct obs_tex_frame {
 	bool released;
 };
 
-typedef void (*rtc_frame_output_t)(uint8_t **data, uint32_t *linesize);
+typedef void (*rtc_frame_output_t)(uint8_t **data, uint32_t *linesize,
+				   uint32_t width, uint32_t height,
+				   void *userdata);
 struct obs_rtc_mix {
 	gs_texture_t *rtc_textures[NUM_RTC_CHANNEL];
 	gs_texture_t *rtc_frame_texture;
@@ -253,6 +255,7 @@ struct obs_rtc_mix {
 	volatile bool rtc_output_active;
 
 	rtc_frame_output_t output_cb;
+	void *output_cb_data;
 
 	float color_matrix[16];
 	gs_stagesurf_t *copy_surfaces_raw[NUM_TEXTURES][NUM_CHANNELS];

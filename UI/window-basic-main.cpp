@@ -5482,7 +5482,7 @@ void OBSBasic::StartRecording()
 {
 	//QTimer *timer = new QTimer(this);
 	//connect(timer, &QTimer::timeout, this, [=](){
-		obs_rtc_capture_begin(0, 0, 720, 1080, 720, 1080, 720, 1080, NULL);
+		obs_rtc_capture_begin(0, 0, 720, 1080, 720, 1080, 720, 1080, NULL, NULL);
 
 	/*	QTimer::singleShot(10, this, [=](){
 			obs_rtc_capture_end();

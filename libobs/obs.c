@@ -2903,13 +2903,15 @@ static bool obs_init_rtc_textures(struct obs_rtc_mix *rtc_mix)
 	return true;
 }
 
-void obs_rtc_capture_begin(uint32_t self_crop_x, uint32_t self_crop_y,
-			   uint32_t self_crop_width, uint32_t self_crop_height,
-			   uint32_t self_output_width,
-			   uint32_t self_output_height, uint32_t capture_width,
-			   uint32_t capture_height,
-			   void (*new_rtc_frame_output)(uint8_t **data,
-							uint32_t *linesize))
+void obs_rtc_capture_begin(
+	uint32_t self_crop_x, uint32_t self_crop_y, uint32_t self_crop_width,
+	uint32_t self_crop_height, uint32_t self_output_width,
+	uint32_t self_output_height, uint32_t capture_width,
+	uint32_t capture_height,
+	void (*new_rtc_frame_output)(uint8_t **data, uint32_t *linesize,
+				     uint32_t width, uint32_t height,
+				     void *userdata),
+	void *userdata)
 {
 	struct obs_rtc_mix *rtc_mix = &obs->video.rtc_mix;
 	os_atomic_set_bool(&rtc_mix->rtc_frame_active, true);
@@ -2947,7 +2949,7 @@ void obs_rtc_capture_begin(uint32_t self_crop_x, uint32_t self_crop_y,
 			 rtc_mix->output_texture_height);
 
 	rtc_mix->output_cb = new_rtc_frame_output;
-
+	rtc_mix->output_cb_data = userdata;
 	obs_leave_graphics();
 }
 

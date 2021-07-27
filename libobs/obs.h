@@ -2263,7 +2263,10 @@ EXPORT void obs_rtc_capture_begin(
 	uint32_t self_crop_height, uint32_t self_output_width,
 	uint32_t self_output_height, uint32_t capture_width,
 	uint32_t capture_height,
-	void (*new_rtc_frame_output)(uint8_t **data, uint32_t *linesize));
+	void (*new_rtc_frame_output)(uint8_t **data, uint32_t *linesize,
+				     uint32_t width, uint32_t height,
+				     void *userdata),
+	void *userdata);
 EXPORT void obs_rtc_capture_end();
 EXPORT void obs_rtc_output_begin();
 EXPORT void obs_rtc_update_frame(int channel, char *data, uint32_t width,

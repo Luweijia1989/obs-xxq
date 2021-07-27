@@ -885,7 +885,10 @@ static inline void render_video(struct obs_core_video *video, bool raw_active,
 				if (rtc_mix->output_cb)
 					rtc_mix->output_cb(
 						rtc_mix->cache_frame->data,
-						rtc_mix->cache_frame->linesize);
+						rtc_mix->cache_frame->linesize,
+						rtc_mix->output_texture_width,
+						rtc_mix->output_texture_height,
+						rtc_mix->output_cb_data);
 
 				//FILE *f = fopen("E:\\cccc.nv12", "wb");
 				//fwrite(rtc_mix->cache_frame->data[0], 1,
