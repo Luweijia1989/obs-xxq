@@ -10,7 +10,11 @@ include_directories(third-party)
 include_directories(third-party/imgui)
 
 set(third-party_HEADERS
+	./third-party/draw_danmu.h
 	./third-party/imguidx9_danmu.h
+	./third-party/imguidx10_danmu.h
+	./third-party/imguidx11_danmu.h
+	./third-party/imguidx12_danmu.h
 	./third-party/imgui/imconfig.h
 	./third-party/imgui/imgui_impl_win32.h
 	./third-party/imgui/imgui.h
@@ -27,7 +31,11 @@ set(third-party_HEADERS
 	./third-party/shared_mem.h)
 	
 set(third-party_SOURCES
+	./third-party/draw_danmu.cpp
 	./third-party/imguidx9_danmu.cpp
+	./third-party/imguidx10_danmu.cpp
+	./third-party/imguidx11_danmu.cpp
+	./third-party/imguidx12_danmu.cpp
 	./third-party/imgui/imgui_impl_win32.cpp
 	./third-party/imgui/imgui_demo.cpp
 	./third-party/imgui/imgui_tables.cpp
