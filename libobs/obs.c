@@ -579,8 +579,6 @@ static void obs_free_video(void)
 
 		video->gpu_encoder_active = 0;
 		video->cur_texture = 0;
-
-		obs_rtc_capture_free();
 	}
 }
 
@@ -1084,6 +1082,7 @@ void obs_shutdown(void)
 	obs_free_audio();
 	obs_free_data();
 	obs_free_video();
+	obs_rtc_capture_free();
 	obs_free_hotkeys();
 	obs_free_graphics();
 	proc_handler_destroy(obs->procs);
@@ -2975,7 +2974,7 @@ void obs_rtc_update_frame(int channel, char *data, uint32_t width,
 		return;
 	obs_enter_graphics();
 	struct obs_rtc_mix *rtc_mix = &obs->video.rtc_mix;
-	if (rtc_mix->rtc_textures[channel])
+	if (!rtc_mix->rtc_textures[channel])
 		rtc_mix->rtc_textures[channel] = gs_texture_create(
 			width, height, GS_BGRA, GS_DYNAMIC, NULL, GS_DYNAMIC);
 	gs_texture_set_image(rtc_mix->rtc_textures[channel], data, width * 4,
