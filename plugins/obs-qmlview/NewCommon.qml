@@ -563,7 +563,6 @@ Item {
     Connections {
             target: newProperties
             onReplay:{
-				previewtimer.stop();
                 if(index <4)
                 {
                     squareavatarImage.source = sprintf("qrc:/qmlfiles/image/boke%d.png",index)
@@ -595,7 +594,6 @@ Item {
 					}
                     index = 1
                }
-               previewtimer.start();
         }
         onUpdate:{
 					if(newProperties.uitype !== 3)
