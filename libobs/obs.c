@@ -2912,7 +2912,7 @@ void obs_rtc_capture_begin(uint32_t self_crop_x, uint32_t self_crop_y,
 							uint32_t *linesize))
 {
 	struct obs_rtc_mix *rtc_mix = &obs->video.rtc_mix;
-	os_atomic_set_bool(&rtc_mix->rtc_mix_active, true);
+	os_atomic_set_bool(&rtc_mix->rtc_frame_active, true);
 
 	//force using nv12 texture
 	obs_enter_graphics();
@@ -2954,7 +2954,29 @@ void obs_rtc_capture_begin(uint32_t self_crop_x, uint32_t self_crop_y,
 void obs_rtc_capture_end()
 {
 	struct obs_rtc_mix *rtc_mix = &obs->video.rtc_mix;
-	os_atomic_set_bool(&rtc_mix->rtc_mix_active, false);
+	os_atomic_set_bool(&rtc_mix->rtc_frame_active, false);
+	os_atomic_set_bool(&rtc_mix->rtc_output_active, false);
 
 	obs_rtc_capture_free();
+}
+
+void obs_rtc_output_begin()
+{
+	struct obs_rtc_mix *rtc_mix = &obs->video.rtc_mix;
+	os_atomic_set_bool(&rtc_mix->rtc_output_active, true);
+}
+
+void obs_rtc_update_frame(int channel, char *data, uint32_t width,
+			  uint32_t height)
+{
+	if (channel > NUM_RTC_CHANNEL)
+		return;
+	obs_enter_graphics();
+	struct obs_rtc_mix *rtc_mix = &obs->video.rtc_mix;
+	if (rtc_mix->rtc_textures[channel])
+		rtc_mix->rtc_textures[channel] = gs_texture_create(
+			width, height, GS_BGRA, GS_DYNAMIC, NULL, GS_DYNAMIC);
+	gs_texture_set_image(rtc_mix->rtc_textures[channel], data, width * 4,
+			     false);
+	obs_leave_graphics();
 }

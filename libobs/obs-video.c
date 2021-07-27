@@ -548,7 +548,6 @@ static inline void render_rtc_textures(gs_effect_t *effect,
 	gs_viewport_pop();
 }
 
-static const char *render_rtc_output_texture_name = "render_rtc_output_texture";
 static inline gs_texture_t *
 render_rtc_output_texture(struct obs_core_video *video) //final output
 {
@@ -567,8 +566,6 @@ render_rtc_output_texture(struct obs_core_video *video) //final output
 		tech = gs_effect_get_technique(effect, "Draw");
 	}
 
-	profile_start(render_rtc_output_texture_name);
-
 	gs_set_render_target(target, NULL);
 
 	struct vec4 clear_color;
@@ -585,7 +582,6 @@ render_rtc_output_texture(struct obs_core_video *video) //final output
 	if (rtc_mix->rtc_textures[0])
 		render_rtc_textures(effect, tech, rtc_mix->rtc_textures[0], 720,
 				    -100, 0, 0, 720, 1280);
-	profile_end(render_rtc_output_texture_name);
 
 	return target;
 }
@@ -827,7 +823,7 @@ static inline void render_video(struct obs_core_video *video, bool raw_active,
 	render_main_texture(video, output_order);
 
 	struct obs_rtc_mix *rtc_mix = &obs->video.rtc_mix;
-	if (os_atomic_load_bool(&rtc_mix->rtc_mix_active)) {
+	if (os_atomic_load_bool(&rtc_mix->rtc_frame_active)) {
 		gs_texture_t *texture =
 			render_rtc_frame_texture(video, &obs->video.rtc_mix);
 
@@ -912,7 +908,10 @@ static inline void render_video(struct obs_core_video *video, bool raw_active,
 	}
 
 	if (raw_active || gpu_active) {
-		gs_texture_t *texture = render_output_texture(video);
+		gs_texture_t *texture =
+			os_atomic_load_bool(&rtc_mix->rtc_output_active)
+				? render_rtc_output_texture(video)
+				: render_output_texture(video);
 
 #ifdef _WIN32
 		if (gpu_active)
