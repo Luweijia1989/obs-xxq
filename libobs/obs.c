@@ -504,6 +504,13 @@ static void obs_rtc_capture_free(void)
 	video_frame_destroy(rtc_mix->cache_frame);
 	rtc_mix->cache_frame = NULL;
 
+	for (size_t c = 0; c < NUM_RTC_CHANNEL; c++) {
+		if (rtc_mix->rtc_textures[c]) {
+			gs_texture_destroy(rtc_mix->rtc_textures[c]);
+			rtc_mix->rtc_textures[c] = NULL;
+		}
+	}
+
 	obs_leave_graphics();
 }
 

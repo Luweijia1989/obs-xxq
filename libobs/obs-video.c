@@ -529,6 +529,10 @@ static inline void render_rtc_textures(gs_effect_t *effect,
 	float cx_scale = (float)src_width / (float)crop_width;
 	float cy_scale = (float)src_height / (float)crop_height;
 	gs_matrix_scale3f(cx_scale, cy_scale, 1.0f);
+	if (src_width < crop_width || src_height < crop_height)
+		gs_matrix_scale3f((float)crop_width / (float)src_width,
+				  (float)crop_height / (float)src_height, 1.0f);
+
 	gs_matrix_translate3f(-(float)crop_x, -(float)crop_y, 0.0f);
 
 	gs_effect_set_texture(image, texture);
