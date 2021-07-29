@@ -16,6 +16,8 @@ ImVec2 danmuWidgetPos(int postType);
 
 unsigned int ARGBstringColor2UINT(std::string color);
 
+void cutDanmu(const char *text, float &remainder, bool last, std::string color);
+
 void addDanmu(Json::Value item, bool end = false);
 
 void render_danmu(Json::Value &root);

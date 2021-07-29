@@ -81,7 +81,8 @@ void StyleColorsYuer(ImGuiStyle *dst)
 	style->WindowBorderSize = 0.0f;
 	style->ChildBorderSize = 8.0f;
 	style->ItemSpacing = ImVec2(8, 0);
-	style->WindowPadding = ImVec2(8.0f, 0.0f);
+	style->WindowPadding = ImVec2(8.0f, 8.0f);
+	style->FramePadding = ImVec2(0, 0);
 
 	colors[ImGuiCol_Text] = ImVec4(1.00f, 1.00f, 1.00f, 1.00f);
 	colors[ImGuiCol_TextDisabled] = ImVec4(0.50f, 0.50f, 0.50f, 1.00f);
@@ -182,6 +183,69 @@ unsigned int ARGBstringColor2UINT(std::string color)
 	return IM_COL32(r, g, b, a);
 }
 
+void cutDanmu(const char *text, float &remainder, bool last, std::string color)
+{
+	ImGuiContext &g = *GImGui;
+	float width = ImGui::CalcTextSize(text).x;
+	if (width > remainder) {
+		const char *text_end = text + strlen(text);
+		const char *p_remainder = g.Font->CalcWordWrapPositionA(
+			1, text, text_end, remainder);
+
+		bool add = false;
+		if (p_remainder ==
+		    text) // Wrap_width is too small to fit anything. Force displaying 1 character to minimize the height discontinuity.
+		{
+			p_remainder++;
+			add = true;
+		}
+		char temp[256] = {0};
+		memcpy(temp, text, p_remainder - text);
+
+		remainder -= ImGui::CalcTextSize(temp).x;
+		if (remainder >= 0) {
+			ImGui::AlignTextToFramePadding();
+			ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(
+						   ARGBstringColor2UINT(color)),
+					   temp);
+		} else {
+			if (p_remainder > text && add)
+				p_remainder--;
+			ImGuiWindow *window = ImGui::GetCurrentWindow();
+			if (window->SkipItems)
+				return;
+
+			ImGuiContext &g = *GImGui;
+			const ImGuiLayoutType backup_layout_type =
+				window->DC.LayoutType;
+			window->DC.LayoutType = ImGuiLayoutType_Vertical;
+			ImGui::ItemSize(ImVec2(0, 0));
+			window->DC.LayoutType = backup_layout_type;
+		}
+
+		if (!last) {
+			remainder = ImGui::GetColumnWidth();
+			//ImGui::SetCursorPosY(ImGui::GetCursorPosY() - 16.0f);
+			cutDanmu(p_remainder, remainder, false, color);
+		} else {
+			//ImGui::SetCursorPosY(ImGui::GetCursorPosY() - 4.0f);
+			ImGui::PushTextWrapPos();
+			//ImGui::AlignTextToFramePadding();
+			ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(
+						   ARGBstringColor2UINT(color)),
+					   p_remainder);
+			ImGui::PopTextWrapPos();
+		}
+	} else {
+		ImGui::AlignTextToFramePadding();
+		ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(
+					   ARGBstringColor2UINT(color)),
+				   text);
+		remainder -= width;
+		ImGui::SameLine(0, 0);
+	}
+}
+
 void addDanmu(Json::Value item, bool end)
 {
 	ImGuiContext &g = *GImGui;
@@ -196,60 +260,29 @@ void addDanmu(Json::Value item, bool end)
 		rows += 1;
 
 	std::string id = item["id"].asString();
-	ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(8.0f, 8.0f));
-	ImGui::BeginChild(id.c_str(),
-			  ImVec2(0, ImGui::GetTextLineHeight() * rows + 15),
-			  false, window_flags);
 
 	Json::Value fieldArray = item["field"];
 	for (int i = 0; i < fieldArray.size(); ++i) {
 		Json::Value field = fieldArray[i];
 		std::string textStr = field["text"].asString();
 		char *text = &textStr[0];
-		float width = ImGui::CalcTextSize(text).x;
-		if (width > remainder) {
-			const char *text_end = text + strlen(text);
-			const char *p_remainder = g.Font->CalcWordWrapPositionA(
-				1, text, text_end, remainder);
-
-			if (p_remainder ==
-			    text) // Wrap_width is too small to fit anything. Force displaying 1 character to minimize the height discontinuity.
-				p_remainder++;
-
-			char temp[256] = {0};
-			memcpy(temp, text, p_remainder - text);
-
-			ImGui::AlignTextToFramePadding();
-			ImGui::TextColored(
-				ImGui::ColorConvertU32ToFloat4(
-					ARGBstringColor2UINT(
-						field["color"].asString())),
-				temp);
-			ImGui::SetCursorPosY(ImGui::GetCursorPosY() - 8.0f);
-			ImGui::PushTextWrapPos();
-			//ImGui::AlignTextToFramePadding();
-			ImGui::TextColored(
-				ImGui::ColorConvertU32ToFloat4(
-					ARGBstringColor2UINT(
-						field["color"].asString())),
-				p_remainder);
-			ImGui::PopTextWrapPos();
-		} else {
-			ImGui::AlignTextToFramePadding();
-			ImGui::TextColored(
-				ImGui::ColorConvertU32ToFloat4(
-					ARGBstringColor2UINT(
-						field["color"].asString())),
-				text);
-			ImGui::SameLine(0, 0);
-			remainder -= width;
-		}
+		cutDanmu(text, remainder, i == fieldArray.size() - 1,
+			 field["color"].asString());
 	}
 
-	ImGui::EndChild();
-	ImGui::PopStyleVar(1);
-
 	if (!end) {
+		ImGuiWindow *window = ImGui::GetCurrentWindow();
+		if (window->SkipItems)
+			return;
+
+		ImGuiContext &g = *GImGui;
+		const ImGuiLayoutType backup_layout_type =
+			window->DC.LayoutType;
+		window->DC.LayoutType = ImGuiLayoutType_Vertical;
+		ImGui::ItemSize(ImVec2(0, 0));
+		window->DC.LayoutType = backup_layout_type;
+
+		ImGui::SetCursorPosY(ImGui::GetCursorPosY() + 9.0f);
 		std::string lineId = "line" + id;
 		ImGui::BeginChild(lineId.c_str(), ImVec2(0, 1.0f));
 		ImVec2 p = ImGui::GetCursorScreenPos();
@@ -257,8 +290,87 @@ void addDanmu(Json::Value item, bool end)
 			ImVec2(p.x, p.y), ImVec2(p.x + 384 - 16, p.y),
 			IM_COL32(255, 255, 255, 38.25), 1.0f);
 		ImGui::EndChild();
+		ImGui::ItemSize(ImVec2(0, 9));
 	}
 }
+
+//void addDanmu(Json::Value item, bool end)
+//{
+//	ImGuiContext &g = *GImGui;
+//	float textWidth =
+//		ImGui::CalcTextSize(item["intactText"].asString().c_str()).x;
+//	float lineWidth = ImGui::GetColumnWidth();
+//	float remainder = lineWidth;
+//	if (lineWidth <= 0)
+//		return;
+//	int rows = textWidth / lineWidth;
+//	if (fmod(textWidth, lineWidth) > 0)
+//		rows += 1;
+//
+//	std::string id = item["id"].asString();
+//	ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(8.0f, 8.0f));
+//	ImGui::BeginChild(id.c_str(),
+//			  ImVec2(0, ImGui::GetTextLineHeight() * rows + 15),
+//			  false, window_flags);
+//
+//	Json::Value fieldArray = item["field"];
+//	for (int i = 0; i < fieldArray.size(); ++i) {
+//		Json::Value field = fieldArray[i];
+//		std::string textStr = field["text"].asString();
+//		char *text = &textStr[0];
+//		float width = ImGui::CalcTextSize(text).x;
+//		if (width > remainder) {
+//			const char *text_end = text + strlen(text);
+//			const char *p_remainder = g.Font->CalcWordWrapPositionA(
+//				1, text, text_end, remainder);
+//
+//			if (p_remainder ==
+//			    text) // Wrap_width is too small to fit anything. Force displaying 1 character to minimize the height discontinuity.
+//				p_remainder++;
+//
+//			char temp[256] = {0};
+//			memcpy(temp, text, p_remainder - text);
+//
+//			ImGui::AlignTextToFramePadding();
+//			ImGui::TextColored(
+//				ImGui::ColorConvertU32ToFloat4(
+//					ARGBstringColor2UINT(
+//						field["color"].asString())),
+//				temp);
+//			ImGui::SetCursorPosY(ImGui::GetCursorPosY() - 8.0f);
+//			ImGui::PushTextWrapPos();
+//			//ImGui::AlignTextToFramePadding();
+//			ImGui::TextColored(
+//				ImGui::ColorConvertU32ToFloat4(
+//					ARGBstringColor2UINT(
+//						field["color"].asString())),
+//				p_remainder);
+//			ImGui::PopTextWrapPos();
+//		} else {
+//			ImGui::AlignTextToFramePadding();
+//			ImGui::TextColored(
+//				ImGui::ColorConvertU32ToFloat4(
+//					ARGBstringColor2UINT(
+//						field["color"].asString())),
+//				text);
+//			ImGui::SameLine(0, 0);
+//			remainder -= width;
+//		}
+//	}
+//
+//	ImGui::EndChild();
+//	ImGui::PopStyleVar(1);
+//
+//	if (!end) {
+//		std::string lineId = "line" + id;
+//		ImGui::BeginChild(lineId.c_str(), ImVec2(0, 1.0f));
+//		ImVec2 p = ImGui::GetCursorScreenPos();
+//		ImGui::GetWindowDrawList()->AddLine(
+//			ImVec2(p.x, p.y), ImVec2(p.x + 384 - 16, p.y),
+//			IM_COL32(255, 255, 255, 38.25), 1.0f);
+//		ImGui::EndChild();
+//	}
+//}
 
 void render_danmu(Json::Value &root)
 {

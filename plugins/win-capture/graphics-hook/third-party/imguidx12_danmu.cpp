@@ -1,3 +1,4 @@
+#ifdef _WIN64
 #include "imguidx12_danmu.h"
 #include "imgui_internal.h"
 #include "../graphics-hook.h"
@@ -64,3 +65,4 @@ void imgui_finish_dx12()
 		is_initialised = false;
 	}
 }
+#endif
