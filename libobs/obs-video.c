@@ -139,16 +139,6 @@ static inline void unmap_last_surface(struct obs_core_video *video)
 	}
 }
 
-static inline void unmap_last_surface_raw(struct obs_core_video *video)
-{
-	for (int c = 0; c < NUM_CHANNELS; ++c) {
-		if (video->mapped_surfaces_raw[c]) {
-			gs_stagesurface_unmap(video->mapped_surfaces_raw[c]);
-			video->mapped_surfaces_raw[c] = NULL;
-		}
-	}
-}
-
 static const char *render_main_texture_name = "render_main_texture";
 static inline void render_main_texture(struct obs_core_video *video,
 				       void *output_order)
@@ -505,8 +495,8 @@ end:
 #endif
 
 static inline void render_video(struct obs_core_video *video, bool raw_active,
-				const bool gpu_active, int cur_texture, int prev_texture,
-				void *output_order, struct video_data *frame)
+				const bool gpu_active, int cur_texture,
+				void *output_order)
 {
 	gs_begin_scene();
 
@@ -515,47 +505,9 @@ static inline void render_video(struct obs_core_video *video, bool raw_active,
 
 	render_main_texture(video, output_order);
 
-	gs_texture_t *texture = NULL;
-	if (raw_active || gpu_active)
-		texture = render_output_texture(video);
-
-	if (raw_active) //cache origin output texture, later we will make custom draw on the output texture
-	{
-		if (video->gpu_conversion)
-			render_convert_texture(video, texture);
-
-		unmap_last_surface_raw(video);
-
-
-		for (int i = 0; i < NUM_CHANNELS; i++) {
-			gs_stagesurf_t *copy =
-				video->copy_surfaces_raw[cur_texture][i];
-			if (copy)
-				gs_stage_texture(copy,
-							video->convert_textures[i]);
-		}
-
-		video->textures_copied_raw[cur_texture] = true;
-
-		if (video->textures_copied_raw[prev_texture]) {
-			bool success = true;
-			for (int channel = 0; channel < NUM_CHANNELS; ++channel) {
-				gs_stagesurf_t *surface =
-					video->copy_surfaces_raw[prev_texture][channel];
-				if (surface) {
-					if (!gs_stagesurface_map(surface, &frame->data_raw[channel],
-									&frame->linesize_raw[channel])) {
-						success = false;
-						break;
-					}	
-
-					video->mapped_surfaces_raw[channel] = surface;
-				}
-			}
-		}
-	}
-
 	if (raw_active || gpu_active) {
+		gs_texture_t *texture = render_output_texture(video);
+
 #ifdef _WIN32
 		if (gpu_active)
 			gs_flush();
@@ -829,7 +781,7 @@ static inline void output_frame(bool raw_active, const bool gpu_active)
 	profile_start(output_frame_render_video_name);
 	GS_DEBUG_MARKER_BEGIN(GS_DEBUG_COLOR_RENDER_VIDEO,
 			      output_frame_render_video_name);
-	render_video(video, raw_active, gpu_active, cur_texture, prev_texture, &output_order, &frame);
+	render_video(video, raw_active, gpu_active, cur_texture, &output_order);
 	GS_DEBUG_MARKER_END();
 	profile_end(output_frame_render_video_name);
 
@@ -886,7 +838,6 @@ static void clear_raw_frame_data(void)
 {
 	struct obs_core_video *video = &obs->video;
 	memset(video->textures_copied, 0, sizeof(video->textures_copied));
-	memset(video->textures_copied_raw, 0, sizeof(video->textures_copied_raw));
 	circlebuf_free(&video->vframe_info_buffer);
 }
 
@@ -929,8 +880,7 @@ void *obs_graphics_thread(void *param)
 	while (!video_output_stopped(obs->video.video)) {
 		uint64_t frame_start = os_gettime_ns();
 		uint64_t frame_time_ns;
-		//bool raw_active = obs->video.raw_active > 0;
-		bool raw_active = true;
+		bool raw_active = obs->video.raw_active > 0;
 #ifdef _WIN32
 		const bool gpu_active = obs->video.gpu_encoder_active > 0;
 		const bool active = raw_active || gpu_active;

@@ -23,8 +23,6 @@
 struct video_frame {
 	uint8_t *data[MAX_AV_PLANES];
 	uint32_t linesize[MAX_AV_PLANES];
-	uint8_t *data_raw[MAX_AV_PLANES];
-	uint32_t linesize_raw[MAX_AV_PLANES];
 };
 
 EXPORT void video_frame_init(struct video_frame *frame,
