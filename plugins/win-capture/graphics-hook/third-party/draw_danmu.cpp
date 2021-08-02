@@ -82,6 +82,7 @@ int danmuWidgetHeight(int type) {
 	case 22:
 		return 164;
 	}
+	return 144;
 }
 
 void StyleColorsYuer(ImGuiStyle *dst)
