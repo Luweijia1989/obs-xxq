@@ -5,7 +5,7 @@
 
 static ImGuiWindowFlags window_flags = 0;
 
-ImVec2 danmuWidgetPos(int postType)
+ImVec2 danmuWidgetPos(int postType, int type)
 {
 	ImVec2 vec(WidgetSpacing, WidgetSpacing);
 	switch (postType) {
@@ -32,7 +32,7 @@ ImVec2 danmuWidgetPos(int postType)
 		if (viewport) {
 			ImVec2 v1 = viewport->WorkSize;
 			vec.x = WidgetSpacing;
-			vec.y = (v1.y - DanmuWidgetHeight) / 2;
+			vec.y = (v1.y - danmuWidgetHeight(type)) / 2;
 		}
 	} break;
 	case 5: {
@@ -40,7 +40,7 @@ ImVec2 danmuWidgetPos(int postType)
 		if (viewport) {
 			ImVec2 v1 = viewport->WorkSize;
 			vec.x = v1.x - DanmuWidgetWidth - WidgetSpacing;
-			vec.y = (v1.y - DanmuWidgetHeight) / 2;
+			vec.y = (v1.y - danmuWidgetHeight(type)) / 2;
 		}
 	} break;
 	case 6: {
@@ -48,7 +48,7 @@ ImVec2 danmuWidgetPos(int postType)
 		if (viewport) {
 			ImVec2 v1 = viewport->WorkSize;
 			vec.x = WidgetSpacing;
-			vec.y = v1.y - DanmuWidgetHeight - WidgetSpacing;
+			vec.y = v1.y - danmuWidgetHeight(type) - WidgetSpacing;
 		}
 	} break;
 	case 7: {
@@ -56,7 +56,7 @@ ImVec2 danmuWidgetPos(int postType)
 		if (viewport) {
 			ImVec2 v1 = viewport->WorkSize;
 			vec.x = (v1.x - DanmuWidgetWidth) / 2;
-			vec.y = v1.y - DanmuWidgetHeight - WidgetSpacing;
+			vec.y = v1.y - danmuWidgetHeight(type) - WidgetSpacing;
 		}
 	} break;
 	case 8: {
@@ -64,13 +64,24 @@ ImVec2 danmuWidgetPos(int postType)
 		if (viewport) {
 			ImVec2 v1 = viewport->WorkSize;
 			vec.x = v1.x - DanmuWidgetWidth - WidgetSpacing;
-			vec.y = v1.y - DanmuWidgetHeight - WidgetSpacing;
+			vec.y = v1.y - danmuWidgetHeight(type) - WidgetSpacing;
 		}
 	} break;
 	default:
 		break;
 	}
 	return vec;
+}
+
+int danmuWidgetHeight(int type) {
+	switch (type) {
+	case 18:
+		return 144;
+	case 20:
+		return 152;
+	case 22:
+		return 164;
+	}
 }
 
 void StyleColorsYuer(ImGuiStyle *dst)
@@ -376,13 +387,13 @@ void render_danmu(Json::Value &root)
 {
 	ImGui::NewFrame();
 
+	int fontSize = root["fontSize"].asInt();
 	ImGui::Begin(
 		"Hello, world!", NULL,
 		window_flags); // Create a window called "Hello, world!" and append into it.
-	ImGui::SetWindowSize(ImVec2(DanmuWidgetWidth, DanmuWidgetHeight));
-	ImGui::SetWindowPos(danmuWidgetPos(root["posType"].asInt()));
+	ImGui::SetWindowSize(ImVec2(DanmuWidgetWidth, danmuWidgetHeight(fontSize)));
+	ImGui::SetWindowPos(danmuWidgetPos(root["posType"].asInt(), fontSize));
 
-	int fontSize = root["fontSize"].asInt();
 	ImGuiIO &io = ImGui::GetIO();
 	for (int n = 0; n < io.Fonts->Fonts.Size; n++) {
 		ImFont *font = io.Fonts->Fonts[n];

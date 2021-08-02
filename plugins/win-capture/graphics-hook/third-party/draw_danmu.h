@@ -5,14 +5,15 @@
 
 #define g_sharedSize (1024 * 8)
 #define DanmuWidgetWidth 384
-#define DanmuWidgetHeight 144
 #define WidgetSpacing 16
 
 extern ImGuiWindowFlags window_flags;
 
 void StyleColorsYuer(ImGuiStyle *dst);
 
-ImVec2 danmuWidgetPos(int postType);
+ImVec2 danmuWidgetPos(int postType, int type);
+
+int danmuWidgetHeight(int type);
 
 unsigned int ARGBstringColor2UINT(std::string color);
 
