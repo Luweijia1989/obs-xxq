@@ -4,6 +4,7 @@
 #include "dxgi-helpers.hpp"
 #include "graphics-hook.h"
 #include "../funchook.h"
+#include "imguidx11_danmu.h"
 
 struct d3d11_data {
 	ID3D11Device *device;         /* do not release */
@@ -58,6 +59,7 @@ static struct d3d11_data data = {};
 
 void d3d11_free(void)
 {
+	imgui_finish_dx11();
 	if (data.scale_tex)
 		data.scale_tex->Release();
 	if (data.scale_resource)
@@ -563,6 +565,9 @@ static void d3d11_init(IDXGISwapChain *swap)
 
 	if (!success)
 		d3d11_free();
+	else {
+		imgui_init_dx11(data.device, window, data.context);
+	}
 }
 
 #define MAX_RENDER_TARGETS D3D11_SIMULTANEOUS_RENDER_TARGET_COUNT
@@ -849,4 +854,6 @@ void d3d11_capture(void *swap_ptr, void *backbuffer_ptr, bool)
 
 		backbuffer->Release();
 	}
+
+	imgui_paint_dx11();
 }
