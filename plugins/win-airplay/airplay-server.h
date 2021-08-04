@@ -16,6 +16,11 @@
 #include <graphics/image-file.h>
 #include "media-io/audio-resampler.h"
 #include <portaudio.h>
+
+#include "main_window.h"
+#include "d3d11va_decoder.h"
+#include "d3d11va_renderer.h"
+
 extern "C" {
 #include <util/pipe.h>
 }
@@ -25,6 +30,13 @@ struct AudioFrame {
 	size_t data_len;
 	int64_t pts;
 	int serial;
+};
+
+struct VideoFrame {
+	bool is_header;
+	uint8_t *data;
+	size_t data_len;
+	int64_t pts;
 };
 
 class ScreenMirrorServer {
@@ -38,10 +50,11 @@ public:
 
 	ScreenMirrorServer(obs_source_t *source);
 	~ScreenMirrorServer();
-	void outputVideo(AVFrame *frame);
+	void outputVideo(bool is_header, uint8_t *data, size_t data_len, int64_t pts);
 	void outputVideoFrame(AVFrame *frame);
 	void outputAudio(size_t data_len, uint64_t pts, int serial);
 	void outputAudioFrame(uint8_t *data, size_t size);
+	void doRenderer();
 
 	void mirrorServerSetup();
 	void mirrorServerDestroy();
@@ -53,8 +66,6 @@ public:
 	static void WinAirplayVideoTick(void *data, float seconds);
 	static void *CreateWinAirplay(obs_data_t *settings, obs_source_t *source);
 	static void *audio_tick_thread(void *data);
-	static void *video_tick_thread(void *data);
-	static void *video_decode_thread(void *data);
 	int m_width = 0;
 	int m_height = 0;
 	obs_source_t *m_source = nullptr;
@@ -80,6 +91,8 @@ private:
 	void loadImage(const char *path);
 	void saveStatusSettings();
 
+	void initD3D(int w, int h, uint8_t *data, size_t len);
+
 private:
 	HANDLE m_handler;
 
@@ -91,13 +104,12 @@ private:
 	struct resample_info to;
 	struct resample_info from;
 
-	std::list<AVFrame *> m_videoFrames;
+	std::list<VideoFrame > m_videoFrames;
 	std::list<AudioFrame *> m_audioFrames;
 	pthread_mutex_t m_videoDataMutex;
 	pthread_mutex_t m_audioDataMutex;
 	pthread_mutex_t m_statusMutex;
 	pthread_t m_audioTh;
-	pthread_t m_videoTh;
 	bool m_running = true;
 	int64_t m_offset = LLONG_MAX;
 	int64_t m_audioOffset = LLONG_MAX;
@@ -118,4 +130,10 @@ private:
 	MirrorBackEnd m_lastStopType = None;
 
 	std::vector<std::string> m_resourceImgs;
+
+	MainWindow window;
+	D3D11VARenderer renderer;
+	AVDecoder decoder;
+	AVFrame* m_decodedFrame = av_frame_alloc();
+	AVPacket m_encodedPacket = { 0 };
 };

@@ -66,7 +66,7 @@ void VideoDecoder::docode(uint8_t *data, size_t data_len, bool is_key,
 			av_packet_unref(packet);
 
 			// Did we get a video frame?
-			if (frameFinished == 0) {
+			/*if (frameFinished == 0) {
 				AVFrame *frame = av_frame_alloc();
 				int err = av_hwframe_transfer_data(frame,
 								   hw_frame, 0);
@@ -76,7 +76,7 @@ void VideoDecoder::docode(uint8_t *data, size_t data_len, bool is_key,
 					av_frame_unref(frame);
 					av_free(frame);
 				}
-			}
+			}*/
 		}
 	}
 }

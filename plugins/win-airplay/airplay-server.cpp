@@ -84,7 +84,6 @@ ScreenMirrorServer::ScreenMirrorServer(obs_source_t *source)
 	memcpy(&m_imageFrame, &m_videoFrame, sizeof(struct obs_source_frame2));
 
 	pthread_create(&m_audioTh, NULL, ScreenMirrorServer::audio_tick_thread, this);
-	pthread_create(&m_videoTh, NULL, ScreenMirrorServer::video_tick_thread, this);
 	circlebuf_init(&m_avBuffer);
 
 	saveStatusSettings();
@@ -97,7 +96,6 @@ ScreenMirrorServer::~ScreenMirrorServer()
 	destroyAudioRenderer();
 	m_running = false;
 	pthread_join(m_audioTh, NULL);
-	pthread_join(m_videoTh, NULL);
 
 	obs_enter_graphics();
 	gs_image_file2_free(if2);
@@ -111,6 +109,8 @@ ScreenMirrorServer::~ScreenMirrorServer()
 
 	if (m_handler != INVALID_HANDLE_VALUE)
 		CloseHandle(m_handler);
+
+	av_frame_free(&m_decodedFrame);
 
 #ifdef DUMPFILE
 	fclose(m_auioFile);
@@ -334,6 +334,19 @@ void ScreenMirrorServer::saveStatusSettings()
 	obs_data_set_int(setting, "status", mirror_status);
 }
 
+void ScreenMirrorServer::initD3D(int w, int h, uint8_t *data, size_t len)
+{
+	if (!window.Init(100, 100, w, h)) {
+		return;
+	}
+
+	if (!renderer.Init(window.GetHandle())) {
+		return;
+	}
+
+	decoder.Init(data, len, renderer.GetDevice());
+}
+
 void ScreenMirrorServer::parseNalus(uint8_t *data, size_t size, uint8_t **out,
 				    size_t *out_len)
 {
@@ -449,7 +462,9 @@ bool ScreenMirrorServer::handleMediaData()
 			return true;
 
 		resetResampler(info.speakers, info.format, info.samples_per_sec);
-		m_decoder.docode(info.pps, info.pps_len, true, 0);
+		auto cache = (uint8_t *)malloc(info.pps_len);
+		memcpy(cache, info.pps, info.pps_len);
+		outputVideo(true, cache, info.pps_len, 0);
 
 		handleMirrorStatus(OBS_SOURCE_MIRROR_OUTPUT);
 	} else {
@@ -458,8 +473,7 @@ bool ScreenMirrorServer::handleMediaData()
 		} else {
 			uint8_t *temp_buf = (uint8_t *)calloc(1, req_size);
 			circlebuf_pop_front(&m_avBuffer, temp_buf, req_size);
-			m_decoder.docode(temp_buf, req_size, false, header_info.pts);
-			free(temp_buf);
+			outputVideo(false, temp_buf, req_size, header_info.pts);
 		}
 	}
 	return true;
@@ -474,8 +488,8 @@ void ScreenMirrorServer::resetState()
 	m_audioPacketSerial = -1;
 	for (auto iter = m_videoFrames.begin(); iter != m_videoFrames.end();
 	     iter++) {
-		AVFrame *f = *iter;
-		av_frame_free(&f);
+		VideoFrame &f = *iter;
+		free(f.data);
 	}
 	m_videoFrames.clear();
 	pthread_mutex_unlock(&m_videoDataMutex);
@@ -631,10 +645,10 @@ void ScreenMirrorServer::outputAudio(size_t data_len, uint64_t pts, int serial)
 	pthread_mutex_unlock(&m_audioDataMutex);
 }
 
-void ScreenMirrorServer::outputVideo(AVFrame *frame)
+void ScreenMirrorServer::outputVideo(bool is_header, uint8_t *data, size_t data_len, int64_t pts)
 {
 	pthread_mutex_lock(&m_videoDataMutex);
-	m_videoFrames.push_back(frame);
+	m_videoFrames.push_back({is_header, data, data_len, pts});
 	pthread_mutex_unlock(&m_videoDataMutex);
 }
 
@@ -710,7 +724,7 @@ static void ShowWinAirplay(void *data) {}
 static void WinAirplayRender(void *data, gs_effect_t *effect)
 {
 	ScreenMirrorServer *s = (ScreenMirrorServer *)data;
-	obs_source_draw_videoframe(s->m_source);
+	s->doRenderer();
 }
 static uint32_t WinAirplayWidth(void *data)
 {
@@ -761,28 +775,66 @@ void *ScreenMirrorServer::audio_tick_thread(void *data)
 	return NULL;
 }
 
-void *ScreenMirrorServer::video_tick_thread(void *data)
+void ScreenMirrorServer::doRenderer()
 {
-	ScreenMirrorServer *s = (ScreenMirrorServer *)data;
-	while (s->m_running) {
-		pthread_mutex_lock(&s->m_videoDataMutex);
-		while (s->m_videoFrames.size() > 0) {
-			AVFrame *frame = s->m_videoFrames.front();
+	pthread_mutex_lock(&m_videoDataMutex);
+	while (m_videoFrames.size() > 0) {
+		VideoFrame &frame = m_videoFrames.front();
+		if (frame.is_header)
+		{
+			initD3D(1920, 1080, frame.data, frame.data_len);
+			free(frame.data);
+			m_videoFrames.pop_front();
+		}
+		else
+		{
 			int64_t now = (int64_t)os_gettime_ns();
-			if (s->m_offset == LLONG_MAX)
-				s->m_offset = now - frame->pts + s->m_extraDelay;
-			if (s->m_offset + frame->pts <= now) {
-				s->outputVideoFrame(frame);
-				s->m_videoFrames.pop_front();
-				av_frame_free(&frame);
+			if (m_offset == LLONG_MAX)
+				m_offset = now - frame.pts + m_extraDelay;
+			if (m_offset + frame.pts <= now) {
+				m_encodedPacket.data = frame.data;
+				m_encodedPacket.size = frame.data_len;
+
+				int ret = decoder.Send(&m_encodedPacket);
+				while (ret >= 0) {
+					ret = decoder.Recv(m_decodedFrame);
+					if (ret >= 0) {
+						renderer.RenderFrame(m_decodedFrame);
+					}
+				}
+
+				free(frame.data);
+				m_videoFrames.pop_front();
 			} else
 				break;
 		}
-		pthread_mutex_unlock(&s->m_videoDataMutex);
-		os_sleep_ms(2);
 	}
-	return NULL;
+	pthread_mutex_unlock(&m_videoDataMutex);
 }
+
+//void *ScreenMirrorServer::video_tick_thread(void *data)
+//{
+//	ScreenMirrorServer *s = (ScreenMirrorServer *)data;
+//	while (s->m_running) {
+//		pthread_mutex_lock(&s->m_videoDataMutex);
+//		while (s->m_videoFrames.size() > 0) {
+//			AVFrame *frame = s->m_videoFrames.front();
+//			int64_t now = (int64_t)os_gettime_ns();
+//			if (s->m_offset == LLONG_MAX)
+//				s->m_offset = now - frame->pts + s->m_extraDelay;
+//			if (s->m_offset + frame->pts <= now) {
+//				s->outputVideoFrame(frame);
+//				s->m_videoFrames.pop_front();
+//				av_frame_unref(frame);
+//				av_frame_free(&frame);
+//			} else
+//				break;
+//		}
+//		pthread_mutex_unlock(&s->m_videoDataMutex);
+//		os_sleep_ms(2);
+//	}
+//	return NULL;
+//}
 
 void ScreenMirrorServer::WinAirplayVideoTick(void *data, float seconds)
 {
