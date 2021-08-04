@@ -570,8 +570,6 @@ void obs_source_frame_init(struct obs_source_frame *frame,
 		frame->data[i] = vid_frame.data[i];
 		frame->linesize[i] = vid_frame.linesize[i];
 	}
-
-	bfree(vid_frame.data_raw[0]);
 }
 
 static inline void obs_source_frame_decref(struct obs_source_frame *frame)
@@ -2516,7 +2514,7 @@ obs_source_t *obs_source_filter_get_by_name(obs_source_t *source,
 	obs_source_t *ret = NULL;
 
 	pthread_mutex_lock(&source->filter_mutex);
-	for (size_t i = 0; i < source->filters.num; i++) {
+	for (int i = 0; i < source->filters.num; i++) {
 		struct obs_source *filter = source->filters.array[i];
 		if (strcmp(obs_source_get_name(filter), name) == 0) {
 			ret = filter;

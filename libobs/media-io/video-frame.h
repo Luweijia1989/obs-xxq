@@ -23,8 +23,6 @@
 struct video_frame {
 	uint8_t *data[MAX_AV_PLANES];
 	uint32_t linesize[MAX_AV_PLANES];
-	uint8_t *data_raw[MAX_AV_PLANES];
-	uint32_t linesize_raw[MAX_AV_PLANES];
 };
 
 EXPORT void video_frame_init(struct video_frame *frame,
@@ -35,7 +33,6 @@ static inline void video_frame_free(struct video_frame *frame)
 {
 	if (frame) {
 		bfree(frame->data[0]);
-		bfree(frame->data_raw[0]);
 		memset(frame, 0, sizeof(struct video_frame));
 	}
 }
@@ -54,7 +51,6 @@ static inline void video_frame_destroy(struct video_frame *frame)
 {
 	if (frame) {
 		bfree(frame->data[0]);
-		bfree(frame->data_raw[0]);
 		bfree(frame);
 	}
 }

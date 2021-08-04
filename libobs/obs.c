@@ -40,8 +40,6 @@ static inline void make_video_info(struct video_output_info *vi,
 	vi->range = ovi->range;
 	vi->colorspace = ovi->colorspace;
 	vi->cache_size = 6;
-	vi->crop_width = 0;
-	vi->crop_height = 0;
 }
 
 static inline void calc_gpu_conversion_sizes(const struct obs_video_info *ovi)
@@ -165,11 +163,6 @@ static bool obs_init_gpu_copy_surfaces(struct obs_video_info *ovi, size_t i)
 	if (!video->copy_surfaces[i][0])
 		return false;
 
-	video->copy_surfaces_raw[i][0] = gs_stagesurface_create(
-		ovi->output_width, ovi->output_height, GS_R8);
-	if (!video->copy_surfaces_raw[i][0])
-		return false;
-
 	const struct video_output_info *info =
 		video_output_get_info(video->video);
 	switch (info->format) {
@@ -182,25 +175,11 @@ static bool obs_init_gpu_copy_surfaces(struct obs_video_info *ovi, size_t i)
 			ovi->output_width / 2, ovi->output_height / 2, GS_R8);
 		if (!video->copy_surfaces[i][2])
 			return false;
-
-		video->copy_surfaces_raw[i][1] = gs_stagesurface_create(
-			ovi->output_width / 2, ovi->output_height / 2, GS_R8);
-		if (!video->copy_surfaces_raw[i][1])
-			return false;
-		video->copy_surfaces_raw[i][2] = gs_stagesurface_create(
-			ovi->output_width / 2, ovi->output_height / 2, GS_R8);
-		if (!video->copy_surfaces_raw[i][2])
-			return false;
 		break;
 	case VIDEO_FORMAT_NV12:
 		video->copy_surfaces[i][1] = gs_stagesurface_create(
 			ovi->output_width / 2, ovi->output_height / 2, GS_R8G8);
 		if (!video->copy_surfaces[i][1])
-			return false;
-
-		video->copy_surfaces_raw[i][1] = gs_stagesurface_create(
-			ovi->output_width / 2, ovi->output_height / 2, GS_R8G8);
-		if (!video->copy_surfaces_raw[i][1])
 			return false;
 		break;
 	case VIDEO_FORMAT_I444:
@@ -211,15 +190,6 @@ static bool obs_init_gpu_copy_surfaces(struct obs_video_info *ovi, size_t i)
 		video->copy_surfaces[i][2] = gs_stagesurface_create(
 			ovi->output_width, ovi->output_height, GS_R8);
 		if (!video->copy_surfaces[i][2])
-			return false;
-
-		video->copy_surfaces_raw[i][1] = gs_stagesurface_create(
-			ovi->output_width, ovi->output_height, GS_R8);
-		if (!video->copy_surfaces_raw[i][1])
-			return false;
-		video->copy_surfaces_raw[i][2] = gs_stagesurface_create(
-			ovi->output_width, ovi->output_height, GS_R8);
-		if (!video->copy_surfaces_raw[i][2])
 			return false;
 		break;
 	default:
@@ -242,12 +212,6 @@ static bool obs_init_textures(struct obs_video_info *ovi)
 			if (!video->copy_surfaces[i][0])
 				return false;
 
-			video->copy_surfaces_raw[i][0] =
-				gs_stagesurface_create_nv12(ovi->output_width,
-							    ovi->output_height);
-			if (!video->copy_surfaces_raw[i][0])
-				return false;
-
 		} else {
 #endif
 			if (video->gpu_conversion) {
@@ -259,13 +223,6 @@ static bool obs_init_textures(struct obs_video_info *ovi)
 						ovi->output_width,
 						ovi->output_height, GS_RGBA);
 				if (!video->copy_surfaces[i][0])
-					return false;
-
-				video->copy_surfaces_raw[i][0] =
-					gs_stagesurface_create(
-						ovi->output_width,
-						ovi->output_height, GS_RGBA);
-				if (!video->copy_surfaces_raw[i][0])
 					return false;
 			}
 #ifdef _WIN32
@@ -513,12 +470,6 @@ static void obs_free_video(void)
 					video->mapped_surfaces[c]);
 				video->mapped_surfaces[c] = NULL;
 			}
-
-			if (video->mapped_surfaces_raw[c]) {
-				gs_stagesurface_unmap(
-					video->mapped_surfaces_raw[c]);
-				video->mapped_surfaces_raw[c] = NULL;
-			}
 		}
 
 		for (size_t i = 0; i < NUM_TEXTURES; i++) {
@@ -527,12 +478,6 @@ static void obs_free_video(void)
 					gs_stagesurface_destroy(
 						video->copy_surfaces[i][c]);
 					video->copy_surfaces[i][c] = NULL;
-				}
-
-				if (video->copy_surfaces_raw[i][c]) {
-					gs_stagesurface_destroy(
-						video->copy_surfaces_raw[i][c]);
-					video->copy_surfaces_raw[i][c] = NULL;
 				}
 			}
 		}
@@ -553,12 +498,6 @@ static void obs_free_video(void)
 						video->copy_surfaces[i][c]);
 					video->copy_surfaces[i][c] = NULL;
 				}
-
-				if (video->copy_surfaces_raw[i][c]) {
-					gs_stagesurface_destroy(
-						video->copy_surfaces_raw[i][c]);
-					video->copy_surfaces_raw[i][c] = NULL;
-				}
 			}
 		}
 
@@ -575,8 +514,6 @@ static void obs_free_video(void)
 		;
 		memset(video->textures_copied, 0,
 		       sizeof(video->textures_copied));
-		memset(video->textures_copied_raw, 0,
-		       sizeof(video->textures_copied_raw));
 		video->texture_converted = false;
 		;
 
@@ -2822,28 +2759,4 @@ void obs_source_custom_command_xxqsource(int type, obs_data_t *settings)
 	if (type == 5 && data->mask_source) {
 		obs_source_do_custom_command(data->mask_source, settings);
 	}
-}
-
-void obs_rtc_mix_begin(uint32_t self_crop_x, uint32_t self_crop_y,
-		       uint32_t self_crop_width, uint32_t self_crop_height,
-		       uint32_t crop_width, uint32_t crop_height)
-{
-	struct obs_core_video *video = &obs->video;
-	video->self_crop_x = self_crop_x;
-	video->self_crop_y = self_crop_y;
-	video->self_crop_width = self_crop_width;
-	video->self_crop_height = self_crop_height;
-	video->render_rtc_textures = true;
-	struct video_output_info *info = video_output_get_info(video->video);
-	info->crop_width = crop_width;
-	info->crop_height = crop_height;
-}
-
-void obs_rtc_mix_end()
-{
-	struct obs_core_video *video = &obs->video;
-	video->render_rtc_textures = false;
-	struct video_output_info *info = video_output_get_info(video->video);
-	info->crop_width = 0;
-	info->crop_height = 0;
 }

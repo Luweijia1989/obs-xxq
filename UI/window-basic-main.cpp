@@ -5111,9 +5111,6 @@ void OBSBasic::OpenSceneFilters()
 
 void OBSBasic::StartStreaming()
 {
-	QTimer::singleShot(10000, this, [=]() { obs_rtc_mix_begin(200, 200, 320, 360, 1920, 1080); });
-
-	QTimer::singleShot(30000, this, [=]() { obs_rtc_mix_end(); });
 	if (outputHandler->StreamingActive())
 		return;
 	if (disableOutputsRef)
@@ -5483,11 +5480,6 @@ void OBSBasic::AutoRemux()
 
 void OBSBasic::StartRecording()
 {
-	/*QTimer::singleShot(10000, this, [=]() {
-		obs_rtc_mix_begin(200, 200, 320, 360, 1920, 1080);
-	});
-
-	QTimer::singleShot(30000, this, [=]() { obs_rtc_mix_end(); });*/
 	if (outputHandler->RecordingActive())
 		return;
 	if (disableOutputsRef)
