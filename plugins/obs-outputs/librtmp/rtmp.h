@@ -490,11 +490,6 @@ extern "C"
     struct sockaddr;
     int RTMP_Connect0(RTMP *r, struct sockaddr *svc, socklen_t addrlen);
     int RTMP_Connect1(RTMP *r, RTMPPacket *cp);
-	
-#if 0
-    int RTMP_Serve(RTMP *r);
-    int RTMP_TLS_Accept(RTMP *r, void *ctx);
-#endif
 
     int RTMP_ReadPacket(RTMP *r, RTMPPacket *packet);
     int RTMP_SendPacket(RTMP *r, RTMPPacket *packet, int queue);
@@ -518,11 +513,6 @@ extern "C"
     void RTMP_TLS_Free(RTMP *r);
     void RTMP_Free(RTMP *r);
     void RTMP_EnableWrite(RTMP *r);
-
-#if 0
-    void *RTMP_TLS_AllocServerContext(const char* cert, const char* key);
-    void RTMP_TLS_FreeServerContext(void *ctx);
-#endif
 
     int RTMP_LibVersion(void);
     void RTMP_UserInterrupt(void);	/* user typed Ctrl-C */
