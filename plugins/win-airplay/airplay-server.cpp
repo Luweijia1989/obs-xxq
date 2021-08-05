@@ -73,15 +73,6 @@ ScreenMirrorServer::ScreenMirrorServer(obs_source_t *source)
 	pthread_mutex_init(&m_videoDataMutex, nullptr);
 	pthread_mutex_init(&m_audioDataMutex, nullptr);
 	pthread_mutex_init(&m_statusMutex, nullptr);
-	memset(m_videoFrame.data, 0, sizeof(m_videoFrame.data));
-	memset(&m_videoFrame, 0, sizeof(&m_videoFrame));
-
-	m_videoFrame.range = VIDEO_RANGE_PARTIAL;
-	video_format_get_parameters(VIDEO_CS_601, m_videoFrame.range,
-				    m_videoFrame.color_matrix,
-				    m_videoFrame.color_range_min,
-				    m_videoFrame.color_range_max);
-	memcpy(&m_imageFrame, &m_videoFrame, sizeof(struct obs_source_frame2));
 
 	pthread_create(&m_audioTh, NULL, ScreenMirrorServer::audio_tick_thread, this);
 	circlebuf_init(&m_avBuffer);
@@ -99,6 +90,8 @@ ScreenMirrorServer::~ScreenMirrorServer()
 
 	obs_enter_graphics();
 	gs_image_file2_free(if2);
+	if (m_renderTexture)
+		gs_texture_destroy(m_renderTexture);
 	obs_leave_graphics();
 	bfree(if2);
 
@@ -268,38 +261,7 @@ void ScreenMirrorServer::updateStatusImage()
 	if (path)
 	{
 		loadImage(path);
-		updateImageTexture();
 	}
-}
-
-void ScreenMirrorServer::updateImageTexture()
-{
-	m_imageFrame.timestamp = 0;
-	m_imageFrame.width = if2->image.is_animated_gif ? if2->image.gif.width
-							: if2->image.cx;
-	m_imageFrame.height = if2->image.is_animated_gif ? if2->image.gif.height
-							 : if2->image.cy;
-	m_imageFrame.format = gs_format_to_video_format(if2->image.format);
-	m_imageFrame.flip = false;
-	m_imageFrame.flip_h = false;
-
-	m_imageFrame.data[0] =
-		if2->image.is_animated_gif
-			? if2->image.animation_frame_cache[if2->image.cur_frame]
-			: if2->image.texture_data;
-	m_imageFrame.data[1] = NULL;
-
-	m_imageFrame.data[2] = NULL;
-
-	m_imageFrame.linesize[0] = if2->image.is_animated_gif
-					   ? if2->image.gif.width * 4
-					   : if2->image.cx * 4;
-	m_imageFrame.linesize[1] = 0;
-	m_imageFrame.linesize[2] = 0;
-	m_width = m_imageFrame.width;
-	m_height = m_imageFrame.height;
-	if (m_imageFrame.data[0])
-		obs_source_set_videoframe(m_source, &m_imageFrame);
 }
 
 void ScreenMirrorServer::setBackendType(int type)
@@ -324,6 +286,9 @@ void ScreenMirrorServer::loadImage(const char *path)
 
 	if (path) {
 		gs_image_file2_init(if2, path);
+		obs_enter_graphics();
+		gs_image_file2_init_texture(if2);
+		obs_leave_graphics();
 	}
 }
 
@@ -336,11 +301,7 @@ void ScreenMirrorServer::saveStatusSettings()
 
 void ScreenMirrorServer::initD3D(int w, int h, uint8_t *data, size_t len)
 {
-	if (!window.Init(100, 100, w, h)) {
-		return;
-	}
-
-	if (!renderer.Init(window.GetHandle())) {
+	if (!renderer.Init(w, h)) {
 		return;
 	}
 
@@ -607,29 +568,6 @@ void ScreenMirrorServer::outputAudioFrame(uint8_t *data, size_t size)
 	}
 }
 
-void ScreenMirrorServer::outputVideoFrame(AVFrame *frame)
-{
-	m_videoFrame.timestamp = frame->pts;
-	m_videoFrame.width = frame->width;
-	m_videoFrame.height = frame->height;
-	m_videoFrame.format =
-		ffmpeg_to_obs_video_format((AVPixelFormat)frame->format);
-	m_videoFrame.flip = false;
-	m_videoFrame.flip_h = false;
-
-	m_videoFrame.data[0] = frame->data[0];
-	m_videoFrame.data[1] = frame->data[1];
-
-	m_videoFrame.data[2] = frame->data[2];
-
-	m_videoFrame.linesize[0] = frame->linesize[0];
-	m_videoFrame.linesize[1] = frame->linesize[1];
-	m_videoFrame.linesize[2] = frame->linesize[2];
-	m_width = m_videoFrame.width;
-	m_height = m_videoFrame.height;
-	obs_source_set_videoframe(m_source, &m_videoFrame);
-}
-
 void ScreenMirrorServer::outputAudio(size_t data_len, uint64_t pts, int serial)
 {
 	if (!resampler)
@@ -724,7 +662,7 @@ static void ShowWinAirplay(void *data) {}
 static void WinAirplayRender(void *data, gs_effect_t *effect)
 {
 	ScreenMirrorServer *s = (ScreenMirrorServer *)data;
-	s->doRenderer();
+	s->doRenderer(effect);
 }
 static uint32_t WinAirplayWidth(void *data)
 {
@@ -775,14 +713,22 @@ void *ScreenMirrorServer::audio_tick_thread(void *data)
 	return NULL;
 }
 
-void ScreenMirrorServer::doRenderer()
+void ScreenMirrorServer::doRenderer(gs_effect_t *effect)
 {
+	if (mirror_status != OBS_SOURCE_MIRROR_OUTPUT && if2->image.texture) {
+		m_width = gs_texture_get_width(if2->image.texture);
+		m_height = gs_texture_get_height(if2->image.texture);
+		gs_effect_set_texture(gs_effect_get_param_by_name(effect, "image"), if2->image.texture);
+		gs_draw_sprite(if2->image.texture, 0, m_width, m_height);
+		return;
+	}
+
 	pthread_mutex_lock(&m_videoDataMutex);
 	while (m_videoFrames.size() > 0) {
 		VideoFrame &frame = m_videoFrames.front();
 		if (frame.is_header)
 		{
-			initD3D(1920, 1080, frame.data, frame.data_len);
+			initD3D(720, 1280, frame.data, frame.data_len);
 			free(frame.data);
 			m_videoFrames.pop_front();
 		}
@@ -800,6 +746,11 @@ void ScreenMirrorServer::doRenderer()
 					ret = decoder.Recv(m_decodedFrame);
 					if (ret >= 0) {
 						renderer.RenderFrame(m_decodedFrame);
+						m_width = m_decodedFrame->width;
+						m_height = m_decodedFrame->height;
+						if (!m_renderTexture) {
+							m_renderTexture = gs_texture_open_shared((uint32_t)renderer.GetTextureSharedHandle());
+						}
 					}
 				}
 
@@ -810,31 +761,12 @@ void ScreenMirrorServer::doRenderer()
 		}
 	}
 	pthread_mutex_unlock(&m_videoDataMutex);
-}
 
-//void *ScreenMirrorServer::video_tick_thread(void *data)
-//{
-//	ScreenMirrorServer *s = (ScreenMirrorServer *)data;
-//	while (s->m_running) {
-//		pthread_mutex_lock(&s->m_videoDataMutex);
-//		while (s->m_videoFrames.size() > 0) {
-//			AVFrame *frame = s->m_videoFrames.front();
-//			int64_t now = (int64_t)os_gettime_ns();
-//			if (s->m_offset == LLONG_MAX)
-//				s->m_offset = now - frame->pts + s->m_extraDelay;
-//			if (s->m_offset + frame->pts <= now) {
-//				s->outputVideoFrame(frame);
-//				s->m_videoFrames.pop_front();
-//				av_frame_unref(frame);
-//				av_frame_free(&frame);
-//			} else
-//				break;
-//		}
-//		pthread_mutex_unlock(&s->m_videoDataMutex);
-//		os_sleep_ms(2);
-//	}
-//	return NULL;
-//}
+	if (m_renderTexture) {
+		gs_effect_set_texture(gs_effect_get_param_by_name(effect, "image"), m_renderTexture);
+		gs_draw_sprite(m_renderTexture, 0, gs_texture_get_width(m_renderTexture), gs_texture_get_height(m_renderTexture));
+	}
+}
 
 void ScreenMirrorServer::WinAirplayVideoTick(void *data, float seconds)
 {
@@ -855,7 +787,9 @@ void ScreenMirrorServer::WinAirplayVideoTick(void *data, float seconds)
 			bool updated = gs_image_file2_tick(s->if2, elapsed);
 
 			if (updated) {
-				s->updateImageTexture();
+				obs_enter_graphics();
+				gs_image_file2_update_texture(s->if2);
+				obs_leave_graphics();
 			}
 		}
 		s->last_time = frame_time;

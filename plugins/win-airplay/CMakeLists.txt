@@ -6,7 +6,7 @@ find_package(FFmpeg REQUIRED
 	COMPONENTS avcodec avfilter avdevice avutil swscale avformat swresample)
 include_directories(${FFMPEG_INCLUDE_DIRS}
 		${PROJECT_SOURCE_DIR}/portaudio/include
-		${PROJECT_SOURCE_DIR}/video-renderer/include)
+		${PROJECT_SOURCE_DIR}/video-renderer)
 
 set(win-airplay_SOURCES
 	airplay-server.cpp
@@ -14,7 +14,10 @@ set(win-airplay_SOURCES
 	ipc.c
 	d3d11va_decoder.cc
 	d3d11va_renderer.cc
-	main_window.cc
+	video-renderer/d3d9_render_texture.cc
+	video-renderer/d3d9_renderer.cc
+	video-renderer/d3d11_render_texture.cc
+	video-renderer/d3d11_renderer.cc
 	Resource.rc
 )
 			 
@@ -26,8 +29,15 @@ set(win-airplay_HEADERS
 	ipc.h
 	d3d11va_decoder.h
 	d3d11va_renderer.h
-	main_window.h
 	av_log.h
+	video-renderer/d3d9_render_texture.h
+	video-renderer/d3d9_renderer.h
+	video-renderer/d3d11_render_texture.h
+	video-renderer/d3d11_renderer.h
+	video-renderer/log.h
+	video-renderer/renderer.h
+	video-renderer/shader_yuv_bt601.h
+	video-renderer/shader_yuv_bt709.h
 	resource.h
 )
 
@@ -45,10 +55,10 @@ target_link_libraries(win-airplay
 	w32-pthreads
 	Shlwapi
 	D3D11
+	D3DCompiler
+	D3d9
 	debug ${PROJECT_SOURCE_DIR}/portaudio/lib/debug/portaudio_static_x86.lib
 	optimized ${PROJECT_SOURCE_DIR}/portaudio/lib/release/portaudio_static_x86.lib
-	debug ${PROJECT_SOURCE_DIR}/video-renderer/lib/debug/video-renderer.lib
-	optimized ${PROJECT_SOURCE_DIR}/video-renderer/lib/release/video-renderer.lib
 	${FFMPEG_LIBRARIES})
 
 install_obs_plugin(win-airplay) 

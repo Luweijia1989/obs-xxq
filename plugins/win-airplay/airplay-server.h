@@ -17,7 +17,6 @@
 #include "media-io/audio-resampler.h"
 #include <portaudio.h>
 
-#include "main_window.h"
 #include "d3d11va_decoder.h"
 #include "d3d11va_renderer.h"
 
@@ -51,10 +50,9 @@ public:
 	ScreenMirrorServer(obs_source_t *source);
 	~ScreenMirrorServer();
 	void outputVideo(bool is_header, uint8_t *data, size_t data_len, int64_t pts);
-	void outputVideoFrame(AVFrame *frame);
 	void outputAudio(size_t data_len, uint64_t pts, int serial);
 	void outputAudioFrame(uint8_t *data, size_t size);
-	void doRenderer();
+	void doRenderer(gs_effect_t *effect);
 
 	void mirrorServerSetup();
 	void mirrorServerDestroy();
@@ -72,6 +70,7 @@ public:
 	obs_source_mirror_status mirror_status = OBS_SOURCE_MIRROR_STOP;
 	gs_image_file2_t *if2 = nullptr;
 	uint64_t last_time = 0;
+	gs_texture_t *m_renderTexture = nullptr;
 
 private:
 	void dumpResourceImgs();
@@ -87,7 +86,6 @@ private:
 	bool handleMediaData();
 	const char *killProc();
 	void updateStatusImage();
-	void updateImageTexture();
 	void loadImage(const char *path);
 	void saveStatusSettings();
 
@@ -118,10 +116,6 @@ private:
 	int64_t m_extraDelay = 0;
 	float m_startTimeElapsed = 0.;
 
-	obs_source_frame2 m_videoFrame;
-	obs_source_frame2 m_imageFrame;
-	obs_source_frame2 m_v;
-
 	struct IPCServer *m_ipcServer = nullptr;
 	os_process_pipe_t *process = nullptr;
 	circlebuf m_avBuffer;
@@ -131,7 +125,6 @@ private:
 
 	std::vector<std::string> m_resourceImgs;
 
-	MainWindow window;
 	D3D11VARenderer renderer;
 	AVDecoder decoder;
 	AVFrame* m_decodedFrame = av_frame_alloc();
