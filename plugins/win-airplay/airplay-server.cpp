@@ -64,7 +64,6 @@ ffmpeg_to_obs_video_format(enum AVPixelFormat format)
 
 ScreenMirrorServer::ScreenMirrorServer(obs_source_t *source)
 	: m_source(source),
-	  m_decoder(this),
 	  if2((gs_image_file2_t *)bzalloc(sizeof(gs_image_file2_t)))
 {
 	dumpResourceImgs();
@@ -104,6 +103,11 @@ ScreenMirrorServer::~ScreenMirrorServer()
 		CloseHandle(m_handler);
 
 	av_frame_free(&m_decodedFrame);
+
+	if (m_decoder)
+		delete m_decoder;
+	if (m_renderer)
+		delete m_renderer;
 
 #ifdef DUMPFILE
 	fclose(m_auioFile);
@@ -301,11 +305,22 @@ void ScreenMirrorServer::saveStatusSettings()
 
 void ScreenMirrorServer::initD3D(int w, int h, uint8_t *data, size_t len)
 {
-	if (!renderer.Init(w, h)) {
+	if (m_renderer) {
+		gs_texture_destroy(m_renderTexture);
+		m_renderTexture = nullptr;
+	}
+	if (m_decoder)
+		delete m_decoder;
+	if (m_renderer)
+		delete m_renderer;
+
+	m_renderer = new D3D11VARenderer;
+	if (!m_renderer->Init(w, h)) {
 		return;
 	}
 
-	decoder.Init(data, len, renderer.GetDevice());
+	m_decoder = new AVDecoder;
+	m_decoder->Init(data, len, m_renderer->GetDevice());
 }
 
 void ScreenMirrorServer::parseNalus(uint8_t *data, size_t size, uint8_t **out,
@@ -741,15 +756,15 @@ void ScreenMirrorServer::doRenderer(gs_effect_t *effect)
 				m_encodedPacket.data = frame.data;
 				m_encodedPacket.size = frame.data_len;
 
-				int ret = decoder.Send(&m_encodedPacket);
+				int ret = m_decoder->Send(&m_encodedPacket);
 				while (ret >= 0) {
-					ret = decoder.Recv(m_decodedFrame);
+					ret = m_decoder->Recv(m_decodedFrame);
 					if (ret >= 0) {
-						renderer.RenderFrame(m_decodedFrame);
+						m_renderer->RenderFrame(m_decodedFrame);
 						m_width = m_decodedFrame->width;
 						m_height = m_decodedFrame->height;
 						if (!m_renderTexture) {
-							m_renderTexture = gs_texture_open_shared((uint32_t)renderer.GetTextureSharedHandle());
+							m_renderTexture = gs_texture_open_shared((uint32_t)m_renderer->GetTextureSharedHandle());
 						}
 					}
 				}

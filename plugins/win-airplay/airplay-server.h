@@ -119,14 +119,13 @@ private:
 	struct IPCServer *m_ipcServer = nullptr;
 	os_process_pipe_t *process = nullptr;
 	circlebuf m_avBuffer;
-	VideoDecoder m_decoder;
 	MirrorBackEnd m_backend = None;
 	MirrorBackEnd m_lastStopType = None;
 
 	std::vector<std::string> m_resourceImgs;
 
-	D3D11VARenderer renderer;
-	AVDecoder decoder;
+	D3D11VARenderer *m_renderer = nullptr;
+	AVDecoder *m_decoder = nullptr;
 	AVFrame* m_decodedFrame = av_frame_alloc();
 	AVPacket m_encodedPacket = { 0 };
 };
