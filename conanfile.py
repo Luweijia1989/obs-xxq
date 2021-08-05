@@ -45,10 +45,6 @@ class ObsXXQConan(ConanFile):
             self.copy("*.exe", dst="bin", src="build32/plugins/win-airplay/iosusbmirror/Debug", keep_path=False)
             self.copy("*.dll", dst="bin", src="build32/plugins/win-airplay/iosusbmirror/Debug", keep_path=False)
             self.copy("*.pdb", dst="bin", src="build32/plugins/win-airplay/iosusbmirror/Debug", keep_path=False)
-            self.copy("liteav.dll", dst="bin", src="build32/plugins/rtc-output/Debug", keep_path=False)
-            self.copy("LiteAvAudioHook.dll", dst="bin", src="build32/plugins/rtc-output/Debug", keep_path=False)
-            self.copy("LiteAvAudioHookService.dll", dst="bin", src="build32/plugins/rtc-output/Debug", keep_path=False)
-            self.copy("TRAE.dll", dst="bin", src="build32/plugins/rtc-output/Debug", keep_path=False)
            
             self.copy("*.dll", dst="plugins/obs-plugins/32bit", src="build32/plugins/coreaudio-encoder/Debug", keep_path=False)
             self.copy("*.pdb", dst="plugins/obs-plugins/32bit", src="build32/plugins/coreaudio-encoder/Debug", keep_path=False)
@@ -121,10 +117,6 @@ class ObsXXQConan(ConanFile):
             self.copy("*.exe", dst="bin", src="build32/plugins/win-airplay/iosusbmirror/RelWithDebInfo", keep_path=False)
             self.copy("*.dll", dst="bin", src="build32/plugins/win-airplay/iosusbmirror/RelWithDebInfo", keep_path=False)
             self.copy("*.pdb", dst="bin", src="build32/plugins/win-airplay/iosusbmirror/RelWithDebInfo", keep_path=False)
-            self.copy("liteav.dll", dst="bin", src="build32/plugins/rtc-output/RelWithDebInfo", keep_path=False)
-            self.copy("LiteAvAudioHook.dll", dst="bin", src="build32/plugins/rtc-output/RelWithDebInfo", keep_path=False)
-            self.copy("LiteAvAudioHookService.dll", dst="bin", src="build32/plugins/rtc-output/RelWithDebInfo", keep_path=False)
-            self.copy("TRAE.dll", dst="bin", src="build32/plugins/rtc-output/RelWithDebInfo", keep_path=False)
            
             self.copy("*.dll", dst="plugins/obs-plugins/32bit", src="build32/plugins/coreaudio-encoder/RelWithDebInfo", keep_path=False)
             self.copy("*.pdb", dst="plugins/obs-plugins/32bit", src="build32/plugins/coreaudio-encoder/RelWithDebInfo", keep_path=False)
