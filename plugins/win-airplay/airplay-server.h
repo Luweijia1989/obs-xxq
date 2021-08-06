@@ -51,7 +51,6 @@ public:
 	~ScreenMirrorServer();
 	void outputVideo(bool is_header, uint8_t *data, size_t data_len, int64_t pts);
 	void outputAudio(size_t data_len, uint64_t pts, int serial);
-	void outputAudioFrame(uint8_t *data, size_t size);
 	void doRenderer(gs_effect_t *effect);
 
 	void mirrorServerSetup();
@@ -64,6 +63,9 @@ public:
 	static void WinAirplayVideoTick(void *data, float seconds);
 	static void *CreateWinAirplay(obs_data_t *settings, obs_source_t *source);
 	static void *audio_tick_thread(void *data);
+	static int audiocb(const void *input, void *output, unsigned long frameCount,
+			    const PaStreamCallbackTimeInfo *timeInfo,
+			    PaStreamCallbackFlags statusFlags, void *userData);
 	int m_width = 0;
 	int m_height = 0;
 	obs_source_t *m_source = nullptr;
@@ -103,12 +105,11 @@ private:
 	struct resample_info from;
 
 	std::list<VideoFrame > m_videoFrames;
-	std::list<AudioFrame *> m_audioFrames;
+	circlebuf m_audioFrames;
+	uint8_t *m_audioCacheBuffer = nullptr;
 	pthread_mutex_t m_videoDataMutex;
 	pthread_mutex_t m_audioDataMutex;
 	pthread_mutex_t m_statusMutex;
-	pthread_t m_audioTh;
-	bool m_running = true;
 	int64_t m_offset = LLONG_MAX;
 	int64_t m_audioOffset = LLONG_MAX;
 	int64_t m_lastAudioPts = LLONG_MAX;
