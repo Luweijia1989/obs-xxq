@@ -598,7 +598,11 @@ void ScreenMirrorServer::outputAudio(size_t data_len, uint64_t pts, int serial)
 	pthread_mutex_lock(&m_audioDataMutex);
 	circlebuf_push_back(&m_audioFrames, resample_data[0], resample_frames * 2 * 2);
 
-	bool startPlay = false;
+	if (m_audioPacketSerial != serial) {
+		Pa_StopStream(pa_stream_);
+		m_audioPacketSerial = serial;
+	}
+
 	bool audioActive = Pa_IsStreamActive(pa_stream_);
 	if (!audioActive) {
 		auto cacheMs = audio_frames_to_ns(44100, m_audioFrames.size / 4) / 1000000;
