@@ -30,17 +30,11 @@ D3D11Renderer::~D3D11Renderer()
 	Destroy();
 }
 
-bool D3D11Renderer::Init(UINT w, UINT h)
+bool D3D11Renderer::Init()
 {
 	std::lock_guard<std::mutex> locker(mutex_);
 
-	if (!InitDevice(w, h)) {
-		return false;
-	}
-
-	if (!CreateRenderer()) {
-		DX_SAFE_RELEASE(d3d11_context_);
-		DX_SAFE_RELEASE(d3d11_device_);
+	if (!InitDevice()) {
 		return false;
 	}
 
@@ -103,10 +97,8 @@ void D3D11Renderer::SetSharpen(float unsharp)
 	unsharp_ = unsharp;
 }
 
-bool D3D11Renderer::InitDevice(UINT w, UINT h)
+bool D3D11Renderer::InitDevice()
 {
-	target_width_ = w;
-	target_height_ = h;
 	UINT device_flags = 0;
 #ifdef _DEBUG
 	device_flags |= D3D11_CREATE_DEVICE_DEBUG;
@@ -174,7 +166,7 @@ failed:
 	return false;
 }
 
-bool D3D11Renderer::CreateRenderer()
+bool D3D11Renderer::CreateRenderer(UINT width, UINT height)
 {
 	if (!d3d11_device_) {
 		return false;
@@ -193,7 +185,7 @@ bool D3D11Renderer::CreateRenderer()
 
 	for (int i = 0; i < PIXEL_SHADER_MAX; i++) {
 		auto render_target = render_target_[i].get();
-		render_target->InitTexture(target_width_, target_height_, DXGI_FORMAT_R8G8B8A8_UNORM, usage, bind_flags, cpu_flags, misc_flags);
+		render_target->InitTexture(width, height, DXGI_FORMAT_R8G8B8A8_UNORM, usage, bind_flags, cpu_flags, misc_flags);
 		render_target->InitVertexShader();
 		render_target->InitRasterizerState();
 		if (i == PIXEL_SHADER_ARGB) {

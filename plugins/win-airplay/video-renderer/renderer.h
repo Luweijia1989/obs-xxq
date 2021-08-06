@@ -55,7 +55,7 @@ public:
 	virtual ~Renderer() {};
 
 	virtual bool Init(HWND hwnd) { return true; }
-	virtual bool Init(UINT w, UINT h) = 0;
+	virtual bool Init() = 0;
 	virtual void Destroy() = 0;
 
 	virtual bool Resize() { return true; }

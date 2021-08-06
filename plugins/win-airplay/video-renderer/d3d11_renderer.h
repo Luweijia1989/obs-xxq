@@ -12,7 +12,7 @@ public:
 	D3D11Renderer();
 	virtual ~D3D11Renderer();
 
-	virtual bool Init(UINT w, UINT h);
+	virtual bool Init();
 	virtual void Destroy();
 	
 	virtual void Render(PixelFrame* frame);
@@ -23,8 +23,8 @@ public:
 	virtual void SetSharpen(float unsharp);
 
 protected:
-	bool InitDevice(UINT w, UINT h);
-	bool CreateRenderer();
+	bool InitDevice();
+	bool CreateRenderer(UINT width, UINT height);
 	bool CreateTexture(int width, int height, PixelFormat format);
 	void Copy(PixelFrame* frame);
 	void Process();
@@ -45,8 +45,6 @@ protected:
 	PixelFormat pixel_format_ = PIXEL_FORMAT_UNKNOW;
 	UINT width_ = 0;
 	UINT height_ = 0;
-	UINT target_width_ = 0;
-	UINT target_height_ = 0;
 
 	ID3D11SamplerState* point_sampler_  = NULL;
 	ID3D11SamplerState* linear_sampler_ = NULL;

@@ -396,7 +396,7 @@ void D3D11RenderTexture::Cleanup()
 	DX_SAFE_RELEASE(d3d11_context_);
 }
 
-void D3D11RenderTexture::Begin()
+void D3D11RenderTexture::Begin(UINT intput_texture_width, UINT intput_texture_height)
 {
 	if (!texture_) {
 		return;
@@ -420,19 +420,20 @@ void D3D11RenderTexture::Begin()
 		LOG("ID3D11DeviceContext::Map() failed, %x \n", hr);
 		return ;
 	}
-
-	float width = static_cast<FLOAT>(texture_desc.Width);;
-	float height = static_cast<FLOAT>(texture_desc.Width);;
+	if (!intput_texture_width)
+		intput_texture_width = texture_desc.Width;
+	if (!intput_texture_height)
+		intput_texture_height = texture_desc.Height;
 	Vertex* vertex = (Vertex*)mapped_resource.pData;
 	vertex[0] = { XMFLOAT3(0.0f,  0.0f,   0.0f), XMFLOAT2(0.0f, 0.0f), XMFLOAT4(0.0f, 1.0f, 0.0f, 1.0f) };
-	vertex[1] = { XMFLOAT3(0.0f,  height, 0.0f), XMFLOAT2(0.0f, 1.0f), XMFLOAT4(0.0f, 1.0f, 0.0f, 1.0f) };
-	vertex[2] = { XMFLOAT3(width, 0.0f,   0.0f), XMFLOAT2(1.0f, 0.0f), XMFLOAT4(0.0f, 1.0f, 0.0f, 1.0f) },
-	vertex[3] = { XMFLOAT3(width, height, 0.0f), XMFLOAT2(1.0f, 1.0f), XMFLOAT4(0.0f, 1.0f, 0.0f, 1.0f) },
+	vertex[1] = { XMFLOAT3(0.0f,  intput_texture_height, 0.0f), XMFLOAT2(0.0f, 1.0f), XMFLOAT4(0.0f, 1.0f, 0.0f, 1.0f) };
+	vertex[2] = { XMFLOAT3(intput_texture_width, 0.0f,   0.0f), XMFLOAT2(1.0f, 0.0f), XMFLOAT4(0.0f, 1.0f, 0.0f, 1.0f) },
+	vertex[3] = { XMFLOAT3(intput_texture_width, intput_texture_height, 0.0f), XMFLOAT2(1.0f, 1.0f), XMFLOAT4(0.0f, 1.0f, 0.0f, 1.0f) },
 	d3d11_context_->Unmap((ID3D11Resource*)vertex_buffer_, 0);
 
 	VertexShaderConstants vertex_shader_constants;
 	DirectX::XMMATRIX view = DirectX::XMMatrixIdentity();
-	DirectX::XMMATRIX projection = DirectX::XMMatrixOrthographicOffCenterLH(0.0f, 1.0f * width, 1.0f * height, 0.0f, 0.0f, 1.0f);
+	DirectX::XMMATRIX projection = DirectX::XMMatrixOrthographicOffCenterLH(0.0f, 1.0f * texture_desc.Width, 1.0f * texture_desc.Height, 0.0f, 0.0f, 1.0f);
 	vertex_shader_constants.view = DirectX::XMMatrixTranspose(view);
 	vertex_shader_constants.projection = DirectX::XMMatrixTranspose(projection);
 	d3d11_context_->UpdateSubresource((ID3D11Resource*)vertex_constants_, 0, NULL, &vertex_shader_constants, 0, 0);

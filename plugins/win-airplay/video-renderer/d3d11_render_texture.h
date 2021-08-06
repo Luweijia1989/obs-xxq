@@ -22,7 +22,7 @@ public:
 
 	void Cleanup();
 
-	void Begin();
+	void Begin(UINT intput_texture_width = 0, UINT intput_texture_height = 0);
 	void PSSetTexture(UINT slot,  ID3D11ShaderResourceView* shader_resource_view);
 	void PSSetConstant(UINT slot, ID3D11Buffer* buffer);
 	void PSSetSamplers(UINT slot, ID3D11SamplerState* sampler);

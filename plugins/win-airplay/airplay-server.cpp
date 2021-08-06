@@ -303,7 +303,7 @@ void ScreenMirrorServer::saveStatusSettings()
 	obs_data_set_int(setting, "status", mirror_status);
 }
 
-void ScreenMirrorServer::initD3D(int w, int h, uint8_t *data, size_t len)
+void ScreenMirrorServer::initDecoder(uint8_t *data, size_t len)
 {
 	if (m_renderer) {
 		gs_texture_destroy(m_renderTexture);
@@ -315,7 +315,7 @@ void ScreenMirrorServer::initD3D(int w, int h, uint8_t *data, size_t len)
 		delete m_renderer;
 
 	m_renderer = new D3D11VARenderer;
-	if (!m_renderer->Init(w, h)) {
+	if (!m_renderer->Init()) {
 		return;
 	}
 
@@ -743,7 +743,7 @@ void ScreenMirrorServer::doRenderer(gs_effect_t *effect)
 		VideoFrame &frame = m_videoFrames.front();
 		if (frame.is_header)
 		{
-			initD3D(720, 1280, frame.data, frame.data_len);
+			initDecoder(frame.data, frame.data_len);
 			free(frame.data);
 			m_videoFrames.pop_front();
 		}

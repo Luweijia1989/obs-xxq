@@ -89,7 +89,7 @@ private:
 	void loadImage(const char *path);
 	void saveStatusSettings();
 
-	void initD3D(int w, int h, uint8_t *data, size_t len);
+	void initDecoder(uint8_t *data, size_t len);
 
 private:
 	HANDLE m_handler;

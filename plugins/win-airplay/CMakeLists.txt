@@ -10,7 +10,6 @@ include_directories(${FFMPEG_INCLUDE_DIRS}
 
 set(win-airplay_SOURCES
 	airplay-server.cpp
-	VideoDecoder.cpp
 	ipc.c
 	d3d11va_decoder.cc
 	d3d11va_renderer.cc
@@ -25,7 +24,6 @@ set(win-airplay_HEADERS
 	airplay-server.h
 	Airplay2Def.h
 	common-define.h
-	VideoDecoder.h
 	ipc.h
 	d3d11va_decoder.h
 	d3d11va_renderer.h
