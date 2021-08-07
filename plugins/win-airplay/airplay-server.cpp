@@ -273,9 +273,9 @@ void ScreenMirrorServer::setBackendType(int type)
 {
 	m_backend = (MirrorBackEnd)type;
 	if (m_backend == IOS_AIRPLAY)
-		m_extraDelay = 1000;
-	else
 		m_extraDelay = 100000000;
+	else
+		m_extraDelay = 0;
 }
 
 int ScreenMirrorServer::backendType()
@@ -601,12 +601,13 @@ void ScreenMirrorServer::outputAudio(size_t data_len, uint64_t pts, int serial)
 	if (m_audioPacketSerial != serial) {
 		Pa_StopStream(pa_stream_);
 		m_audioPacketSerial = serial;
+		circlebuf_free(&m_audioFrames);
 	}
 
 	bool audioActive = Pa_IsStreamActive(pa_stream_);
 	if (!audioActive) {
 		auto cacheMs = audio_frames_to_ns(44100, m_audioFrames.size / 4) / 1000000;
-		if (cacheMs > m_extraDelay)
+		if (cacheMs > m_extraDelay / 1000000)
 			Pa_StartStream(pa_stream_);
 	}
 
@@ -720,15 +721,13 @@ void ScreenMirrorServer::doRenderer(gs_effect_t *effect)
 		VideoFrame &frame = m_videoFrames.front();
 		if (frame.is_header)
 		{
-			//initDecoder(frame.data, frame.data_len);
+			initDecoder(frame.data, frame.data_len);
 			free(frame.data);
 			m_videoFrames.pop_front();
 		}
 		else
 		{
-			free(frame.data);
-			m_videoFrames.pop_front();
-			/*int64_t now = (int64_t)os_gettime_ns();
+			int64_t now = (int64_t)os_gettime_ns();
 			if (m_offset == LLONG_MAX)
 				m_offset = now - frame.pts + m_extraDelay;
 			if (m_offset + frame.pts <= now) {
@@ -751,7 +750,7 @@ void ScreenMirrorServer::doRenderer(gs_effect_t *effect)
 				free(frame.data);
 				m_videoFrames.pop_front();
 			} else
-				break;*/
+				break;
 		}
 	}
 	pthread_mutex_unlock(&m_videoDataMutex);

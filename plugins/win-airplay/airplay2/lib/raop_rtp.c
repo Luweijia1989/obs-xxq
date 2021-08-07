@@ -456,13 +456,15 @@ uint64_t raop_rtp_convert_rtp_time(raop_rtp_t *raop_rtp, uint32_t rtp_time)
 
 static THREAD_RETVAL raop_rtp_thread_udp(void *arg)
 {
+	uint8_t empty[RAOP_PACKET_LEN] = { 0 };
 	raop_rtp_t *raop_rtp = arg;
 	unsigned char packet[RAOP_PACKET_LEN];
 	unsigned int packetlen;
 	struct sockaddr_storage saddr;
 	socklen_t saddrlen;
+	uint64_t last_audio_ts = 0;
+	bool first_audio = true;
 	assert(raop_rtp);
-
 	while (1) {
 		fd_set rfds;
 		struct timeval tv;
@@ -599,40 +601,68 @@ static THREAD_RETVAL raop_rtp_thread_udp(void *arg)
 					ntp_timestamp, 1,
 					raop_rtp->rtp_sync_offset);
 				assert(result >= 0);
+				
+				if (result == 2) {
+					if (first_audio) {
+						last_audio_ts = raop_ntp_get_local_time(raop_rtp->ntp);
+						first_audio = false;
+					} else {
+						uint64_t time_el = ntp_now - last_audio_ts;
+						int pd = 44100 * 4 / 1000000. * time_el;
+						last_audio_ts = ntp_now;
 
-				// Render continuous buffer entries
-				void *audiobuf = NULL;
-				size_t audiobuf_size;
-				uint64_t timestamp;
-				uint32_t sample_rate = 0;
-				uint16_t channels = 0;
-				uint16_t bits_per_sample = 0;
-				while ((audiobuf = raop_buffer_dequeue(
-						raop_rtp->buffer,
-						&audiobuf_size, &timestamp,
-						no_resend, &sample_rate,
-						&channels, &bits_per_sample))) {
-					pcm_data_struct pcm_data;
-					pcm_data.data_len = audiobuf_size;
-					pcm_data.data = audiobuf;
-					pcm_data.pts = timestamp * 1000;
-					pcm_data.sample_rate = sample_rate;
-					pcm_data.channels = channels;
-					pcm_data.bits_per_sample = bits_per_sample;
-					pcm_data.serial = raop_rtp->audio_packet_serial;
-					raop_rtp->callbacks.audio_process(
-						raop_rtp->callbacks.cls,
-						raop_rtp->ntp, &pcm_data,
-						raop_rtp->remoteName,
-						raop_rtp->remoteDeviceId);
-				}
+						if (pd > 0) {
+							pcm_data_struct pcm_data;
+							pcm_data.data_len = pd;
+							pcm_data.data = empty;
+							pcm_data.pts = ntp_timestamp * 1000;
+							pcm_data.sample_rate = 44100;
+							pcm_data.channels = 2;
+							pcm_data.bits_per_sample = 2;
+							pcm_data.serial = raop_rtp->audio_packet_serial;
+							raop_rtp->callbacks.audio_process(
+								raop_rtp->callbacks.cls,
+								raop_rtp->ntp, &pcm_data,
+								raop_rtp->remoteName,
+								raop_rtp->remoteDeviceId);
+						}
+					}
+				} else {
+					// Render continuous buffer entries
+					void *audiobuf = NULL;
+					size_t audiobuf_size;
+					uint64_t timestamp;
+					uint32_t sample_rate = 0;
+					uint16_t channels = 0;
+					uint16_t bits_per_sample = 0;
+					while ((audiobuf = raop_buffer_dequeue(
+							raop_rtp->buffer,
+							&audiobuf_size, &timestamp,
+							no_resend, &sample_rate,
+							&channels, &bits_per_sample))) {
+						pcm_data_struct pcm_data;
+						pcm_data.data_len = audiobuf_size;
+						pcm_data.data = audiobuf;
+						pcm_data.pts = timestamp * 1000;
+						pcm_data.sample_rate = sample_rate;
+						pcm_data.channels = channels;
+						pcm_data.bits_per_sample = bits_per_sample;
+						pcm_data.serial = raop_rtp->audio_packet_serial;
+						last_audio_ts = ntp_now;
+						raop_rtp->callbacks.audio_process(
+							raop_rtp->callbacks.cls,
+							raop_rtp->ntp, &pcm_data,
+							raop_rtp->remoteName,
+							raop_rtp->remoteDeviceId);
+					}
 
-				/* Handle possible resend requests */
-				if (!no_resend) {
-					raop_buffer_handle_resends(
-						raop_rtp->buffer,
-						raop_rtp_resend_callback,
-						raop_rtp);
+					/* Handle possible resend requests */
+					if (!no_resend) {
+						raop_buffer_handle_resends(
+							raop_rtp->buffer,
+							raop_rtp_resend_callback,
+							raop_rtp);
+					}
 				}
 			}
 		}
