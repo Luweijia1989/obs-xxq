@@ -306,14 +306,17 @@ void ScreenMirrorServer::saveStatusSettings()
 
 void ScreenMirrorServer::initDecoder(uint8_t *data, size_t len)
 {
-	if (m_renderer) {
-		gs_texture_destroy(m_renderTexture);
-		m_renderTexture = nullptr;
-	}
+	if (m_decoder && !m_decoder->CheckSPSChanged(data, len))
+		return;
 	if (m_decoder)
 		delete m_decoder;
 	if (m_renderer)
 		delete m_renderer;
+
+	if (m_renderTexture) {
+		gs_texture_destroy(m_renderTexture);
+		m_renderTexture = nullptr;
+	}
 
 	m_renderer = new D3D11VARenderer;
 	if (!m_renderer->Init()) {

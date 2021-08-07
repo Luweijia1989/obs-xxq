@@ -26,6 +26,8 @@ public:
 	virtual int  Send(AVPacket* packet);
 	virtual int  Recv(AVFrame* frame);
 
+	bool CheckSPSChanged(uint8_t *data, size_t len);
+
 private:
 	std::mutex mutex_;
 

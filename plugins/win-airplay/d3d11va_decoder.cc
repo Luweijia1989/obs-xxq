@@ -59,6 +59,13 @@ AVDecoder::~AVDecoder()
 	Destroy();
 }
 
+bool AVDecoder::CheckSPSChanged(uint8_t *data, size_t len)
+{
+	if (!codec_context_)
+		return true;
+
+	return codec_context_->extradata_size != len || memcmp(data, codec_context_->extradata, len) != 0; 
+}
 
 bool AVDecoder::Init(uint8_t *data, size_t len, void* d3d11_device)
 {
