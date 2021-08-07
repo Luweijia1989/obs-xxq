@@ -463,7 +463,14 @@ static THREAD_RETVAL raop_rtp_thread_udp(void *arg)
 	struct sockaddr_storage saddr;
 	socklen_t saddrlen;
 	uint64_t last_audio_ts = 0;
-	bool first_audio = true;
+	bool first_audio = false;
+	int64_t audio_ts_offset = 0;
+	uint64_t one_pkt_time = 480.0 * 1000000 / 44100.0;
+
+	uint64_t last_audio_frame_ts = 0;
+	uint64_t elapsed_frame_time = 0;
+	uint64_t padding_time = 0;
+
 	assert(raop_rtp);
 	while (1) {
 		fd_set rfds;
@@ -562,7 +569,6 @@ static THREAD_RETVAL raop_rtp_thread_udp(void *arg)
 					   "raop_rtp unknown packet");
 			}
 		}
-
 		if (FD_ISSET(raop_rtp->dsock, &rfds)) {
 			//logger_log(raop_rtp->logger, LOGGER_INFO, "Would have data packet in queue");
 			// Receiving audio data here
@@ -604,27 +610,27 @@ static THREAD_RETVAL raop_rtp_thread_udp(void *arg)
 				
 				if (result == 2) {
 					if (first_audio) {
-						last_audio_ts = raop_ntp_get_local_time(raop_rtp->ntp);
-						first_audio = false;
-					} else {
-						uint64_t time_el = ntp_now - last_audio_ts;
-						int pd = 44100 * 4 / 1000000. * time_el;
-						last_audio_ts = ntp_now;
-
-						if (pd > 0) {
-							pcm_data_struct pcm_data;
-							pcm_data.data_len = pd;
-							pcm_data.data = empty;
-							pcm_data.pts = ntp_timestamp * 1000;
-							pcm_data.sample_rate = 44100;
-							pcm_data.channels = 2;
-							pcm_data.bits_per_sample = 2;
-							pcm_data.serial = raop_rtp->audio_packet_serial;
-							raop_rtp->callbacks.audio_process(
-								raop_rtp->callbacks.cls,
-								raop_rtp->ntp, &pcm_data,
-								raop_rtp->remoteName,
-								raop_rtp->remoteDeviceId);
+						uint64_t fix_audio_ts = ntp_now - audio_ts_offset;
+						if ( padding_time < elapsed_frame_time && fix_audio_ts > last_audio_ts) {
+							uint64_t time_el_ms = (fix_audio_ts - last_audio_ts) / 1000;
+							padding_time += time_el_ms;
+							last_audio_ts = fix_audio_ts;
+							int pd = 44100 * 4 / 1000000. * time_el_ms;
+							if (pd > 0) {
+								pcm_data_struct pcm_data;
+								pcm_data.data_len = pd;
+								pcm_data.data = empty;
+								pcm_data.pts = ntp_timestamp * 1000;
+								pcm_data.sample_rate = 44100;
+								pcm_data.channels = 2;
+								pcm_data.bits_per_sample = 2;
+								pcm_data.serial = raop_rtp->audio_packet_serial;
+								raop_rtp->callbacks.audio_process(
+									raop_rtp->callbacks.cls,
+									raop_rtp->ntp, &pcm_data,
+									raop_rtp->remoteName,
+									raop_rtp->remoteDeviceId);
+							}
 						}
 					}
 				} else {
@@ -648,7 +654,17 @@ static THREAD_RETVAL raop_rtp_thread_udp(void *arg)
 						pcm_data.channels = channels;
 						pcm_data.bits_per_sample = bits_per_sample;
 						pcm_data.serial = raop_rtp->audio_packet_serial;
-						last_audio_ts = ntp_now;
+						if (!first_audio) {
+							first_audio = true;
+							audio_ts_offset = ntp_now - timestamp;
+						} else {
+							uint64_t offset = timestamp / 1000 - last_audio_frame_ts / 1000 - one_pkt_time / 1000;
+							if (offset > 1)
+								elapsed_frame_time += offset;
+						}
+						last_audio_frame_ts = timestamp;
+						last_audio_ts = timestamp + one_pkt_time;
+						
 						raop_rtp->callbacks.audio_process(
 							raop_rtp->callbacks.cls,
 							raop_rtp->ntp, &pcm_data,
