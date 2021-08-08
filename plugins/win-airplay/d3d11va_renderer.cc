@@ -29,10 +29,6 @@ void D3D11VARenderer::RenderFrame(AVFrame* frame)
 		if (!CreateTexture(desc.Width, desc.Height, xop::PIXEL_FORMAT_NV12)) {
 			return;
 		}
-
-		if (!CreateRenderer(frame->width, frame->height)) {
-			return;
-		}
 	}
 
 	ID3D11Texture2D* nv12_texture = input_texture_[xop::PIXEL_PLANE_NV12]->GetTexture();
@@ -51,7 +47,7 @@ void D3D11VARenderer::RenderFrame(AVFrame* frame)
 
 	xop::D3D11RenderTexture* render_target = render_target_[xop::PIXEL_SHADER_NV12_BT709].get();
 	if (render_target) {
-		render_target->Begin(desc.Width + 1, desc.Height + 1); // +1 是为了裁掉右边的绿线
+		render_target->Begin(1920, 1080); // +1 是为了裁掉右边的绿线
 		render_target->PSSetTexture(0, luminance_view);
 		render_target->PSSetTexture(1, chrominance_view);
 		render_target->PSSetSamplers(0, linear_sampler_);
