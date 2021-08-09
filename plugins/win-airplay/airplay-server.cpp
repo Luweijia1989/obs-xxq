@@ -77,16 +77,6 @@ ScreenMirrorServer::ScreenMirrorServer(obs_source_t *source)
 	circlebuf_init(&m_audioFrames);
 
 	saveStatusSettings();
-
-	obs_video_info ovi;
-	obs_get_video_info(&ovi);
-	m_renderer = new D3D11VARenderer;
-	m_renderer->Init();
-	m_renderer->CreateRenderer(ovi.base_width, ovi.base_height);
-	m_renderer->GetTextureSharedHandle();
-	obs_enter_graphics();
-	m_renderTexture = gs_texture_open_shared((uint32_t)m_renderer->GetTextureSharedHandle());
-	obs_leave_graphics();
 }
 
 ScreenMirrorServer::~ScreenMirrorServer()
@@ -283,7 +273,7 @@ void ScreenMirrorServer::setBackendType(int type)
 {
 	m_backend = (MirrorBackEnd)type;
 	if (m_backend == IOS_AIRPLAY)
-		m_extraDelay = 1000000000;
+		m_extraDelay = 300000000;
 	else
 		m_extraDelay = 0;
 }
@@ -320,6 +310,18 @@ void ScreenMirrorServer::initDecoder(uint8_t *data, size_t len)
 		return;
 	if (m_decoder)
 		delete m_decoder;
+	if (m_renderer)
+		delete m_renderer;
+
+	if (m_renderTexture) {
+		gs_texture_destroy(m_renderTexture);
+		m_renderTexture = nullptr;
+	}
+
+	m_renderer = new D3D11VARenderer;
+	if (!m_renderer->Init()) {
+		return;
+	}
 
 	m_decoder = new AVDecoder;
 	m_decoder->Init(data, len, m_renderer->GetDevice());
@@ -741,6 +743,9 @@ void ScreenMirrorServer::doRenderer(gs_effect_t *effect)
 						m_renderer->RenderFrame(m_decodedFrame);
 						m_width = m_decodedFrame->width;
 						m_height = m_decodedFrame->height;
+						if (!m_renderTexture) {
+							m_renderTexture = gs_texture_open_shared((uint32_t)m_renderer->GetTextureSharedHandle());
+						}
 					}
 				}
 

@@ -15,7 +15,6 @@ public:
 	virtual bool Init();
 	virtual void Destroy();
 	
-	bool CreateRenderer(UINT width, UINT height);
 	virtual void Render(PixelFrame* frame);
 
 	ID3D11Device* GetDevice();
@@ -25,6 +24,7 @@ public:
 
 protected:
 	bool InitDevice();
+	bool CreateRenderer(UINT width, UINT height);
 	bool CreateTexture(int width, int height, PixelFormat format);
 	void Copy(PixelFrame* frame);
 	void Process();
