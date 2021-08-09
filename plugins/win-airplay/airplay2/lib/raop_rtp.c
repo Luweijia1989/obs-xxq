@@ -464,13 +464,6 @@ static THREAD_RETVAL raop_rtp_thread_udp(void *arg)
 	socklen_t saddrlen;
 	uint64_t last_audio_ts = 0;
 	bool first_audio = false;
-	int64_t audio_ts_offset = 0;
-	uint64_t one_pkt_time = 480.0 * 1000000 / 44100.0;
-
-	uint64_t last_audio_frame_ts = 0;
-	uint64_t elapsed_frame_time = 0;
-	uint64_t padding_time = 0;
-	int64_t padding_delta = 0;
 
 	assert(raop_rtp);
 	while (1) {
@@ -608,51 +601,27 @@ static THREAD_RETVAL raop_rtp_thread_udp(void *arg)
 					raop_rtp->rtp_sync_offset);
 				assert(result >= 0);
 				if (result == 2) {
-				/*logger_log(raop_rtp->logger, LOGGER_DEBUG, "ccccccccccccc %lld %lld", ntp_timestamp - ccc, ntp_now - cccc);
-				ccc = ntp_timestamp;
-				cccc = ntp_now;*/
 					if (first_audio) {
-						uint64_t fix_audio_ts = ntp_now - audio_ts_offset;
-						if (fix_audio_ts > last_audio_ts) {
-							uint64_t time_el_ms = fix_audio_ts - last_audio_ts;
-							if (padding_delta < 0) { //比如我们已经补了5ms 但是总共空闲的是15ms，这个地方padding_delta就是10ms
-										 //假如我们补了20ms 但是总共空闲是10ms，我们多补了10ms，要把补的退回去 padding_delta就是负的
-								int64_t t = time_el_ms + padding_delta; 
-								if (t <= 0) { //我们还是补的太多了。不能再补了
-									padding_delta += time_el_ms;
-									time_el_ms = 0;
-								} else {
-									time_el_ms = t;
-									padding_delta = 0;
-								}
-
-							} else {
-								time_el_ms += padding_delta;
-								padding_delta = 0;
+						if (ntp_timestamp > last_audio_ts) {
+							uint64_t delta = ntp_timestamp - last_audio_ts;
+							int len = 4 * 44100 * delta / 1000000.;
+							if (len > 0) {
+								pcm_data_struct pcm_data;
+								pcm_data.data_len = len;
+								pcm_data.data = empty;
+								pcm_data.pts = ntp_timestamp * 1000;
+								pcm_data.sample_rate = 44100;
+								pcm_data.channels = 2;
+								pcm_data.bits_per_sample = 16;
+								pcm_data.serial = raop_rtp->audio_packet_serial;
+						
+								raop_rtp->callbacks.audio_process(
+									raop_rtp->callbacks.cls,
+									raop_rtp->ntp, &pcm_data,
+									raop_rtp->remoteName,
+									raop_rtp->remoteDeviceId);
 							}
-
-							if (time_el_ms > 0) {
-								padding_time += time_el_ms;
-								//logger_log(raop_rtp->logger, LOGGER_DEBUG, "=================== %lld", time_el_ms);
-								last_audio_ts = last_audio_ts + time_el_ms;
-								int pd = 44100 * 4 / 1000000. * time_el_ms;
-								if (pd > 0) {
-									//logger_log(raop_rtp->logger, LOGGER_DEBUG, "bbbbbbbbbbbbbbbbbbbbbbb");
-									pcm_data_struct pcm_data;
-									pcm_data.data_len = pd;
-									pcm_data.data = empty;
-									pcm_data.pts = ntp_timestamp * 1000;
-									pcm_data.sample_rate = 44100;
-									pcm_data.channels = 2;
-									pcm_data.bits_per_sample = 2;
-									pcm_data.serial = raop_rtp->audio_packet_serial;
-									raop_rtp->callbacks.audio_process(
-										raop_rtp->callbacks.cls,
-										raop_rtp->ntp, &pcm_data,
-										raop_rtp->remoteName,
-										raop_rtp->remoteDeviceId);
-								}
-							}
+							last_audio_ts = ntp_timestamp;
 						}
 					}
 				} else {
@@ -679,23 +648,8 @@ static THREAD_RETVAL raop_rtp_thread_udp(void *arg)
 						pcm_data.serial = raop_rtp->audio_packet_serial;
 						if (!first_audio) {
 							first_audio = true;
-							audio_ts_offset = ntp_now - timestamp;
-						} else {
-							uint64_t offset = timestamp - last_audio_frame_ts;
-							//logger_log(raop_rtp->logger, LOGGER_DEBUG, "+++++++++++++++++++++++++++ %lld ", offset);
-							if (offset > 11*1000) {
-								//int64_t delta = timestamp - last_audio_ts;
-								elapsed_frame_time += offset;
-								padding_delta = elapsed_frame_time - padding_time/* + delta*/;
-
-								//if (elapsed_frame_time > padding_time)
-									logger_log(raop_rtp->logger, LOGGER_DEBUG, "================================================= %lld %lld ", padding_delta, elapsed_frame_time - padding_time);
-								/*else
-									logger_log(raop_rtp->logger, LOGGER_DEBUG, "ffffffffffffff %lld", padding_delta);*/
-							}
-						}
-						last_audio_frame_ts = timestamp;
-						last_audio_ts = timestamp + one_pkt_time;
+						} 
+						last_audio_ts = timestamp;
 						
 						raop_rtp->callbacks.audio_process(
 							raop_rtp->callbacks.cls,

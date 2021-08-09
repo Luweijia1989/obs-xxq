@@ -511,10 +511,6 @@ bool ScreenMirrorServer::initAudioRenderer()
 	if (err != paNoError)
 		goto error;
 
-	//err = Pa_StartStream(pa_stream_);
-	//if (err != paNoError)
-	//	goto error;
-
 	to.samples_per_sec = sample_rate = 44100;
 	to.format = AUDIO_FORMAT_16BIT;
 	to.speakers = SPEAKERS_STEREO;
@@ -568,7 +564,9 @@ bool ScreenMirrorServer::initPipe()
 
 void ScreenMirrorServer::outputAudio(size_t data_len, uint64_t pts, int serial)
 {
-	blog(LOG_DEBUG, "================== %d", data_len);
+	/*static uint64_t cc = pts;
+	blog(LOG_DEBUG, "================== %d", pts-cc);
+	cc = pts;*/
 	if (!resampler)
 		return;
 
