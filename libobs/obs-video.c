@@ -893,23 +893,6 @@ static inline void render_video(struct obs_core_video *video, bool raw_active,
 						rtc_mix->output_texture_width,
 						rtc_mix->output_texture_height,
 						rtc_mix->output_cb_data);
-
-				//FILE *f = fopen("E:\\cccc.nv12", "wb");
-				//fwrite(rtc_mix->cache_frame->data[0], 1,
-				//       rtc_mix->output_texture_width *
-				//	       rtc_mix->output_texture_height,
-				//       f);
-				//fwrite(rtc_mix->cache_frame->data[1], 1,
-				//       rtc_mix->output_texture_width *
-				//	       rtc_mix->output_texture_height /
-				//	       4,
-				//       f);
-				//fwrite(rtc_mix->cache_frame->data[2], 1,
-				//       rtc_mix->output_texture_width *
-				//	       rtc_mix->output_texture_height /
-				//	       4,
-				//       f);
-				//fclose(f);
 			}
 		}
 	}

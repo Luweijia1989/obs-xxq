@@ -2920,7 +2920,6 @@ void obs_rtc_capture_begin(
 	void *userdata)
 {
 	struct obs_rtc_mix *rtc_mix = &obs->video.rtc_mix;
-	os_atomic_set_bool(&rtc_mix->rtc_frame_active, true);
 
 	//force using nv12 texture
 	obs_enter_graphics();
@@ -2956,6 +2955,9 @@ void obs_rtc_capture_begin(
 
 	rtc_mix->output_cb = new_rtc_frame_output;
 	rtc_mix->output_cb_data = userdata;
+
+	os_atomic_set_bool(&rtc_mix->rtc_frame_active, true);
+
 	obs_leave_graphics();
 }
 
