@@ -60,7 +60,6 @@ bool MainWindow::OnMessage(UINT msg, WPARAM wp, LPARAM lp, LRESULT *result)
 		//resize
 		return true;
 	case WM_DESTROY:
-		::PostQuitMessage(0);
 		return true;
 	}
 
