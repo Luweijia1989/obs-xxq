@@ -728,7 +728,9 @@ void ScreenMirrorServer::doRenderer(gs_effect_t *effect)
 			int64_t now = (int64_t)os_gettime_ns();
 			if (m_offset == LLONG_MAX)
 				m_offset = now - frame.pts + m_extraDelay;
-			if (m_offset + frame.pts <= now) {
+
+			auto delta = abs(now - m_offset - frame.pts); //允许时间戳的偏移在上下5ms
+			if (delta >= 3000000) {
 				m_encodedPacket.data = frame.data;
 				m_encodedPacket.size = frame.data_len;
 				int ret = m_decoder->Send(&m_encodedPacket);
