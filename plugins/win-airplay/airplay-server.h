@@ -17,8 +17,8 @@
 #include "media-io/audio-resampler.h"
 #include <portaudio.h>
 
-#include "d3d11va_decoder.h"
-#include "d3d11va_renderer.h"
+#include "dxva2_decoder.h"
+#include "dxva2_renderer.h"
 
 extern "C" {
 #include <util/pipe.h>
@@ -125,7 +125,7 @@ private:
 
 	std::vector<std::string> m_resourceImgs;
 
-	D3D11VARenderer *m_renderer = nullptr;
+	DXVA2Renderer *m_renderer = nullptr;
 	AVDecoder *m_decoder = nullptr;
 	AVFrame* m_decodedFrame = av_frame_alloc();
 	AVPacket m_encodedPacket = { 0 };

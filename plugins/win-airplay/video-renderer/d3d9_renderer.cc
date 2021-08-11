@@ -7,6 +7,108 @@
 
 using namespace xop;
 
+ATOM MainWindow::wnd_class_ = 0;
+const wchar_t MainWindow::kClassName[] = L"VideoRender_MainWindow";
+
+MainWindow::MainWindow() {}
+
+MainWindow::~MainWindow()
+{
+	Destroy();
+}
+
+bool MainWindow::Init(int pos_x, int pos_y, int width, int height)
+{
+	if (!RegisterWindowClass()) {
+		return false;
+	}
+
+	if (IsWindow()) {
+		return true;
+	}
+
+	wnd_ = ::CreateWindowExW(
+		WS_EX_OVERLAPPEDWINDOW, kClassName, L"video-renderer-dxva2",
+		WS_OVERLAPPEDWINDOW | WS_CLIPCHILDREN, pos_x,
+		pos_y, width, height, NULL, NULL, GetModuleHandle(NULL), this);
+
+	return wnd_ != NULL;
+}
+
+void MainWindow::Destroy()
+{
+	if (IsWindow()) {
+		::DestroyWindow(wnd_);
+		wnd_ = NULL;
+	}
+}
+
+bool MainWindow::IsWindow()
+{
+	return wnd_ && ::IsWindow(wnd_) != FALSE;
+}
+
+HWND MainWindow::GetHandle()
+{
+	return wnd_;
+}
+
+bool MainWindow::OnMessage(UINT msg, WPARAM wp, LPARAM lp, LRESULT *result)
+{
+	switch (msg) {
+	case WM_SIZE:
+		//resize
+		return true;
+	case WM_DESTROY:
+		::PostQuitMessage(0);
+		return true;
+	}
+
+	return false;
+}
+
+LRESULT CALLBACK MainWindow::WndProc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
+{
+	MainWindow *windows = reinterpret_cast<MainWindow *>(
+		::GetWindowLongPtr(hwnd, GWLP_USERDATA));
+	if (!windows && WM_CREATE == msg) {
+		CREATESTRUCT *cs = reinterpret_cast<CREATESTRUCT *>(lp);
+		windows = reinterpret_cast<MainWindow *>(cs->lpCreateParams);
+		windows->wnd_ = hwnd;
+		::SetWindowLongPtr(hwnd, GWLP_USERDATA,
+				   reinterpret_cast<LONG_PTR>(windows));
+	}
+
+	LRESULT result = 0;
+	if (windows) {
+		bool handled = windows->OnMessage(msg, wp, lp, &result);
+		if (!handled) {
+			result = ::DefWindowProc(hwnd, msg, wp, lp);
+		}
+	} else {
+		result = ::DefWindowProc(hwnd, msg, wp, lp);
+	}
+
+	return result;
+}
+
+bool MainWindow::RegisterWindowClass()
+{
+	if (wnd_class_) {
+		return true;
+	}
+
+	WNDCLASSEXW wcex = {sizeof(WNDCLASSEX)};
+	wcex.style = CS_DBLCLKS;
+	wcex.hInstance = GetModuleHandle(NULL);
+	wcex.hbrBackground = reinterpret_cast<HBRUSH>(COLOR_WINDOW + 1);
+	wcex.hCursor = ::LoadCursor(NULL, IDC_ARROW);
+	wcex.lpfnWndProc = &WndProc;
+	wcex.lpszClassName = kClassName;
+	wnd_class_ = ::RegisterClassExW(&wcex);
+	return wnd_class_ != 0;
+}
+
 #define DX_SAFE_RELEASE(p) { if(p) { (p)->Release(); (p)=NULL; } } 
 
 typedef struct
@@ -27,18 +129,18 @@ D3D9Renderer::D3D9Renderer()
 D3D9Renderer::~D3D9Renderer()
 {
 	Destroy();
+
+	if (window)
+		delete window;
 }
 
-bool D3D9Renderer::Init(HWND hwnd)
+bool D3D9Renderer::Init()
 {
-	hwnd_ = hwnd;
+	window = new MainWindow;
+	window->Init(0, 0, 640, 480);
+	hwnd_ = window->GetHandle();
 
 	if (!CreateDevice()) {
-		return false;
-	}
-
-	if (!CreateRender()) {
-		DX_SAFE_RELEASE(d3d9_device_);
 		return false;
 	}
 
@@ -62,54 +164,6 @@ void D3D9Renderer::Destroy()
 	output_texture_ = NULL;
 	pixel_format_ = PIXEL_FORMAT_UNKNOW;
 }
-
-bool D3D9Renderer::Resize()
-{
-	std::lock_guard<std::mutex> locker(mutex_);
-
-	if (!d3d9_device_) {
-		return false;
-	}
-
-	RECT client_rect;
-	if (!GetClientRect(hwnd_, &client_rect)) {
-		return false;
-	}
-
-	UINT width = static_cast<UINT>(client_rect.right - client_rect.left);
-	UINT height = static_cast<UINT>(client_rect.bottom - client_rect.top);
-
-	if (width == 0 && height == 0) {
-		return false;
-	}
-
-	for (int i = 0; i < PIXEL_PLANE_MAX; i++) {
-		input_texture_[i].reset();
-	}
-
-	for (int i = 0; i < PIXEL_SHADER_MAX; i++) {
-		render_target_[i].reset();
-	}
-
-	DX_SAFE_RELEASE(back_buffer_);
-	output_texture_ = NULL;
-	pixel_format_ = PIXEL_FORMAT_UNKNOW;
-
-	present_params_.BackBufferWidth = width;
-	present_params_.BackBufferHeight = height;
-
-	HRESULT hr = d3d9_device_->Reset(&present_params_);
-	if (FAILED(hr)) {
-		Destroy();
-		if (!Init(hwnd_)) {
-			LOG("IDirect3DDevice9::Reset() failed, %x ", hr);
-		}
-		return false;
-	}
-
-	CreateRender();
-	return true;
-} 
 
 void D3D9Renderer::Render(PixelFrame* frame)
 {
@@ -153,7 +207,7 @@ bool D3D9Renderer::CreateDevice()
 		return false;
 	}
 
-	d3d9_ = Direct3DCreate9(D3D_SDK_VERSION);
+	hr = Direct3DCreate9Ex(D3D_SDK_VERSION, &d3d9_);
 	if (!d3d9_) {
 		LOG("Direct3DCreate9() failed.");
 		return false;
@@ -189,32 +243,15 @@ bool D3D9Renderer::CreateDevice()
 	present_params_.FullScreen_RefreshRateInHz = D3DPRESENT_RATE_DEFAULT;
 	present_params_.PresentationInterval = 0;// D3DPRESENT_INTERVAL_IMMEDIATE;
 
-	hr = d3d9_->CreateDevice(
+	hr = d3d9_->CreateDeviceEx(
 		D3DADAPTER_DEFAULT,    // primary adapter
 		D3DDEVTYPE_HAL,        // device type
 		hwnd_,                 // window associated with device
 		behavior_flags,        // vertex processing
 		&present_params_,	   // present parameters
+		NULL,
 		&d3d9_device_		   // return created device
 	);        
-
-	if (FAILED(hr)) {
-		// try again using a 16-bit depth buffer
-		present_params_.AutoDepthStencilFormat = D3DFMT_D16;
-		hr = d3d9_->CreateDevice(
-			D3DADAPTER_DEFAULT,
-			D3DDEVTYPE_HAL,
-			hwnd_,
-			0,
-			&present_params_,
-			&d3d9_device_
-		);
-
-		if (FAILED(hr)) {
-			LOG("IDirect3D9::CreateDevice() failed, %x", hr);
-			return false;
-		}
-	}
 
 	return true;
 }
@@ -299,7 +336,7 @@ bool D3D9Renderer::CreateTexture(int width, int height, PixelFormat format)
 			return false;
 		}
 
-		input_texture_[PIXEL_PLANE_ARGB]->InitTexture(width, height, 1, D3DUSAGE_RENDERTARGET, D3DFMT_X8R8G8B8, D3DPOOL_DEFAULT);
+		input_texture_[PIXEL_PLANE_ARGB]->InitTexture(width, height, 1, D3DUSAGE_RENDERTARGET, D3DFMT_X8R8G8B8, D3DPOOL_DEFAULT, true);
 		input_texture_[PIXEL_PLANE_NV12]->InitSurface(width, height, (D3DFORMAT)MAKEFOURCC('N', 'V', '1', '2'), D3DPOOL_DEFAULT);
 	}
 
@@ -409,23 +446,24 @@ void D3D9Renderer::Process()
 
 void D3D9Renderer::End()
 {
+	d3d9_device_->EndScene();
 	//RECT viewport;
 	//GetClientRect(hwnd_, &viewport);
 
-	if (output_texture_) {
-		HRESULT hr = d3d9_device_->GetBackBuffer(0, 0, D3DBACKBUFFER_TYPE_MONO, &back_buffer_);
-		if (FAILED(hr)) {
-			LOG("IDirect3DDevice9::GetRenderTarget() failed, %x", hr);
-			return ;
-		}
+	//if (output_texture_) {
+	//	HRESULT hr = d3d9_device_->GetBackBuffer(0, 0, D3DBACKBUFFER_TYPE_MONO, &back_buffer_);
+	//	if (FAILED(hr)) {
+	//		LOG("IDirect3DDevice9::GetRenderTarget() failed, %x", hr);
+	//		return ;
+	//	}
 
-		d3d9_device_->StretchRect(output_texture_->GetSurface(), NULL, back_buffer_, NULL, D3DTEXF_NONE);
-		DX_SAFE_RELEASE(back_buffer_);
-		output_texture_ = NULL;
-	}
-	
-	d3d9_device_->EndScene();
-	d3d9_device_->Present(NULL, NULL, NULL, NULL);
+	//	d3d9_device_->StretchRect(output_texture_->GetSurface(), NULL, back_buffer_, NULL, D3DTEXF_NONE);
+	//	DX_SAFE_RELEASE(back_buffer_);
+	//	output_texture_ = NULL;
+	//}
+	//
+	//d3d9_device_->EndScene();
+	//d3d9_device_->Present(NULL, NULL, NULL, NULL);
 }
 
 void D3D9Renderer::UpdateARGB(PixelFrame* frame)

@@ -77,6 +77,9 @@ ScreenMirrorServer::ScreenMirrorServer(obs_source_t *source)
 	circlebuf_init(&m_audioFrames);
 
 	saveStatusSettings();
+
+	m_renderer = new DXVA2Renderer;
+	m_renderer->Init();
 }
 
 ScreenMirrorServer::~ScreenMirrorServer()
@@ -310,17 +313,10 @@ void ScreenMirrorServer::initDecoder(uint8_t *data, size_t len)
 		return;
 	if (m_decoder)
 		delete m_decoder;
-	if (m_renderer)
-		delete m_renderer;
 
 	if (m_renderTexture) {
 		gs_texture_destroy(m_renderTexture);
 		m_renderTexture = nullptr;
-	}
-
-	m_renderer = new D3D11VARenderer;
-	if (!m_renderer->Init()) {
-		return;
 	}
 
 	m_decoder = new AVDecoder;
@@ -735,7 +731,6 @@ void ScreenMirrorServer::doRenderer(gs_effect_t *effect)
 			if (m_offset + frame.pts <= now) {
 				m_encodedPacket.data = frame.data;
 				m_encodedPacket.size = frame.data_len;
-
 				int ret = m_decoder->Send(&m_encodedPacket);
 				while (ret >= 0) {
 					ret = m_decoder->Recv(m_decodedFrame);
@@ -756,7 +751,6 @@ void ScreenMirrorServer::doRenderer(gs_effect_t *effect)
 		}
 	}
 	pthread_mutex_unlock(&m_videoDataMutex);
-
 	if (m_renderTexture) {
 		gs_effect_set_texture(gs_effect_get_param_by_name(effect, "image"), m_renderTexture);
 		gs_draw_sprite(m_renderTexture, 0, gs_texture_get_width(m_renderTexture), gs_texture_get_height(m_renderTexture));

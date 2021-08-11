@@ -49,7 +49,7 @@ static HRESULT CompileShaderFromFile(const WCHAR* file_name, LPCSTR entry_point,
 	return hr;
 }
 
-D3D9RenderTexture::D3D9RenderTexture(IDirect3DDevice9* d3d9_device)
+D3D9RenderTexture::D3D9RenderTexture(IDirect3DDevice9Ex* d3d9_device)
 	: d3d9_device_(d3d9_device)
 {
 
@@ -60,7 +60,7 @@ D3D9RenderTexture::~D3D9RenderTexture()
 	Cleanup();
 }
 
-bool D3D9RenderTexture::InitTexture(UINT width, UINT height, UINT levels, DWORD usage, D3DFORMAT format, D3DPOOL pool)
+bool D3D9RenderTexture::InitTexture(UINT width, UINT height, UINT levels, DWORD usage, D3DFORMAT format, D3DPOOL pool, BOOL share)
 {
 	if (!d3d9_device_) {
 		return false;
@@ -80,7 +80,7 @@ bool D3D9RenderTexture::InitTexture(UINT width, UINT height, UINT levels, DWORD 
 		format,
 		pool,
 		&render_texture_,
-		NULL);
+		share ? &shared_handler_ : NULL);
 
 	if (FAILED(hr)) {
 		LOG("IDirect3DDevice9::CreateTexture() failed, %x", hr);
