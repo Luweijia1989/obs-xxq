@@ -276,7 +276,7 @@ void ScreenMirrorServer::setBackendType(int type)
 {
 	m_backend = (MirrorBackEnd)type;
 	if (m_backend == IOS_AIRPLAY)
-		m_extraDelay = 300000000;
+		m_extraDelay = 6000;
 	else
 		m_extraDelay = 0;
 }
@@ -605,7 +605,7 @@ void ScreenMirrorServer::outputAudio(size_t data_len, uint64_t pts, int serial)
 	bool audioActive = Pa_IsStreamActive(pa_stream_);
 	if (!audioActive) {
 		auto cacheMs = audio_frames_to_ns(44100, m_audioFrames.size / 4) / 1000000;
-		if (cacheMs > m_extraDelay / 1000000)
+		if (cacheMs > m_extraDelay)
 			Pa_StartStream(pa_stream_);
 	}
 
@@ -615,7 +615,7 @@ void ScreenMirrorServer::outputAudio(size_t data_len, uint64_t pts, int serial)
 void ScreenMirrorServer::outputVideo(bool is_header, uint8_t *data, size_t data_len, int64_t pts)
 {
 	pthread_mutex_lock(&m_videoDataMutex);
-	m_videoFrames.push_back({is_header, data, data_len, pts});
+	m_videoFrames.push_back({is_header, data, data_len, pts / 1000000});
 	pthread_mutex_unlock(&m_videoDataMutex);
 }
 
@@ -725,12 +725,16 @@ void ScreenMirrorServer::doRenderer(gs_effect_t *effect)
 		}
 		else
 		{
-			int64_t now = (int64_t)os_gettime_ns();
+			int64_t now = (int64_t)os_gettime_ns() / 1000000;
 			if (m_offset == LLONG_MAX)
-				m_offset = now - frame.pts + m_extraDelay;
+				m_offset = now - frame.pts;
 
-			auto delta = abs(now - m_offset - frame.pts); //允许时间戳的偏移在上下5ms
-			if (delta >= 3000000) {
+			auto target_pts = now - m_offset;
+			auto delta = abs(target_pts - frame.pts); //允许时间戳的偏移在上下5ms
+			blog(LOG_DEBUG, "========= %lld", delta - m_extraDelay);
+			
+			if ( delta >= m_extraDelay - 8 && delta <= m_extraDelay + 8 ) {
+				blog(LOG_DEBUG, "=========");
 				m_encodedPacket.data = frame.data;
 				m_encodedPacket.size = frame.data_len;
 				int ret = m_decoder->Send(&m_encodedPacket);
@@ -748,8 +752,12 @@ void ScreenMirrorServer::doRenderer(gs_effect_t *effect)
 
 				free(frame.data);
 				m_videoFrames.pop_front();
-			} else
 				break;
+			} else if ( delta >m_extraDelay + 8 ) {
+				free(frame.data);
+				m_videoFrames.pop_front();
+				break;
+			}
 		}
 	}
 	pthread_mutex_unlock(&m_videoDataMutex);
