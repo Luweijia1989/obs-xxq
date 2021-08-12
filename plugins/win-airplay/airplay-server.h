@@ -77,7 +77,7 @@ public:
 private:
 	void dumpResourceImgs();
 	void resetState();
-	bool initAudioRenderer();
+	bool initAudioRenderer(int frameCount);
 	void destroyAudioRenderer();
 	void resetResampler(enum speaker_layout speakers,
 			    enum audio_format format, uint32_t samples_per_sec);

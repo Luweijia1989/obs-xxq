@@ -67,7 +67,6 @@ ScreenMirrorServer::ScreenMirrorServer(obs_source_t *source)
 	  if2((gs_image_file2_t *)bzalloc(sizeof(gs_image_file2_t)))
 {
 	dumpResourceImgs();
-	initAudioRenderer();
 
 	pthread_mutex_init(&m_videoDataMutex, nullptr);
 	pthread_mutex_init(&m_audioDataMutex, nullptr);
@@ -274,11 +273,18 @@ void ScreenMirrorServer::updateStatusImage()
 
 void ScreenMirrorServer::setBackendType(int type)
 {
+	destroyAudioRenderer();
 	m_backend = (MirrorBackEnd)type;
-	if (m_backend == IOS_AIRPLAY)
+	if (m_backend == IOS_AIRPLAY) {
 		m_extraDelay = 300;
-	else
+		initAudioRenderer(480);
+	} else if (m_backend == IOS_USB_CABLE) {
 		m_extraDelay = 0;
+		initAudioRenderer(960);
+	} else {
+		m_extraDelay = 0;
+		initAudioRenderer(480);
+	}
 }
 
 int ScreenMirrorServer::backendType()
@@ -474,28 +480,7 @@ void ScreenMirrorServer::resetState()
 	pthread_mutex_unlock(&m_audioDataMutex);
 }
 
-int ScreenMirrorServer::audiocb(const void *input, void *output,
-			     unsigned long frameCount,
-			     const PaStreamCallbackTimeInfo *timeInfo,
-			     PaStreamCallbackFlags statusFlags, void *userData)
-{
-	
-	ScreenMirrorServer *s = (ScreenMirrorServer *)userData;
-	pthread_mutex_lock(&s->m_audioDataMutex);
-
-	auto requestSize = frameCount * 4;
-	auto targetSize = s->m_audioFrames.size > requestSize ? requestSize : s->m_audioFrames.size;
-	circlebuf_pop_front(&s->m_audioFrames, output, targetSize);
-	if (targetSize < requestSize)
-		memset((uint8_t *)output + targetSize, 0, requestSize - targetSize);
-	
-
-	pthread_mutex_unlock(&s->m_audioDataMutex);
-
-	return paContinue;
-}
-
-bool ScreenMirrorServer::initAudioRenderer()
+bool ScreenMirrorServer::initAudioRenderer(int frameCount)
 {
 	memset(&from, 0, sizeof(struct resample_info));
 	PaError err = Pa_Initialize();
@@ -503,8 +488,7 @@ bool ScreenMirrorServer::initAudioRenderer()
 		goto error;
 
 	//20ms 
-	err = Pa_OpenDefaultStream(&pa_stream_, 0, 2, paInt16, 44100, 882,
-				   audiocb, this);
+	err = Pa_OpenDefaultStream(&pa_stream_, 0, 2, paInt16, 44100, frameCount, audiocb, this);
 	if (err != paNoError)
 		goto error;
 
@@ -525,9 +509,13 @@ void ScreenMirrorServer::destroyAudioRenderer()
 		Pa_StopStream(pa_stream_);
 		Pa_CloseStream(pa_stream_);
 		Pa_Terminate();
+		pa_stream_ = nullptr;
 	}
 
-	audio_resampler_destroy(resampler);
+	if (resampler) {
+		audio_resampler_destroy(resampler);
+		resampler = nullptr;
+	}
 }
 
 void ScreenMirrorServer::resetResampler(enum speaker_layout speakers,
@@ -557,6 +545,30 @@ bool ScreenMirrorServer::initPipe()
 {
 	ipc_server_create(&m_ipcServer, ScreenMirrorServer::pipeCallback, this);
 	return true;
+}
+
+int ScreenMirrorServer::audiocb(const void *input, void *output,
+				unsigned long frameCount,
+				const PaStreamCallbackTimeInfo *timeInfo,
+				PaStreamCallbackFlags statusFlags,
+				void *userData)
+{
+
+	ScreenMirrorServer *s = (ScreenMirrorServer *)userData;
+	pthread_mutex_lock(&s->m_audioDataMutex);
+
+	auto requestSize = frameCount * 4;
+	auto targetSize = s->m_audioFrames.size > requestSize
+				  ? requestSize
+				  : s->m_audioFrames.size;
+	circlebuf_pop_front(&s->m_audioFrames, output, targetSize);
+	if (targetSize < requestSize)
+		memset((uint8_t *)output + targetSize, 0,
+		       requestSize - targetSize);
+
+	pthread_mutex_unlock(&s->m_audioDataMutex);
+
+	return paContinue;
 }
 
 void ScreenMirrorServer::outputAudio(size_t data_len, uint64_t pts, int serial)
