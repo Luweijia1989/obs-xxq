@@ -459,8 +459,7 @@ void ScreenMirrorServer::resetState()
 {
 	pthread_mutex_lock(&m_videoDataMutex);
 	m_offset = LLONG_MAX;
-	for (auto iter = m_videoFrames.begin(); iter != m_videoFrames.end();
-	     iter++) {
+	for (auto iter = m_videoFrames.begin(); iter != m_videoFrames.end(); iter++) {
 		VideoFrame &f = *iter;
 		free(f.data);
 	}
@@ -470,7 +469,6 @@ void ScreenMirrorServer::resetState()
 	pthread_mutex_lock(&m_audioDataMutex);
 	m_audioPacketSerial = -1;
 	circlebuf_free(&m_audioFrames);
-	Pa_StopStream(pa_stream_);
 	pthread_mutex_unlock(&m_audioDataMutex);
 }
 
@@ -505,6 +503,10 @@ bool ScreenMirrorServer::initAudioRenderer()
 	//20ms 
 	err = Pa_OpenDefaultStream(&pa_stream_, 0, 2, paInt16, 44100, 882,
 				   audiocb, this);
+	if (err != paNoError)
+		goto error;
+
+	err = Pa_StartStream(pa_stream_);
 	if (err != paNoError)
 		goto error;
 
@@ -577,9 +579,9 @@ void ScreenMirrorServer::outputAudio(size_t data_len, uint64_t pts, int serial)
 
 	uint8_t *resample_data[MAX_AV_PLANES];
 	uint8_t *input[MAX_AV_PLANES] = {m_audioCacheBuffer};
-	uint32_t resample_frames;
-	uint64_t ts_offset;
-	bool success;
+	uint32_t resample_frames = 0;
+	uint64_t ts_offset = 0;
+	bool success = false;
 
 	success = audio_resampler_resample(
 		resampler, resample_data, &resample_frames, &ts_offset,
@@ -591,20 +593,6 @@ void ScreenMirrorServer::outputAudio(size_t data_len, uint64_t pts, int serial)
 
 	pthread_mutex_lock(&m_audioDataMutex);
 	circlebuf_push_back(&m_audioFrames, resample_data[0], resample_frames * 2 * 2);
-
-	if (m_audioPacketSerial != serial) {
-		Pa_StopStream(pa_stream_);
-		m_audioPacketSerial = serial;
-		circlebuf_free(&m_audioFrames);
-	}
-
-	bool audioActive = Pa_IsStreamActive(pa_stream_);
-	if (!audioActive) {
-		auto cacheMs = audio_frames_to_ns(44100, m_audioFrames.size / 4) / 1000000;
-		if (cacheMs > m_extraDelay)
-			Pa_StartStream(pa_stream_);
-	}
-
 	pthread_mutex_unlock(&m_audioDataMutex);
 }
 
