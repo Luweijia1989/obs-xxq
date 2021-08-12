@@ -112,7 +112,7 @@ private:
 	pthread_mutex_t m_audioDataMutex;
 	pthread_mutex_t m_statusMutex;
 	int64_t m_offset = LLONG_MAX;
-	int m_audioPacketSerial = -1;
+	int64_t m_audioOffset = LLONG_MAX;
 	int64_t m_extraDelay = 0;
 	float m_startTimeElapsed = 0.;
 
@@ -121,6 +121,7 @@ private:
 	circlebuf m_avBuffer;
 	MirrorBackEnd m_backend = None;
 	MirrorBackEnd m_lastStopType = None;
+	MirrorBackEnd m_audioFrameType = None;
 
 	std::vector<std::string> m_resourceImgs;
 

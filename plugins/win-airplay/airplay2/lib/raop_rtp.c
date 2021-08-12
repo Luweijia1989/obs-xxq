@@ -601,7 +601,7 @@ static THREAD_RETVAL raop_rtp_thread_udp(void *arg)
 					raop_rtp->rtp_sync_offset);
 				assert(result >= 0);
 				if (result == 2) {
-					if (first_audio) {
+					/*if (first_audio) {
 						if (ntp_timestamp > last_audio_ts) {
 							uint64_t delta = ntp_timestamp - last_audio_ts;
 							int len = 4 * 44100 * delta / 1000000.;
@@ -623,7 +623,7 @@ static THREAD_RETVAL raop_rtp_thread_udp(void *arg)
 							}
 							last_audio_ts = ntp_timestamp;
 						}
-					}
+					}*/
 				} else {
 					// Render continuous buffer entries
 					void *audiobuf = NULL;

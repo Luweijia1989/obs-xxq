@@ -276,7 +276,7 @@ void ScreenMirrorServer::setBackendType(int type)
 {
 	m_backend = (MirrorBackEnd)type;
 	if (m_backend == IOS_AIRPLAY)
-		m_extraDelay = 300;
+		m_extraDelay = 150;
 	else
 		m_extraDelay = 0;
 }
@@ -467,30 +467,10 @@ void ScreenMirrorServer::resetState()
 	pthread_mutex_unlock(&m_videoDataMutex);
 
 	pthread_mutex_lock(&m_audioDataMutex);
-	m_audioPacketSerial = -1;
+	m_audioFrameType = m_backend;
+	m_audioOffset = LLONG_MAX;
 	circlebuf_free(&m_audioFrames);
 	pthread_mutex_unlock(&m_audioDataMutex);
-}
-
-int ScreenMirrorServer::audiocb(const void *input, void *output,
-			     unsigned long frameCount,
-			     const PaStreamCallbackTimeInfo *timeInfo,
-			     PaStreamCallbackFlags statusFlags, void *userData)
-{
-	
-	ScreenMirrorServer *s = (ScreenMirrorServer *)userData;
-	pthread_mutex_lock(&s->m_audioDataMutex);
-
-	auto requestSize = frameCount * 4;
-	auto targetSize = s->m_audioFrames.size > requestSize ? requestSize : s->m_audioFrames.size;
-	circlebuf_pop_front(&s->m_audioFrames, output, targetSize);
-	if (targetSize < requestSize)
-		memset((uint8_t *)output + targetSize, 0, requestSize - targetSize);
-	
-
-	pthread_mutex_unlock(&s->m_audioDataMutex);
-
-	return paContinue;
 }
 
 bool ScreenMirrorServer::initAudioRenderer()
@@ -501,7 +481,7 @@ bool ScreenMirrorServer::initAudioRenderer()
 		goto error;
 
 	//20ms 
-	err = Pa_OpenDefaultStream(&pa_stream_, 0, 2, paInt16, 44100, 882,
+	err = Pa_OpenDefaultStream(&pa_stream_, 0, 2, paInt16, 44100, 480,
 				   audiocb, this);
 	if (err != paNoError)
 		goto error;
@@ -561,8 +541,51 @@ bool ScreenMirrorServer::initPipe()
 	return true;
 }
 
+int ScreenMirrorServer::audiocb(const void *input, void *output,
+			     unsigned long frameCount,
+			     const PaStreamCallbackTimeInfo *timeInfo,
+			     PaStreamCallbackFlags statusFlags, void *userData)
+{
+	
+	ScreenMirrorServer *s = (ScreenMirrorServer *)userData;
+	pthread_mutex_lock(&s->m_audioDataMutex);
+
+	if (s->m_audioFrameType == IOS_AIRPLAY) {
+		bool copyed = false;
+		if (s->m_audioFrames.size > 0) {
+			uint64_t pts = 0;
+			circlebuf_peek_front(&s->m_audioFrames, &pts, sizeof(uint64_t));
+			int64_t now_ms = (int64_t)os_gettime_ns() / 1000000;
+			if (s->m_audioOffset == LLONG_MAX) 
+				s->m_audioOffset = now_ms - pts;
+
+
+			auto target_pts = pts + s->m_audioOffset + s->m_extraDelay;
+			if (target_pts <= now_ms) {
+				circlebuf_pop_front(&s->m_audioFrames, &pts, sizeof(uint64_t));
+				circlebuf_pop_front(&s->m_audioFrames, output, frameCount * 4);
+				copyed = true;
+			} 
+		}
+		if (!copyed)
+			memset(output, 0, frameCount * 4);
+			
+	} else {
+		auto requestSize = frameCount * 4;
+		auto targetSize = s->m_audioFrames.size > requestSize ? requestSize : s->m_audioFrames.size;
+		circlebuf_pop_front(&s->m_audioFrames, output, targetSize);
+		if (targetSize < requestSize)
+			memset((uint8_t *)output + targetSize, 0, requestSize - targetSize);
+	}
+
+	pthread_mutex_unlock(&s->m_audioDataMutex);
+
+	return paContinue;
+}
+
 void ScreenMirrorServer::outputAudio(size_t data_len, uint64_t pts, int serial)
 {
+	pts = pts / 1000000;
 	if (!resampler)
 		return;
 
@@ -592,6 +615,8 @@ void ScreenMirrorServer::outputAudio(size_t data_len, uint64_t pts, int serial)
 	}
 
 	pthread_mutex_lock(&m_audioDataMutex);
+	if (m_audioFrameType == IOS_AIRPLAY)
+		circlebuf_push_back(&m_audioFrames, &pts, sizeof(uint64_t));
 	circlebuf_push_back(&m_audioFrames, resample_data[0], resample_frames * 2 * 2);
 	pthread_mutex_unlock(&m_audioDataMutex);
 }
