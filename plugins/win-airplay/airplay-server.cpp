@@ -751,7 +751,7 @@ void ScreenMirrorServer::doRenderer(gs_effect_t *effect)
 
 		VideoFrame &framev = m_videoFrames.front();
 		auto target_pts = framev.pts + m_offset + m_extraDelay;
-		if (target_pts <= now_ms) {
+		if (target_pts <= now_ms || framev.pts == 0) {
 			if (framev.is_header) {
 				initDecoder(framev.data, framev.data_len);
 				free(framev.data);
