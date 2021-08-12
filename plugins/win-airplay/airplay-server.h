@@ -92,6 +92,7 @@ private:
 	void saveStatusSettings();
 
 	void initDecoder(uint8_t *data, size_t len);
+	void dropFrame(int64_t now_ms);
 
 private:
 	HANDLE m_handler;
@@ -111,8 +112,6 @@ private:
 	pthread_mutex_t m_audioDataMutex;
 	pthread_mutex_t m_statusMutex;
 	int64_t m_offset = LLONG_MAX;
-	int64_t m_audioOffset = LLONG_MAX;
-	int64_t m_lastAudioPts = LLONG_MAX;
 	int m_audioPacketSerial = -1;
 	int64_t m_extraDelay = 0;
 	float m_startTimeElapsed = 0.;

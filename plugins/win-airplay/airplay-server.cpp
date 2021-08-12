@@ -276,7 +276,7 @@ void ScreenMirrorServer::setBackendType(int type)
 {
 	m_backend = (MirrorBackEnd)type;
 	if (m_backend == IOS_AIRPLAY)
-		m_extraDelay = 6000;
+		m_extraDelay = 300;
 	else
 		m_extraDelay = 0;
 }
@@ -459,9 +459,6 @@ void ScreenMirrorServer::resetState()
 {
 	pthread_mutex_lock(&m_videoDataMutex);
 	m_offset = LLONG_MAX;
-	m_audioOffset = LLONG_MAX;
-	m_lastAudioPts = LLONG_MAX;
-	m_audioPacketSerial = -1;
 	for (auto iter = m_videoFrames.begin(); iter != m_videoFrames.end();
 	     iter++) {
 		VideoFrame &f = *iter;
@@ -471,7 +468,9 @@ void ScreenMirrorServer::resetState()
 	pthread_mutex_unlock(&m_videoDataMutex);
 
 	pthread_mutex_lock(&m_audioDataMutex);
+	m_audioPacketSerial = -1;
 	circlebuf_free(&m_audioFrames);
+	Pa_StopStream(pa_stream_);
 	pthread_mutex_unlock(&m_audioDataMutex);
 }
 
@@ -562,9 +561,6 @@ bool ScreenMirrorServer::initPipe()
 
 void ScreenMirrorServer::outputAudio(size_t data_len, uint64_t pts, int serial)
 {
-	/*static uint64_t cc = pts;
-	blog(LOG_DEBUG, "================== %d", pts-cc);
-	cc = pts;*/
 	if (!resampler)
 		return;
 
@@ -615,7 +611,7 @@ void ScreenMirrorServer::outputAudio(size_t data_len, uint64_t pts, int serial)
 void ScreenMirrorServer::outputVideo(bool is_header, uint8_t *data, size_t data_len, int64_t pts)
 {
 	pthread_mutex_lock(&m_videoDataMutex);
-	m_videoFrames.push_back({is_header, data, data_len, pts / 1000000});
+	m_videoFrames.push_back({ is_header, data, data_len,  pts / 1000000 });
 	pthread_mutex_unlock(&m_videoDataMutex);
 }
 
@@ -704,6 +700,33 @@ static uint32_t WinAirplayHeight(void *data)
 	return s->m_height;
 }
 
+void ScreenMirrorServer::dropFrame(int64_t now_ms)
+{
+	static int count = 0;
+	while (m_videoFrames.size() >= 2) {
+		auto iter = m_videoFrames.begin();
+		auto p1ts = iter->pts + m_offset + m_extraDelay;
+		bool ish1 = iter->is_header;
+
+		auto next = ++iter;
+		auto p2ts = next->pts + m_offset + m_extraDelay;
+		bool ish2 = next->is_header;
+
+		if (p1ts < now_ms && p2ts < now_ms && now_ms - p2ts > 10 && !ish1 && !ish2) {
+			VideoFrame &frame = m_videoFrames.front();
+			m_encodedPacket.data = frame.data;
+			m_encodedPacket.size = frame.data_len;
+			int ret = m_decoder->Send(&m_encodedPacket);
+			while (ret >= 0) {
+				ret = m_decoder->Recv(m_decodedFrame);
+			}
+			free(frame.data);
+			m_videoFrames.pop_front();
+		} else
+			break;
+	}
+}
+
 void ScreenMirrorServer::doRenderer(gs_effect_t *effect)
 {
 	if (mirror_status != OBS_SOURCE_MIRROR_OUTPUT && if2->image.texture) {
@@ -716,27 +739,27 @@ void ScreenMirrorServer::doRenderer(gs_effect_t *effect)
 
 	pthread_mutex_lock(&m_videoDataMutex);
 	while (m_videoFrames.size() > 0) {
-		VideoFrame &frame = m_videoFrames.front();
-		if (frame.is_header)
-		{
-			initDecoder(frame.data, frame.data_len);
-			free(frame.data);
-			m_videoFrames.pop_front();
-		}
-		else
-		{
-			int64_t now = (int64_t)os_gettime_ns() / 1000000;
-			if (m_offset == LLONG_MAX)
-				m_offset = now - frame.pts;
+		int64_t now_ms = (int64_t)os_gettime_ns() / 1000000;
 
-			auto target_pts = now - m_offset;
-			auto delta = abs(target_pts - frame.pts); //允许时间戳的偏移在上下5ms
-			blog(LOG_DEBUG, "========= %lld", delta - m_extraDelay);
-			
-			if ( delta >= m_extraDelay - 8 && delta <= m_extraDelay + 8 ) {
-				blog(LOG_DEBUG, "=========");
-				m_encodedPacket.data = frame.data;
-				m_encodedPacket.size = frame.data_len;
+		if (m_offset == LLONG_MAX) {
+			VideoFrame &frame = m_videoFrames.front();
+			if (!frame.is_header)
+				m_offset = now_ms - frame.pts;
+		}
+
+		dropFrame(now_ms);
+
+		VideoFrame &framev = m_videoFrames.front();
+		auto target_pts = framev.pts + m_offset + m_extraDelay;
+		if (target_pts <= now_ms) {
+			if (framev.is_header) {
+				initDecoder(framev.data, framev.data_len);
+				free(framev.data);
+				m_videoFrames.pop_front();
+				continue;
+			} else {
+				m_encodedPacket.data = framev.data;
+				m_encodedPacket.size = framev.data_len;
 				int ret = m_decoder->Send(&m_encodedPacket);
 				while (ret >= 0) {
 					ret = m_decoder->Recv(m_decodedFrame);
@@ -749,18 +772,15 @@ void ScreenMirrorServer::doRenderer(gs_effect_t *effect)
 						}
 					}
 				}
-
-				free(frame.data);
-				m_videoFrames.pop_front();
-				break;
-			} else if ( delta >m_extraDelay + 8 ) {
-				free(frame.data);
-				m_videoFrames.pop_front();
-				break;
 			}
+
+			free(framev.data);
+			m_videoFrames.pop_front();
 		}
+		break;
 	}
 	pthread_mutex_unlock(&m_videoDataMutex);
+
 	if (m_renderTexture) {
 		gs_effect_set_texture(gs_effect_get_param_by_name(effect, "image"), m_renderTexture);
 		gs_draw_sprite(m_renderTexture, 0, gs_texture_get_width(m_renderTexture), gs_texture_get_height(m_renderTexture));
