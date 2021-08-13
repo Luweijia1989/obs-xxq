@@ -4,6 +4,7 @@
 #include <obs.hpp>
 #include <list>
 #include <vector>
+#include <map>
 #include <string>
 #include <limits>
 #include "Airplay2Def.h"
@@ -32,10 +33,15 @@ struct AudioFrame {
 };
 
 struct VideoFrame {
-	bool is_header;
+	uint32_t video_info_index;
 	uint8_t *data;
 	size_t data_len;
 	int64_t pts;
+};
+
+struct VideoInfo {
+	uint8_t *data;
+	size_t data_len;
 };
 
 class ScreenMirrorServer {
@@ -49,7 +55,7 @@ public:
 
 	ScreenMirrorServer(obs_source_t *source);
 	~ScreenMirrorServer();
-	void outputVideo(bool is_header, uint8_t *data, size_t data_len, int64_t pts);
+	void outputVideo(uint8_t *data, size_t data_len, int64_t pts);
 	void outputAudio(size_t data_len, uint64_t pts, int serial);
 	void doRenderer(gs_effect_t *effect);
 
@@ -111,10 +117,14 @@ private:
 	pthread_mutex_t m_videoDataMutex;
 	pthread_mutex_t m_audioDataMutex;
 	pthread_mutex_t m_statusMutex;
+	pthread_mutex_t m_offsetMutex;
 	int64_t m_offset = LLONG_MAX;
-	int64_t m_audioOffset = LLONG_MAX;
 	int64_t m_extraDelay = 0;
 	float m_startTimeElapsed = 0.;
+
+	std::map<uint32_t, VideoInfo> m_videoInfos;
+	uint32_t m_videoInfoIndex = 0;
+	uint32_t m_lastVideoInfoIndex = 0;
 
 	struct IPCServer *m_ipcServer = nullptr;
 	os_process_pipe_t *process = nullptr;

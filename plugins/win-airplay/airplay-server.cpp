@@ -72,6 +72,7 @@ ScreenMirrorServer::ScreenMirrorServer(obs_source_t *source)
 	pthread_mutex_init(&m_videoDataMutex, nullptr);
 	pthread_mutex_init(&m_audioDataMutex, nullptr);
 	pthread_mutex_init(&m_statusMutex, nullptr);
+	pthread_mutex_init(&m_offsetMutex, nullptr);
 
 	circlebuf_init(&m_avBuffer);
 	circlebuf_init(&m_audioFrames);
@@ -99,6 +100,7 @@ ScreenMirrorServer::~ScreenMirrorServer()
 	pthread_mutex_destroy(&m_videoDataMutex);
 	pthread_mutex_destroy(&m_audioDataMutex);
 	pthread_mutex_destroy(&m_statusMutex);
+	pthread_mutex_destroy(&m_offsetMutex);
 
 	if (m_audioCacheBuffer)
 		free(m_audioCacheBuffer);
@@ -225,18 +227,6 @@ const char *ScreenMirrorServer::killProc()
 	return processName;
 }
 
-static video_format gs_format_to_video_format(gs_color_format format)
-{
-	if (format == GS_RGBA)
-		return VIDEO_FORMAT_RGBA;
-	else if (format == GS_BGRA)
-		return VIDEO_FORMAT_BGRA;
-	else if (format == GS_BGRX)
-		return VIDEO_FORMAT_BGRX;
-
-	return VIDEO_FORMAT_NONE;
-}
-
 void ScreenMirrorServer::updateStatusImage()
 {
 	if (mirror_status == OBS_SOURCE_MIRROR_OUTPUT)
@@ -279,6 +269,8 @@ void ScreenMirrorServer::setBackendType(int type)
 		m_extraDelay = 150;
 	else
 		m_extraDelay = 0;
+
+	resetState();
 }
 
 int ScreenMirrorServer::backendType()
@@ -438,9 +430,16 @@ bool ScreenMirrorServer::handleMediaData()
 			return true;
 
 		resetResampler(info.speakers, info.format, info.samples_per_sec);
+
+		pthread_mutex_lock(&m_videoDataMutex);
 		auto cache = (uint8_t *)malloc(info.pps_len);
 		memcpy(cache, info.pps, info.pps_len);
-		outputVideo(true, cache, info.pps_len, 0);
+		m_videoInfoIndex++;
+		VideoInfo vi;
+		vi.data = cache;
+		vi.data_len = info.pps_len;
+		m_videoInfos.insert(std::make_pair(m_videoInfoIndex, std::move(vi)));
+		pthread_mutex_unlock(&m_videoDataMutex);
 
 		handleMirrorStatus(OBS_SOURCE_MIRROR_OUTPUT);
 	} else {
@@ -449,7 +448,7 @@ bool ScreenMirrorServer::handleMediaData()
 		} else {
 			uint8_t *temp_buf = (uint8_t *)calloc(1, req_size);
 			circlebuf_pop_front(&m_avBuffer, temp_buf, req_size);
-			outputVideo(false, temp_buf, req_size, header_info.pts);
+			outputVideo(temp_buf, req_size, header_info.pts);
 		}
 	}
 	return true;
@@ -464,11 +463,17 @@ void ScreenMirrorServer::resetState()
 		free(f.data);
 	}
 	m_videoFrames.clear();
+	m_videoInfoIndex = 0;
+	m_lastVideoInfoIndex = 0;
+	for (auto iter = m_videoInfos.begin(); iter != m_videoInfos.end(); iter++) {
+		VideoInfo &f = iter->second;
+		free(f.data);
+	}
+	m_videoInfos.clear();
 	pthread_mutex_unlock(&m_videoDataMutex);
 
 	pthread_mutex_lock(&m_audioDataMutex);
 	m_audioFrameType = m_backend;
-	m_audioOffset = LLONG_MAX;
 	circlebuf_free(&m_audioFrames);
 	pthread_mutex_unlock(&m_audioDataMutex);
 }
@@ -553,14 +558,20 @@ int ScreenMirrorServer::audiocb(const void *input, void *output,
 	if (s->m_audioFrameType == IOS_AIRPLAY) {
 		bool copyed = false;
 		if (s->m_audioFrames.size > 0) {
+			int64_t target_pts = 0;
+			int64_t now_ms = (int64_t)os_gettime_ns() / 1000000;
+
+			pthread_mutex_lock(&s->m_offsetMutex);
+			if (s->m_offset == LLONG_MAX) {
+				uint64_t pts = 0;
+				circlebuf_peek_front(&s->m_audioFrames, &pts, sizeof(uint64_t));
+				s->m_offset = now_ms - pts;
+			}
+
 			uint64_t pts = 0;
 			circlebuf_peek_front(&s->m_audioFrames, &pts, sizeof(uint64_t));
-			int64_t now_ms = (int64_t)os_gettime_ns() / 1000000;
-			if (s->m_audioOffset == LLONG_MAX) 
-				s->m_audioOffset = now_ms - pts;
-
-
-			auto target_pts = pts + s->m_audioOffset + s->m_extraDelay;
+			target_pts = pts + s->m_offset + s->m_extraDelay;
+			pthread_mutex_unlock(&s->m_offsetMutex);
 			if (target_pts <= now_ms) {
 				circlebuf_pop_front(&s->m_audioFrames, &pts, sizeof(uint64_t));
 				circlebuf_pop_front(&s->m_audioFrames, output, frameCount * 4);
@@ -621,10 +632,10 @@ void ScreenMirrorServer::outputAudio(size_t data_len, uint64_t pts, int serial)
 	pthread_mutex_unlock(&m_audioDataMutex);
 }
 
-void ScreenMirrorServer::outputVideo(bool is_header, uint8_t *data, size_t data_len, int64_t pts)
+void ScreenMirrorServer::outputVideo(uint8_t *data, size_t data_len, int64_t pts)
 {
 	pthread_mutex_lock(&m_videoDataMutex);
-	m_videoFrames.push_back({ is_header, data, data_len,  pts / 1000000 });
+	m_videoFrames.push_back({ m_videoInfoIndex, data, data_len,  pts / 1000000 });
 	pthread_mutex_unlock(&m_videoDataMutex);
 }
 
@@ -715,17 +726,14 @@ static uint32_t WinAirplayHeight(void *data)
 
 void ScreenMirrorServer::dropFrame(int64_t now_ms)
 {
-	static int count = 0;
 	while (m_videoFrames.size() >= 2) {
 		auto iter = m_videoFrames.begin();
 		auto p1ts = iter->pts + m_offset + m_extraDelay;
-		bool ish1 = iter->is_header;
 
 		auto next = ++iter;
 		auto p2ts = next->pts + m_offset + m_extraDelay;
-		bool ish2 = next->is_header;
 
-		if (p1ts < now_ms && p2ts < now_ms && now_ms - p2ts > 10 && !ish1 && !ish2) {
+		if (p1ts < now_ms && p2ts < now_ms && now_ms - p2ts > 10) {
 			VideoFrame &frame = m_videoFrames.front();
 			m_encodedPacket.data = frame.data;
 			m_encodedPacket.size = frame.data_len;
@@ -753,36 +761,39 @@ void ScreenMirrorServer::doRenderer(gs_effect_t *effect)
 	pthread_mutex_lock(&m_videoDataMutex);
 	while (m_videoFrames.size() > 0) {
 		int64_t now_ms = (int64_t)os_gettime_ns() / 1000000;
+		int64_t target_pts = 0;
 
+		pthread_mutex_lock(&m_offsetMutex);
 		if (m_offset == LLONG_MAX) {
 			VideoFrame &frame = m_videoFrames.front();
-			if (!frame.is_header)
-				m_offset = now_ms - frame.pts;
+			m_offset = now_ms - frame.pts;
 		}
 
 		dropFrame(now_ms);
 
 		VideoFrame &framev = m_videoFrames.front();
-		auto target_pts = framev.pts + m_offset + m_extraDelay;
-		if (target_pts <= now_ms || framev.pts == 0) {
-			if (framev.is_header) {
-				initDecoder(framev.data, framev.data_len);
-				free(framev.data);
-				m_videoFrames.pop_front();
-				continue;
-			} else {
-				m_encodedPacket.data = framev.data;
-				m_encodedPacket.size = framev.data_len;
-				int ret = m_decoder->Send(&m_encodedPacket);
-				while (ret >= 0) {
-					ret = m_decoder->Recv(m_decodedFrame);
-					if (ret >= 0) {
-						m_renderer->RenderFrame(m_decodedFrame);
-						m_width = m_decodedFrame->width;
-						m_height = m_decodedFrame->height;
-						if (!m_renderTexture) {
-							m_renderTexture = gs_texture_open_shared((uint32_t)m_renderer->GetTextureSharedHandle());
-						}
+		target_pts = framev.pts + m_offset + m_extraDelay;
+		pthread_mutex_unlock(&m_offsetMutex);
+		if (target_pts <= now_ms) {
+			if (framev.video_info_index != m_lastVideoInfoIndex) {
+				const VideoInfo &vi = m_videoInfos[framev.video_info_index];
+				initDecoder(vi.data, vi.data_len);
+				free(vi.data);
+				m_videoInfos.erase(framev.video_info_index);
+				m_lastVideoInfoIndex = framev.video_info_index;
+			}
+			
+			m_encodedPacket.data = framev.data;
+			m_encodedPacket.size = framev.data_len;
+			int ret = m_decoder->Send(&m_encodedPacket);
+			while (ret >= 0) {
+				ret = m_decoder->Recv(m_decodedFrame);
+				if (ret >= 0) {
+					m_renderer->RenderFrame(m_decodedFrame);
+					m_width = m_decodedFrame->width;
+					m_height = m_decodedFrame->height;
+					if (!m_renderTexture) {
+						m_renderTexture = gs_texture_open_shared((uint32_t)m_renderer->GetTextureSharedHandle());
 					}
 				}
 			}
