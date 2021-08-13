@@ -99,6 +99,7 @@ private:
 
 	void initDecoder(uint8_t *data, size_t len);
 	void dropFrame(int64_t now_ms);
+	void dropAudioFrame(int64_t now_ms);
 
 private:
 	HANDLE m_handler;

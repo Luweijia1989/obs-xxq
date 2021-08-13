@@ -548,6 +548,28 @@ bool ScreenMirrorServer::initPipe()
 	return true;
 }
 
+void ScreenMirrorServer::dropAudioFrame(int64_t now_ms)
+{
+	auto two_pkt_size = 2 * (1920 + sizeof(uint64_t));
+	while (m_audioFrames.size >= two_pkt_size)
+	{
+		uint8_t temp[1920 + 2 * sizeof(uint64_t)] = { 0 };
+		circlebuf_peek_front(&m_audioFrames, temp, 1920 + 2 * sizeof(uint64_t));
+		uint64_t p1 = 0;
+		uint64_t p2 = 0;
+		memcpy(&p1, temp, 4);
+		memcpy(&p2, temp + 1920 + sizeof(uint64_t), 4);
+
+		auto p1ts = p1 + m_offset + m_extraDelay;
+		auto p2ts = p2 + m_offset + m_extraDelay;
+
+		if (p1ts < now_ms && p2ts < now_ms && now_ms - p2ts > 5) {
+			circlebuf_pop_front(&m_audioFrames, temp, 1920 + sizeof(uint64_t));
+		} else
+			break;
+	}
+}
+
 int ScreenMirrorServer::audiocb(const void *input, void *output,
 			     unsigned long frameCount,
 			     const PaStreamCallbackTimeInfo *timeInfo,
@@ -569,6 +591,8 @@ int ScreenMirrorServer::audiocb(const void *input, void *output,
 				circlebuf_peek_front(&s->m_audioFrames, &pts, sizeof(uint64_t));
 				s->m_offset = now_ms - pts;
 			}
+
+			s->dropAudioFrame(now_ms);
 
 			uint64_t pts = 0;
 			circlebuf_peek_front(&s->m_audioFrames, &pts, sizeof(uint64_t));
@@ -739,11 +763,13 @@ void ScreenMirrorServer::dropFrame(int64_t now_ms)
 
 		if ((p1 == 0 && p2 == 0) || p1ts < now_ms && p2ts < now_ms && now_ms - p2ts > 10) {
 			VideoFrame &frame = m_videoFrames.front();
-			m_encodedPacket.data = frame.data;
-			m_encodedPacket.size = frame.data_len;
-			int ret = m_decoder->Send(&m_encodedPacket);
-			while (ret >= 0) {
-				ret = m_decoder->Recv(m_decodedFrame);
+			if (m_decoder) {
+				m_encodedPacket.data = frame.data;
+				m_encodedPacket.size = frame.data_len;
+				int ret = m_decoder->Send(&m_encodedPacket);
+				while (ret >= 0) {
+					ret = m_decoder->Recv(m_decodedFrame);
+				}
 			}
 			free(frame.data);
 			m_videoFrames.pop_front();
