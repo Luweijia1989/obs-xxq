@@ -457,7 +457,9 @@ bool ScreenMirrorServer::handleMediaData()
 void ScreenMirrorServer::resetState()
 {
 	pthread_mutex_lock(&m_videoDataMutex);
+	pthread_mutex_lock(&m_offsetMutex);
 	m_offset = LLONG_MAX;
+	pthread_mutex_unlock(&m_offsetMutex);
 	for (auto iter = m_videoFrames.begin(); iter != m_videoFrames.end(); iter++) {
 		VideoFrame &f = *iter;
 		free(f.data);
@@ -728,12 +730,14 @@ void ScreenMirrorServer::dropFrame(int64_t now_ms)
 {
 	while (m_videoFrames.size() >= 2) {
 		auto iter = m_videoFrames.begin();
+		auto p1 = iter->pts;
 		auto p1ts = iter->pts + m_offset + m_extraDelay;
 
 		auto next = ++iter;
+		auto p2 = next->pts;
 		auto p2ts = next->pts + m_offset + m_extraDelay;
 
-		if (p1ts < now_ms && p2ts < now_ms && now_ms - p2ts > 10) {
+		if ((p1 == 0 && p2 == 0) || p1ts < now_ms && p2ts < now_ms && now_ms - p2ts > 10) {
 			VideoFrame &frame = m_videoFrames.front();
 			m_encodedPacket.data = frame.data;
 			m_encodedPacket.size = frame.data_len;
@@ -760,6 +764,7 @@ void ScreenMirrorServer::doRenderer(gs_effect_t *effect)
 
 	pthread_mutex_lock(&m_videoDataMutex);
 	while (m_videoFrames.size() > 0) {
+		
 		int64_t now_ms = (int64_t)os_gettime_ns() / 1000000;
 		int64_t target_pts = 0;
 
@@ -774,7 +779,7 @@ void ScreenMirrorServer::doRenderer(gs_effect_t *effect)
 		VideoFrame &framev = m_videoFrames.front();
 		target_pts = framev.pts + m_offset + m_extraDelay;
 		pthread_mutex_unlock(&m_offsetMutex);
-		if (target_pts <= now_ms) {
+		if (target_pts <= now_ms || framev.pts == 0) {
 			if (framev.video_info_index != m_lastVideoInfoIndex) {
 				const VideoInfo &vi = m_videoInfos[framev.video_info_index];
 				initDecoder(vi.data, vi.data_len);
