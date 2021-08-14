@@ -560,7 +560,7 @@ void ScreenMirrorServer::dropAudioFrame(int64_t now_ms)
 		auto p1ts = p1 + m_audioOffset + m_extraDelay;
 		auto p2ts = p2 + m_audioOffset + m_extraDelay;
 
-		if (p1ts < now_ms && p2ts < now_ms && now_ms - p2ts > 5) {
+		if (p1ts < now_ms && p2ts < now_ms && now_ms - p2ts > 60) {
 			circlebuf_pop_front(&m_audioFrames, temp, 1920 + sizeof(uint64_t));
 		} else
 			break;
@@ -756,7 +756,7 @@ void ScreenMirrorServer::dropFrame(int64_t now_ms)
 		auto p2 = next->pts;
 		auto p2ts = next->pts + m_offset + m_extraDelay;
 
-		if ((p1 == 0 && p2 == 0) || p1ts < now_ms && p2ts < now_ms && now_ms - p2ts > 16) {
+		if ((p1 == 0 && p2 == 0) || p1ts < now_ms && p2ts < now_ms && now_ms - p2ts > 60) {
 			VideoFrame &frame = m_videoFrames.front();
 			if (m_decoder) {
 				m_encodedPacket.data = frame.data;
