@@ -72,7 +72,6 @@ ScreenMirrorServer::ScreenMirrorServer(obs_source_t *source)
 	pthread_mutex_init(&m_videoDataMutex, nullptr);
 	pthread_mutex_init(&m_audioDataMutex, nullptr);
 	pthread_mutex_init(&m_statusMutex, nullptr);
-	pthread_mutex_init(&m_offsetMutex, nullptr);
 
 	circlebuf_init(&m_avBuffer);
 	circlebuf_init(&m_audioFrames);
@@ -100,7 +99,6 @@ ScreenMirrorServer::~ScreenMirrorServer()
 	pthread_mutex_destroy(&m_videoDataMutex);
 	pthread_mutex_destroy(&m_audioDataMutex);
 	pthread_mutex_destroy(&m_statusMutex);
-	pthread_mutex_destroy(&m_offsetMutex);
 
 	if (m_audioCacheBuffer)
 		free(m_audioCacheBuffer);
@@ -266,7 +264,7 @@ void ScreenMirrorServer::setBackendType(int type)
 {
 	m_backend = (MirrorBackEnd)type;
 	if (m_backend == IOS_AIRPLAY)
-		m_extraDelay = 150;
+		m_extraDelay = 250;
 	else
 		m_extraDelay = 0;
 
@@ -457,9 +455,7 @@ bool ScreenMirrorServer::handleMediaData()
 void ScreenMirrorServer::resetState()
 {
 	pthread_mutex_lock(&m_videoDataMutex);
-	pthread_mutex_lock(&m_offsetMutex);
 	m_offset = LLONG_MAX;
-	pthread_mutex_unlock(&m_offsetMutex);
 	for (auto iter = m_videoFrames.begin(); iter != m_videoFrames.end(); iter++) {
 		VideoFrame &f = *iter;
 		free(f.data);
@@ -475,6 +471,7 @@ void ScreenMirrorServer::resetState()
 	pthread_mutex_unlock(&m_videoDataMutex);
 
 	pthread_mutex_lock(&m_audioDataMutex);
+	m_audioOffset = LLONG_MAX;
 	m_audioFrameType = m_backend;
 	circlebuf_free(&m_audioFrames);
 	pthread_mutex_unlock(&m_audioDataMutex);
@@ -560,8 +557,8 @@ void ScreenMirrorServer::dropAudioFrame(int64_t now_ms)
 		memcpy(&p1, temp, 4);
 		memcpy(&p2, temp + 1920 + sizeof(uint64_t), 4);
 
-		auto p1ts = p1 + m_offset + m_extraDelay;
-		auto p2ts = p2 + m_offset + m_extraDelay;
+		auto p1ts = p1 + m_audioOffset + m_extraDelay;
+		auto p2ts = p2 + m_audioOffset + m_extraDelay;
 
 		if (p1ts < now_ms && p2ts < now_ms && now_ms - p2ts > 5) {
 			circlebuf_pop_front(&m_audioFrames, temp, 1920 + sizeof(uint64_t));
@@ -585,19 +582,17 @@ int ScreenMirrorServer::audiocb(const void *input, void *output,
 			int64_t target_pts = 0;
 			int64_t now_ms = (int64_t)os_gettime_ns() / 1000000;
 
-			pthread_mutex_lock(&s->m_offsetMutex);
-			if (s->m_offset == LLONG_MAX) {
+			if (s->m_audioOffset == LLONG_MAX) {
 				uint64_t pts = 0;
 				circlebuf_peek_front(&s->m_audioFrames, &pts, sizeof(uint64_t));
-				s->m_offset = now_ms - pts;
+				s->m_audioOffset = now_ms - pts - 100; // 音频接收到的就有点慢，延迟减去100ms
 			}
 
 			s->dropAudioFrame(now_ms);
 
 			uint64_t pts = 0;
 			circlebuf_peek_front(&s->m_audioFrames, &pts, sizeof(uint64_t));
-			target_pts = pts + s->m_offset + s->m_extraDelay;
-			pthread_mutex_unlock(&s->m_offsetMutex);
+			target_pts = pts + s->m_audioOffset + s->m_extraDelay;
 			if (target_pts <= now_ms) {
 				circlebuf_pop_front(&s->m_audioFrames, &pts, sizeof(uint64_t));
 				circlebuf_pop_front(&s->m_audioFrames, output, frameCount * 4);
@@ -761,7 +756,7 @@ void ScreenMirrorServer::dropFrame(int64_t now_ms)
 		auto p2 = next->pts;
 		auto p2ts = next->pts + m_offset + m_extraDelay;
 
-		if ((p1 == 0 && p2 == 0) || p1ts < now_ms && p2ts < now_ms && now_ms - p2ts > 10) {
+		if ((p1 == 0 && p2 == 0) || p1ts < now_ms && p2ts < now_ms && now_ms - p2ts > 16) {
 			VideoFrame &frame = m_videoFrames.front();
 			if (m_decoder) {
 				m_encodedPacket.data = frame.data;
@@ -794,7 +789,6 @@ void ScreenMirrorServer::doRenderer(gs_effect_t *effect)
 		int64_t now_ms = (int64_t)os_gettime_ns() / 1000000;
 		int64_t target_pts = 0;
 
-		pthread_mutex_lock(&m_offsetMutex);
 		if (m_offset == LLONG_MAX) {
 			VideoFrame &frame = m_videoFrames.front();
 			m_offset = now_ms - frame.pts;
@@ -804,7 +798,6 @@ void ScreenMirrorServer::doRenderer(gs_effect_t *effect)
 
 		VideoFrame &framev = m_videoFrames.front();
 		target_pts = framev.pts + m_offset + m_extraDelay;
-		pthread_mutex_unlock(&m_offsetMutex);
 		if (target_pts <= now_ms || framev.pts == 0) {
 			if (framev.video_info_index != m_lastVideoInfoIndex) {
 				const VideoInfo &vi = m_videoInfos[framev.video_info_index];

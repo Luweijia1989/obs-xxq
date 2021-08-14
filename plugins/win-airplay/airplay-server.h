@@ -118,8 +118,8 @@ private:
 	pthread_mutex_t m_videoDataMutex;
 	pthread_mutex_t m_audioDataMutex;
 	pthread_mutex_t m_statusMutex;
-	pthread_mutex_t m_offsetMutex;
 	int64_t m_offset = LLONG_MAX;
+	int64_t m_audioOffset = LLONG_MAX;
 	int64_t m_extraDelay = 0;
 	float m_startTimeElapsed = 0.;
 
