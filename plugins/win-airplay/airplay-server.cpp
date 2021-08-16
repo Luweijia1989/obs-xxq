@@ -25,43 +25,6 @@ static uint32_t byteutils_get_int_be(unsigned char *b, int offset)
 	return ntohl(byteutils_get_int(b, offset));
 }
 
-static inline enum video_format
-ffmpeg_to_obs_video_format(enum AVPixelFormat format)
-{
-	switch (format) {
-	case AV_PIX_FMT_YUV444P:
-		return VIDEO_FORMAT_I444;
-	case AV_PIX_FMT_YUV420P:
-	case AV_PIX_FMT_YUVJ420P:
-		return VIDEO_FORMAT_I420;
-	case AV_PIX_FMT_NV12:
-		return VIDEO_FORMAT_NV12;
-	case AV_PIX_FMT_YUYV422:
-		return VIDEO_FORMAT_YUY2;
-	case AV_PIX_FMT_UYVY422:
-		return VIDEO_FORMAT_UYVY;
-	case AV_PIX_FMT_RGBA:
-		return VIDEO_FORMAT_RGBA;
-	case AV_PIX_FMT_BGRA:
-		return VIDEO_FORMAT_BGRA;
-	case AV_PIX_FMT_GRAY8:
-		return VIDEO_FORMAT_Y800;
-	case AV_PIX_FMT_BGR24:
-		return VIDEO_FORMAT_BGR3;
-	case AV_PIX_FMT_YUV422P:
-		return VIDEO_FORMAT_I422;
-	case AV_PIX_FMT_YUVA420P:
-		return VIDEO_FORMAT_I40A;
-	case AV_PIX_FMT_YUVA422P:
-		return VIDEO_FORMAT_I42A;
-	case AV_PIX_FMT_YUVA444P:
-		return VIDEO_FORMAT_YUVA;
-	case AV_PIX_FMT_NONE:
-	default:
-		return VIDEO_FORMAT_NONE;
-	}
-}
-
 ScreenMirrorServer::ScreenMirrorServer(obs_source_t *source)
 	: m_source(source),
 	  if2((gs_image_file2_t *)bzalloc(sizeof(gs_image_file2_t)))
@@ -96,6 +59,7 @@ ScreenMirrorServer::~ScreenMirrorServer()
 	bfree(if2);
 
 	circlebuf_free(&m_avBuffer);
+	circlebuf_free(&m_audioFrames);
 	pthread_mutex_destroy(&m_videoDataMutex);
 	pthread_mutex_destroy(&m_audioDataMutex);
 	pthread_mutex_destroy(&m_statusMutex);
