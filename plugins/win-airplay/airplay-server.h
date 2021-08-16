@@ -51,6 +51,7 @@ public:
 		IOS_USB_CABLE,
 		IOS_AIRPLAY,
 		ANDROID_USB_CABLE,
+		ANDROID_AOA,
 	};
 
 	ScreenMirrorServer(obs_source_t *source);

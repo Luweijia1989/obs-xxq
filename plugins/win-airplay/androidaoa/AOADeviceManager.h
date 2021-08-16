@@ -1,0 +1,159 @@
+#ifndef AOADEVICEMANAGER_H
+#define AOADEVICEMANAGER_H
+
+#include <QObject>
+#include <QAbstractNativeEventFilter>
+#include <QMutex>
+#include <QWaitCondition>
+#include <QThread>
+#include <QTimer>
+#include <QFile>
+#include "libusb.h"
+#include "DriverHelper.h"
+#include "util/circlebuf.h"
+
+#define USE_AUDIO
+
+#define AOA_PROTOCOL_MIN	1
+#define AOA_PROTOCOL_MAX	2
+
+#define VID_GOOGLE			0x18D1
+#define	PID_AOA_ACC			0x2D00
+#define	PID_AOA_ACC_ADB		0x2D01
+#define	PID_AOA_AU			0x2D02
+#define	PID_AOA_AU_ADB		0x2D03
+#define	PID_AOA_ACC_AU		0x2D04
+#define	PID_AOA_ACC_AU_ADB	0x2D05
+
+typedef void (*fnusb_iso_cb)(uint8_t *buf, int len);
+
+typedef struct {
+    struct libusb_transfer **xfers;
+    uint8_t *buffer;
+    fnusb_iso_cb cb;
+    int num_xfers;
+    int pkts;
+    int len;
+    int dead;
+    int dead_xfers;
+} fnusb_isoc_stream;
+
+typedef struct t_accessory_droid {
+    libusb_device_handle *usbHandle;
+    unsigned char inendp;
+    unsigned char outendp;
+    unsigned char audioendp;
+
+    int inpacketsize;
+    int outpacketsize;
+    int audiopacketsize;
+
+    unsigned char bulkInterface;
+    unsigned char audioInterface;
+    unsigned char audioAlternateSetting;
+
+    bool connected = false;
+    uint16_t c_vid;
+    uint16_t c_pid;
+
+    fnusb_isoc_stream isocStream;
+} accessory_droid;
+
+typedef struct t_usbXferThread {
+    std::thread thread;
+    QMutex mutex;
+    QWaitCondition condition;
+    struct libusb_transfer *xfr = nullptr;
+    int usbActive = 0;
+    //	int dead;
+    int stop = 0;
+    int stopped = 0;
+    int tickle = 0;
+} usbXferThread;
+
+class AOADeviceManager : public QObject
+{
+    Q_OBJECT
+public:
+    bool inUpdate = false;
+    AOADeviceManager();
+    ~AOADeviceManager();
+
+    int connectDevice(libusb_device *device);
+    int isDroidInAcc(libusb_device *dev);
+    void switchDroidToAcc(libusb_device *dev, int force);
+    int setupDroid(libusb_device *usbDevice, accessory_droid *device);
+    int shutdownUSBDroid(accessory_droid *device);
+    int startUSBPipe();
+    void stopUSBPipe();
+
+    bool enumDeviceAndCheck();
+    void checkAndInstallDriver();
+    bool startTask();
+
+    void signalWait() {
+        m_waitMutex.lock();
+        m_waitCondition.wakeOne();
+        m_waitMutex.unlock();
+    }
+
+    static void *a2s_usbRxThread( void *d );
+
+private:
+    int initUSB();
+    void clearUSB();
+    bool isAndroidDevice(uint16_t vid, uint16_t pid);
+    void checkAndSend();
+
+signals:
+    void installProgress(int step, int value);
+
+public slots:
+    void updateUsbInventory();
+    void disconnectDevice();
+
+private:
+    libusb_context *m_ctx = nullptr;
+    accessory_droid m_droid;
+    libusb_device **m_devs = nullptr;
+    int m_devs_count = 0;
+    int m_usbDead = 0;
+    unsigned char *buffer = nullptr;
+    usbXferThread m_usbRxThread;
+    DriverHelper *m_driverHelper = nullptr;
+    QTimer *m_usbEventTimer;
+
+    QMutex m_waitMutex;
+    QWaitCondition m_waitCondition;
+
+    circlebuf m_mediaDataBuffer;
+    struct IPCClient *client = NULL;
+    uint8_t *m_cacheBuffer = nullptr;
+
+    QFile h264;
+};
+
+class NativeEventFilter : public QAbstractNativeEventFilter {
+public:
+    NativeEventFilter(AOADeviceManager *helper) : m_helper(helper) {}
+    bool nativeEventFilter(const QByteArray &eventType, void *message,
+                           long *) override
+    {
+        Q_UNUSED(eventType)
+        MSG *msg = static_cast<MSG *>(message);
+        int msgType = msg->message;
+        if (msgType == WM_DEVICECHANGE) {
+            if(!m_helper->inUpdate)
+                QMetaObject::invokeMethod(m_helper, "updateUsbInventory", Qt::QueuedConnection);
+            else {
+                m_helper->signalWait();
+            }
+        }
+        return false;
+    }
+
+private:
+    AOADeviceManager *m_helper;
+};
+
+#endif // AOADEVICEMANAGER_H

@@ -10,6 +10,7 @@ using namespace std;
 #define DRIVER_EXE "driver-tool.exe"
 #define AIRPLAY_EXE "airplay-server.exe"
 #define ANDROID_USB_EXE "android-usb-mirror.exe"
+#define ANDROID_AOA_EXE "android-aoa-server.exe"
 #define INSTANCE_LOCK L"AIRPLAY-ONE-INSTANCE"
 uint8_t start_code[4] = {00, 00, 00, 01};
 
@@ -182,9 +183,11 @@ const char *ScreenMirrorServer::killProc()
 		processName = DRIVER_EXE;
 	} else if (m_backend == IOS_AIRPLAY) {
 		processName = AIRPLAY_EXE;
-	} else if (m_backend == ANDROID_USB_CABLE)
+	} else if (m_backend == ANDROID_USB_CABLE) {
 		processName = ANDROID_USB_EXE;
-
+	} else if (m_backend == ANDROID_AOA) {
+		processName = ANDROID_AOA_EXE;
+	}
 	os_kill_process(processName);
 	return processName;
 }
@@ -373,7 +376,7 @@ bool ScreenMirrorServer::handleMediaData()
 			return false;
 		}
 	}
-
+	
 	circlebuf_pop_front(&m_avBuffer, &header_info,
 			    header_size); // remove it
 
@@ -662,7 +665,7 @@ static obs_properties_t *GetWinAirplayPropertiesOutput(void *data)
 	if (!data)
 		return nullptr;
 	obs_properties_t *props = obs_properties_create();
-	obs_properties_add_int(props, "type", u8"投屏类型", 0, 2, 1);
+	obs_properties_add_int(props, "type", u8"投屏类型", 0, 3, 1);
 	return props;
 }
 
