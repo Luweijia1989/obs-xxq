@@ -237,6 +237,7 @@ extern struct obs_source_info quickfanstargetshow_source_info;
 extern struct obs_source_info quickfirstranklistshow_source_info;
 extern struct obs_source_info quicknewrewardshow_source_info;
 extern struct obs_source_info quicknewfollowshow_source_info;
+extern struct obs_source_info quicknewtimershow_source_info;
 
 bool obs_module_load(void)
 {
@@ -254,5 +255,6 @@ bool obs_module_load(void)
 	obs_register_source(&quickfirstranklistshow_source_info);
 	obs_register_source(&quicknewrewardshow_source_info);
 	obs_register_source(&quicknewfollowshow_source_info);
+	obs_register_source(&quicknewtimershow_source_info);
 	return true;
 }

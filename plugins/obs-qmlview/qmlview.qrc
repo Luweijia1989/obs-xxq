@@ -84,10 +84,7 @@
         <file>image/fail.apng</file>
         <file>image/img_tips_selecting.png</file>
         <file>image/popup_5.png</file>
-        <file>image/empty.png</file>
-        <file>image/empty@2x.png</file>
         <file>FansTarget.qml</file>
-        <file>FirstRankList.qml</file>
         <file>image/boke2.png</file>
         <file>image/boke2@2x.png</file>
         <file>image/boke1.png</file>
@@ -110,7 +107,33 @@
         <file>image/newreward/background_gift1@2x.png</file>
         <file>image/newreward/background_gift2.png</file>
         <file>image/newreward/background_gift2@2x.png</file>
-        <file>NewReward.qml</file>
-        <file>NewFollow.qml</file>
+        <file>image/timer/switch.png</file>
+        <file>image/timer/switch@2x.png</file>
+        <file>image/timer/theme1.png</file>
+        <file>image/timer/theme1@2x.png</file>
+        <file>image/timer/theme2.png</file>
+        <file>image/timer/theme2@2x.png</file>
+        <file>image/timer/theme3.png</file>
+        <file>image/timer/theme3@2x.png</file>
+        <file>image/timer/theme4.png</file>
+        <file>image/timer/theme4@2x.png</file>
+        <file>NewTimer.qml</file>
+        <file>image/newtheme/deepblue.png</file>
+        <file>image/newtheme/deepblue@2x.png</file>
+        <file>image/newtheme/switch.png</file>
+        <file>image/newtheme/switch@2x.png</file>
+        <file>image/newtheme/tip.png</file>
+        <file>image/newtheme/tip@2x.png</file>
+        <file>image/fanstarget/deepblue.png</file>
+        <file>image/fanstarget/deepblue@2x.png</file>
+        <file>image/fanstarget/processIcon.png</file>
+        <file>image/fanstarget/processIcon@2x.png</file>
+        <file>image/fanstarget/switch.png</file>
+        <file>image/fanstarget/switch@2x.png</file>
+        <file>image/fanstarget/tip.png</file>
+        <file>image/fanstarget/tip@2x.png</file>
+        <file>NewCommon.qml</file>
+        <file>image/empty.png</file>
+        <file>image/empty@2x.png</file>
     </qresource>
 </RCC>

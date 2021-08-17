@@ -7,13 +7,14 @@
 FirstRankList::FirstRankList(QObject *parent /* = nullptr */)
 	: QmlSourceBase(parent)
 {
-	addProperties("firstRankListProperties", this);
+	addProperties("newProperties", this);
+	setuitype(3);
 }
 
 void FirstRankList::default(obs_data_t *settings)
 {
 	obs_data_set_default_string(settings, "file",
-				    "qrc:/qmlfiles/FirstRankList.qml");
+				    "qrc:/qmlfiles/NewCommon.qml");
 	obs_data_set_default_string(settings, "themefont",
 				    u8"阿里巴巴普惠体 M");
 	obs_data_set_default_bool(settings, "themebold", false);
@@ -100,8 +101,8 @@ static void firstranklist_source_update(void *data, obs_data_t *settings)
 	float transparence = (float)obs_data_get_int(settings, "transparence");
 	transparence = transparence / 100.0f;
 	s->settransparence(transparence);
-	if (textChange)
-		emit s->update();
+	//if (textChange)
+	emit s->update();
 }
 
 static void *firstranklist_source_create(obs_data_t *settings,

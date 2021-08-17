@@ -6,6 +6,51 @@ configure_file(
 	"${CMAKE_CURRENT_SOURCE_DIR}/graphics-hook-config.h.in"
 	"${CMAKE_BINARY_DIR}/plugins/win-capture/graphics-hook/config/graphics-hook-config.h")
 
+include_directories(third-party)
+include_directories(third-party/imgui)
+
+set(third-party_HEADERS
+	./third-party/draw_danmu.h
+	./third-party/imguidx9_danmu.h
+	./third-party/imguidx10_danmu.h
+	./third-party/imguidx11_danmu.h
+	./third-party/imguidx12_danmu.h
+	./third-party/imgui/imconfig.h
+	./third-party/imgui/imgui_impl_win32.h
+	./third-party/imgui/imgui.h
+	./third-party/imgui/imgui_internal.h
+	./third-party/imgui/imstb_rectpack.h
+	./third-party/imgui/imstb_textedit.h
+	./third-party/imgui/imstb_truetype.h
+	./third-party/imgui/imgui_impl_dx9.h
+	./third-party/imgui/imgui_impl_dx10.h
+	./third-party/imgui/imgui_impl_dx11.h
+	./third-party/imgui/imgui_impl_dx12.h
+	./third-party/json_tool.h
+	./third-party/shared_helper.h
+	./third-party/shared_mem.h)
+	
+set(third-party_SOURCES
+	./third-party/draw_danmu.cpp
+	./third-party/imguidx9_danmu.cpp
+	./third-party/imguidx10_danmu.cpp
+	./third-party/imguidx11_danmu.cpp
+	./third-party/imguidx12_danmu.cpp
+	./third-party/imgui/imgui_impl_win32.cpp
+	./third-party/imgui/imgui_demo.cpp
+	./third-party/imgui/imgui_tables.cpp
+	./third-party/imgui/imgui_widgets.cpp
+	./third-party/imgui/imgui.cpp
+	./third-party/imgui/imgui_draw.cpp
+	./third-party/imgui/imgui_impl_dx9.cpp
+	./third-party/imgui/imgui_impl_dx10.cpp
+	./third-party/imgui/imgui_impl_dx11.cpp
+	./third-party/imgui/imgui_impl_dx12.cpp
+	./third-party/json_reader.cpp
+	./third-party/json_value.cpp
+	./third-party/json_writer.cpp
+	./third-party/shared_helper.cpp
+	./third-party/shared_mem.cpp)
 
 set(graphics-hook_HEADERS
 	"${CMAKE_BINARY_DIR}/plugins/win-capture/graphics-hook/config/graphics-hook-config.h"
@@ -36,7 +81,9 @@ endif()
 
 add_library(graphics-hook MODULE
 	${graphics-hook_SOURCES}
-	${graphics-hook_HEADERS})
+	${graphics-hook_HEADERS}
+	${third-party_SOURCES}
+	${third-party_HEADERS})
 
 target_include_directories(graphics-hook PUBLIC
 	"${CMAKE_BINARY_DIR}/plugins/win-capture/graphics-hook/config")

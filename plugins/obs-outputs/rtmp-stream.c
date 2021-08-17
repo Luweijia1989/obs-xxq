@@ -407,6 +407,8 @@ static int send_packet(struct rtmp_stream *stream,
 	int recv_size = 0;
 	int ret = 0;
 
+	assert(idx < RTMP_MAX_STREAMS);
+
 	if (!stream->new_socket_loop) {
 #ifdef _WIN32
 		ret = ioctlsocket(stream->rtmp.m_sb.sb_socket, FIONREAD,
@@ -421,14 +423,20 @@ static int send_packet(struct rtmp_stream *stream,
 		}
 	}
 
-	flv_packet_mux(packet, is_header ? 0 : stream->start_dts_offset, &data,
-		       &size, is_header);
+	if (idx > 0) {
+		flv_additional_packet_mux(
+			packet, is_header ? 0 : stream->start_dts_offset, &data,
+			&size, is_header, idx);
+	} else {
+		flv_packet_mux(packet, is_header ? 0 : stream->start_dts_offset,
+			       &data, &size, is_header);
+	}
 
 #ifdef TEST_FRAMEDROPS
 	droptest_cap_data_rate(stream, size);
 #endif
 
-	ret = RTMP_Write(&stream->rtmp, (char *)data, (int)size, (int)idx);
+	ret = RTMP_Write(&stream->rtmp, (char *)data, (int)size, 0);
 	bfree(data);
 
 	if (is_header)
@@ -513,6 +521,13 @@ static void set_output_error(struct rtmp_stream *stream)
 		switch (stream->rtmp.last_error_code) {
 		case -0x2700:
 			msg = obs_module_text("SSLCertVerifyFailed");
+			break;
+		case -0x7680:
+			msg = "Failed to load root certificates for a secure TLS connection."
+#if defined(__linux__)
+			      " Check you have an up to date root certificate bundle in /etc/ssl/certs."
+#endif
+				;
 			break;
 		}
 	}
@@ -650,20 +665,30 @@ static void *send_thread(void *data)
 	return NULL;
 }
 
-static bool send_meta_data(struct rtmp_stream *stream, size_t idx, bool *next)
+static bool send_additional_meta_data(struct rtmp_stream *stream)
 {
 	uint8_t *meta_data;
 	size_t meta_data_size;
 	bool success = true;
 
-	*next = flv_meta_data(stream->output, &meta_data, &meta_data_size,
-			      false, idx);
+	flv_additional_meta_data(stream->output, &meta_data, &meta_data_size);
+	success = RTMP_Write(&stream->rtmp, (char *)meta_data,
+			     (int)meta_data_size, 0) >= 0;
+	bfree(meta_data);
 
-	if (*next) {
-		success = RTMP_Write(&stream->rtmp, (char *)meta_data,
-				     (int)meta_data_size, (int)idx) >= 0;
-		bfree(meta_data);
-	}
+	return success;
+}
+
+static bool send_meta_data(struct rtmp_stream *stream)
+{
+	uint8_t *meta_data;
+	size_t meta_data_size;
+	bool success = true;
+
+	flv_meta_data(stream->output, &meta_data, &meta_data_size, false);
+	success = RTMP_Write(&stream->rtmp, (char *)meta_data,
+			     (int)meta_data_size, 0) >= 0;
+	bfree(meta_data);
 
 	return success;
 }
@@ -752,8 +777,7 @@ static void adjust_sndbuf_size(struct rtmp_stream *stream, int new_size)
 static int init_send(struct rtmp_stream *stream)
 {
 	int ret;
-	size_t idx = 0;
-	bool next = true;
+	obs_output_t *context = stream->output;
 
 #if defined(_WIN32)
 	adjust_sndbuf_size(stream, MIN_SENDBUF_SIZE);
@@ -791,7 +815,6 @@ static int init_send(struct rtmp_stream *stream)
 			bfree(stream->write_buf);
 
 		int total_bitrate = 0;
-		obs_output_t *context = stream->output;
 
 		obs_encoder_t *vencoder = obs_output_get_video_encoder(context);
 		if (vencoder) {
@@ -856,14 +879,25 @@ static int init_send(struct rtmp_stream *stream)
 	}
 
 	os_atomic_set_bool(&stream->active, true);
-	while (next) {
-		if (!send_meta_data(stream, idx++, &next)) {
-			warn("Disconnected while attempting to connect to "
-			     "server.");
-			set_output_error(stream);
-			return OBS_OUTPUT_DISCONNECTED;
-		}
+
+	if (!send_meta_data(stream)) {
+		warn("Disconnected while attempting to send metadata");
+		set_output_error(stream);
+		return OBS_OUTPUT_DISCONNECTED;
 	}
+
+	obs_encoder_t *aencoder = obs_output_get_audio_encoder(context, 1);
+	if (aencoder && !send_additional_meta_data(stream)) {
+		warn("Disconnected while attempting to send additional "
+		     "metadata");
+		return OBS_OUTPUT_DISCONNECTED;
+	}
+
+	if (obs_output_get_audio_encoder(context, 2) != NULL) {
+		warn("Additional audio streams not supported");
+		return OBS_OUTPUT_DISCONNECTED;
+	}
+
 	obs_output_begin_data_capture(stream->output, 0);
 
 	return OBS_OUTPUT_SUCCESS;
@@ -973,18 +1007,6 @@ static int try_connect(struct rtmp_stream *stream)
 	}
 
 	RTMP_AddStream(&stream->rtmp, stream->key.array);
-
-	for (size_t idx = 1;; idx++) {
-		obs_encoder_t *encoder =
-			obs_output_get_audio_encoder(stream->output, idx);
-		const char *encoder_name;
-
-		if (!encoder)
-			break;
-
-		encoder_name = obs_encoder_get_name(encoder);
-		RTMP_AddStream(&stream->rtmp, encoder_name);
-	}
 
 	stream->rtmp.m_outChunkSize = 4096;
 	stream->rtmp.m_bSendChunkSizeInfo = true;
@@ -1108,14 +1130,14 @@ static void *connect_thread(void *data)
 
 	ret = try_connect(stream);
 
-	obs_data_t *setting = obs_output_get_settings(stream->output);
-	obs_data_set_string(setting, "cdn_ip", stream->rtmp.cdn_addr);
-	obs_data_release(setting);
-
 	if (ret != OBS_OUTPUT_SUCCESS) {
 		obs_output_signal_stop(stream->output, ret);
 		info("Connection to %s failed: %d", stream->path.array, ret);
 	}
+
+	obs_data_t *setting = obs_output_get_settings(stream->output);
+	obs_data_set_string(setting, "cdn_ip", stream->rtmp.cdn_addr);
+	obs_data_release(setting);
 
 	if (!stopping(stream))
 		pthread_detach(stream->connect_thread);
