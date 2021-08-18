@@ -26,6 +26,7 @@ class QOpenGLVertexArrayObject;
 class QOpenGLFramebufferObject;
 class QOpenGLTexture;
 class QOpenGLBuffer;
+class QOpenGLShader;
 
 extern bool g_st_checkpass;
 
