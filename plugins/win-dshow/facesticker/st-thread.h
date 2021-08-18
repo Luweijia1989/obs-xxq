@@ -95,6 +95,8 @@ private:
 	QOffscreenSurface *surface;
 	QOpenGLContext *ctx;
 	QOpenGLShaderProgram *m_shader = nullptr;
+	QOpenGLShader *m_vertexShader = nullptr;
+	QOpenGLShader *m_fragmentShader = nullptr;
 	QOpenGLVertexArrayObject *m_vao = nullptr;
 	QOpenGLFramebufferObject *m_fbo = nullptr;
 	QOpenGLTexture *m_backgroundTexture = nullptr;
