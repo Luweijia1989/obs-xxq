@@ -3,17 +3,17 @@
 #include "qmlhelper.h"
 
 static const char *file_filter =
-	"Image files (*.bmp *.tga *.png *.jpeg *.jpg *.gif)";
+"Image files (*.bmp *.tga *.png *.jpeg *.jpg *.gif)";
 
 //QML_REGISTER_CREATABLE_TYPE(ImageSlideShow, ImageSlideShow)
 
 ImageSlideShow::ImageSlideShow(QObject *parent /* = nullptr */)
 	: QmlSourceBase(parent),
-	  m_speed(SpeedSlow),
-	  m_direction(BottomToTop),
-	  m_horizontalAlignment(Qt::AlignHCenter),
-	  m_verticalAlignment(Qt::AlignVCenter),
-	  m_fillColor(QColor("#FF0000"))
+	m_speed(SpeedSlow),
+	m_direction(BottomToTop),
+	m_horizontalAlignment(Qt::AlignHCenter),
+	m_verticalAlignment(Qt::AlignVCenter),
+	m_fillColor(QColor("#FF0000"))
 {
 	addProperties("imageSlideProperties", this);
 }
@@ -21,15 +21,15 @@ ImageSlideShow::ImageSlideShow(QObject *parent /* = nullptr */)
 void ImageSlideShow::default(obs_data_t *settings)
 {
 	obs_data_set_default_string(settings, "file",
-				    "qrc:/qmlfiles/ImageSlideShow.qml");
+		"qrc:/qmlfiles/ImageSlideShow.qml");
 	obs_data_set_default_int(settings, "speed", ImageSlideShow::SpeedSlow);
 	obs_data_set_default_int(settings, "direction",
-				 ImageSlideShow::BottomToTop);
+		ImageSlideShow::BottomToTop);
 	obs_data_set_default_string(settings, "fillColor", "#00000000");
 	obs_data_set_default_int(settings, "horizontalAlignment",
-				 Qt::AlignHCenter);
+		Qt::AlignHCenter);
 	obs_data_set_default_int(settings, "verticalAlignment",
-				 Qt::AlignVCenter);
+		Qt::AlignVCenter);
 
 	obs_data_set_default_bool(settings, "isNew", false);
 	obs_data_set_default_int(settings, "stopTime", 5000);
@@ -118,38 +118,38 @@ static obs_properties_t *quickview_source_properties(void *data)
 	obs_properties_t *props = s->baseProperties();
 
 	obs_property_t *p = obs_properties_add_list(props, "direction",
-						    u8"轮播动画",
-						    OBS_COMBO_TYPE_LIST,
-						    OBS_COMBO_FORMAT_INT);
+		u8"轮播动画",
+		OBS_COMBO_TYPE_LIST,
+		OBS_COMBO_FORMAT_INT);
 	obs_property_list_add_int(p, u8"自下向上推进",
-				  ImageSlideShow::BottomToTop);
+		ImageSlideShow::BottomToTop);
 	obs_property_list_add_int(p, u8"自上向下推进",
-				  ImageSlideShow::TopToBottom);
+		ImageSlideShow::TopToBottom);
 	obs_property_list_add_int(p, u8"自右向左推进",
-				  ImageSlideShow::RightToLeft);
+		ImageSlideShow::RightToLeft);
 	obs_property_list_add_int(p, u8"自左向右推进",
-				  ImageSlideShow::LeftToRight);
+		ImageSlideShow::LeftToRight);
 
 	p = obs_properties_add_list(props, "speed", u8"轮播速度",
-				    OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_INT);
+		OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_INT);
 	obs_property_list_add_int(p, u8"慢速", ImageSlideShow::SpeedSlow);
 	obs_property_list_add_int(p, u8"中速", ImageSlideShow::SpeedMiddle);
 	obs_property_list_add_int(p, u8"快速", ImageSlideShow::SpeedFast);
 
 	p = obs_properties_add_list(props, "horizontalAlignment", u8"水平对齐",
-				    OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_INT);
+		OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_INT);
 	obs_property_list_add_int(p, u8"水平靠左", Qt::AlignLeft);
 	obs_property_list_add_int(p, u8"水平居中", Qt::AlignHCenter);
 	obs_property_list_add_int(p, u8"水平靠右", Qt::AlignRight);
 
 	p = obs_properties_add_list(props, "verticalAlignment", u8"垂直对齐",
-				    OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_INT);
+		OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_INT);
 	obs_property_list_add_int(p, u8"垂直靠上", Qt::AlignTop);
 	obs_property_list_add_int(p, u8"垂直居中", Qt::AlignVCenter);
 	obs_property_list_add_int(p, u8"垂直靠下", Qt::AlignBottom);
 
 	obs_properties_add_text(props, "fillColor", u8"填充颜色",
-				OBS_TEXT_DEFAULT);
+		OBS_TEXT_DEFAULT);
 
 	QString last_path;
 	if (s) {
@@ -163,9 +163,9 @@ static obs_properties_t *quickview_source_properties(void *data)
 	}
 
 	obs_properties_add_editable_list(props, "imageUrls", u8"轮播元素列表",
-					 OBS_EDITABLE_LIST_TYPE_FILES,
-					 file_filter,
-					 last_path.toUtf8().data());
+		OBS_EDITABLE_LIST_TYPE_FILES,
+		file_filter,
+		last_path.toUtf8().data());
 	return props;
 }
 
@@ -219,7 +219,7 @@ static struct obs_source_info quickimageslideshow_source_info = {
 	nullptr,
 	nullptr,
 	nullptr,
-	quickview_source_make_custom};
+	quickview_source_make_custom };
 
 OBS_DECLARE_MODULE()
 OBS_MODULE_USE_DEFAULT_LOCALE("qml-source", "en-US")
@@ -238,6 +238,7 @@ extern struct obs_source_info quickfirstranklistshow_source_info;
 extern struct obs_source_info quicknewrewardshow_source_info;
 extern struct obs_source_info quicknewfollowshow_source_info;
 extern struct obs_source_info quicknewtimershow_source_info;
+extern struct obs_source_info quickenterroomshow_source_info;
 
 bool obs_module_load(void)
 {
@@ -256,5 +257,6 @@ bool obs_module_load(void)
 	obs_register_source(&quicknewrewardshow_source_info);
 	obs_register_source(&quicknewfollowshow_source_info);
 	obs_register_source(&quicknewtimershow_source_info);
+	obs_register_source(&quickenterroomshow_source_info);
 	return true;
 }

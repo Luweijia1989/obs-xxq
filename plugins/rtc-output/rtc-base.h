@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include <obs-module.h>
 #include <QObject>
@@ -12,7 +12,7 @@
 #include "rtc-define.h"
 #include "trtc/TRTCTypeDef.h"
 
-typedef std::function< void(int type, QJsonObject data) > RtcEventCallback;
+typedef std::function<void(int type, QJsonObject data)> RtcEventCallback;
 
 class RTCBase : public QObject {
 	Q_OBJECT
@@ -82,17 +82,19 @@ public:
 	virtual uint64_t getTotalBytes() = 0;
 	virtual void startRecord(const QString &path) = 0;
 	virtual void stopRecord() = 0;
-	virtual void connectOtherRoom(const QString &userId, int roomId, const QString &uid, bool selfDoConnect) = 0;
+	virtual void connectOtherRoom(const QString &userId, int roomId,
+				      const QString &uid,
+				      bool selfDoConnect) = 0;
 	virtual void disconnectOtherRoom() = 0;
 	virtual void muteRemoteAnchor(bool mute) = 0;
+	virtual void setRemoteVolume(int volume) = 0;
 	void setCropInfo(int x, int cropWidth)
 	{
-		m_cropInfo = QRect(x, 0, cropWidth, videoEncodeInfo.outputHeight);
+		m_cropInfo =
+			QRect(x, 0, cropWidth, videoEncodeInfo.outputHeight);
 	}
 
 	const QRect &cropInfo() { return m_cropInfo; }
-
-	
 
 	void setRtcEnterInfo(const char *str)
 	{
@@ -110,13 +112,19 @@ public:
 	{
 		QJsonDocument jd = QJsonDocument::fromJson(str);
 		QJsonArray data = jd.array();
-		for (int i=0; i<data.size(); i++)
-		{
+		for (int i = 0; i < data.size(); i++) {
 			auto one = data.at(i).toObject();
 			QString uid = one["uid"].toString();
 			QString userId = one["userId"].toString();
 
-			m_roomUsers.insert(userId, {false, uid, userId, one["renderView"].toInt(-1), rtcEnterInfo.roomId, userId.toStdString(), QString::number(rtcEnterInfo.roomId).toStdString(), false, false, false, false});
+			m_roomUsers.insert(userId,
+					   {false, uid, userId,
+					    one["renderView"].toInt(-1),
+					    rtcEnterInfo.roomId,
+					    userId.toStdString(),
+					    QString::number(rtcEnterInfo.roomId)
+						    .toStdString(),
+					    false, false, false, false});
 		}
 	}
 
@@ -145,7 +153,8 @@ public:
 		cloudMixInfo.mixVideoBitRate = data["mixVideoBitRate"].toInt();
 		cloudMixInfo.mixFps = data["mixFps"].toInt();
 		cloudMixInfo.mixUsers = data["mixUsers"].toInt();
-		cloudMixInfo.onlyMixAnchorVideo = data["onlyMixAnchorVideo"].toBool(true);
+		cloudMixInfo.onlyMixAnchorVideo =
+			data["onlyMixAnchorVideo"].toBool(true);
 		cloudMixInfo.cdnSupplier = data["cdnSupplier"].toString();
 		cloudMixInfo.streamUrl = data["streamUrl"].toString();
 		cloudMixInfo.streamId = data["streamId"].toString();
@@ -170,10 +179,7 @@ public:
 		setAudioOutputMute(obj["mute"].toBool());
 	}
 
-	void setRtcEventCallback(RtcEventCallback cb)
-	{
-		m_rtccb = cb;
-	}
+	void setRtcEventCallback(RtcEventCallback cb) { m_rtccb = cb; }
 
 	void sendEvent(int type, QJsonObject data)
 	{
@@ -193,8 +199,7 @@ public slots:
 		QJsonArray users = data["users"].toArray();
 		QJsonArray retArray;
 
-		for (int i=0; i<users.count(); i++)
-		{
+		for (int i = 0; i < users.count(); i++) {
 			QString userid = users.at(i).toString();
 			if (userid.isEmpty())
 				retArray.append(rtcEnterInfo.uid);
@@ -242,9 +247,11 @@ public:
 	virtual uint64_t getTotalBytes();
 	virtual void startRecord(const QString &path);
 	virtual void stopRecord();
-	virtual void connectOtherRoom(const QString &userId, int roomId, const QString &uid, bool selfDoConnect);
+	virtual void connectOtherRoom(const QString &userId, int roomId,
+				      const QString &uid, bool selfDoConnect);
 	virtual void disconnectOtherRoom();
 	virtual void muteRemoteAnchor(bool mute);
+	virtual void setRemoteVolume(int volume);
 
 private:
 	void internalEnterRoom();
