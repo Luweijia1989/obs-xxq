@@ -103,7 +103,7 @@ private:
     int initUSB();
     void clearUSB();
     bool isAndroidDevice(uint16_t vid, uint16_t pid);
-    void checkAndSend();
+    bool handleMediaData();
 
 signals:
     void installProgress(int step, int value);

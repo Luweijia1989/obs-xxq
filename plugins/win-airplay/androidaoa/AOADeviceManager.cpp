@@ -374,36 +374,49 @@ static void WINAPI a2s_usbrx_cb(struct libusb_transfer *transfer) {
     tickleUsbXferThread(t);
 }
 
-void AOADeviceManager::checkAndSend()
+bool AOADeviceManager::handleMediaData()
 {
-	if (m_mediaDataBuffer.size > 0) {
-		static bool send_h = false;
-		if (!send_h) {
+	size_t headerSize = 4 + 8 + 1;
+
+	if (m_mediaDataBuffer.size < headerSize)
+		return false;
+
+	size_t pktSize = 0;
+	circlebuf_peek_front(&m_mediaDataBuffer, &pktSize, 4);
+
+	size_t totalSize = pktSize + headerSize;
+	if (m_mediaDataBuffer.size < totalSize)
+		return false;
+
+	circlebuf_pop_front(&m_mediaDataBuffer, m_cacheBuffer, headerSize);
+	int type = m_cacheBuffer[4];
+	int64_t pts = 0;
+	memcpy(&pts, m_cacheBuffer+5, 8);
+	circlebuf_pop_front(&m_mediaDataBuffer, m_cacheBuffer, pktSize);
+
+	if (type == 1) {//video
+		bool is_pps = pts == ((int64_t)UINT64_C(0x8000000000000000));
+		if (is_pps) {
 			struct av_packet_info pack_info = {0};
 			pack_info.size = sizeof(struct media_info);
 			pack_info.type = FFM_MEDIA_INFO;
+			pack_info.pts = 0;
 
 			struct media_info info;
-			info.pps_len = m_mediaDataBuffer.size;
-			circlebuf_pop_front(&m_mediaDataBuffer, info.pps, info.pps_len);
-			//memcpy(info.pps, buffer, len);
+			info.pps_len = pktSize;
+			memcpy(info.pps, m_cacheBuffer, pktSize);
 
 			ipc_client_write_2(client, &pack_info, sizeof(struct av_packet_info), &info, sizeof(struct media_info), INFINITE);
-			qDebug() << "dddddddddddddd  " << pack_info.size;
-			send_h = true;
 		} else {
 			struct av_packet_info pack_info = {0};
-			pack_info.size = m_mediaDataBuffer.size;
-			if (pack_info.size == 0)
-				qDebug() << "CCCCCCCCCCCCCC  " << pack_info.size;
-			else
-				qDebug() << "FFFFFFFFFFFFFF  " << pack_info.size;
+			pack_info.size = pktSize;
 			pack_info.type = FFM_PACKET_VIDEO;
-			pack_info.pts = 0;
-			circlebuf_pop_front(&m_mediaDataBuffer, m_cacheBuffer, m_mediaDataBuffer.size);
+			pack_info.pts = pts;
 			ipc_client_write_2(client, &pack_info, sizeof(struct av_packet_info), m_cacheBuffer, pack_info.size, INFINITE);
 		}
+	} else {
 	}
+	return true;
 }
 
 void *AOADeviceManager::a2s_usbRxThread( void *d ) {
@@ -444,7 +457,14 @@ void *AOADeviceManager::a2s_usbRxThread( void *d ) {
 	    //device->h264.write((const char *)device->buffer, device->m_usbRxThread.xfr->actual_length);
 	    if (device->m_usbRxThread.xfr->actual_length > 0) {
 		circlebuf_push_back(&device->m_mediaDataBuffer, device->buffer, device->m_usbRxThread.xfr->actual_length);
-		device->checkAndSend();
+
+		while (true) {
+			bool b = device->handleMediaData();
+			if (b)
+				continue;
+			else
+				break;
+		}
 	    }
 
             break;
@@ -459,6 +479,7 @@ void *AOADeviceManager::a2s_usbRxThread( void *d ) {
     }
 
     device->m_usbRxThread.stopped = 1;
+    circlebuf_free(&device->m_mediaDataBuffer);
 
     QMetaObject::invokeMethod(device, "disconnectDevice", Qt::QueuedConnection);
 
