@@ -723,18 +723,20 @@ void ScreenMirrorServer::doRenderer(gs_effect_t *effect)
 				m_videoInfos.erase(framev.video_info_index);
 				m_lastVideoInfoIndex = framev.video_info_index;
 			}
-			
-			m_encodedPacket.data = framev.data;
-			m_encodedPacket.size = framev.data_len;
-			int ret = m_decoder->Send(&m_encodedPacket);
-			while (ret >= 0) {
-				ret = m_decoder->Recv(m_decodedFrame);
-				if (ret >= 0) {
-					m_renderer->RenderFrame(m_decodedFrame);
-					m_width = m_decodedFrame->width;
-					m_height = m_decodedFrame->height;
-					if (!m_renderTexture) {
-						m_renderTexture = gs_texture_open_shared((uint32_t)m_renderer->GetTextureSharedHandle());
+
+			if (m_decoder) {
+				m_encodedPacket.data = framev.data;
+				m_encodedPacket.size = framev.data_len;
+				int ret = m_decoder->Send(&m_encodedPacket);
+				while (ret >= 0) {
+					ret = m_decoder->Recv(m_decodedFrame);
+					if (ret >= 0) {
+						m_renderer->RenderFrame(m_decodedFrame);
+						m_width = m_decodedFrame->width;
+						m_height = m_decodedFrame->height;
+						if (!m_renderTexture) {
+							m_renderTexture = gs_texture_open_shared((uint32_t)m_renderer->GetTextureSharedHandle());
+						}
 					}
 				}
 			}
