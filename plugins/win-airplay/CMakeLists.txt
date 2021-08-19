@@ -5,7 +5,6 @@ set(CMAKE_INCLUDE_CURRENT_DIR TRUE)
 find_package(FFmpeg REQUIRED
 	COMPONENTS avcodec avfilter avdevice avutil swscale avformat swresample)
 include_directories(${FFMPEG_INCLUDE_DIRS}
-		${PROJECT_SOURCE_DIR}/portaudio/include
 		${PROJECT_SOURCE_DIR}/video-renderer)
 
 set(win-airplay_SOURCES
@@ -56,8 +55,6 @@ target_link_libraries(win-airplay
 	D3D11
 	D3DCompiler
 	D3d9
-	debug ${PROJECT_SOURCE_DIR}/portaudio/lib/debug/portaudio_static_x86.lib
-	optimized ${PROJECT_SOURCE_DIR}/portaudio/lib/release/portaudio_static_x86.lib
 	${FFMPEG_LIBRARIES})
 
 install_obs_plugin(win-airplay) 

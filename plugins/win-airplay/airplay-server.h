@@ -9,14 +9,11 @@
 #include <limits>
 #include "Airplay2Def.h"
 #include <util/circlebuf.h>
-#include "VideoDecoder.h"
 #include "common-define.h"
 #include "ipc.h"
 #include <util/threading.h>
 #include <util/platform.h>
 #include <graphics/image-file.h>
-#include "media-io/audio-resampler.h"
-#include <portaudio.h>
 
 #include "dxva2_decoder.h"
 #include "dxva2_renderer.h"
@@ -70,9 +67,6 @@ public:
 	static void WinAirplayVideoTick(void *data, float seconds);
 	static void *CreateWinAirplay(obs_data_t *settings, obs_source_t *source);
 	static void *audio_tick_thread(void *data);
-	static int audiocb(const void *input, void *output, unsigned long frameCount,
-			    const PaStreamCallbackTimeInfo *timeInfo,
-			    PaStreamCallbackFlags statusFlags, void *userData);
 	int m_width = 0;
 	int m_height = 0;
 	obs_source_t *m_source = nullptr;
@@ -84,10 +78,6 @@ public:
 private:
 	void dumpResourceImgs();
 	void resetState();
-	bool initAudioRenderer();
-	void destroyAudioRenderer();
-	void resetResampler(enum speaker_layout speakers,
-			    enum audio_format format, uint32_t samples_per_sec);
 	bool initPipe();
 	void parseNalus(uint8_t *data, size_t size, uint8_t **out,
 			size_t *out_len);
@@ -105,13 +95,9 @@ private:
 private:
 	HANDLE m_handler;
 
-	PaStreamParameters open_param_;
-	PaStream *pa_stream_ = nullptr;
-	audio_resampler_t *resampler = nullptr;
-	uint32_t sample_rate;
-	uint32_t channels;
-	struct resample_info to;
-	struct resample_info from;
+	std::thread m_audioLoopThread;
+	uint32_t m_audioSampleRate;
+	bool m_stop = false;
 
 	std::list<VideoFrame > m_videoFrames;
 	circlebuf m_audioFrames;
