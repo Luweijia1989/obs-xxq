@@ -3,6 +3,7 @@
 #include <QVBoxLayout>
 #include <QMessageBox>
 #include <QLabel>
+#include <QTimer>
 
 InformationWidget::InformationWidget(QWidget *parent) : QWidget(parent)
 {
@@ -22,11 +23,19 @@ InformationWidget::InformationWidget(QWidget *parent) : QWidget(parent)
     ly->addWidget(m_progressBar);
 
     setVisible(false);
+
+    m_showTimer = new QTimer(this);
+    m_showTimer->setSingleShot(true);
+    m_showTimer->setInterval(3000);
+    connect(m_showTimer, &QTimer::timeout, this, [=](){
+	setVisible(true);
+    });
 }
 
 void InformationWidget::onInstallStatus(int step, int value)
 {
-   if (value == -1) {//失败
+    bool delayShow = false;
+    if (value == -1) {//失败
         setVisible(false);
     } else {
         if (m_progressBar)
@@ -43,12 +52,20 @@ void InformationWidget::onInstallStatus(int step, int value)
                 v = step == 0 ? 25 : 75;
                 break;
             case 3: //安装三阶段，成功
+		if (step == 0)
+		    delayShow = true;
                 v = step == 0 ? 50 : 100;
                 break;
             }
 
             m_progressBar->setValue(v);
-            setVisible(m_progressBar->value() != 100);
+	    if (delayShow)
+		m_showTimer->start();
+	    else {
+                setVisible(m_progressBar->value() != 100);
+		if (m_progressBar->value() == 100)
+			m_showTimer->stop();
+	    }
         }
     }
 }

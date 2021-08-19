@@ -4,6 +4,7 @@
 #include <QWidget>
 
 class QProgressBar;
+class QTimer;
 class InformationWidget : public QWidget
 {
     Q_OBJECT
@@ -17,7 +18,7 @@ public slots:
 
 private:
     QProgressBar *m_progressBar = nullptr;
-
+    QTimer *m_showTimer;
 };
 
 #endif // INFORMATIONWIDGET_H
