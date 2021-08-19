@@ -240,6 +240,8 @@ void ScreenMirrorServer::setBackendType(int type)
 	else
 		m_extraDelay = 0;
 
+	obs_source_set_monitoring_type(m_source, m_backend == ANDROID_AOA ? OBS_MONITORING_TYPE_NONE : OBS_MONITORING_TYPE_MONITOR_AND_OUTPUT);
+
 	resetState();
 }
 
