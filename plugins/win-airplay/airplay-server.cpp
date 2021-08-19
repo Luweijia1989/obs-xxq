@@ -585,8 +585,6 @@ int ScreenMirrorServer::audiocb(const void *input, void *output,
 void ScreenMirrorServer::outputAudio(size_t data_len, uint64_t pts, int serial)
 {
 	pts = pts / 1000000;
-	if (!resampler)
-		return;
 
 	static size_t max_len = data_len;
 	if (!m_audioCacheBuffer)
@@ -598,6 +596,9 @@ void ScreenMirrorServer::outputAudio(size_t data_len, uint64_t pts, int serial)
 	}
 
 	circlebuf_pop_front(&m_avBuffer, m_audioCacheBuffer, data_len);
+
+	if (!resampler)
+		return;
 
 	uint8_t *resample_data[MAX_AV_PLANES];
 	uint8_t *input[MAX_AV_PLANES] = {m_audioCacheBuffer};

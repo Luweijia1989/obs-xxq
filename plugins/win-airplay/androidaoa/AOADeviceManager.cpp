@@ -398,16 +398,16 @@ bool AOADeviceManager::handleMediaData()
 
 			struct media_info info;
 			info.pps_len = pktSize;
+			info.format = AUDIO_FORMAT_16BIT;
+			info.samples_per_sec = 44100;
+			info.speakers = SPEAKERS_STEREO;
+		
 			memcpy(info.pps, m_cacheBuffer, pktSize);
 
 			ipc_client_write_2(client, &pack_info,
 					   sizeof(struct av_packet_info), &info,
 					   sizeof(struct media_info), INFINITE);
 		} else {
-			/*auto cc = QDateTime::currentMSecsSinceEpoch();
-			static uint64_t ss = 0;
-			qDebug() << "AAAAAAAAAAA  " << cc - ss;
-			ss = cc;*/
 			struct av_packet_info pack_info = {0};
 			pack_info.size = pktSize;
 			pack_info.type = FFM_PACKET_VIDEO;
@@ -418,6 +418,13 @@ bool AOADeviceManager::handleMediaData()
 					   INFINITE);
 		}
 	} else {
+		struct av_packet_info pack_info = {0};
+		pack_info.size = pktSize;
+		pack_info.type = FFM_PACKET_AUDIO;
+		pack_info.pts = 0;
+		ipc_client_write_2(client, &pack_info,
+				   sizeof(struct av_packet_info), m_cacheBuffer,
+				   pack_info.size, INFINITE);
 	}
 	return true;
 }
