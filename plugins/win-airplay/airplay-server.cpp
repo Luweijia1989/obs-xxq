@@ -12,6 +12,9 @@ using namespace std;
 #define ANDROID_USB_EXE "android-usb-mirror.exe"
 #define ANDROID_AOA_EXE "android-aoa-server.exe"
 #define INSTANCE_LOCK L"AIRPLAY-ONE-INSTANCE"
+
+#define AIRPLAY_AUDIO_PKT_SIZE 1920
+
 uint8_t start_code[4] = {00, 00, 00, 01};
 
 HMODULE DllHandle;
@@ -481,17 +484,31 @@ void ScreenMirrorServer::dropAudioFrame(int64_t now_ms)
 
 void *ScreenMirrorServer::audio_tick_thread(void *data)
 {
-	auto func = [=](obs_source_t *source, uint8_t *buffer, size_t buffLen, uint32_t sampleRate){
+	uint8_t *popBuffer = nullptr;
+
+	auto func = [=, &popBuffer](obs_source_t *source, circlebuf *frameBuf, size_t buffLen, uint32_t sampleRate) {
+		static size_t max_len = buffLen;
+		if (!popBuffer)
+			popBuffer = (uint8_t *)malloc(buffLen);
+
+		if (max_len < buffLen) {
+			max_len = buffLen;
+			popBuffer = (uint8_t *)realloc(popBuffer, max_len);
+		}
+
+		circlebuf_pop_front(frameBuf, popBuffer, buffLen);
+
 		obs_source_audio audio;
 		audio.format = AUDIO_FORMAT_16BIT;
 		audio.samples_per_sec = sampleRate;
 		audio.speakers = SPEAKERS_STEREO;
 		audio.frames = buffLen / 4;
 		audio.timestamp = 0;
-		audio.data[0] = buffer;
+		audio.data[0] = popBuffer;
 
 		obs_source_output_audio(source, &audio);
 	};
+
 	ScreenMirrorServer *s = (ScreenMirrorServer *)data;
 	while (!s->m_stop)
 	{
@@ -513,23 +530,20 @@ void *ScreenMirrorServer::audio_tick_thread(void *data)
 				circlebuf_peek_front(&s->m_audioFrames, &pts, sizeof(uint64_t));
 				target_pts = pts + s->m_audioOffset + s->m_extraDelay;
 				if (target_pts <= now_ms) {
-					circlebuf_pop_front(&s->m_audioFrames, &pts, sizeof(uint64_t));
-					uint8_t *buf = (uint8_t *)malloc(480 * 4);
-					circlebuf_pop_front(&s->m_audioFrames, buf, 480 * 4);
-					func(s->m_source, buf, 480 * 4, s->m_audioSampleRate);
-					free(buf);
+					circlebuf_pop_front(&s->m_audioFrames, &pts, sizeof(uint64_t));					
+					func(s->m_source, &s->m_audioFrames, AIRPLAY_AUDIO_PKT_SIZE, s->m_audioSampleRate);
 				} 
 			} else {
 				size_t audioSize = s->m_audioFrames.size;
-				uint8_t *buf = (uint8_t *)malloc(audioSize);
-				circlebuf_pop_front(&s->m_audioFrames, buf, audioSize);
-				func(s->m_source, buf, audioSize, s->m_audioSampleRate);
-				free(buf);
+				func(s->m_source, &s->m_audioFrames, audioSize, s->m_audioSampleRate);
 			}
 		}
 		pthread_mutex_unlock(&s->m_audioDataMutex);
 		os_sleep_ms(1);
 	}
+
+	if (popBuffer)
+		free(popBuffer);
 
 	return NULL;
 }
