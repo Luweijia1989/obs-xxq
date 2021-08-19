@@ -1,4 +1,4 @@
-﻿#include "rtc-base.h"
+#include "rtc-base.h"
 #include "trtc/TRTCCloudCore.h"
 #include "TXLiteAVBase.h"
 #include "rtc-output.h"
@@ -8,13 +8,13 @@
 
 QByteArray hexstrTobyte(QString str)
 {
-	QByteArray byte_arr;
-	bool ok;
-	int len = str.size();
-	for (int i = 0; i < len; i += 2) {
-		byte_arr.append(char(str.mid(i, 2).toUShort(&ok, 16)));
-	}
-	return byte_arr;
+    QByteArray byte_arr;
+    bool ok;
+    int len=str.size();
+    for(int i=0;i<len;i+=2){
+         byte_arr.append(char(str.mid(i,2).toUShort(&ok,16)));
+    }
+    return byte_arr;
 }
 
 TRTC::TRTC()
@@ -26,7 +26,7 @@ TRTC::TRTC()
 
 	m_linkTimeout.setSingleShot(true);
 	m_linkTimeout.setInterval(30000);
-	connect(&m_linkTimeout, &QTimer::timeout, this, [=]() {
+	connect(&m_linkTimeout, &QTimer::timeout, this, [=](){
 		QJsonObject obj;
 		obj["errCode"] = -1;
 		obj["errMsg"] = "timeout";
@@ -35,7 +35,7 @@ TRTC::TRTC()
 	auto str = QUuid::createUuid().toString(QUuid::Id128);
 	m_uuid = hexstrTobyte(str);
 
-	connect(TRTCCloudCore::GetInstance(), &TRTCCloudCore::trtcEvent, this, [=](int type, QJsonObject data) {
+	connect(TRTCCloudCore::GetInstance(), &TRTCCloudCore::trtcEvent, this, [=](int type, QJsonObject data){
 		if (type == RTC_EVENT_ENTERROOM_RESULT)
 		{
 			int result = data["result"].toInt();
@@ -119,11 +119,11 @@ TRTC::TRTC()
 	}, Qt::DirectConnection);
 }
 
-TRTC::~TRTC()
-{
-	delete m_yuvBuffer;
-	TRTCCloudCore::Destory();
-}
+ TRTC::~TRTC()
+ {
+	 delete m_yuvBuffer;
+	 TRTCCloudCore::Destory();
+ }
 
 void TRTC::init()
 {
@@ -132,7 +132,7 @@ void TRTC::init()
 
 void TRTC::enterRoom()
 {
-	m_roomUsers.insert(rtcEnterInfo.userId, { true, rtcEnterInfo.uid, rtcEnterInfo.userId, -1, rtcEnterInfo.roomId, rtcEnterInfo.userId.toStdString(), QString::number(rtcEnterInfo.roomId).toStdString(), true, false, true, false });
+	m_roomUsers.insert(rtcEnterInfo.userId, {true, rtcEnterInfo.uid, rtcEnterInfo.userId, -1, rtcEnterInfo.roomId, rtcEnterInfo.userId.toStdString(), QString::number(rtcEnterInfo.roomId).toStdString(), true, false, true, false});
 
 	m_linkTimeout.start();
 
@@ -152,12 +152,12 @@ void TRTC::enterRoom()
 
 	std::string encodeParam =
 		QString("{\"api\":\"setVideoEncodeParamEx\",\"params\":{\"codecType\":0,\"softwareCodecParams\":{\"profile\":1,\"enableRealTime\":1},\"videoWidth\":%1,\"videoHeight\":%2,\"videoFps\":%3,\"videoBitrate\":%4,\"streamType\":%5,\"rcMethod\":1}}")
-		.arg(videoEncodeInfo.width)
-		.arg(videoEncodeInfo.height)
-		.arg(videoEncodeInfo.fps)
-		.arg(videoEncodeInfo.bitrate)
-		.arg(TRTCVideoStreamTypeBig)
-		.toStdString();
+			.arg(videoEncodeInfo.width)
+			.arg(videoEncodeInfo.height)
+			.arg(videoEncodeInfo.fps)
+			.arg(videoEncodeInfo.bitrate)
+			.arg(TRTCVideoStreamTypeBig)
+			.toStdString();
 	TRTCCloudCore::GetInstance()->getTRTCCloud()->callExperimentalAPI(encodeParam.c_str());
 
 	TRTCCloudCore::GetInstance()->getTRTCCloud()->setVideoEncoderMirror(false);
@@ -294,7 +294,7 @@ void TRTC::setAudioInputDevice(const QString &deviceId)
 		setAudioInputMute(true);
 		return;
 	}
-
+	 
 	setAudioInputMute(false);
 	std::string strdid = deviceId.toStdString();
 	if (last_audio_input_device != deviceId)
@@ -310,7 +310,7 @@ void TRTC::setAudioInputDevice(const QString &deviceId)
 			}
 			else
 			{
-				for (int i = 0; i < count; i++)
+				for (int i=0; i<count; i++)
 				{
 					if (strcmp(strdid.c_str(), devices->getDevicePID(i)) == 0)
 					{
@@ -409,12 +409,12 @@ void TRTC::startRecord(const QString &path)
 void TRTC::stopRecord()
 {
 	TRTCCloudCore::GetInstance()->getTRTCCloud()->stopLocalRecording();
-}
+} 
 
 void TRTC::connectOtherRoom(const QString &userId, int roomId, const QString &uid, bool selfDoConnect)
 {
 	m_rtcCrossRoomId = roomId;
-	m_roomUsers.insert(userId, { false, uid, userId, -1, roomId, userId.toStdString(), QString::number(roomId).toStdString(), true, true, false, false });
+	m_roomUsers.insert(userId, {false, uid, userId, -1, roomId, userId.toStdString(), QString::number(roomId).toStdString(), true, true, false, false});
 
 	if (selfDoConnect)
 		TRTCCloudCore::GetInstance()->connectOtherRoom(userId, roomId);
@@ -475,10 +475,10 @@ void TRTC::onEnterRoom(int result)
 
 		m_bStartCustomCapture = true;
 		if (rtcEnterInfo.videoOnly)
-		{
+		{ 
 			TRTCCloudCore::GetInstance()->getTRTCCloud()->muteLocalVideo(false);
 			TRTCCloudCore::GetInstance()->getTRTCCloud()->muteLocalAudio(false);
-
+			
 			bool isTencentCdn = cloudMixInfo.cdnSupplier == "TENCENT";
 			if (isTencentCdn)
 				TRTCCloudCore::GetInstance()->updateCloudMixStream(cloudMixInfo, m_roomUsers);
@@ -519,7 +519,7 @@ void TRTC::onUserAudioAvailable(QString userId, bool available)
 		RoomUser &user = m_roomUsers[userId];
 		user.audioAvailable = available;
 	}
-
+	 
 	if (!cloudMixInfo.usePresetLayout)
 		TRTCCloudCore::GetInstance()->updateCloudMixStream(cloudMixInfo, m_roomUsers);
 }
@@ -549,7 +549,7 @@ void TRTC::onRemoteUserEnter(QString userId)
 	qDebug() << QString(u8"%1进入房间").arg(userId);
 
 	if (!m_roomUsers.contains(userId))
-		m_roomUsers.insert(userId, { false, "", userId, -1, rtcEnterInfo.roomId, userId.toStdString(), QString::number(rtcEnterInfo.roomId).toStdString(), false, false, false, false });
+		m_roomUsers.insert(userId, {false, "", userId, -1, rtcEnterInfo.roomId, userId.toStdString(), QString::number(rtcEnterInfo.roomId).toStdString(), false, false, false, false});
 
 	for (auto iter = m_roomUsers.begin(); iter != m_roomUsers.end(); iter++)
 	{
@@ -599,17 +599,4 @@ void TRTC::updateRoomUsers()
 	QJsonDocument jd(arr);
 	auto data = jd.toJson(QJsonDocument::Compact);
 	TRTCCloudCore::GetInstance()->getTRTCCloud()->sendCustomCmdMsg(1, (const uint8_t *)data.data(), data.size(), true, true);
-}
-
-void TRTC::setRemoteVolume(int volume)
-{
-	for (auto iter = m_roomUsers.begin(); iter != m_roomUsers.end();
-		iter++) {
-		RoomUser &user = iter.value();
-		if (!user.isSelf) {
-			TRTCCloudCore::GetInstance()->getTRTCCloud()->setRemoteAudioVolume(
-				user.stdUserId.c_str(), volume);
-			break;
-		}
-	}
 }
