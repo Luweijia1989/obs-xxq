@@ -109,7 +109,6 @@ private:
 	bool m_continuousRead = false;
 	unsigned char *buffer = nullptr;
 	DriverHelper *m_driverHelper = nullptr;
-	QTimer *m_usbEventTimer;
 
 	QMutex m_waitMutex;
 	QWaitCondition m_waitCondition;

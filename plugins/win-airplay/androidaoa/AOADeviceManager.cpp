@@ -18,23 +18,6 @@ AOADeviceManager::AOADeviceManager()
 	connect(m_driverHelper, &DriverHelper::installProgress, this,
 		&AOADeviceManager::installProgress);
 
-	m_usbEventTimer = new QTimer(this);
-	m_usbEventTimer->setSingleShot(false);
-	connect(m_usbEventTimer, &QTimer::timeout, this, [=]() {
-		if (!m_ctx)
-			return;
-
-		struct timeval tv = {0, 10000};
-		int r = libusb_handle_events_timeout(m_ctx, &tv);
-		if (r) {
-			if (r == LIBUSB_ERROR_INTERRUPTED) {
-				// ignore
-			} else {
-				qDebug("libusb_handle_events_timeout: %d\n", r);
-			}
-		}
-	});
-
 	m_cacheBuffer = (uint8_t *)malloc(1024 * 1024);
 	circlebuf_init(&m_mediaDataBuffer);
 	ipc_client_create(&client);
@@ -438,10 +421,13 @@ void *AOADeviceManager::a2s_usbRxThread(void *d)
 			(unsigned char *)malloc(device->m_droid.inpacketsize);
 
 	while (device->m_continuousRead) {
+		qDebug() << "ddddddddd ";
 		int len = 0;
 		int r = libusb_bulk_transfer(
 			device->m_droid.usbHandle, device->m_droid.inendp,
 			device->buffer, device->m_droid.inpacketsize, &len, 10);
+		static uint64_t cc = 0;
+		qDebug() << "AAAAAAAAAA " << r << ++cc;
 		if (r == 0) {
 			circlebuf_push_back(&device->m_mediaDataBuffer,
 					    device->buffer, len);
@@ -454,6 +440,7 @@ void *AOADeviceManager::a2s_usbRxThread(void *d)
 				else
 					break;
 			}
+			qDebug() << "ccccccccccccccc " << r << ++cc;
 		} else if (r == LIBUSB_ERROR_TIMEOUT) {
 			
 			continue;
@@ -483,14 +470,11 @@ int AOADeviceManager::startUSBPipe()
 	m_usbReadThread = std::thread(AOADeviceManager::a2s_usbRxThread, this);
 	m_usbReadThread.detach();
 
-	m_usbEventTimer->start(1);
 	return 0;
 }
 
 void AOADeviceManager::stopUSBPipe()
 {
-	m_usbEventTimer->stop();
-
 	m_continuousRead = false;
 	qDebug("waiting for usb rx thread...\n");
 	if (m_usbReadThread.joinable())
