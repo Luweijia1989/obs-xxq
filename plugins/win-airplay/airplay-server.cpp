@@ -509,7 +509,7 @@ void *ScreenMirrorServer::audio_tick_thread(void *data)
 		audio.samples_per_sec = sampleRate;
 		audio.speakers = SPEAKERS_STEREO;
 		audio.frames = buffLen / 4;
-		audio.timestamp = 0;
+		audio.timestamp = os_gettime_ns();
 		audio.data[0] = popBuffer;
 
 		if (sampleRate)
