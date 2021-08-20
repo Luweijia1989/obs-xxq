@@ -43,7 +43,7 @@ int AOADeviceManager::initUSB()
 		qDebug() << "error init usb context";
 		return r;
 	}
-	libusb_set_debug(m_ctx, 3);
+	libusb_set_debug(m_ctx, LIBUSB_LOG_LEVEL_NONE);
 	return 0;
 }
 
@@ -421,13 +421,10 @@ void *AOADeviceManager::a2s_usbRxThread(void *d)
 			(unsigned char *)malloc(device->m_droid.inpacketsize);
 
 	while (device->m_continuousRead) {
-		qDebug() << "ddddddddd ";
 		int len = 0;
 		int r = libusb_bulk_transfer(
 			device->m_droid.usbHandle, device->m_droid.inendp,
 			device->buffer, device->m_droid.inpacketsize, &len, 10);
-		static uint64_t cc = 0;
-		qDebug() << "AAAAAAAAAA " << r << ++cc;
 		if (r == 0) {
 			circlebuf_push_back(&device->m_mediaDataBuffer,
 					    device->buffer, len);
@@ -440,7 +437,6 @@ void *AOADeviceManager::a2s_usbRxThread(void *d)
 				else
 					break;
 			}
-			qDebug() << "ccccccccccccccc " << r << ++cc;
 		} else if (r == LIBUSB_ERROR_TIMEOUT) {
 			
 			continue;
