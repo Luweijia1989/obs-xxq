@@ -14,6 +14,7 @@ using namespace std;
 #define INSTANCE_LOCK L"AIRPLAY-ONE-INSTANCE"
 
 #define AIRPLAY_AUDIO_PKT_SIZE 1920
+#define ANDROID_AOA_AUDIO_PKT_SIZE 3528
 
 uint8_t start_code[4] = {00, 00, 00, 01};
 
@@ -31,7 +32,8 @@ static uint32_t byteutils_get_int_be(unsigned char *b, int offset)
 
 ScreenMirrorServer::ScreenMirrorServer(obs_source_t *source)
 	: m_source(source),
-	  if2((gs_image_file2_t *)bzalloc(sizeof(gs_image_file2_t)))
+	  if2((gs_image_file2_t *)bzalloc(sizeof(gs_image_file2_t))),
+	  m_audioTempBuffer((uint8_t *)bzalloc(ANDROID_AOA_AUDIO_PKT_SIZE + 2 * sizeof(uint64_t)))
 {
 	dumpResourceImgs();
 
@@ -85,6 +87,8 @@ ScreenMirrorServer::~ScreenMirrorServer()
 		delete m_decoder;
 	if (m_renderer)
 		delete m_renderer;
+
+	bfree(m_audioTempBuffer);
 
 #ifdef DUMPFILE
 	fclose(m_auioFile);
@@ -240,6 +244,8 @@ void ScreenMirrorServer::setBackendType(int type)
 	m_backend = (MirrorBackEnd)type;
 	if (m_backend == IOS_AIRPLAY)
 		m_extraDelay = 250;
+	else if (m_backend == ANDROID_AOA)
+		m_extraDelay = 100;
 	else
 		m_extraDelay = 0;
 
@@ -462,21 +468,21 @@ bool ScreenMirrorServer::initPipe()
 
 void ScreenMirrorServer::dropAudioFrame(int64_t now_ms)
 {
-	auto two_pkt_size = 2 * (1920 + sizeof(uint64_t));
+	size_t pktSize = m_audioFrameType == IOS_AIRPLAY ? AIRPLAY_AUDIO_PKT_SIZE : ANDROID_AOA_AUDIO_PKT_SIZE;
+	auto two_pkt_size = 2 * (pktSize + sizeof(uint64_t));
 	while (m_audioFrames.size >= two_pkt_size)
 	{
-		uint8_t temp[1920 + 2 * sizeof(uint64_t)] = { 0 };
-		circlebuf_peek_front(&m_audioFrames, temp, 1920 + 2 * sizeof(uint64_t));
+		circlebuf_peek_front(&m_audioFrames, m_audioTempBuffer, pktSize + 2 * sizeof(uint64_t));
 		uint64_t p1 = 0;
 		uint64_t p2 = 0;
-		memcpy(&p1, temp, 4);
-		memcpy(&p2, temp + 1920 + sizeof(uint64_t), 4);
+		memcpy(&p1, m_audioTempBuffer, 4);
+		memcpy(&p2, m_audioTempBuffer + pktSize + sizeof(uint64_t), 4);
 
 		auto p1ts = p1 + m_audioOffset + m_extraDelay;
 		auto p2ts = p2 + m_audioOffset + m_extraDelay;
 
 		if (p1ts < now_ms && p2ts < now_ms && now_ms - p2ts > 60) {
-			circlebuf_pop_front(&m_audioFrames, temp, 1920 + sizeof(uint64_t));
+			circlebuf_pop_front(&m_audioFrames, m_audioTempBuffer, pktSize + sizeof(uint64_t));
 		} else
 			break;
 	}
@@ -506,7 +512,8 @@ void *ScreenMirrorServer::audio_tick_thread(void *data)
 		audio.timestamp = 0;
 		audio.data[0] = popBuffer;
 
-		obs_source_output_audio(source, &audio);
+		if (sampleRate)
+			obs_source_output_audio(source, &audio);
 	};
 
 	ScreenMirrorServer *s = (ScreenMirrorServer *)data;
@@ -514,14 +521,18 @@ void *ScreenMirrorServer::audio_tick_thread(void *data)
 	{
 		pthread_mutex_lock(&s->m_audioDataMutex);
 		if (s->m_audioFrames.size > 0) {
-			if (s->m_audioFrameType == IOS_AIRPLAY) {
+			if (s->m_audioFrameType == IOS_AIRPLAY || s->m_audioFrameType == ANDROID_AOA) {
+				bool isAirplay = s->m_audioFrameType == IOS_AIRPLAY;
 				int64_t target_pts = 0;
 				int64_t now_ms = (int64_t)os_gettime_ns() / 1000000;
 
 				if (s->m_audioOffset == LLONG_MAX) {
 					uint64_t pts = 0;
 					circlebuf_peek_front(&s->m_audioFrames, &pts, sizeof(uint64_t));
-					s->m_audioOffset = now_ms - pts - 100; // 音频接收到的就有点慢，延迟减去100ms
+					if (isAirplay)
+						s->m_audioOffset = now_ms - pts - 100; // 音频接收到的就有点慢，延迟减去100ms
+					else
+						s->m_audioOffset = now_ms - pts;
 				}
 
 				s->dropAudioFrame(now_ms);
@@ -531,7 +542,7 @@ void *ScreenMirrorServer::audio_tick_thread(void *data)
 				target_pts = pts + s->m_audioOffset + s->m_extraDelay;
 				if (target_pts <= now_ms) {
 					circlebuf_pop_front(&s->m_audioFrames, &pts, sizeof(uint64_t));					
-					func(s->m_source, &s->m_audioFrames, AIRPLAY_AUDIO_PKT_SIZE, s->m_audioSampleRate);
+					func(s->m_source, &s->m_audioFrames, isAirplay ? AIRPLAY_AUDIO_PKT_SIZE : ANDROID_AOA_AUDIO_PKT_SIZE, s->m_audioSampleRate);
 				} 
 			} else {
 				size_t audioSize = s->m_audioFrames.size;
@@ -564,7 +575,7 @@ void ScreenMirrorServer::outputAudio(size_t data_len, uint64_t pts, int serial)
 	circlebuf_pop_front(&m_avBuffer, m_audioCacheBuffer, data_len);
 
 	pthread_mutex_lock(&m_audioDataMutex);
-	if (m_audioFrameType == IOS_AIRPLAY)
+	if (m_audioFrameType == IOS_AIRPLAY || m_audioFrameType == ANDROID_AOA)
 		circlebuf_push_back(&m_audioFrames, &pts, sizeof(uint64_t));
 	circlebuf_push_back(&m_audioFrames, m_audioCacheBuffer, data_len);
 	pthread_mutex_unlock(&m_audioDataMutex);

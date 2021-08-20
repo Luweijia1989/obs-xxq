@@ -411,7 +411,7 @@ bool AOADeviceManager::handleMediaData()
 			struct av_packet_info pack_info = {0};
 			pack_info.size = pktSize;
 			pack_info.type = FFM_PACKET_VIDEO;
-			pack_info.pts = 0;
+			pack_info.pts = pts * 1000;
 			ipc_client_write_2(client, &pack_info,
 					   sizeof(struct av_packet_info),
 					   m_cacheBuffer, pack_info.size,
@@ -421,7 +421,7 @@ bool AOADeviceManager::handleMediaData()
 		struct av_packet_info pack_info = {0};
 		pack_info.size = pktSize;
 		pack_info.type = FFM_PACKET_AUDIO;
-		pack_info.pts = 0;
+		pack_info.pts = pts * 1000000;
 		ipc_client_write_2(client, &pack_info,
 				   sizeof(struct av_packet_info), m_cacheBuffer,
 				   pack_info.size, INFINITE);
@@ -441,7 +441,7 @@ void *AOADeviceManager::a2s_usbRxThread(void *d)
 		int len = 0;
 		int r = libusb_bulk_transfer(
 			device->m_droid.usbHandle, device->m_droid.inendp,
-			device->buffer, device->m_droid.inpacketsize, &len, 100);
+			device->buffer, device->m_droid.inpacketsize, &len, 10);
 		if (r == 0) {
 			circlebuf_push_back(&device->m_mediaDataBuffer,
 					    device->buffer, len);

@@ -96,12 +96,13 @@ private:
 	HANDLE m_handler;
 
 	std::thread m_audioLoopThread;
-	uint32_t m_audioSampleRate;
+	uint32_t m_audioSampleRate = 0;
 	bool m_stop = false;
 
 	std::list<VideoFrame > m_videoFrames;
 	circlebuf m_audioFrames;
 	uint8_t *m_audioCacheBuffer = nullptr;
+	uint8_t *m_audioTempBuffer = nullptr;
 	pthread_mutex_t m_videoDataMutex;
 	pthread_mutex_t m_audioDataMutex;
 	pthread_mutex_t m_statusMutex;
