@@ -394,7 +394,7 @@ bool AOADeviceManager::handleMediaData()
 			struct av_packet_info pack_info = {0};
 			pack_info.size = pktSize;
 			pack_info.type = FFM_PACKET_VIDEO;
-			pack_info.pts = pts * 1000;
+			pack_info.pts = 0;
 			ipc_client_write_2(client, &pack_info,
 					   sizeof(struct av_packet_info),
 					   m_cacheBuffer, pack_info.size,
@@ -404,7 +404,7 @@ bool AOADeviceManager::handleMediaData()
 		struct av_packet_info pack_info = {0};
 		pack_info.size = pktSize;
 		pack_info.type = FFM_PACKET_AUDIO;
-		pack_info.pts = pts * 1000000;
+		pack_info.pts = 0;
 		ipc_client_write_2(client, &pack_info,
 				   sizeof(struct av_packet_info), m_cacheBuffer,
 				   pack_info.size, INFINITE);
