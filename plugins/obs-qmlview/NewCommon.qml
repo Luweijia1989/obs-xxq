@@ -640,15 +640,8 @@ Item {
 					}
 					else
 					{
-						if(newProperties.firstname!="")
-						{
-							squareavatarImage.source = avartarPath(firstRankListProperties.avatarpath)
-							text2.text = descText(newProperties.firstname,newProperties.uitype)
-						}
-						else
-						{
-							container.visible = false
-						}
+						squareavatarImage.source = avartarPath(newProperties.avatarpath)
+						text2.text = descText(newProperties.firstname,newProperties.uitype)
 						index = 1
 					}
         }
