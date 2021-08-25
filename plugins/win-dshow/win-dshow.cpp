@@ -438,7 +438,7 @@ static bool VideoDataSizeValid(int w, int h, size_t size, VideoFormat format)
 		break;
 	}
 
-	return expectSize != 0 && size >= expectSize;
+	return expectSize != 0 && size == expectSize;
 }
 
 void DShowInput::OnVideoData(const VideoConfig &config, unsigned char *data,
