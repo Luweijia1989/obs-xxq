@@ -34,12 +34,12 @@ void imgui_init_dx11(ID3D11Device *device, HWND hwnd, ID3D11DeviceContext *conte
 	is_initialised = true;
 }
 
-void imgui_paint_dx11()
+bool imgui_paint_dx11()
 {
 	if (capture_active() && is_initialised) {
 		Json::Value root;
 		if (!checkDanmu(root))
-			return;
+			return false;
 
 		ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
 		// Start the Dear ImGui frame
@@ -48,8 +48,10 @@ void imgui_paint_dx11()
 
 		render_danmu(root);
 
-		ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
+		//ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
+		return true;
 	}
+	return false;
 }
 
 void imgui_finish_dx11()

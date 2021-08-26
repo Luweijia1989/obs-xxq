@@ -149,24 +149,31 @@ Item {
 
     function descText(firstName,uiType)
     {
-        if(firstName === "")
-        {
-			if(uiType === 1)
-				return "打赏主播立刻上电视～";
-			else if(uiType === 2)
-				return "关注主播立刻上电视～";
+		if(uiType === 5)
+		{
+			return "加入直播间";
+		}
+		else
+		{
+			if(firstName === "")
+			{
+				if(uiType === 1)
+					return "打赏主播立刻上电视～";
+				else if(uiType === 2)
+					return "关注主播立刻上电视～";
+				else
+					return "还没有人上榜";
+			}
 			else
-				return "还没有人上榜";
-        }
-        else
-        {
-			if(uiType === 1)
-				return "刚刚打赏了主播";
-			else if(uiType === 2)
-				return "刚刚关注了主播";
-			else 
-				return firstName;
-        }
+			{
+				if(uiType === 1)
+					return "刚刚打赏了主播";
+				else if(uiType === 2)
+					return "刚刚关注了主播";
+				else 
+					return firstName;
+			}
+		}
     }
 
     function avartarPath(namePath)
@@ -326,7 +333,7 @@ Item {
     {
         if(newProperties.themetype === 1)
         {
-			if(uiType!== 3)
+			if(uiType!== 3&&uiType!== 5)
 			{
 				if(empty)
 					return 45;
@@ -338,7 +345,7 @@ Item {
         }
         else if(newProperties.themetype === 2)
         {
-			if(uiType!== 3)
+			if(uiType!== 3&&uiType!== 5)
 			{
 				if(empty)
 					return 45;
@@ -350,7 +357,7 @@ Item {
         }
         else if(newProperties.themetype === 3)
         {
-			if(uiType!== 3)
+			if(uiType!== 3&&uiType!== 5)
 			{
 				if(empty)
 					return 82;
@@ -362,7 +369,7 @@ Item {
         }
         else if(newProperties.themetype === 4)
         {
-			if(uiType!== 3)
+			if(uiType!== 3&&uiType!== 5)
 			{
 				if(empty)
 					return 49;
@@ -374,7 +381,7 @@ Item {
         }
         else
         {
-			if(uiType!== 3)
+			if(uiType!== 3&&uiType!== 5)
 			{
 				if(empty)
 					return 47;
@@ -431,6 +438,7 @@ Item {
             return 32;
 	}
     id: container
+	visible:newProperties.uitype===5?false:true
     width: backGroundWidth(newProperties.themetype)
     height: backGroundHeight(newProperties.themetype)
     focus: true
@@ -531,7 +539,7 @@ Item {
                 font.bold: newProperties.themebold
                 font.italic: newProperties.themeitalic
                 color: newProperties.themefontcolor
-                visible: newProperties.uitype === 3? true :(newProperties.firstname === ""? false: true);
+                visible: newProperties.uitype === 5? true:(newProperties.uitype === 3? true :(newProperties.firstname === ""? false: true));
             }
             Text {
                 id: text2
@@ -553,11 +561,13 @@ Item {
     property var index: 1
     Timer {
         id:previewtimer
-        interval: 18000
+        interval: 18000;
         triggeredOnStart: true;
         repeat: false
         onTriggered: {
                     index = 1
+					if(newProperties.uitype === 5&&!newProperties.canstay)
+						container.visible = false
        }
     }
     Connections {
@@ -580,38 +590,82 @@ Item {
 				}
                else if(index === 4)
                {
-                    squareavatarImage.source = avartarPath(newProperties.avatarpath)
-					if(newProperties.uitype !== 3)
-					{
-						text1.visible = newProperties.firstname === ""? false: true
-	                    text1.text = newProperties.firstname
-						text2.text = descText(newProperties.firstname,newProperties.uitype)
-						text2.anchors.bottomMargin = bottomTextPosY(newProperties.firstname === "",newProperties.uitype)
+				   if(newProperties.uitype !== 5)
+				   {
+						squareavatarImage.source = avartarPath(newProperties.avatarpath)
+						if(newProperties.uitype !== 3)
+						{
+							text1.visible = newProperties.firstname === ""? false: true
+							text1.text = newProperties.firstname
+							text2.text = descText(newProperties.firstname,newProperties.uitype)
+							text2.anchors.bottomMargin = bottomTextPosY(newProperties.firstname === "",newProperties.uitype)
+						}
+						else
+						{
+							text2.text = descText(newProperties.firstname,newProperties.uitype)
+						}
 					}
 					else
 					{
-						text2.text = descText(newProperties.firstname,newProperties.uitype)
+						if(newProperties.firstname!="")
+						{
+							squareavatarImage.source = avartarPath(newProperties.avatarpath)
+							text1.text = newProperties.firstname
+						}
+						else
+						{
+							container.visible = false
+						}
+						text1.visible = true
 					}
-                    index = 1
+					 index = 1
                }
         }
         onUpdate:{
 					if(newProperties.uitype !== 3)
 					{
 						squareavatarImage.source = avartarPath(newProperties.avatarpath)
-						text1.text = newProperties.firstname
-						text1.visible = newProperties.firstname === ""? false: true
+						if(newProperties.uitype !== 5)
+						{
+							text1.text = newProperties.firstname
+							text1.visible = newProperties.firstname === ""? false: true
+						}
+						else
+						{
+							text1.visible = true
+						}
 						text2.text = descText(newProperties.firstname,newProperties.uitype)
 						text2.anchors.bottomMargin = bottomTextPosY(newProperties.firstname === "",newProperties.uitype)
 						index = 1
 					}
 					else
 					{
-						squareavatarImage.source = avartarPath(firstRankListProperties.avatarpath)
+						squareavatarImage.source = avartarPath(newProperties.avatarpath)
 						text2.text = descText(newProperties.firstname,newProperties.uitype)
 						index = 1
 					}
         }
+		
+        onShow:{
+					if(newProperties.uitype === 5)
+					{
+						container.visible = true
+					}
+        }
+        onHide:{
+					if(newProperties.uitype === 5)
+					{
+						container.visible = false
+					}
+        }
+		onEnter:{
+					if(newProperties.uitype === 5)
+					{
+						squareavatarImage.source = avartarPath(newProperties.avatarpath)
+						text1.text = newProperties.firstname
+						container.visible = true
+					}
+		}
     }
 }
 

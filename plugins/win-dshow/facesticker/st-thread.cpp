@@ -133,6 +133,8 @@ Clear:
 
 	freeResource();
 
+	delete m_vertexShader;
+	delete m_fragmentShader;
 	delete m_shader;
 	delete m_vao;
 
@@ -561,8 +563,8 @@ void STThread::calcPosition(int &width, int &height, int w, int h)
 
 void STThread::initShader()
 {
-	auto m_vertexShader = new QOpenGLShader(QOpenGLShader::Vertex);
-	auto m_fragmentShader = new QOpenGLShader(QOpenGLShader::Fragment);
+	m_vertexShader = new QOpenGLShader(QOpenGLShader::Vertex);
+	m_fragmentShader = new QOpenGLShader(QOpenGLShader::Fragment);
 	bool b = m_vertexShader->compileSourceCode(R"(
                                                #version 330 core
                                                layout (location = 0) in vec4 vertex; // <vec2 position, vec2 texCoords>

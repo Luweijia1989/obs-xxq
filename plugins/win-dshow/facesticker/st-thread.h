@@ -26,6 +26,7 @@ class QOpenGLVertexArrayObject;
 class QOpenGLFramebufferObject;
 class QOpenGLTexture;
 class QOpenGLBuffer;
+class QOpenGLShader;
 
 extern bool g_st_checkpass;
 
@@ -95,6 +96,8 @@ private:
 	QOffscreenSurface *surface;
 	QOpenGLContext *ctx;
 	QOpenGLShaderProgram *m_shader = nullptr;
+	QOpenGLShader *m_vertexShader = nullptr;
+	QOpenGLShader *m_fragmentShader = nullptr;
 	QOpenGLVertexArrayObject *m_vao = nullptr;
 	QOpenGLFramebufferObject *m_fbo = nullptr;
 	QOpenGLTexture *m_backgroundTexture = nullptr;

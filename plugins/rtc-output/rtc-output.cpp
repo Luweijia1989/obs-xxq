@@ -1,4 +1,4 @@
-#include <util/threading.h>
+﻿#include <util/threading.h>
 #include "rtc-output.h"
 
 static const char *rtc_output_getname(void *unused)
@@ -70,8 +70,8 @@ static void rtc_output_stop(void *data, uint64_t ts)
 	RTCOutput *context = static_cast<RTCOutput *>(data);
 	context->m_rtcBase->exitRoom();
 	context->stop_thread_active = pthread_create(&context->stop_thread,
-						     NULL, stop_thread,
-						     data) == 0;
+		NULL, stop_thread,
+		data) == 0;
 }
 
 static void rtc_output_raw_video(void *data, struct video_data *frame)
@@ -140,6 +140,18 @@ static void rtc_output_custom_command(void *data, obs_data_t *param)
 	else if (strcmp(func, "muteRemoteAnchor") == 0) {
 		auto obj = QJsonDocument::fromJson(obs_data_get_string(param, "param")).object();
 		context->m_rtcBase->muteRemoteAnchor(obj["mute"].toBool());
+	}
+	else if (strcmp(func, "setRemoteVolume") == 0)
+	{
+		//连麦pk音量调节
+		auto obj = QJsonDocument::fromJson(obs_data_get_string(param, "param")).object();
+		context->m_rtcBase->setRemoteVolume(obj["volume"].toInt());
+	}
+	else if (strcmp(func, "setRemoteMute") == 0)
+	{
+		//连麦pk静音调节
+		auto obj = QJsonDocument::fromJson(obs_data_get_string(param, "param")).object();
+		context->m_rtcBase->setRemoteMute(obj["mute"].toBool());
 	}
 }
 
