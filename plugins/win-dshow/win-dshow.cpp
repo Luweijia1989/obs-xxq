@@ -1054,14 +1054,8 @@ static void UpdateDShowInput(void *data, obs_data_t *settings)
 {
 	DShowInput *input = reinterpret_cast<DShowInput *>(data);
 
-	if (obs_data_get_bool(settings, "st_setting")) {
-		auto info = obs_data_get_string(settings, FACE_STICKER_ID);
-		input->updateInfo(info);
-		obs_data_set_bool(settings, "st_setting", false);
-	} else {
-		if (input->active)
-			input->QueueActivate(settings);
-	}
+	if (input->active)
+		input->QueueActivate(settings);
 }
 
 static void GetDShowDefaults(obs_data_t *settings)
@@ -1923,6 +1917,10 @@ static void DShowInputCustomCommnad(void *data, obs_data_t *command)
 		QJsonDocument jd = QJsonDocument::fromJson(beautifyStr.toUtf8());
 		QJsonObject obj = jd.object();
 		input->stThread->setBeautifyEnabled(obj["enabled"].toBool());
+	}
+	else if (type == 2) {
+		auto info = obs_data_get_string(command, FACE_STICKER_ID);
+		input->updateInfo(info);
 	}
 }
 
