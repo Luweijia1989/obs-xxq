@@ -35,6 +35,8 @@ ScreenMirrorServer::ScreenMirrorServer(obs_source_t *source)
 	  if2((gs_image_file2_t *)bzalloc(sizeof(gs_image_file2_t))),
 	  m_audioTempBuffer((uint8_t *)bzalloc(ANDROID_AOA_AUDIO_PKT_SIZE + 2 * sizeof(uint64_t)))
 {
+	initSoftOutputFrame();
+
 	dumpResourceImgs();
 
 	pthread_mutex_init(&m_videoDataMutex, nullptr);
@@ -486,6 +488,74 @@ void ScreenMirrorServer::dropAudioFrame(int64_t now_ms)
 	}
 }
 
+void ScreenMirrorServer::initSoftOutputFrame()
+{
+	memset(m_softOutputFrame.data, 0, sizeof(m_softOutputFrame.data));
+	memset(&m_softOutputFrame, 0, sizeof(&m_softOutputFrame));
+
+	m_softOutputFrame.range = VIDEO_RANGE_PARTIAL;
+	video_format_get_parameters(VIDEO_CS_601, m_softOutputFrame.range,
+				    m_softOutputFrame.color_matrix,
+				    m_softOutputFrame.color_range_min,
+				    m_softOutputFrame.color_range_max);
+}
+
+void ScreenMirrorServer::updateSoftOutputFrame(AVFrame *frame)
+{
+	auto ffmpeg_to_obs_video_format = [=](enum AVPixelFormat format) {
+		switch (format) {
+		case AV_PIX_FMT_YUV444P:
+			return VIDEO_FORMAT_I444;
+		case AV_PIX_FMT_YUV420P:
+		case AV_PIX_FMT_YUVJ420P:
+			return VIDEO_FORMAT_I420;
+		case AV_PIX_FMT_NV12:
+			return VIDEO_FORMAT_NV12;
+		case AV_PIX_FMT_YUYV422:
+			return VIDEO_FORMAT_YUY2;
+		case AV_PIX_FMT_UYVY422:
+			return VIDEO_FORMAT_UYVY;
+		case AV_PIX_FMT_RGBA:
+			return VIDEO_FORMAT_RGBA;
+		case AV_PIX_FMT_BGRA:
+			return VIDEO_FORMAT_BGRA;
+		case AV_PIX_FMT_GRAY8:
+			return VIDEO_FORMAT_Y800;
+		case AV_PIX_FMT_BGR24:
+			return VIDEO_FORMAT_BGR3;
+		case AV_PIX_FMT_YUV422P:
+			return VIDEO_FORMAT_I422;
+		case AV_PIX_FMT_YUVA420P:
+			return VIDEO_FORMAT_I40A;
+		case AV_PIX_FMT_YUVA422P:
+			return VIDEO_FORMAT_I42A;
+		case AV_PIX_FMT_YUVA444P:
+			return VIDEO_FORMAT_YUVA;
+		case AV_PIX_FMT_NONE:
+		default:
+			return VIDEO_FORMAT_NONE;
+		}
+	};
+
+	m_softOutputFrame.timestamp = frame->pts;
+	m_softOutputFrame.width = frame->width;
+	m_softOutputFrame.height = frame->height;
+	m_softOutputFrame.format =
+		ffmpeg_to_obs_video_format((AVPixelFormat)frame->format);
+	m_softOutputFrame.flip = false;
+	m_softOutputFrame.flip_h = false;
+
+	m_softOutputFrame.data[0] = frame->data[0];
+	m_softOutputFrame.data[1] = frame->data[1];
+	m_softOutputFrame.data[2] = frame->data[2];
+
+	m_softOutputFrame.linesize[0] = frame->linesize[0];
+	m_softOutputFrame.linesize[1] = frame->linesize[1];
+	m_softOutputFrame.linesize[2] = frame->linesize[2];
+
+	obs_source_set_videoframe(m_source, &m_softOutputFrame);
+}
+
 void *ScreenMirrorServer::audio_tick_thread(void *data)
 {
 	uint8_t *popBuffer = nullptr;
@@ -736,11 +806,15 @@ void ScreenMirrorServer::doRenderer(gs_effect_t *effect)
 				while (ret >= 0) {
 					ret = m_decoder->Recv(m_decodedFrame);
 					if (ret >= 0) {
-						m_renderer->RenderFrame(m_decodedFrame);
 						m_width = m_decodedFrame->width;
 						m_height = m_decodedFrame->height;
-						if (!m_renderTexture) {
-							m_renderTexture = gs_texture_open_shared((uint32_t)m_renderer->GetTextureSharedHandle());
+						if (m_decoder->IsHWDecode()) {
+							m_renderer->RenderFrame(m_decodedFrame);
+							if (!m_renderTexture) {
+								m_renderTexture = gs_texture_open_shared((uint32_t)m_renderer->GetTextureSharedHandle());
+							}
+						} else {
+							updateSoftOutputFrame(m_decodedFrame);
 						}
 					}
 				}
@@ -753,9 +827,14 @@ void ScreenMirrorServer::doRenderer(gs_effect_t *effect)
 	}
 	pthread_mutex_unlock(&m_videoDataMutex);
 
-	if (m_renderTexture) {
-		gs_effect_set_texture(gs_effect_get_param_by_name(effect, "image"), m_renderTexture);
-		gs_draw_sprite(m_renderTexture, 0, gs_texture_get_width(m_renderTexture), gs_texture_get_height(m_renderTexture));
+	if (m_decoder) {
+		if (m_decoder->IsHWDecode()) {
+			if (m_renderTexture) {
+				gs_effect_set_texture(gs_effect_get_param_by_name(effect, "image"), m_renderTexture);
+				gs_draw_sprite(m_renderTexture, 0, gs_texture_get_width(m_renderTexture), gs_texture_get_height(m_renderTexture));
+			}
+		} else
+			obs_source_draw_videoframe(m_source);
 	}
 }
 

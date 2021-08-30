@@ -91,6 +91,8 @@ private:
 	void initDecoder(uint8_t *data, size_t len);
 	void dropFrame(int64_t now_ms);
 	void dropAudioFrame(int64_t now_ms);
+	void initSoftOutputFrame();
+	void updateSoftOutputFrame(AVFrame *frame);
 
 private:
 	HANDLE m_handler;
@@ -99,7 +101,7 @@ private:
 	uint32_t m_audioSampleRate = 0;
 	bool m_stop = false;
 
-	std::list<VideoFrame > m_videoFrames;
+	std::list<VideoFrame> m_videoFrames;
 	circlebuf m_audioFrames;
 	uint8_t *m_audioCacheBuffer = nullptr;
 	uint8_t *m_audioTempBuffer = nullptr;
@@ -128,4 +130,5 @@ private:
 	AVDecoder *m_decoder = nullptr;
 	AVFrame* m_decodedFrame = av_frame_alloc();
 	AVPacket m_encodedPacket = { 0 };
+	obs_source_frame2 m_softOutputFrame;
 };
