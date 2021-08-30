@@ -382,7 +382,7 @@ bool AOADeviceManager::handleMediaData()
 			struct media_info info;
 			info.pps_len = pktSize;
 			info.format = AUDIO_FORMAT_16BIT;
-			info.samples_per_sec = 44100;
+			info.samples_per_sec = 48000;
 			info.speakers = SPEAKERS_STEREO;
 		
 			memcpy(info.pps, m_cacheBuffer, pktSize);
