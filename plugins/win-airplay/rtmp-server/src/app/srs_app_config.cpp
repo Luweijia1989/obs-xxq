@@ -1345,7 +1345,7 @@ int SrsConfig::parse_options(int argc, char** argv)
         }
     }
     
-    if (show_help) {
+    if (/*show_help*/false) {
         print_help(argv);
         exit(0);
     }
@@ -1357,14 +1357,27 @@ int SrsConfig::parse_options(int argc, char** argv)
     
     // first hello message.
     srs_trace(_srs_version);
-    
-    if (config_file.empty()) {
-        ret = ERROR_SYSTEM_CONFIG_INVALID;
-        srs_error("config file not specified, see help: %s -h, ret=%d", argv[0], ret);
-        return ret;
-    }
 
-    ret = parse_file(config_file.c_str());
+    const char *config_str = R"(
+	listen              1935;
+	max_connections     1000;
+	daemon              off;
+	srs_log_tank        console;
+	vhost __defaultVhost__ {
+	    min_latency     on;
+	    mr {
+		enabled     off;
+	    }
+	    mw_latency      10;
+	    gop_cache       off;
+	    queue_length    10;
+	    tcp_nodelay     on;
+	})";
+    
+    if (config_file.empty())
+	ret = parse_string(config_str);
+    else
+        ret = parse_file(config_file.c_str());
     
     if (test_conf) {
         // the parse_file never check the config,
@@ -1543,6 +1556,17 @@ int SrsConfig::parse_file(const char* filename)
         return ret;
     }
     
+    return parse_buffer(&buffer);
+}
+
+int SrsConfig::parse_string(const char *str)
+{
+    int ret = ERROR_SUCCESS;
+    SrsConfigBuffer buffer;
+
+    if ((ret = buffer.fullfillString(str)) != ERROR_SUCCESS)
+	    return ret;
+
     return parse_buffer(&buffer);
 }
 
@@ -4541,6 +4565,19 @@ namespace _srs_internal
         return ret;
     }
     
+    int SrsConfigBuffer::fullfillString(const char *str)
+    {
+	int ret = ERROR_SUCCESS;
+	int len = strlen(str);
+	// create buffer
+	srs_freepa(start);
+	pos = last = start = new char[len];
+	end = start + len;
+	memcpy(start, str, len);
+
+	return ret;
+    }
+
     bool SrsConfigBuffer::empty()
     {
         return pos >= end;

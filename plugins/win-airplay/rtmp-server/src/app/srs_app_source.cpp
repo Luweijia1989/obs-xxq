@@ -46,6 +46,7 @@ using namespace std;
 #include <srs_app_statistic.hpp>
 #include <srs_core_autofree.hpp>
 #include <srs_rtmp_utility.hpp>
+#include <xxq-mirror.hpp>
 
 #define CONST_MAX_JITTER_MS         250
 #define CONST_MAX_JITTER_MS_NEG         -250
@@ -953,6 +954,8 @@ SrsSource::SrsSource()
 #ifdef SRS_AUTO_HDS
     hds = new SrsHds(this);
 #endif
+
+    mirror = new XXQMirror();
     
     cache_metadata = cache_sh_video = cache_sh_audio = NULL;
     
@@ -1011,6 +1014,8 @@ SrsSource::~SrsSource()
 #ifdef SRS_AUTO_HDS
     srs_freep(hds);
 #endif
+
+    srs_freep(mirror);
 
     srs_freep(_req);
 }
@@ -1768,6 +1773,8 @@ int SrsSource::on_audio_imp(SrsSharedPtrMessage* msg)
         ret = ERROR_SUCCESS;
     }
 #endif
+
+    mirror->on_audio(msg);
     
     // copy to all consumer
     if (!drop_for_reduce) {
@@ -1983,6 +1990,8 @@ int SrsSource::on_video_imp(SrsSharedPtrMessage* msg)
         ret = ERROR_SUCCESS;
     }
 #endif
+
+    mirror->on_video(msg, is_sequence_header);
     
     // copy to all consumer
     if (!drop_for_reduce) {
@@ -2198,6 +2207,11 @@ int SrsSource::on_publish()
     }
 #endif
 
+    if ((ret = mirror->on_publish(_req)) != ERROR_SUCCESS) {
+	srs_error("start xxq mirror failed. ret=%d", ret);
+	return ret;
+    }
+
     // notify the handler.
     srs_assert(handler);
     if ((ret = handler->on_publish(this, _req)) != ERROR_SUCCESS) {
@@ -2235,6 +2249,8 @@ void SrsSource::on_unpublish()
 #ifdef SRS_AUTO_HDS
     hds->on_unpublish();
 #endif
+
+    mirror->on_unpublish();
 
     // only clear the gop cache,
     // donot clear the sequence header, for it maybe not changed,

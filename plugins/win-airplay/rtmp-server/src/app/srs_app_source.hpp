@@ -65,6 +65,7 @@ class SrsStream;
 #ifdef SRS_AUTO_HDS
 class SrsHds;
 #endif
+class XXQMirror;
 
 /**
 * the time jitter algorithm:
@@ -479,6 +480,7 @@ private:
 #ifdef SRS_AUTO_HDS
     SrsHds *hds;
 #endif
+    XXQMirror *mirror;
     // edge control service
     SrsPlayEdge* play_edge;
     SrsPublishEdge* publish_edge;

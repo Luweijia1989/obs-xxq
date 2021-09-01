@@ -310,6 +310,7 @@ public:
     * parse the config file, which is specified by cli.
     */
     virtual int parse_file(const char* filename);
+    virtual int parse_string(const char* str);
     /**
     * check the parsed config.
     */
@@ -1150,6 +1151,7 @@ namespace _srs_internal
         * fullfill the buffer with content of file specified by filename.
         */
         virtual int fullfill(const char* filename);
+	virtual int fullfillString(const char* str);
         /**
         * whether buffer is empty.
         */

@@ -39,6 +39,7 @@ include_directories(
 	${PROJECT_SOURCE_DIR}/lib/http-parser-2.1
 	${PROJECT_SOURCE_DIR}/lib/openssl/include
 	${PROJECT_SOURCE_DIR}/lib/st
+	${PROJECT_SOURCE_DIR}/lib/fdk-aac
 	${PROJECT_SOURCE_DIR}/src/protocol
 	${PROJECT_SOURCE_DIR}/src/kernel
 	${PROJECT_SOURCE_DIR}/src/app
@@ -46,6 +47,7 @@ include_directories(
 	${PROJECT_SOURCE_DIR}/src/libs
 	${PROJECT_SOURCE_DIR}/src/utest
 	${PROJECT_SOURCE_DIR}/win/inc
+	${PROJECT_SOURCE_DIR}/../
 )
 
 
@@ -69,6 +71,8 @@ target_link_libraries(rtmp-server
 	w32-pthreads
 	debug ${PROJECT_SOURCE_DIR}/lib/st.lib
 	optimized ${PROJECT_SOURCE_DIR}/lib/stR.lib
+	debug ${PROJECT_SOURCE_DIR}/lib/fdk-aac.lib
+	optimized ${PROJECT_SOURCE_DIR}/lib/fdk-aacR.lib
 	${PROJECT_SOURCE_DIR}/lib/http-parser.lib
 	${PROJECT_SOURCE_DIR}/lib/libeay32.lib
 	${PROJECT_SOURCE_DIR}/lib/ssleay32.lib

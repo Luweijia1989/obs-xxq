@@ -11,6 +11,7 @@ using namespace std;
 #define AIRPLAY_EXE "airplay-server.exe"
 #define ANDROID_USB_EXE "android-usb-mirror.exe"
 #define ANDROID_AOA_EXE "android-aoa-server.exe"
+#define ANDROID_WIRELESS_EXE "rtmp-server.exe"
 #define INSTANCE_LOCK L"AIRPLAY-ONE-INSTANCE"
 
 #define AIRPLAY_AUDIO_PKT_SIZE 1920
@@ -201,7 +202,8 @@ const char *ScreenMirrorServer::killProc()
 		processName = ANDROID_USB_EXE;
 	} else if (m_backend == ANDROID_AOA) {
 		processName = ANDROID_AOA_EXE;
-	}
+	} else if (m_backend == ANDROID_WIRELESS)
+		processName = ANDROID_WIRELESS_EXE;
 	os_kill_process(processName);
 	return processName;
 }
@@ -244,12 +246,12 @@ void ScreenMirrorServer::updateStatusImage()
 void ScreenMirrorServer::setBackendType(int type)
 {
 	m_backend = (MirrorBackEnd)type;
-	if (m_backend == IOS_AIRPLAY)
+	if (m_backend == IOS_AIRPLAY || m_backend == ANDROID_WIRELESS)
 		m_extraDelay = 250;
 	else
 		m_extraDelay = 0;
 
-	obs_source_set_monitoring_type(m_source, m_backend == ANDROID_AOA ? OBS_MONITORING_TYPE_NONE : OBS_MONITORING_TYPE_MONITOR_AND_OUTPUT);
+	obs_source_set_monitoring_type(m_source, m_backend == ANDROID_AOA || m_backend == ANDROID_WIRELESS ? OBS_MONITORING_TYPE_NONE : OBS_MONITORING_TYPE_MONITOR_AND_OUTPUT);
 
 	resetState();
 }
@@ -690,7 +692,7 @@ static obs_properties_t *GetWinAirplayPropertiesOutput(void *data)
 	if (!data)
 		return nullptr;
 	obs_properties_t *props = obs_properties_create();
-	obs_properties_add_int(props, "type", u8"投屏类型", 0, 3, 1);
+	obs_properties_add_int(props, "type", u8"投屏类型", 0, 4, 1);
 	return props;
 }
 
@@ -790,7 +792,7 @@ void ScreenMirrorServer::doRenderer(gs_effect_t *effect)
 
 		VideoFrame &framev = m_videoFrames.front();
 		target_pts = framev.pts + m_offset + m_extraDelay;
-		if (target_pts <= now_ms || framev.pts == 0) {
+		if (target_pts <= now_ms + 2 || framev.pts == 0) { //+2 为了pts的误差，视频帧时间戳超过可播放时间2ms，也认为当前是可以播放的。
 			if (framev.video_info_index != m_lastVideoInfoIndex) {
 				const VideoInfo &vi = m_videoInfos[framev.video_info_index];
 				initDecoder(vi.data, vi.data_len);
