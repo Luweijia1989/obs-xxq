@@ -1,5 +1,8 @@
 #pragma once
 
+#include <winsock2.h>
+#include <iphlpapi.h>
+#include <ws2tcpip.h>
 #include <obs-module.h>
 #include <obs.hpp>
 #include <list>

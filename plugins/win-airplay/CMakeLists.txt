@@ -7,6 +7,8 @@ find_package(FFmpeg REQUIRED
 include_directories(${FFMPEG_INCLUDE_DIRS}
 		${PROJECT_SOURCE_DIR}/video-renderer)
 
+set(CMAKE_CXX_STANDARD 17)
+
 set(win-airplay_SOURCES
 	airplay-server.cpp
 	ipc.c
@@ -16,6 +18,9 @@ set(win-airplay_SOURCES
 	video-renderer/d3d9_renderer.cc
 	video-renderer/d3d11_render_texture.cc
 	video-renderer/d3d11_renderer.cc
+	qrcode/QrCode.cpp
+	qrcode/QrToPng.cpp
+	qrcode/TinyPngOut.cpp
 	Resource.rc
 )
 			 
@@ -35,6 +40,9 @@ set(win-airplay_HEADERS
 	video-renderer/renderer.h
 	video-renderer/shader_yuv_bt601.h
 	video-renderer/shader_yuv_bt709.h
+	qrcode/QrCode.hpp
+	qrcode/QrToPng.h
+	qrcode/TinyPngOut.hpp
 	resource.h
 )
 

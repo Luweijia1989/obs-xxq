@@ -4,6 +4,7 @@
 #include <cstdio>
 #include <util/dstr.h>
 #include <Shlwapi.h>
+#include "qrcode/QrToPng.h"
 
 using namespace std;
 
@@ -29,6 +30,101 @@ static uint32_t byteutils_get_int(unsigned char *b, int offset)
 static uint32_t byteutils_get_int_be(unsigned char *b, int offset)
 {
 	return ntohl(byteutils_get_int(b, offset));
+}
+
+struct IPv4 {
+	unsigned char b1, b2, b3, b4;
+};
+
+#pragma comment(lib, "IPHLPAPI.lib")
+
+#define WORKING_BUFFER_SIZE 15000
+#define MAX_TRIES 3
+
+#define MALLOC(x) HeapAlloc(GetProcessHeap(), 0, (x))
+#define FREE(x) HeapFree(GetProcessHeap(), 0, (x))
+bool getMyIP(IPv4 &myIP)
+{
+	/* Declare and initialize variables */
+
+	DWORD dwSize = 0;
+	DWORD dwRetVal = 0;
+
+	unsigned int i = 0;
+
+	// Set the flags to pass to GetAdaptersAddresses
+	ULONG flags = GAA_FLAG_INCLUDE_PREFIX;
+
+	// default to unspecified address family (both)
+	ULONG family = AF_INET;
+
+	LPVOID lpMsgBuf = NULL;
+
+	PIP_ADAPTER_ADDRESSES pAddresses = NULL;
+	ULONG outBufLen = 0;
+	ULONG Iterations = 0;
+
+	PIP_ADAPTER_ADDRESSES pCurrAddresses = NULL;
+	PIP_ADAPTER_UNICAST_ADDRESS pUnicast = NULL;
+
+	// Allocate a 15 KB buffer to start with.
+	outBufLen = WORKING_BUFFER_SIZE;
+
+	do {
+
+		pAddresses = (IP_ADAPTER_ADDRESSES *)MALLOC(outBufLen);
+		if (pAddresses == NULL) {
+			blog(LOG_INFO, "Memory allocation failed for IP_ADAPTER_ADDRESSES struct");
+			exit(1);
+		}
+
+		dwRetVal = GetAdaptersAddresses(family, flags, NULL, pAddresses,
+						&outBufLen);
+
+		if (dwRetVal == ERROR_BUFFER_OVERFLOW) {
+			FREE(pAddresses);
+			pAddresses = NULL;
+		} else {
+			break;
+		}
+
+		Iterations++;
+
+	} while ((dwRetVal == ERROR_BUFFER_OVERFLOW) &&
+		 (Iterations < MAX_TRIES));
+
+	if (dwRetVal == NO_ERROR) {
+		// If successful, output some information from the data we received
+		pCurrAddresses = pAddresses;
+		while (pCurrAddresses) {
+			if (wcsstr(pCurrAddresses->FriendlyName, L"VMware") != 0
+			    || wcsstr(pCurrAddresses->FriendlyName, L"Virtual") != 0
+			    || wcsstr(pCurrAddresses->FriendlyName, L"Loopback") != 0) {
+				pCurrAddresses = pCurrAddresses->Next;
+				continue;
+			}
+			pUnicast = pCurrAddresses->FirstUnicastAddress;
+			if (pUnicast != NULL) {
+				for (i = 0; pUnicast != NULL; i++) {
+					if (pUnicast->Address.lpSockaddr->sa_family == AF_INET)  
+					{  
+						sockaddr_in *sa_in = (sockaddr_in *)pUnicast->Address.lpSockaddr;
+						char buff[100];
+						DWORD bufflen = 100;
+						inet_ntop(AF_INET,&(sa_in->sin_addr),buff,bufflen);
+						printf("IPV4 Unicast Address:%s\n");  
+					}  
+					pUnicast = pUnicast->Next;
+				}
+			} 
+
+			pCurrAddresses = pCurrAddresses->Next;
+		}
+	}
+
+	if (pAddresses) {
+		FREE(pAddresses);
+	}
 }
 
 ScreenMirrorServer::ScreenMirrorServer(obs_source_t *source)
@@ -224,6 +320,21 @@ void ScreenMirrorServer::updateStatusImage()
 			path = m_resourceImgs[5].c_str();
 		else if (m_backend == ANDROID_USB_CABLE)
 			path = m_resourceImgs[1].c_str();
+		else if (m_backend == ANDROID_WIRELESS) {
+			IPv4 ip;
+			if (getMyIP(ip)) {
+				string prefix;
+				prefix.resize(MAX_PATH);
+				DWORD len = GetTempPathA(MAX_PATH,
+							 (char *)prefix.data());
+				prefix.resize(len);
+				auto exampleQrPng1 = QrToPng(
+					prefix + "xxq-stream-qrcode.png", 600,
+					3, "rtmp://", true,
+					qrcodegen::QrCode::Ecc::MEDIUM);
+				exampleQrPng1.writeToPNG();
+			}
+		}
 		break;
 	case OBS_SOURCE_MIRROR_DEVICE_LOST: // 连接失败，检测超时
 		if (m_backend == IOS_USB_CABLE)
@@ -254,6 +365,7 @@ void ScreenMirrorServer::setBackendType(int type)
 	obs_source_set_monitoring_type(m_source, m_backend == ANDROID_AOA || m_backend == ANDROID_WIRELESS ? OBS_MONITORING_TYPE_NONE : OBS_MONITORING_TYPE_MONITOR_AND_OUTPUT);
 
 	resetState();
+	handleMirrorStatus(MIRROR_STOP);
 }
 
 int ScreenMirrorServer::backendType()
