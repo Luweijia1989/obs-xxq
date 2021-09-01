@@ -43,6 +43,7 @@ add_subdirectory(${PROJECT_SOURCE_DIR}/iosusbmirror)
 add_subdirectory(${PROJECT_SOURCE_DIR}/drivertool)
 add_subdirectory(${PROJECT_SOURCE_DIR}/androidusbmirror)
 add_subdirectory(${PROJECT_SOURCE_DIR}/androidaoa)
+add_subdirectory(${PROJECT_SOURCE_DIR}/rtmp-server)
 
 add_library(win-airplay MODULE
 	${win-airplay_SOURCES}
