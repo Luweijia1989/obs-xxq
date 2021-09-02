@@ -1,8 +1,6 @@
 #pragma once
 
-#include <winsock2.h>
-#include <iphlpapi.h>
-#include <ws2tcpip.h>
+#include "tool.h"
 #include <obs-module.h>
 #include <obs.hpp>
 #include <list>
@@ -89,7 +87,7 @@ private:
 	bool handleMediaData();
 	const char *killProc();
 	void updateStatusImage();
-	void loadImage(const char *path);
+	void loadImage(std::string path);
 	void saveStatusSettings();
 
 	void initDecoder(uint8_t *data, size_t len);

@@ -2,6 +2,8 @@ project(win-airplay)
 
 set(CMAKE_INCLUDE_CURRENT_DIR TRUE)
 
+find_package(Qt5Gui REQUIRED)
+find_package(Qt5Network REQUIRED)
 find_package(FFmpeg REQUIRED
 	COMPONENTS avcodec avfilter avdevice avutil swscale avformat swresample)
 include_directories(${FFMPEG_INCLUDE_DIRS}
@@ -21,6 +23,7 @@ set(win-airplay_SOURCES
 	qrcode/QrCode.cpp
 	qrcode/QrToPng.cpp
 	qrcode/TinyPngOut.cpp
+	tool.cpp
 	Resource.rc
 )
 			 
@@ -44,6 +47,7 @@ set(win-airplay_HEADERS
 	qrcode/QrToPng.h
 	qrcode/TinyPngOut.hpp
 	resource.h
+	tool.h
 )
 
 add_subdirectory(${PROJECT_SOURCE_DIR}/airplay2)
@@ -64,6 +68,8 @@ target_link_libraries(win-airplay
 	D3D11
 	D3DCompiler
 	D3d9
+	Qt5::Gui
+	Qt5::Network
 	${FFMPEG_LIBRARIES})
 
 install_obs_plugin(win-airplay) 
