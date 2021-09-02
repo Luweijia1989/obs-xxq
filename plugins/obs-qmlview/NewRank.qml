@@ -103,8 +103,8 @@ Item {
                     RowLayout {
                         anchors.fill: parent
                         Item {
-                            Layout.alignment: Qt.AlignVCenter
-                            Layout.preferredWidth: 14
+                            Layout.alignment: Qt.AlignVCenter|Qt.AlignLeft
+                            Layout.preferredWidth: 26
                             Layout.preferredHeight: 36
 							Layout.leftMargin : 0
                             Text {
@@ -120,7 +120,8 @@ Item {
                         }
 						
 						CircularRectangle{
-							Layout.leftMargin : 12
+                            Layout.alignment: Qt.AlignVCenter|Qt.AlignLeft
+							Layout.leftMargin : 0
 							id: avatar
 							width: 40
 							height: 40
@@ -130,7 +131,7 @@ Item {
 
 						
                         Text {
-                            Layout.alignment: Qt.AlignVCenter
+                            Layout.alignment: Qt.AlignVCenter|Qt.AlignLeft
                             Layout.fillWidth: true
 							Layout.leftMargin : 8
                             text: nickname
