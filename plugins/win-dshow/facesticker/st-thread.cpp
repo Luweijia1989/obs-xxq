@@ -494,6 +494,8 @@ void STThread::deletePBO()
 void STThread::updateSticker(const QString &stickerId, bool isAdd)
 {
 	QMutexLocker locker(&m_stickerSetterMutex);
+	if (!m_stFunc)
+		return;
 	if (isAdd) {
 		if (m_stickers.contains(stickerId))
 			return;
