@@ -134,6 +134,7 @@ Item {
                             Layout.alignment: Qt.AlignVCenter|Qt.AlignLeft
                             Layout.fillWidth: true
 							Layout.leftMargin : 8
+							Layout.preferredWidth:120
                             text: nickname
                             elide: Text.ElideRight
                             font.family: fontName
