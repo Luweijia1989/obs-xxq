@@ -235,6 +235,7 @@ const static D3D_FEATURE_LEVEL featureLevels[] = {
 };
 
 ////////////////gs_font_manager////////////////////
+#if 0
 gs_font_manager::gs_font_manager()
 	: hdc(CreateCompatibleDC(nullptr)), graphics(hdc)
 {
@@ -719,6 +720,8 @@ void gs_font_manager::addFontTex(const char *actext, uint32_t x, uint32_t y,
 		}*/
 	}
 }
+#endif
+
 /* ------------------------------------------------------------------------- */
 
 #define VERT_IN_OUT \
@@ -1214,10 +1217,12 @@ gs_device::gs_device(uint32_t adapterIdx)
 
 gs_device::~gs_device()
 {
+#if NO_FONT_DEVICE
 	if (fontMgr) {
 		delete fontMgr;
 		fontMgr = nullptr;
 	}
+#endif
 	context->ClearState();
 }
 
@@ -2125,6 +2130,7 @@ void device_begin_scene(gs_device_t *device)
 	clear_textures(device);
 }
 
+#if NO_FONT_DEVICE
 void device_font_set(gs_device_t *device, const char *face, int size)
 {
 	if (!device->fontMgr) {
@@ -2153,6 +2159,7 @@ void device_draw_text(gs_device_t *device, const char *actext, uint32_t x,
 		return;
 	device->fontMgr->addFontTex(actext, x, y, cx, cy, scale);
 }
+#endif
 
 void device_draw(gs_device_t *device, enum gs_draw_mode draw_mode,
 		 uint32_t start_vert, uint32_t num_verts)
@@ -3173,4 +3180,23 @@ device_stagesurface_create_nv12(gs_device_t *device, uint32_t width,
 	}
 
 	return surf;
+}
+
+extern "C" EXPORT void
+device_register_loss_callbacks(gs_device_t *device,
+			       const gs_device_loss *callbacks)
+{
+	device->loss_callbacks.emplace_back(*callbacks);
+}
+
+extern "C" EXPORT void device_unregister_loss_callbacks(gs_device_t *device,
+							void *data)
+{
+	for (auto iter = device->loss_callbacks.begin();
+	     iter != device->loss_callbacks.end(); ++iter) {
+		if (iter->data == data) {
+			device->loss_callbacks.erase(iter);
+			break;
+		}
+	}
 }

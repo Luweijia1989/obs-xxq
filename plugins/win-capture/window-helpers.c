@@ -2,8 +2,9 @@
 #include <obs.h>
 #include <util/dstr.h>
 
-#include <windows.h>
+#include <dwmapi.h>
 #include <psapi.h>
+#include <windows.h>
 #include "window-helpers.h"
 #include "obfuscate.h"
 
@@ -395,6 +396,37 @@ static int window_rating(HWND window, enum window_priority priority,
 	return val;
 }
 
+static const char *generic_class_substrings[] = {
+	"Chrome",
+	NULL,
+};
+
+static const char *generic_classes[] = {
+	"Windows.UI.Core.CoreWindow",
+	NULL,
+};
+
+static bool is_generic_class(const char *current_class)
+{
+	const char **class = generic_class_substrings;
+	while (*class) {
+		if (astrstri(current_class, *class) != NULL) {
+			return true;
+		}
+		class ++;
+	}
+
+	class = generic_classes;
+	while (*class) {
+		if (astrcmpi(current_class, *class) == 0) {
+			return true;
+		}
+		class ++;
+	}
+
+	return false;
+}
+
 HWND find_window(enum window_search_mode mode, enum window_priority priority,
 		 const char *class, const char *title, const char *exe,
 		 bool isPrivate)
@@ -409,11 +441,11 @@ HWND find_window(enum window_search_mode mode, enum window_priority priority,
 	if (!class)
 		return NULL;
 
-	bool uwp_window = strcmp(class, "Windows.UI.Core.CoreWindow") == 0;
+	bool generic_class = is_generic_class(class);
 
 	while (window) {
 		int rating = window_rating(window, priority, class, title, exe,
-					   uwp_window, isPrivate);
+					   generic_class, isPrivate);
 		if (rating < best_rating) {
 			best_rating = rating;
 			best_window = window;
@@ -427,6 +459,60 @@ HWND find_window(enum window_search_mode mode, enum window_priority priority,
 	return best_window;
 }
 
+struct top_level_enum_data {
+	enum window_search_mode mode;
+	enum window_priority priority;
+	const char *class;
+	const char *title;
+	const char *exe;
+	bool generic_class;
+	HWND best_window;
+	int best_rating;
+};
+
+BOOL CALLBACK enum_windows_proc(HWND window, LPARAM lParam)
+{
+	struct top_level_enum_data *data = (struct top_level_enum_data *)lParam;
+
+	if (!check_window_valid(window, data->mode))
+		return TRUE;
+
+	int cloaked;
+	if (SUCCEEDED(DwmGetWindowAttribute(window, DWMWA_CLOAKED, &cloaked,
+					    sizeof(cloaked))) &&
+	    cloaked)
+		return TRUE;
+
+	const int rating = window_rating(window, data->priority, data->class,
+					 data->title, data->exe,
+					 data->generic_class, false);
+	if (rating < data->best_rating) {
+		data->best_rating = rating;
+		data->best_window = window;
+	}
+
+	return rating > 0;
+}
+
+HWND find_window_top_level(enum window_search_mode mode,
+			   enum window_priority priority, const char *class,
+			   const char *title, const char *exe)
+{
+	if (!class)
+		return NULL;
+
+	struct top_level_enum_data data;
+	data.mode = mode;
+	data.priority = priority;
+	data.class = class;
+	data.title = title;
+	data.exe = exe;
+	data.generic_class = is_generic_class(class);
+	data.best_window = NULL;
+	data.best_rating = 0x7FFFFFFF;
+	EnumWindows(enum_windows_proc, (LPARAM)&data);
+	return data.best_window;
+}
 HWND xxq_find_window(enum window_search_mode mode, LONG hwnd)
 {
 	return NULL;

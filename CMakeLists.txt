@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 2.8.12)
+cmake_minimum_required(VERSION 3.10)
 
 if (UNIX AND POLICY CMP0072)
 	# In case of both legacy and glvnd OpenGL libraries found. Prefer GLVND
@@ -10,6 +10,35 @@ project(obs-studio)
 option(BUILD_CAPTIONS "Build captions" FALSE)
 
 if(WIN32)
+	cmake_minimum_required(VERSION 3.16)
+
+	# Check for Win SDK version 10.0.19041 or above
+	if(MSVC AND MSVC_VERSION LESS 1920)
+		message(STATUS "Windows API version is ${CMAKE_VS_WINDOWS_TARGET_PLATFORM_VERSION}")
+		string(REPLACE "." ";" WINAPI_VER "${CMAKE_VS_WINDOWS_TARGET_PLATFORM_VERSION}")
+
+		list(GET WINAPI_VER 0 WINAPI_VER_MAJOR)
+		list(GET WINAPI_VER 1 WINAPI_VER_MINOR)
+		list(GET WINAPI_VER 2 WINAPI_VER_BUILD)
+
+		set(WINAPI_COMPATIBLE FALSE)
+		if(WINAPI_VER_MAJOR EQUAL 10)
+			if (WINAPI_VER_MINOR EQUAL 0)
+				if (WINAPI_VER_BUILD GREATER_EQUAL 19041)
+					set(WINAPI_COMPATIBLE TRUE)
+				endif()
+			else()
+				set(WINAPI_COMPATIBLE TRUE)
+			endif()
+		elseif(WINAPI_VER_MAJOR GREATER 10)
+			set(WINAPI_COMPATIBLE TRUE)
+		endif()
+
+		if(NOT WINAPI_COMPATIBLE)
+			message(FATAL_ERROR "OBS requires Windows 10 SDK version 10.0.19041.0 and above to compile.\nPlease download the most recent Windows 10 SDK in order to compile (or update to Visual Studio 2019).")
+		endif()
+	endif()
+
 	if (QTDIR OR DEFINED ENV{QTDIR} OR DEFINED ENV{QTDIR32} OR DEFINED ENV{QTDIR64})
 		# Qt path set by user or env var
 	else()
@@ -31,6 +60,8 @@ set(SCRIPTING_ENABLED OFF CACHE BOOL "Internal global cmake variable" FORCE)
 include(ObsHelpers)
 include(ObsCpack)
 include(GNUInstallDirs)
+include(CheckCCompilerFlag)
+include(CheckCXXCompilerFlag)
 
 # Must be a string in the format of "x.x.x-rcx"
 if(DEFINED RELEASE_CANDIDATE)
@@ -70,8 +101,9 @@ if(NOT CMAKE_BUILD_TYPE)
         set(CMAKE_BUILD_TYPE RelWithDebInfo)
 endif()
 
-find_package(CXX11 REQUIRED)
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${CXX11_FLAGS}")
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED YES)
+set(CMAKE_CXX_EXTENSIONS NO)
 
 if(${CMAKE_C_COMPILER_ID} MATCHES "Clang" OR ${CMAKE_CXX_COMPILER_ID} MATCHES "Clang")
 	set(CMAKE_COMPILER_IS_CLANG TRUE)
@@ -109,11 +141,21 @@ if(MSVC)
 	set(CMAKE_C_FLAGS_DEBUG "/DDEBUG=1 /D_DEBUG=1 ${CMAKE_C_FLAGS_DEBUG}")
 	set(CMAKE_CXX_FLAGS_DEBUG "/DDEBUG=1 /D_DEBUG=1 ${CMAKE_C_FLAGS_DEBUG}")
 
+	# https://gitlab.kitware.com/cmake/cmake/-/issues/20812
+	set(CMAKE_C_FLAGS_RELWITHDEBINFO "${CMAKE_C_FLAGS_RELWITHDEBINFO} /Ob2")
+	set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO} /Ob2")
+
 	if(NOT CMAKE_SIZEOF_VOID_P EQUAL 8)
 		set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /SAFESEH:NO")
 		set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} /SAFESEH:NO")
 		set(CMAKE_MODULE_LINKER_FLAGS "${CMAKE_MODULE_LINKER_FLAGS} /SAFESEH:NO")
 	endif()
+
+	foreach(t EXE SHARED MODULE)
+		set(CMAKE_${t}_LINKER_FLAGS "${CMAKE_${t}_LINKER_FLAGS} /OPT:REF")
+		set(CMAKE_${t}_LINKER_FLAGS_DEBUG "${CMAKE_${t}_LINKER_FLAGS_DEBUG} /INCREMENTAL:NO")
+		set(CMAKE_${t}_LINKER_FLAGS_RELWITHDEBINFO "${CMAKE_${t}_LINKER_FLAGS_RELWITHDEBINFO} /INCREMENTAL:NO /OPT:ICF")
+	endforeach()
 else()
 	if(MINGW)
 		set(CMAKE_WIDL "widl" CACHE STRING "wine IDL header file generation program")
@@ -172,6 +214,7 @@ if(NOT INSTALLER_RUN)
 
 	if(WIN32)
 		add_subdirectory(libobs-d3d11)
+		add_subdirectory(libobs-winrt)
 	endif()
 
 	add_subdirectory(libobs-opengl)

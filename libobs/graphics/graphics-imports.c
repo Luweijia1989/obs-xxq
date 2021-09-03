@@ -1,4 +1,4 @@
-﻿/******************************************************************************
+/******************************************************************************
     Copyright (C) 2013 by Hugh Bailey <obs.jim@gmail.com>
 
     This program is free software: you can redistribute it and/or modify
@@ -111,9 +111,11 @@ bool load_graphics_imports(struct gs_exports *exports, void *module,
 	GRAPHICS_IMPORT(device_frustum);
 	GRAPHICS_IMPORT(device_projection_push);
 	GRAPHICS_IMPORT(device_projection_pop);
+#if NO_FONT_DEVICE
 	GRAPHICS_IMPORT(device_font_set);
 	GRAPHICS_IMPORT(device_draw_text);
 	GRAPHICS_IMPORT(device_draw_text_and_markline);
+#endif
 	GRAPHICS_IMPORT(gs_swapchain_destroy);
 
 	GRAPHICS_IMPORT(gs_texture_destroy);
@@ -217,6 +219,8 @@ bool load_graphics_imports(struct gs_exports *exports, void *module,
 	GRAPHICS_IMPORT_OPTIONAL(device_texture_release_sync);
 	GRAPHICS_IMPORT_OPTIONAL(device_texture_create_nv12);
 	GRAPHICS_IMPORT_OPTIONAL(device_stagesurface_create_nv12);
+	GRAPHICS_IMPORT_OPTIONAL(device_register_loss_callbacks);
+	GRAPHICS_IMPORT_OPTIONAL(device_unregister_loss_callbacks);
 #endif
 
 	return success;

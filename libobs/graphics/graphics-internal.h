@@ -118,6 +118,7 @@ struct gs_exports {
 	void (*device_begin_scene)(gs_device_t *device);
 	void (*device_draw)(gs_device_t *device, enum gs_draw_mode draw_mode,
 			    uint32_t start_vert, uint32_t num_verts);
+#if NO_FONT_DEVICE
 	void (*device_font_set)(gs_device_t *device, const char *face,
 				int size);
 	void (*device_draw_text)(gs_device_t *device, const char *actext,
@@ -128,6 +129,7 @@ struct gs_exports {
 					      uint32_t y, uint32_t cx,
 					      uint32_t cy, uint32_t length,
 					      bool vertical, float scale);
+#endif
 	void (*device_end_scene)(gs_device_t *device);
 	void (*device_load_swapchain)(gs_device_t *device,
 				      gs_swapchain_t *swaphchain);
@@ -322,6 +324,10 @@ struct gs_exports {
 	gs_stagesurf_t *(*device_stagesurface_create_nv12)(gs_device_t *device,
 							   uint32_t width,
 							   uint32_t height);
+	void (*device_register_loss_callbacks)(
+		gs_device_t *device, const struct gs_device_loss *callbacks);
+	void (*device_unregister_loss_callbacks)(gs_device_t *device,
+						 void *data);
 #endif
 };
 

@@ -755,6 +755,16 @@ EXPORT void obs_apply_private_data(obs_data_t *settings);
 EXPORT void obs_set_private_data(obs_data_t *settings);
 EXPORT obs_data_t *obs_get_private_data(void);
 
+typedef void (*obs_task_t)(void *param);
+
+enum obs_task_type {
+	OBS_TASK_UI,
+	OBS_TASK_GRAPHICS,
+};
+
+EXPORT void obs_queue_task(enum obs_task_type type, obs_task_t task,
+			   void *param, bool wait);
+
 /* ------------------------------------------------------------------------- */
 /* View context */
 
@@ -1000,6 +1010,10 @@ EXPORT void obs_source_enum_active_sources(obs_source_t *source,
 EXPORT void obs_source_enum_active_tree(obs_source_t *source,
 					obs_source_enum_proc_t enum_callback,
 					void *param);
+
+EXPORT void obs_source_enum_full_tree(obs_source_t *source,
+				      obs_source_enum_proc_t enum_callback,
+				      void *param);
 
 /** Returns true if active, false if not */
 EXPORT bool obs_source_active(const obs_source_t *source);

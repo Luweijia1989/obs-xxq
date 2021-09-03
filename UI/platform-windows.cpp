@@ -15,6 +15,11 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 ******************************************************************************/
 
+#ifdef _HAS_STD_BYTE
+#undef _HAS_STD_BYTE
+#endif
+#define _HAS_STD_BYTE 0
+
 #include <algorithm>
 #include <sstream>
 #include "obs-config.h"

@@ -343,6 +343,7 @@ obs_source_create_internal(const char *id, const char *name,
 
 		source->info.id = bstrdup(id);
 		source->owns_info_id = true;
+		source->info.unversioned_id = bstrdup(source->info.id);
 	} else {
 		source->info = *info;
 
@@ -669,8 +670,10 @@ void obs_source_destroy(struct obs_source *source)
 	obs_data_release(source->private_settings);
 	obs_context_data_free(&source->context);
 
-	if (source->owns_info_id)
+	if (source->owns_info_id) {
 		bfree((void *)source->info.id);
+		bfree((void *)source->info.unversioned_id);
+	}
 
 	bfree(source);
 }
@@ -2328,7 +2331,7 @@ void obs_source_filter_add(obs_source_t *source, obs_source_t *filter)
 		return;
 	}
 
-	if (!filter_compatible(source, filter)) {
+	if (!source->owns_info_id && !filter_compatible(source, filter)) {
 		pthread_mutex_unlock(&source->filter_mutex);
 		return;
 	}

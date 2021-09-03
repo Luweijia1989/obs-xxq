@@ -19,6 +19,11 @@
 
 #pragma once
 
+#ifdef _HAS_STD_BYTE
+#undef _HAS_STD_BYTE
+#endif
+#define _HAS_STD_BYTE 0
+
 #define WINVER         0x0600
 #define _WIN32_WINDOWS 0x0600
 #define _WIN32_WINNT   0x0600

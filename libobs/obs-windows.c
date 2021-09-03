@@ -198,6 +198,8 @@ static void log_aero(void)
 	L"SOFTWARE\\Policies\\Microsoft\\Windows\\GameDVR"
 #define WIN10_GAME_DVR_REG_KEY L"System\\GameConfigStore"
 #define WIN10_GAME_MODE_REG_KEY L"Software\\Microsoft\\GameBar"
+#define WIN10_HAGS_REG_KEY \
+	L"SYSTEM\\CurrentControlSet\\Control\\GraphicsDrivers"
 
 static void log_gaming_features(void)
 {
@@ -209,6 +211,7 @@ static void log_gaming_features(void)
 	struct reg_dword game_dvr_enabled;
 	struct reg_dword game_dvr_bg_recording;
 	struct reg_dword game_mode_enabled;
+	struct reg_dword hags_enabled;
 
 	get_reg_dword(HKEY_CURRENT_USER, WIN10_GAME_BAR_REG_KEY,
 		      L"AppCaptureEnabled", &game_bar_enabled);
@@ -220,6 +223,9 @@ static void log_gaming_features(void)
 		      L"HistoricalCaptureEnabled", &game_dvr_bg_recording);
 	get_reg_dword(HKEY_CURRENT_USER, WIN10_GAME_MODE_REG_KEY,
 		      L"AllowAutoGameMode", &game_mode_enabled);
+	get_reg_dword(HKEY_LOCAL_MACHINE, WIN10_HAGS_REG_KEY, L"HwSchMode",
+		      &hags_enabled);
+
 	if (game_mode_enabled.status != ERROR_SUCCESS) {
 		get_reg_dword(HKEY_CURRENT_USER, WIN10_GAME_MODE_REG_KEY,
 			      L"AutoGameModeEnabled", &game_mode_enabled);
@@ -249,6 +255,11 @@ static void log_gaming_features(void)
 	if (game_mode_enabled.status == ERROR_SUCCESS) {
 		blog(LOG_INFO, "\tGame Mode: %s",
 		     (bool)game_mode_enabled.return_value ? "On" : "Off");
+	}
+
+	if (hags_enabled.status == ERROR_SUCCESS) {
+		blog(LOG_INFO, "\tHardware GPU Scheduler: %s",
+		     (hags_enabled.return_value == 2) ? "On" : "Off");
 	}
 }
 

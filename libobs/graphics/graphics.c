@@ -1011,7 +1011,7 @@ static inline void build_sprite_rect(struct gs_vb_data *data, gs_texture_t *tex,
 	assign_sprite_rect(&start_v, &end_v, height, (flip & GS_FLIP_V) != 0);
 	build_sprite(data, fcx, fcy, start_u, end_u, start_v, end_v);
 }
-
+#if NO_FONT_DEVICE
 void gs_draw_text(const char *text, uint32_t x, uint32_t y, uint32_t cx,
 		  uint32_t cy, float scale)
 {
@@ -1028,6 +1028,7 @@ void gs_draw_text_and_markline(const char *text, uint32_t x, uint32_t y,
 	graphics->exports.device_draw_text_and_markline(
 		graphics->device, text, x, y, cx, cy, length, vertical, scale);
 }
+#endif
 
 void gs_draw_sprite(gs_texture_t *tex, uint32_t flip, uint32_t width,
 		    uint32_t height)
@@ -1287,11 +1288,13 @@ const char *gs_preprocessor_name(void)
 	return graphics->exports.device_preprocessor_name();
 }
 
+#if NO_FONT_DEVICE
 void gs_font_set(const char *face, int fontSize)
 {
 	graphics_t *graphics = thread_graphics;
 	graphics->exports.device_font_set(graphics->device, face, fontSize);
 }
+#endif
 
 gs_swapchain_t *gs_swapchain_create(const struct gs_init_data *data)
 {
@@ -2988,6 +2991,30 @@ gs_stagesurf_t *gs_stagesurface_create_nv12(uint32_t width, uint32_t height)
 			graphics->device, width, height);
 
 	return NULL;
+}
+
+void gs_register_loss_callbacks(const struct gs_device_loss *callbacks)
+{
+	graphics_t *graphics = thread_graphics;
+
+	if (!gs_valid("gs_register_loss_callbacks"))
+		return;
+
+	if (graphics->exports.device_register_loss_callbacks)
+		graphics->exports.device_register_loss_callbacks(
+			graphics->device, callbacks);
+}
+
+void gs_unregister_loss_callbacks(void *data)
+{
+	graphics_t *graphics = thread_graphics;
+
+	if (!gs_valid("gs_unregister_loss_callbacks"))
+		return;
+
+	if (graphics->exports.device_unregister_loss_callbacks)
+		graphics->exports.device_unregister_loss_callbacks(
+			graphics->device, data);
 }
 
 #endif

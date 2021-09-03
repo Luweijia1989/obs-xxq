@@ -1,4 +1,4 @@
-﻿/******************************************************************************
+/******************************************************************************
     Copyright (C) 2013 by Hugh Bailey <obs.jim@gmail.com>
 
     This program is free software: you can redistribute it and/or modify
@@ -852,7 +852,7 @@ struct SavedRasterState : RasterState {
 struct mat4float {
 	float mat[16];
 };
-
+#if NO_FONT_DEVICE
 ///////////gdi plus字体相关///////////////////////////
 struct fontTextInfo {
 	gs_texture_t *tex;
@@ -900,7 +900,7 @@ struct gs_font_manager {
 	void CaculateSizeByScale(RectF &bounding_box, SIZE &text_size,
 				 float scale);
 };
-
+#endif
 struct gs_device {
 	ComPtr<IDXGIFactory1> factory;
 	ComPtr<IDXGIAdapter1> adapter;
@@ -922,7 +922,9 @@ struct gs_device {
 
 	gs_vertex_buffer *lastVertexBuffer = nullptr;
 	gs_vertex_shader *lastVertexShader = nullptr;
+#if NO_FONT_DEVICE
 	gs_font_manager *fontMgr = nullptr;
+#endif
 
 	bool zstencilStateChanged = true;
 	bool rasterStateChanged = true;
@@ -951,6 +953,7 @@ struct gs_device {
 	matrix4 curViewMatrix;
 	matrix4 curViewProjMatrix;
 
+	vector<gs_device_loss> loss_callbacks;
 	gs_obj *first_obj = nullptr;
 
 	void InitCompiler();

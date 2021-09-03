@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 #include <graphics/math-defs.h>
 #include <util/platform.h>
 #include <util/util.hpp>
@@ -66,7 +66,7 @@ static inline uint32_t rgb_to_bgr(uint32_t rgb)
 {
 	return ((rgb & 0xFF) << 16) | (rgb & 0xFF00) | ((rgb & 0xFF0000) >> 16);
 }
-
+#if NO_FONT_DEVICE
 static bool IsInstallFont(const wchar_t *fontName)
 {
 	bool bRtn = false;
@@ -105,7 +105,7 @@ static wstring FontPath(const wchar_t *fontName)
 		path = L"\\resource\\font\\DIN Alternate Bold.ttf";
 	return path;
 }
-
+#endif
 /* ------------------------------------------------------------------------- */
 template<typename T, typename T2, BOOL WINAPI deleter(T2)> class GDIObj {
 	T obj = nullptr;

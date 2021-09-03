@@ -28,9 +28,19 @@ static inline long os_atomic_dec_long(volatile long *val)
 	return _InterlockedDecrement(val);
 }
 
+static inline void os_atomic_store_long(volatile long *ptr, long val)
+{
+	_InterlockedExchange(ptr, val);
+}
+
 static inline long os_atomic_set_long(volatile long *ptr, long val)
 {
 	return (long)_InterlockedExchange((volatile long *)ptr, (long)val);
+}
+
+static inline long os_atomic_exchange_long(volatile long *ptr, long val)
+{
+	return os_atomic_set_long(ptr, val);
 }
 
 static inline long os_atomic_load_long(const volatile long *ptr)
@@ -44,9 +54,29 @@ static inline bool os_atomic_compare_swap_long(volatile long *val, long old_val,
 	return _InterlockedCompareExchange(val, new_val, old_val) == old_val;
 }
 
+static inline bool os_atomic_compare_exchange_long(volatile long *val,
+						   long *old_ptr, long new_val)
+{
+	const long old_val = *old_ptr;
+	const long previous =
+		_InterlockedCompareExchange(val, new_val, old_val);
+	*old_ptr = previous;
+	return previous == old_val;
+}
+
+static inline void os_atomic_store_bool(volatile bool *ptr, bool val)
+{
+	_InterlockedExchange8((volatile char *)ptr, (char)val);
+}
+
 static inline bool os_atomic_set_bool(volatile bool *ptr, bool val)
 {
 	return !!_InterlockedExchange8((volatile char *)ptr, (char)val);
+}
+
+static inline bool os_atomic_exchange_bool(volatile bool *ptr, bool val)
+{
+	return os_atomic_set_bool(ptr, val);
 }
 
 static inline bool os_atomic_load_bool(const volatile bool *ptr)
