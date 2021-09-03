@@ -7,6 +7,32 @@
 
 extern enum AVPixelFormat obs_to_ffmpeg_video_format(enum video_format format);
 
+static inline enum video_format convert_pixel_format(int f)
+{
+	switch (f) {
+	case AV_PIX_FMT_NONE:
+		return VIDEO_FORMAT_NONE;
+	case AV_PIX_FMT_YUV420P:
+	case AV_PIX_FMT_YUVJ420P:
+		return VIDEO_FORMAT_I420;
+	case AV_PIX_FMT_NV12:
+		return VIDEO_FORMAT_NV12;
+	case AV_PIX_FMT_YUYV422:
+		return VIDEO_FORMAT_YUY2;
+	case AV_PIX_FMT_UYVY422:
+		return VIDEO_FORMAT_UYVY;
+	case AV_PIX_FMT_RGBA:
+		return VIDEO_FORMAT_RGBA;
+	case AV_PIX_FMT_BGRA:
+		return VIDEO_FORMAT_BGRA;
+	case AV_PIX_FMT_BGR0:
+		return VIDEO_FORMAT_BGRX;
+	default:;
+	}
+
+	return VIDEO_FORMAT_NONE;
+}
+
 static void fillFrameDataInfo(VideoFormat vf, uint8_t **outdata, uint32_t *linesize, int cx, int cy, unsigned char *data)
 {
 	if (vf == VideoFormat::XRGB || vf == VideoFormat::ARGB) {
@@ -399,7 +425,7 @@ void DShowInput::OnEncodedVideoData(enum AVCodecID id, unsigned char *data,
 #if LOG_ENCODED_VIDEO_TS
 		blog(LOG_DEBUG, "video ts: %llu", frame.timestamp);
 #endif
-		if (stThread && stThread->stInited() && stThread->needProcess())
+		if (stThread && stThread->stInited())
 		{
 			stThread->addFrame(avFrame, frame.timestamp);
 		}
@@ -453,7 +479,7 @@ void DShowInput::OnVideoData(const VideoConfig &config, unsigned char *data,
 	if (!VideoDataSizeValid(videoConfig.cx, videoConfig.cy, size, videoConfig.format))
 		return;
 
-	if (stThread && stThread->stInited() && stThread->needProcess())
+	if (stThread && stThread->stInited())
 	{
 		video_format format = ConvertVideoFormat(videoConfig.format);
 		int f = obs_to_ffmpeg_video_format(format);
@@ -516,6 +542,41 @@ void DShowInput::OutputFrame(VideoFormat vf,
 
 	UNUSED_PARAMETER(endTime); /* it's the enndd tiimmes! */
 	UNUSED_PARAMETER(size);
+}
+
+void DShowInput::OutputFrame(AVFrame *avframe, long long startTime, bool flipH)
+{
+	QMutexLocker locker(&outputMutex);
+
+	auto new_format = convert_pixel_format(avframe->format);
+
+	frame.timestamp = (uint64_t)startTime * 100;
+	frame.width = avframe->width;
+	frame.height = avframe->height;
+	frame.flip = (videoConfig.format == VideoFormat::XRGB ||
+		      videoConfig.format == VideoFormat::ARGB);
+	frame.flip_h = flipH;
+
+
+	for (size_t i = 0; i < MAX_AV_PLANES; i++) {
+		frame.data[i] =avframe->data[i];
+		frame.linesize[i] = avframe->linesize[i];
+	}
+
+	if (new_format != frame.format) {
+		bool success;
+
+		frame.format = new_format;
+		frame.range = avframe->color_range == AVCOL_RANGE_JPEG
+				       ? VIDEO_RANGE_FULL
+				       : VIDEO_RANGE_DEFAULT;
+
+		success = video_format_get_parameters(
+			VIDEO_CS_601, frame.range, frame.color_matrix,
+			frame.color_range_min, frame.color_range_max);
+	}
+
+	obs_source_output_video2(source, &frame);
 }
 
 void DShowInput::OnEncodedAudioData(enum AVCodecID id, unsigned char *data,
