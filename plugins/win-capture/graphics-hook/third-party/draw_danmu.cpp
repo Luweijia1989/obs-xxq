@@ -2,6 +2,7 @@
 #include "imgui_internal.h"
 #include <string>
 #include "shared_helper.h"
+#include "../graphics-hook.h"
 
 static ImGuiWindowFlags window_flags = 0;
 
@@ -306,84 +307,6 @@ void addDanmu(Json::Value item, bool end)
 	}
 }
 
-//void addDanmu(Json::Value item, bool end)
-//{
-//	ImGuiContext &g = *GImGui;
-//	float textWidth =
-//		ImGui::CalcTextSize(item["intactText"].asString().c_str()).x;
-//	float lineWidth = ImGui::GetColumnWidth();
-//	float remainder = lineWidth;
-//	if (lineWidth <= 0)
-//		return;
-//	int rows = textWidth / lineWidth;
-//	if (fmod(textWidth, lineWidth) > 0)
-//		rows += 1;
-//
-//	std::string id = item["id"].asString();
-//	ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(8.0f, 8.0f));
-//	ImGui::BeginChild(id.c_str(),
-//			  ImVec2(0, ImGui::GetTextLineHeight() * rows + 15),
-//			  false, window_flags);
-//
-//	Json::Value fieldArray = item["field"];
-//	for (int i = 0; i < fieldArray.size(); ++i) {
-//		Json::Value field = fieldArray[i];
-//		std::string textStr = field["text"].asString();
-//		char *text = &textStr[0];
-//		float width = ImGui::CalcTextSize(text).x;
-//		if (width > remainder) {
-//			const char *text_end = text + strlen(text);
-//			const char *p_remainder = g.Font->CalcWordWrapPositionA(
-//				1, text, text_end, remainder);
-//
-//			if (p_remainder ==
-//			    text) // Wrap_width is too small to fit anything. Force displaying 1 character to minimize the height discontinuity.
-//				p_remainder++;
-//
-//			char temp[256] = {0};
-//			memcpy(temp, text, p_remainder - text);
-//
-//			ImGui::AlignTextToFramePadding();
-//			ImGui::TextColored(
-//				ImGui::ColorConvertU32ToFloat4(
-//					ARGBstringColor2UINT(
-//						field["color"].asString())),
-//				temp);
-//			ImGui::SetCursorPosY(ImGui::GetCursorPosY() - 8.0f);
-//			ImGui::PushTextWrapPos();
-//			//ImGui::AlignTextToFramePadding();
-//			ImGui::TextColored(
-//				ImGui::ColorConvertU32ToFloat4(
-//					ARGBstringColor2UINT(
-//						field["color"].asString())),
-//				p_remainder);
-//			ImGui::PopTextWrapPos();
-//		} else {
-//			ImGui::AlignTextToFramePadding();
-//			ImGui::TextColored(
-//				ImGui::ColorConvertU32ToFloat4(
-//					ARGBstringColor2UINT(
-//						field["color"].asString())),
-//				text);
-//			ImGui::SameLine(0, 0);
-//			remainder -= width;
-//		}
-//	}
-//
-//	ImGui::EndChild();
-//	ImGui::PopStyleVar(1);
-//
-//	if (!end) {
-//		std::string lineId = "line" + id;
-//		ImGui::BeginChild(lineId.c_str(), ImVec2(0, 1.0f));
-//		ImVec2 p = ImGui::GetCursorScreenPos();
-//		ImGui::GetWindowDrawList()->AddLine(
-//			ImVec2(p.x, p.y), ImVec2(p.x + 384 - 16, p.y),
-//			IM_COL32(255, 255, 255, 38.25), 1.0f);
-//		ImGui::EndChild();
-//	}
-//}
-
 void render_danmu(Json::Value &root)
 {
 	ImGui::NewFrame();
@@ -421,13 +344,17 @@ std::string WStringToString(const std::wstring &wstr)
 {
 	std::string str;
 	int nLen = (int)wstr.length();
-	str.resize(nLen, ' ');
-	int nResult = WideCharToMultiByte(CP_ACP, 0, (LPCWSTR)wstr.c_str(),
-					  nLen, (LPSTR)str.c_str(), nLen, NULL,
-					  NULL);
+	int nResult = WideCharToMultiByte(CP_UTF8, 0, wstr.c_str(), nLen, NULL, 0, NULL, NULL);
 	if (nResult == 0) {
+		hlog("WStringToString failed");
 		return "";
 	}
+
+	char newStr[512] = { 0 };
+	WideCharToMultiByte(CP_UTF8, 0, wstr.c_str(), (int)nLen, newStr, nResult + 1,
+			    NULL, NULL);
+	str.assign(newStr);
+
 	return str;
 }
 
@@ -454,6 +381,7 @@ void add_fonts()
 		ss.resize(pos);
 		ss += L"\\..\\..\\..\\..\\resource\\font\\Alibaba-PuHuiTi-Regular.ttf";
 		std::string fontPath = WStringToString(ss);
+		hlog("add_fonts, path: %s", fontPath.data());
 		io.Fonts->AddFontFromFileTTF(
 			fontPath.c_str(), 18.0f, NULL,
 			io.Fonts->GetGlyphRangesChineseFull());
@@ -463,6 +391,9 @@ void add_fonts()
 		io.Fonts->AddFontFromFileTTF(
 			fontPath.c_str(), 22.0f, NULL,
 			io.Fonts->GetGlyphRangesChineseFull());
+	}
+	else {
+		hlog("get graphics-hook's dll path failed.");
 	}
 }
 

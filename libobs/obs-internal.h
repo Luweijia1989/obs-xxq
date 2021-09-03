@@ -41,6 +41,7 @@
 #define MICROSECOND_DEN 1000000
 #define NUM_ENCODE_TEXTURES 3
 #define NUM_ENCODE_TEXTURE_FRAMES_TO_WAIT 1
+#define NUM_RTC_CHANNEL 8
 
 static inline int64_t packet_dts_usec(struct encoder_packet *packet)
 {
@@ -239,6 +240,41 @@ struct obs_tex_frame {
 struct obs_task_info {
 	obs_task_t task;
 	void *param;
+}
+
+typedef void (*rtc_frame_output_t)(uint8_t **data, uint32_t *linesize,
+				   uint32_t width, uint32_t height,
+				   void *userdata);
+struct obs_rtc_mix {
+	gs_texture_t *rtc_textures[NUM_RTC_CHANNEL];
+	gs_texture_t *rtc_frame_texture;
+	gs_texture_t *rtc_frame_output_texture;
+	bool render_rtc_textures;
+	uint32_t self_crop_x;
+	uint32_t self_crop_y;
+	uint32_t self_crop_width;
+	uint32_t self_crop_height;
+	uint32_t output_texture_width;
+	uint32_t output_texture_height;
+	uint32_t capture_texture_width;
+	uint32_t capture_texture_height;
+	volatile bool rtc_frame_active;
+	volatile bool rtc_output_active;
+
+	rtc_frame_output_t output_cb;
+	void *output_cb_data;
+
+	float color_matrix[16];
+	gs_stagesurf_t *copy_surfaces_raw[NUM_TEXTURES][NUM_CHANNELS];
+	gs_stagesurf_t *mapped_surfaces_raw[NUM_CHANNELS];
+	gs_texture_t *convert_textures_raw[NUM_CHANNELS];
+	bool textures_copied_raw[NUM_TEXTURES];
+	bool texture_converted_raw;
+	bool conversion_needed;
+	const char *conversion_techs[NUM_CHANNELS];
+	float conversion_width_i_raw;
+
+	struct video_frame *cache_frame;
 };
 
 struct obs_core_video {
@@ -316,6 +352,8 @@ struct obs_core_video {
 
 	pthread_mutex_t task_mutex;
 	struct circlebuf tasks;
+
+	struct obs_rtc_mix rtc_mix;
 };
 
 struct audio_monitor;
@@ -1108,7 +1146,7 @@ struct obs_encoder {
 
 	const char *profile_encoder_encode_name;
 
-	uint32_t sei_rate; 
+	uint32_t sei_rate;
 };
 
 extern struct obs_encoder_info *find_encoder(const char *id);

@@ -60,6 +60,7 @@ enum AVPixelFormat obs_to_ffmpeg_video_format(enum video_format format)
 
 STThread::STThread(DShowInput *dsInput) : m_dshowInput(dsInput)
 	, m_frameQueue(1)
+	, m_cacheFrame(av_frame_alloc())
 {
 	surface = new QOffscreenSurface(nullptr, this);
 	surface->create();
@@ -71,6 +72,8 @@ STThread::~STThread()
 {
 	if (m_dataBuffer)
 		free(m_dataBuffer);
+
+	av_frame_free(&m_cacheFrame);
 }
 
 void STThread::run()
@@ -116,7 +119,6 @@ void STThread::run()
 		m_beautifySettingMutex.unlock();
 
 		processImage(frame.avFrame, frame.startTime);
-		av_frame_free(&frame.avFrame);
 	}
 
 Clear:
@@ -134,19 +136,16 @@ Clear:
 	freeResource();
 
 	delete m_vertexShader;
+	delete m_vertexShader2;
 	delete m_fragmentShader;
+	delete m_fragmentShader2;
 	delete m_shader;
+	delete m_flipShader;
 	delete m_vao;
 
 	ctx->doneCurrent();
 	delete ctx;
 	qDebug() << "STThread stopped...";
-}
-
-bool STThread::needProcess()
-{
-	QMutexLocker locker(&m_stickerSetterMutex);
-	return !m_stickers.isEmpty() || m_gameStickerType != None || m_needBeautify;
 }
 
 void STThread::updateInfo(const char *data)
@@ -182,34 +181,35 @@ void STThread::updateBeautifySetting(QString setting)
 	m_beautifySettings.append(setting);
 }
 
+void STThread::ensureCacheBuffer(size_t size)
+{
+	if (!m_dataBuffer) {
+		m_dataBuffer = (unsigned char *)malloc(size);
+	} else if (m_dataBufferSize < size) {
+		m_dataBuffer = (unsigned char *)realloc(m_dataBuffer, size);
+	}
+
+	m_dataBufferSize = size;
+}
+
 void STThread::addFrame(unsigned char *data, size_t size, long long startTime, int w, int h, int f)
 {
 	if (!m_running)
 		return;
+
+	ensureCacheBuffer(size);
+
 	FrameInfo info;
 	info.startTime = startTime;
 
-	if (!m_dataBuffer)
-	{
-		m_dataBuffer = (unsigned char *)malloc(size);
-		m_dataBufferSize = size;
-	}
-
-	if (m_dataBufferSize < size)
-	{
-		m_dataBuffer = (unsigned char *)realloc(m_dataBuffer, size);
-		m_dataBufferSize = size;
-	}
-
 	memcpy(m_dataBuffer, data, size);
 
-	AVFrame *tempFrame = av_frame_alloc();
-	av_image_fill_arrays(tempFrame->data, tempFrame->linesize, m_dataBuffer, (AVPixelFormat)f, w, h, 1);
-	tempFrame->width = w;
-	tempFrame->height = h;
-	tempFrame->format = f;
-	tempFrame->pts = startTime;
-	info.avFrame = tempFrame;
+	av_image_fill_arrays(m_cacheFrame->data, m_cacheFrame->linesize, m_dataBuffer, (AVPixelFormat)f, w, h, 1);
+	m_cacheFrame->width = w;
+	m_cacheFrame->height = h;
+	m_cacheFrame->format = f;
+	m_cacheFrame->pts = startTime;
+	info.avFrame = m_cacheFrame;
 	info.startTime = startTime;
 	m_frameQueue.enqueue(info);
 }
@@ -221,30 +221,47 @@ void STThread::addFrame(AVFrame *frame, long long startTime)
 
 	FrameInfo info;
 
-	AVFrame *tempFrame = av_frame_alloc();
 	auto size = av_image_get_buffer_size((AVPixelFormat)frame->format, frame->width, frame->height, 1);
+	ensureCacheBuffer(size);
 
-	if (!m_dataBuffer) {
-		m_dataBuffer = (unsigned char *)malloc(size);
-		m_dataBufferSize = size;
-	}
-
-	if (m_dataBufferSize < size) {
-		m_dataBuffer = (unsigned char *)realloc(m_dataBuffer, size);
-		m_dataBufferSize = size;
-	}
 	av_image_copy_to_buffer(m_dataBuffer, size, frame->data, frame->linesize, (AVPixelFormat)frame->format, frame->width, frame->height, 1);
-	av_image_fill_arrays(tempFrame->data, tempFrame->linesize, m_dataBuffer, (AVPixelFormat)frame->format, frame->width, frame->height, 1);
-	tempFrame->width = frame->width;
-	tempFrame->height = frame->height;
-	tempFrame->format = frame->format;
-	info.avFrame = tempFrame;
+	av_image_fill_arrays(m_cacheFrame->data, m_cacheFrame->linesize, m_dataBuffer, (AVPixelFormat)frame->format, frame->width, frame->height, 1);
+	m_cacheFrame->width = frame->width;
+	m_cacheFrame->height = frame->height;
+	m_cacheFrame->format = frame->format;
+	info.avFrame = m_cacheFrame;
 	info.startTime = startTime;
 	m_frameQueue.enqueue(info);
 }
 
+void STThread::copyTexture(QOpenGLTexture *texture)
+{
+	m_fbo->bind();
+	glClearColor(0, 0, 0, 0);
+
+	glActiveTexture(GL_TEXTURE0);
+	texture->bind();
+	glViewport(0, 0, texture->width(), texture->height());
+
+	m_vao->bind();
+	m_flipShader->bind();
+	glDrawArrays(GL_TRIANGLES, 0, 6);
+
+	m_vao->release();
+	m_flipShader->release();
+	m_fbo->release();
+}
+
 void STThread::processImage(AVFrame *frame, quint64 ts)
 {
+	static bool needDrop = false;
+	QMutexLocker locker(&m_stickerSetterMutex);
+	if (m_stickers.isEmpty() && m_gameStickerType == None && !m_needBeautify) {
+		m_dshowInput->OutputFrame(frame, ts, m_dshowInput->flipH);
+		needDrop = true;
+		return;
+	}
+
 	if (m_dshowInput->videoConfig.cx != frame->width || m_dshowInput->videoConfig.cy != frame->height)
 		return;
 
@@ -300,8 +317,6 @@ void STThread::processImage(AVFrame *frame, quint64 ts)
 	if (m_needBeautify) {//是否美颜
 		nextSrc = m_stFunc->doBeautify(m_backgroundTexture, m_beautify, m_makeup, m_filter, frame->width, frame->height, m_dshowInput->flipH, flip);
 	}
-	if (needSticker)
-		m_stFunc->doFaceSticker(nextSrc->textureId(), m_outputTexture->textureId(), frame->width, frame->height, m_dshowInput->flipH, flip);
 
 	m_stFunc->flipFaceDetect(flip, m_dshowInput->flipH, frame->width, frame->height); // 翻转得到实际的人脸关键点信息
 
@@ -350,10 +365,7 @@ void STThread::processImage(AVFrame *frame, quint64 ts)
 	m_fbo->bind();
 
 	glActiveTexture(GL_TEXTURE0);
-	if (needSticker)
-		m_outputTexture->bind();
-	else
-		nextSrc->bind();
+	nextSrc->bind();
 
 	glActiveTexture(GL_TEXTURE1);
 	if (m_gameStickerType == Strawberry)
@@ -362,6 +374,7 @@ void STThread::processImage(AVFrame *frame, quint64 ts)
 		m_bombTexture->bind();
 
 	glViewport(0, 0, frame->width, frame->height);
+	glClearColor(0, 0, 0, 0);
 	m_vao->bind();
 	m_shader->bind();
 	{
@@ -391,6 +404,16 @@ void STThread::processImage(AVFrame *frame, quint64 ts)
 		glDrawArrays(GL_TRIANGLES, 0, 6);
 	}
 
+	m_vao->release();
+	m_shader->release();
+	m_fbo->release();
+
+	if (needSticker) {
+		m_stFunc->doFaceSticker(m_fbo->texture(), m_outputTexture->textureId(), frame->width, frame->height, m_dshowInput->flipH, flip);
+		copyTexture(m_outputTexture);
+	}
+
+	m_fbo->bind();
 	static int index = 0;
 	int nextIndex = 0; // pbo index used for next frame
 	index = (index + 1) % 2;
@@ -405,13 +428,13 @@ void STThread::processImage(AVFrame *frame, quint64 ts)
 	m_pbos[nextIndex]->bind();
 	auto src = m_pbos[nextIndex]->map(QOpenGLBuffer::ReadOnly);
 	if (src) {
-		m_dshowInput->OutputFrame(DShow::VideoFormat::ARGB, (unsigned char *)src, m_textureBufferSize, ts, 0, frame->width, frame->height);
+		if (needDrop)
+			needDrop = false;
+		else
+			m_dshowInput->OutputFrame(DShow::VideoFormat::ARGB, (unsigned char *)src, m_textureBufferSize, ts, 0, frame->width, frame->height);
 		m_pbos[nextIndex]->unmap();
 	}
 	m_pbos[nextIndex]->release();
-
-	m_vao->release();
-	m_shader->release();
 	m_fbo->release();
 }
 
@@ -494,6 +517,8 @@ void STThread::deletePBO()
 void STThread::updateSticker(const QString &stickerId, bool isAdd)
 {
 	QMutexLocker locker(&m_stickerSetterMutex);
+	if (!m_stFunc)
+		return;
 	if (isAdd) {
 		if (m_stickers.contains(stickerId))
 			return;
@@ -519,8 +544,7 @@ void STThread::quitThread()
 
 	FrameInfo info;
 	while (m_frameQueue.try_dequeue(info)) {
-		if (info.avFrame)
-			av_frame_free(&info.avFrame);
+		
 	}
 }
 
@@ -564,7 +588,9 @@ void STThread::calcPosition(int &width, int &height, int w, int h)
 void STThread::initShader()
 {
 	m_vertexShader = new QOpenGLShader(QOpenGLShader::Vertex);
+	m_vertexShader2 = new QOpenGLShader(QOpenGLShader::Vertex);
 	m_fragmentShader = new QOpenGLShader(QOpenGLShader::Fragment);
+	m_fragmentShader2 = new QOpenGLShader(QOpenGLShader::Fragment);
 	bool b = m_vertexShader->compileSourceCode(R"(
                                                #version 330 core
                                                layout (location = 0) in vec4 vertex; // <vec2 position, vec2 texCoords>
@@ -580,6 +606,19 @@ void STThread::initShader()
                                                    TexCoords = vertex.zw;
                                                    mainPosition = vec4(vertex.xy, 0.0, 1.0);
                                                    gl_Position = model * mainPosition;
+                                               }
+                                               )");
+
+	b = m_vertexShader2->compileSourceCode(R"(
+                                               #version 330 core
+                                               layout (location = 0) in vec4 vertex; // <vec2 position, vec2 texCoords>
+
+                                               out vec2 TexCoords;
+                                               
+                                               void main()
+                                               {
+                                                   TexCoords = vertex.zw;
+                                                   gl_Position = vec4(vertex.x, -vertex.y, 1, 1);
                                                }
                                                )");
 
@@ -617,6 +656,18 @@ void STThread::initShader()
                                                 }
                                             }
                                             )");
+
+	b = m_fragmentShader2->compileSourceCode(R"(
+                                            #version 330 core
+                                            in vec2 TexCoords;
+                                            out vec4 color;
+
+                                            uniform sampler2D image;
+                                            void main()
+                                            {
+                                                color = vec4(texture(image, TexCoords).rgb, 1);
+                                            }
+                                            )");
 	m_shader = new QOpenGLShaderProgram;
 	m_shader->addShader(m_vertexShader);
 	m_shader->addShader(m_fragmentShader);
@@ -626,6 +677,15 @@ void STThread::initShader()
 	m_shader->setUniformValue("image", 0);
 	m_shader->setUniformValue("maskImage", 1);
 	m_shader->release();
+
+	m_flipShader = new QOpenGLShaderProgram;
+	m_flipShader->addShader(m_vertexShader2);
+	m_flipShader->addShader(m_fragmentShader2);
+	m_flipShader->link();
+
+	m_flipShader->bind();
+	m_flipShader->setUniformValue("image", 0);
+	m_flipShader->release();
 }
 
 void STThread::initOpenGLContext()
