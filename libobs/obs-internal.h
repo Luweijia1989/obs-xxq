@@ -240,7 +240,7 @@ struct obs_tex_frame {
 struct obs_task_info {
 	obs_task_t task;
 	void *param;
-}
+};
 
 typedef void (*rtc_frame_output_t)(uint8_t **data, uint32_t *linesize,
 				   uint32_t width, uint32_t height,
