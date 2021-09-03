@@ -147,7 +147,8 @@ Item {
                         Text {
                             Layout.alignment: Qt.AlignRight
 							Layout.rightMargin : 0
-                            Layout.maximumWidth: 141
+                            Layout.maximumWidth: 147
+                            leftPadding:24
                             rightPadding: 18
                             text: diamondNum
                             horizontalAlignment: Text.AlignRight
