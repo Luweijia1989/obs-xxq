@@ -852,7 +852,7 @@ void ScreenMirrorServer::WinAirplayVideoTick(void *data, float seconds)
 	pthread_mutex_lock(&s->m_statusMutex);
 	if (s->mirror_status == OBS_SOURCE_MIRROR_START) {
 		s->m_startTimeElapsed += seconds;
-		if (s->m_startTimeElapsed > 10.0) {
+		if (s->m_startTimeElapsed > 30.0) {
 			s->handleMirrorStatus(OBS_SOURCE_MIRROR_DEVICE_LOST);
 		}
 	}

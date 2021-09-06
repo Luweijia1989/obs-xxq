@@ -2,6 +2,7 @@
 #include <QApplication>
 #include <QDebug>
 #include <QDateTime>
+#include <QStandardPaths>
 #include "../ipc.h"
 #include "../common-define.h"
 
@@ -9,11 +10,32 @@ const char *vendor = "once2go";
 const char *model = "HelperProjectionApp"; //根据这个model来打开手机的app
 const char *description = u8"鱼耳直播助手";
 const char *version = "1.0";
-const char *uri = "https://www.douyu.com/client/mobile";
+const char *uri = "https://www.yuerzhibo.com";
 const char *serial = "0000000012345678";
 
 AOADeviceManager::AOADeviceManager()
 {
+	auto path = QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation) + "/vids.txt";
+	QString vids;
+	QFile idFile(path);
+	if (idFile.exists()) {
+		idFile.open(QFile::ReadOnly);
+		vids = idFile.readAll();
+		idFile.close();
+	} else 
+		vids = "2d95,12d1,22d9,2717,2a70,04e8,2a45,0b05,17ef,29a9,109b,054c,18d1,19d2";
+
+	bool ok = false;
+	if (!vids.isEmpty()) {
+		auto list = vids.split(',');
+		for (auto it : list) {
+			auto id = it.toInt(&ok, 16);
+			if (ok)
+				m_vids.insert(id);
+		}
+	}
+
+	ipc_client_create(&m_client);
 	m_driverHelper = new DriverHelper(this);
 	connect(m_driverHelper, &DriverHelper::installProgress, this,
 		&AOADeviceManager::installProgress);
@@ -33,6 +55,8 @@ AOADeviceManager::~AOADeviceManager()
 	circlebuf_free(&m_mediaDataBuffer);
 	ipc_client_destroy(&client);
 	free(m_cacheBuffer);
+
+	ipc_client_destroy(&m_client);
 }
 
 int AOADeviceManager::initUSB()
@@ -145,15 +169,14 @@ int AOADeviceManager::setupDroid(libusb_device *usbDevice,
 					interdesc->bInterfaceNumber;
 				device->audioAlternateSetting =
 					interdesc->bAlternateSetting;
-
-				for (k = 0; k < (int)interdesc->bNumEndpoints;
-				     k++) {
+ 
+				for (k = 0; k < (int)interdesc->bNumEndpoints; k++) {
 					epdesc = &interdesc->endpoint[k];
 					if (epdesc->bmAttributes !=
 					    ((3 << 2) | (1 << 0))) {
 						qDebug("skipping non-iso ep\n");
 						break;
-					}
+					} 
 					device->audioendp =
 						epdesc->bEndpointAddress;
 					device->audiopacketsize =
@@ -454,10 +477,43 @@ void *AOADeviceManager::a2s_usbRxThread(void *d)
 	return NULL;
 }
 
-bool AOADeviceManager::isAndroidDevice(uint16_t vid, uint16_t pid)
+bool AOADeviceManager::isAndroidDevice(libusb_device *device, struct libusb_device_descriptor &desc)
 {
-	Q_UNUSED(pid)
-	return vid == 0x2717 || vid == 0x18D1;
+	if (!m_vids.contains(desc.idVendor))
+		return false;
+
+	struct libusb_config_descriptor *config;
+	int r = libusb_get_config_descriptor(device, 0, &config);
+	if (r < 0) {
+		return false;
+	}
+
+	const struct libusb_interface *inter;
+	const struct libusb_interface_descriptor *interdesc;
+	int i, j;
+
+	bool ret = false;
+	for (i = 0; i < (int)config->bNumInterfaces; i++) {
+		inter = &config->interface[i];
+		if (inter == NULL) {
+			continue;
+		}
+		for (j = 0; j < inter->num_altsetting; j++) {
+			interdesc = &inter->altsetting[j];
+			if (interdesc->bInterfaceClass == 0xff &&
+			    interdesc->bInterfaceSubClass == 0xff ) {
+				ret = true;
+				break;
+			}
+		}
+	}
+
+	return ret;
+}
+
+bool AOADeviceManager::isAndroidADBDevice(struct libusb_device_descriptor &desc)
+{
+	return desc.idProduct == PID_AOA_ACC_AU_ADB || desc.idProduct == PID_AOA_AU_ADB || desc.idProduct == PID_AOA_ACC_AU_ADB;
 }
 
 int AOADeviceManager::startUSBPipe()
@@ -508,7 +564,14 @@ int AOADeviceManager::connectDevice(libusb_device *device)
 		return -5;
 	}
 
+	//unsigned char enable_write[1] = {1};
+	//int a_len = 0;
+	//libusb_bulk_transfer(m_droid.usbHandle, m_droid.outendp, enable_write,
+	//		     1, &a_len, 0);
+
 	qDebug("new Android connected");
+
+	send_status(m_client, MIRROR_START);
 	return 0;
 }
 
@@ -519,6 +582,8 @@ void AOADeviceManager::disconnectDevice()
 	clearUSB();
 
 	qDebug("Android disconnected");
+
+	send_status(m_client, MIRROR_STOP);
 }
 
 bool AOADeviceManager::enumDeviceAndCheck()
@@ -537,7 +602,7 @@ bool AOADeviceManager::enumDeviceAndCheck()
 			continue;
 		}
 
-		bool isAndroid = isAndroidDevice(desc.idVendor, desc.idProduct);
+		bool isAndroid = isAndroidDevice(devs[i], desc);
 		if (isAndroid) {
 			ret = true;
 			break;
@@ -573,7 +638,7 @@ Retry:
 			continue;
 		}
 
-		if (isAndroidDevice(desc.idVendor, desc.idProduct)) {
+		if (isAndroidDevice(devs[i], desc)) {
 			if (m_driverHelper->checkInstall(desc.idVendor,
 							 desc.idProduct)) {
 				m_waitMutex.lock();
@@ -611,6 +676,11 @@ bool AOADeviceManager::startTask()
 		int r = libusb_get_device_descriptor(m_devs[i], &desc);
 		if (r < 0) {
 			continue;
+		}
+
+		if (isAndroidADBDevice(desc)) {
+			emit infoPrompt(u8"系统检测到手机的'USB调试'功能被打开，请在手机'设置'界面中'开发人员选项'里关闭此功能，并重新拔插手机！！");
+			break;
 		}
 
 		if (isDroidInAcc(m_devs[i])) {

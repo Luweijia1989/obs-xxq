@@ -1,4 +1,4 @@
-#include "InformationWidget.h"
+﻿#include "InformationWidget.h"
 #include <QProgressBar>
 #include <QVBoxLayout>
 #include <QMessageBox>
@@ -68,4 +68,9 @@ void InformationWidget::onInstallStatus(int step, int value)
 	    }
         }
     }
+}
+
+void InformationWidget::onInfoPrompt(const QString &msg)
+{
+	QMessageBox::information(nullptr, u8"提示", msg);
 }

@@ -15,6 +15,7 @@ signals:
 
 public slots:
     void onInstallStatus(int step, int value);
+    void onInfoPrompt(const QString &msg);
 
 private:
     QProgressBar *m_progressBar = nullptr;

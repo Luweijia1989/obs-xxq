@@ -1,4 +1,4 @@
-﻿#include "AOADeviceManager.h"
+#include "AOADeviceManager.h"
 #include "InformationWidget.h"
 #include <QApplication>
 #include "DriverHelper.h"
@@ -8,7 +8,8 @@ int main(int argc, char *argv[]){
     QGuiApplication::setAttribute(Qt::AA_UseHighDpiPixmaps);
 
     QApplication app(argc, argv);
-
+    app.setQuitOnLastWindowClosed(false);
+    app.setApplicationName("yuerlive");
 
     QThread thread;
     QObject::connect(&app, &QApplication::aboutToQuit, &thread, &QThread::quit);
@@ -19,6 +20,7 @@ int main(int argc, char *argv[]){
 
     InformationWidget widget;
     QObject::connect(&manager, &AOADeviceManager::installProgress, &widget, &InformationWidget::onInstallStatus);
+    QObject::connect(&manager, &AOADeviceManager::infoPrompt, &widget, &InformationWidget::onInfoPrompt);
 
     QMetaObject::invokeMethod(&manager, "updateUsbInventory", Qt::QueuedConnection);
 

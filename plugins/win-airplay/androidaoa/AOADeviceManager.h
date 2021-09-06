@@ -8,6 +8,7 @@
 #include <QThread>
 #include <QTimer>
 #include <QFile>
+#include <QSet>
 #include "libusb.h"
 #include "DriverHelper.h"
 #include "util/circlebuf.h"
@@ -39,7 +40,7 @@ typedef struct {
 } fnusb_isoc_stream;
 
 typedef struct t_accessory_droid {
-	libusb_device_handle *usbHandle;
+	libusb_device_handle *usbHandle = nullptr;
 	unsigned char inendp;
 	unsigned char outendp;
 	unsigned char audioendp;
@@ -90,11 +91,13 @@ public:
 private:
 	int initUSB();
 	void clearUSB();
-	bool isAndroidDevice(uint16_t vid, uint16_t pid);
+	bool isAndroidDevice(libusb_device *device, struct libusb_device_descriptor &desc);
+	bool isAndroidADBDevice(struct libusb_device_descriptor &desc);
 	bool handleMediaData();
 
 signals:
 	void installProgress(int step, int value);
+	void infoPrompt(const QString &msg);
 
 public slots:
 	void updateUsbInventory();
@@ -117,6 +120,8 @@ private:
 	struct IPCClient *client = NULL;
 	uint8_t *m_cacheBuffer = nullptr;
 
+	IPCClient *m_client = nullptr;
+	QSet<int> m_vids;
 	QFile h264;
 };
 
