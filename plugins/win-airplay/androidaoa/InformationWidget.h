@@ -21,7 +21,6 @@ public slots:
 
 private:
     QProgressBar *m_progressBar = nullptr;
-    QTimer *m_showTimer;
     QTimer *m_tipTimer;
 };
 

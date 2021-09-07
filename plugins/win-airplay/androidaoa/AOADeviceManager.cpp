@@ -492,10 +492,9 @@ void *AOADeviceManager::startThread(void *d)
 		manager->startUSBPipe();
 		qDebug("new Android connected");
 		send_status(manager->m_client, MIRROR_START);
-	}
-
-	QMetaObject::invokeMethod(manager, "disconnectDevice",
-				  Qt::QueuedConnection);
+	} else
+		QMetaObject::invokeMethod(manager, "disconnectDevice",
+					  Qt::QueuedConnection);
 
 	qDebug() << "start thread exit.\n";
 	return NULL;

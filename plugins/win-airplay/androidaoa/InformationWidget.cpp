@@ -25,20 +25,13 @@ InformationWidget::InformationWidget(QWidget *parent) : QWidget(parent)
 
     setVisible(false);
 
-    m_showTimer = new QTimer(this);
-    m_showTimer->setSingleShot(true);
-    m_showTimer->setInterval(3000);
-    connect(m_showTimer, &QTimer::timeout, this, [=](){
-	setVisible(true);
-    });
-
     m_tipTimer = new QTimer(this);
     m_tipTimer->setSingleShot(true);
 }
 
 void InformationWidget::onInstallStatus(int step, int value)
 {
-    bool delayShow = false;
+    bool show = true;
     if (value == -1) {//失败
         setVisible(false);
     } else {
@@ -57,19 +50,13 @@ void InformationWidget::onInstallStatus(int step, int value)
                 break;
             case 3: //安装三阶段，成功
 		if (step == 0)
-		    delayShow = true;
+		    show = false;
                 v = step == 0 ? 50 : 100;
                 break;
             }
 
             m_progressBar->setValue(v);
-	    if (delayShow)
-		m_showTimer->start();
-	    else {
-                setVisible(m_progressBar->value() != 100);
-		if (m_progressBar->value() == 100)
-			m_showTimer->stop();
-	    }
+            setVisible(show && m_progressBar->value() != 100);
         }
     }
 }
