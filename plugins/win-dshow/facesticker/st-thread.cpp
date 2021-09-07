@@ -284,7 +284,7 @@ void STThread::processImage(AVFrame *frame, quint64 ts)
 			m_swsctx = NULL;
 		}
 
-		flip = AV_PIX_FMT_BGRA == frame->format;
+		flip = AV_PIX_FMT_BGRA == frame->format || AV_PIX_FMT_BGR0 == frame->format;
 		m_swsctx = sws_getContext(frame->width, frame->height, (AVPixelFormat)frame->format, frame->width, frame->height, AVPixelFormat::AV_PIX_FMT_RGBA, SWS_BICUBIC, NULL, NULL, NULL);
 
 		if (m_fbo)
