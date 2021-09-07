@@ -1,4 +1,4 @@
-#include "InformationWidget.h"
+﻿#include "InformationWidget.h"
 #include <QProgressBar>
 #include <QVBoxLayout>
 #include <QMessageBox>
@@ -31,6 +31,9 @@ InformationWidget::InformationWidget(QWidget *parent) : QWidget(parent)
     connect(m_showTimer, &QTimer::timeout, this, [=](){
 	setVisible(true);
     });
+
+    m_tipTimer = new QTimer(this);
+    m_tipTimer->setSingleShot(true);
 }
 
 void InformationWidget::onInstallStatus(int step, int value)
@@ -73,5 +76,14 @@ void InformationWidget::onInstallStatus(int step, int value)
 
 void InformationWidget::onInfoPrompt(const QString &msg)
 {
+	if (m_tipTimer->isActive())
+		return;
+
+	m_tipTimer->start(5000);
 	QMessageBox::information(nullptr, u8"提示", msg);
+}
+
+void InformationWidget::onDeviceLost()
+{
+	setVisible(false);
 }

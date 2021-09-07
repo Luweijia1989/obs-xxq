@@ -2,6 +2,7 @@
 #define INFORMATIONWIDGET_H
 
 #include <QWidget>
+#include <QTimer>
 
 class QProgressBar;
 class QTimer;
@@ -16,10 +17,12 @@ signals:
 public slots:
     void onInstallStatus(int step, int value);
     void onInfoPrompt(const QString &msg);
+    void onDeviceLost();
 
 private:
     QProgressBar *m_progressBar = nullptr;
     QTimer *m_showTimer;
+    QTimer *m_tipTimer;
 };
 
 #endif // INFORMATIONWIDGET_H

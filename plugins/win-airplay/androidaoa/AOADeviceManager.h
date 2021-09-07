@@ -99,6 +99,7 @@ private:
 signals:
 	void installProgress(int step, int value);
 	void infoPrompt(const QString &msg);
+	void deviceLost();
 
 public slots:
 	void updateUsbInventory();

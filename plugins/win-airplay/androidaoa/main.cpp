@@ -21,6 +21,7 @@ int main(int argc, char *argv[]){
     InformationWidget widget;
     QObject::connect(&manager, &AOADeviceManager::installProgress, &widget, &InformationWidget::onInstallStatus);
     QObject::connect(&manager, &AOADeviceManager::infoPrompt, &widget, &InformationWidget::onInfoPrompt);
+    QObject::connect(&manager, &AOADeviceManager::deviceLost, &widget, &InformationWidget::onDeviceLost);
 
     QMetaObject::invokeMethod(&manager, "updateUsbInventory", Qt::QueuedConnection);
 

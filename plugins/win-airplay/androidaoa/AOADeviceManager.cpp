@@ -410,6 +410,11 @@ void *AOADeviceManager::a2s_usbRxThread(void *d)
 
 bool AOADeviceManager::isAndroidDevice(libusb_device *device, struct libusb_device_descriptor &desc)
 {
+	if (isAndroidADBDevice(desc)) {
+		emit infoPrompt(u8"系统检测到手机的'USB调试'功能被打开，请在手机'设置'界面中'开发人员选项'里关闭此功能，并重新拔插手机！！");
+		return false;
+	}
+
 	if (!m_vids.contains(desc.idVendor))
 		return false;
 
@@ -431,10 +436,8 @@ bool AOADeviceManager::isAndroidDevice(libusb_device *device, struct libusb_devi
 		}
 		for (j = 0; j < inter->num_altsetting; j++) {
 			interdesc = &inter->altsetting[j];
-			if (interdesc->bInterfaceClass == 0xff &&
-			    interdesc->bInterfaceSubClass == 0xff ) {
-				ret = true;
-				break;
+			if (interdesc->bInterfaceClass == 0xff) {
+				return true;
 			}
 		}
 	}
@@ -490,6 +493,9 @@ void *AOADeviceManager::startThread(void *d)
 		qDebug("new Android connected");
 		send_status(manager->m_client, MIRROR_START);
 	}
+
+	QMetaObject::invokeMethod(manager, "disconnectDevice",
+				  Qt::QueuedConnection);
 
 	qDebug() << "start thread exit.\n";
 	return NULL;
@@ -628,11 +634,6 @@ bool AOADeviceManager::startTask()
 			continue;
 		}
 
-		if (isAndroidADBDevice(desc)) {
-			emit infoPrompt(u8"系统检测到手机的'USB调试'功能被打开，请在手机'设置'界面中'开发人员选项'里关闭此功能，并重新拔插手机！！");
-			break;
-		}
-
 		if (isDroidInAcc(m_devs[i])) {
 			ret = connectDevice(m_devs[i]) == 0;
 			break;
@@ -650,5 +651,9 @@ void AOADeviceManager::updateUsbInventory()
 		checkAndInstallDriver();
 		startTask();
 	}
+
+	if (!exist)
+		emit deviceLost();
+
 	inUpdate = false;
 }
