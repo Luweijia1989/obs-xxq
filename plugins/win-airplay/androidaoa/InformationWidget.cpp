@@ -1,9 +1,10 @@
-﻿#include "InformationWidget.h"
+#include "InformationWidget.h"
 #include <QProgressBar>
 #include <QVBoxLayout>
 #include <QMessageBox>
 #include <QLabel>
 #include <QTimer>
+#include <QApplication>
 
 InformationWidget::InformationWidget(QWidget *parent) : QWidget(parent)
 {

@@ -20,7 +20,7 @@ file(GLOB_RECURSE rtmp-server_SRC ${PROJECT_SOURCE_DIR}
 	win/src/*.cpp
 	win/src/*.c
 )
-
+ 
 file(GLOB_RECURSE rtmp-server_HEADER ${PROJECT_SOURCE_DIR} 
 	src/app/*.hpp 
 	src/core/*.hpp 

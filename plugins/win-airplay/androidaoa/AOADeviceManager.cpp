@@ -116,74 +116,30 @@ int AOADeviceManager::setupDroid(libusb_device *usbDevice,
 			qDebug("interface is null\n");
 			continue;
 		}
-		qDebug("interface has %d alternate settings\n",
-		       inter->num_altsetting);
+		qDebug("interface has %d alternate settings\n", inter->num_altsetting);
 		for (j = 0; j < inter->num_altsetting; j++) {
 			interdesc = &inter->altsetting[j];
-			if (interdesc->bNumEndpoints == 2 &&
-			    interdesc->bInterfaceClass == 0xff &&
-			    interdesc->bInterfaceSubClass == 0xff &&
-			    (device->inendp <= 0 || device->outendp <= 0)) {
-				qDebug("interface %d is accessory candidate\n",
-				       i);
-				for (k = 0; k < (int)interdesc->bNumEndpoints;
-				     k++) {
+			if (interdesc->bNumEndpoints == 2 && interdesc->bInterfaceClass == 0xff && interdesc->bInterfaceSubClass == 0xff && (device->inendp <= 0 || device->outendp <= 0)) {
+				qDebug("interface %d is accessory candidate\n", i);
+				for (k = 0; k < (int)interdesc->bNumEndpoints; k++) {
 					epdesc = &interdesc->endpoint[k];
 					if (epdesc->bmAttributes != 0x02) {
 						break;
 					}
-					if ((epdesc->bEndpointAddress &
-					     LIBUSB_ENDPOINT_IN) &&
-					    device->inendp <= 0) {
-						device->inendp =
-							epdesc->bEndpointAddress;
-						device->inpacketsize =
-							epdesc->wMaxPacketSize;
-						qDebug("using EP 0x%02x as bulk-in EP\n",
-						       (int)device->inendp);
-					} else if ((!(epdesc->bEndpointAddress &
-						      LIBUSB_ENDPOINT_IN)) &&
-						   device->outendp <= 0) {
-						device->outendp =
-							epdesc->bEndpointAddress;
-						device->outpacketsize =
-							epdesc->wMaxPacketSize;
-						qDebug("using EP 0x%02x as bulk-out EP\n",
-						       (int)device->outendp);
+					if ((epdesc->bEndpointAddress & LIBUSB_ENDPOINT_IN) && device->inendp <= 0) {
+						device->inendp = epdesc->bEndpointAddress;
+						device->inpacketsize = epdesc->wMaxPacketSize;
+						qDebug("using EP 0x%02x as bulk-in EP\n", (int)device->inendp);
+					} else if ((!(epdesc->bEndpointAddress & LIBUSB_ENDPOINT_IN)) && device->outendp <= 0) {
+						device->outendp = epdesc->bEndpointAddress;
+						device->outpacketsize = epdesc->wMaxPacketSize;
+						qDebug("using EP 0x%02x as bulk-out EP\n", (int)device->outendp);
 					} else {
 						break;
 					}
 				}
 				if (device->inendp && device->outendp) {
-					device->bulkInterface =
-						interdesc->bInterfaceNumber;
-				}
-			} else if (interdesc->bInterfaceClass == 0x01 &&
-				   interdesc->bInterfaceSubClass == 0x02 &&
-				   interdesc->bNumEndpoints > 0 &&
-				   device->audioendp <= 0) {
-
-				qDebug("interface %d is audio candidate\n", i);
-
-				device->audioInterface =
-					interdesc->bInterfaceNumber;
-				device->audioAlternateSetting =
-					interdesc->bAlternateSetting;
- 
-				for (k = 0; k < (int)interdesc->bNumEndpoints; k++) {
-					epdesc = &interdesc->endpoint[k];
-					if (epdesc->bmAttributes !=
-					    ((3 << 2) | (1 << 0))) {
-						qDebug("skipping non-iso ep\n");
-						break;
-					} 
-					device->audioendp =
-						epdesc->bEndpointAddress;
-					device->audiopacketsize =
-						epdesc->wMaxPacketSize;
-					qDebug("using EP 0x%02x as audio EP\n",
-					       (int)device->audioendp);
-					break;
+					device->bulkInterface = interdesc->bInterfaceNumber;
 				}
 			}
 		}
@@ -205,31 +161,6 @@ int AOADeviceManager::setupDroid(libusb_device *usbDevice,
 		qDebug("failed to claim bulk interface\n");
 		libusb_close(device->usbHandle);
 		return r;
-	}
-
-	if (device->audioendp) {
-		r = libusb_claim_interface(device->usbHandle,
-					   device->audioInterface);
-		if (r < 0) {
-			qDebug("failed to claim audio interface\n");
-			libusb_release_interface(device->usbHandle,
-						 device->bulkInterface);
-			libusb_close(device->usbHandle);
-			return r;
-		}
-
-		r = libusb_set_interface_alt_setting(
-			device->usbHandle, device->audioInterface,
-			device->audioAlternateSetting);
-		if (r < 0) {
-			qDebug("failed to set alternate setting\n");
-			libusb_release_interface(device->usbHandle,
-						 device->bulkInterface);
-			libusb_release_interface(device->usbHandle,
-						 device->audioInterface);
-			libusb_close(device->usbHandle);
-			return r;
-		}
 	}
 
 	device->connected = true;
@@ -520,7 +451,6 @@ int AOADeviceManager::startUSBPipe()
 {
 	m_continuousRead = true;
 	m_usbReadThread = std::thread(AOADeviceManager::a2s_usbRxThread, this);
-	m_usbReadThread.detach();
 
 	return 0;
 }
@@ -535,6 +465,34 @@ void AOADeviceManager::stopUSBPipe()
 	qDebug("usb threads stopped\n");
 
 	// h264.close();
+}
+
+void *AOADeviceManager::startThread(void *d)
+{
+	AOADeviceManager *manager = (AOADeviceManager *)d;
+
+	int r = -1;
+	while (!manager->m_exitStart) {
+		int len = 0;
+		unsigned char data = 1;
+		r = libusb_bulk_transfer(
+				manager->m_droid.usbHandle, manager->m_droid.outendp,
+				&data, 1, &len, 10);
+
+		if (r == LIBUSB_ERROR_TIMEOUT)
+			continue;
+		else
+			break;
+	}
+	
+	if (r == LIBUSB_SUCCESS) {
+		manager->startUSBPipe();
+		qDebug("new Android connected");
+		send_status(manager->m_client, MIRROR_START);
+	}
+
+	qDebug() << "start thread exit.\n";
+	return NULL;
 }
 
 int AOADeviceManager::connectDevice(libusb_device *device)
@@ -557,26 +515,18 @@ int AOADeviceManager::connectDevice(libusb_device *device)
 		return -3;
 	}
 
-	r = startUSBPipe();
-	if (r < 0) {
-		qDebug("failed to start pipe: %d", r);
-		disconnectDevice();
-		return -5;
-	}
+	m_exitStart = false;
+	m_startThread = std::thread(AOADeviceManager::startThread, this);
 
-	//unsigned char enable_write[1] = {1};
-	//int a_len = 0;
-	//libusb_bulk_transfer(m_droid.usbHandle, m_droid.outendp, enable_write,
-	//		     1, &a_len, 0);
-
-	qDebug("new Android connected");
-
-	send_status(m_client, MIRROR_START);
 	return 0;
 }
 
 void AOADeviceManager::disconnectDevice()
 {
+	m_exitStart = true;
+	if (m_startThread.joinable())
+		m_startThread.join();
+
 	stopUSBPipe();
 	shutdownUSBDroid(&m_droid);
 	clearUSB();

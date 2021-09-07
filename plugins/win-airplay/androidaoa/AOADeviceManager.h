@@ -87,6 +87,7 @@ public:
 	}
 
 	static void *a2s_usbRxThread(void *d);
+	static void *startThread(void *d);
 
 private:
 	int initUSB();
@@ -109,7 +110,9 @@ private:
 	libusb_device **m_devs = nullptr;
 	int m_devs_count = 0;
 	std::thread m_usbReadThread;
+	std::thread m_startThread;
 	bool m_continuousRead = false;
+	bool m_exitStart = false;
 	unsigned char *buffer = nullptr;
 	DriverHelper *m_driverHelper = nullptr;
 
