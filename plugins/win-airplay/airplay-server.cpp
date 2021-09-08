@@ -318,7 +318,12 @@ void ScreenMirrorServer::initDecoder(uint8_t *data, size_t len)
 
 	m_decoder = new AVDecoder;
 	m_decoder->Init(data, len, m_renderer->GetDevice());
-	blog(LOG_INFO, "mirror decoder init complete, use hardware: %s", m_decoder->IsHWDecode() ? "true" : "false");
+
+	static bool loged = false;
+	if (!loged) {
+		blog(LOG_INFO, "mirror decoder init complete, use hardware: %s", m_decoder->IsHWDecode() ? "true" : "false");
+		loged = true;
+	}
 }
 
 void ScreenMirrorServer::parseNalus(uint8_t *data, size_t size, uint8_t **out,
