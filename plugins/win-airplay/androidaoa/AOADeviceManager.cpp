@@ -6,8 +6,8 @@
 #include "../ipc.h"
 #include "../common-define.h"
 
-const char *vendor = "once2go";
-const char *model = "HelperProjectionApp"; //根据这个model来打开手机的app
+const char *vendor = "YPP";
+const char *model = "XxqProjectionApp"; //根据这个model来打开手机的app
 const char *description = u8"鱼耳直播助手";
 const char *version = "1.0";
 const char *uri = "https://www.yuerzhibo.com";
