@@ -76,7 +76,7 @@ public:
 	void stopUSBPipe();
 
 	bool enumDeviceAndCheck();
-	void checkAndInstallDriver();
+	bool checkAndInstallDriver();
 	bool startTask();
 
 	void signalWait()
@@ -144,7 +144,9 @@ public:
 							  "updateUsbInventory",
 							  Qt::QueuedConnection);
 			else {
-				m_helper->signalWait();
+				QTimer::singleShot(200, m_helper, [=]() {
+					m_helper->signalWait();
+				});
 			}
 		}
 		return false;

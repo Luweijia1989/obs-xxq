@@ -570,11 +570,13 @@ bool AOADeviceManager::enumDeviceAndCheck()
 	return ret;
 }
 
-void AOADeviceManager::checkAndInstallDriver()
+bool AOADeviceManager::checkAndInstallDriver()
 {
+	bool ret = false;
 	libusb_context *ctx = nullptr;
 	libusb_device **devs = nullptr;
 	int count = 0;
+	int switchAOACount = 0;
 
 Retry:
 	if (devs)
@@ -583,7 +585,7 @@ Retry:
 		libusb_exit(ctx);
 
 	if (libusb_init(&ctx) < 0)
-		return;
+		return ret;
 
 	count = libusb_get_device_list(ctx, &devs);
 	for (int i = 0; i < count; i++) {
@@ -602,8 +604,12 @@ Retry:
 				goto Retry;
 			}
 			if (isDroidInAcc(devs[i])) {
+				ret = true;
 				break;
 			} else {
+				switchAOACount++;
+				if (switchAOACount > 10)
+					break;
 				switchDroidToAcc(devs[i], 1);
 				m_waitMutex.lock();
 				m_waitCondition.wait(&m_waitMutex, 500);
@@ -615,6 +621,8 @@ Retry:
 
 	libusb_free_device_list(devs, count);
 	libusb_exit(ctx);
+	
+	return ret;
 }
 
 bool AOADeviceManager::startTask()
@@ -647,8 +655,10 @@ void AOADeviceManager::updateUsbInventory()
 	inUpdate = true;
 	bool exist = enumDeviceAndCheck();
 	if (exist && !m_droid.connected) {
-		checkAndInstallDriver();
-		startTask();
+		if (checkAndInstallDriver())
+			startTask();
+		else
+			emit infoPrompt(u8"启动投屏服务失败，后台退出鱼耳直播APP后重启再试。");
 	}
 
 	if (!exist)
