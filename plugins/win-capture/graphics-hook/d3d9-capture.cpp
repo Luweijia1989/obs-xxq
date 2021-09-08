@@ -520,9 +520,12 @@ static void d3d9_init(IDirect3DDevice9 *device)
 	if (!success)
 		d3d9_free();
 	else {
-		D3DPRESENT_PARAMETERS pp;
-		d3d9_get_swap_desc(pp);
-		imgui_init_dx9(device, pp.hDeviceWindow);
+		if (!global_hook_info->black_list)
+		{
+			D3DPRESENT_PARAMETERS pp;
+			d3d9_get_swap_desc(pp);
+			imgui_init_dx9(device, pp.hDeviceWindow);
+		}
 	}
 }
 

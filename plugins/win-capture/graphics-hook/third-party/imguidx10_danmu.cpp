@@ -33,6 +33,9 @@ void imgui_init_dx10(ID3D10Device *device, HWND hwnd)
 
 void imgui_paint_dx10()
 {
+	if (!is_initialised)
+		return;
+
 	if (capture_active() && is_initialised) {
 		Json::Value root;
 		if (!checkDanmu(root))

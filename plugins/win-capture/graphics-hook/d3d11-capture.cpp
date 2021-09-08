@@ -573,14 +573,17 @@ static void d3d11_init(IDXGISwapChain *swap)
 	if (!success)
 		d3d11_free();
 	else {
-		ID3D11Texture2D *pBackBuffer;
-		swap->GetBuffer(0, __uuidof(ID3D11Texture2D),
-				      (LPVOID *)&pBackBuffer);
-		data.device->CreateRenderTargetView(pBackBuffer, NULL,
-						&mainRenderTargetView);
-		pBackBuffer->Release();
+		if (!global_hook_info->black_list)
+		{
+			ID3D11Texture2D *pBackBuffer;
+			swap->GetBuffer(0, __uuidof(ID3D11Texture2D),
+					(LPVOID *)&pBackBuffer);
+			data.device->CreateRenderTargetView(
+				pBackBuffer, NULL, &mainRenderTargetView);
+			pBackBuffer->Release();
 
-		imgui_init_dx11(data.device, window, data.context);
+			imgui_init_dx11(data.device, window, data.context);
+		}
 	}
 }
 

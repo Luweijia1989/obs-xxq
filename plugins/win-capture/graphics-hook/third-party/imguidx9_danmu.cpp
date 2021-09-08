@@ -55,11 +55,16 @@ void imgui_paint_dx9()
 
 void imgui_before_reset_dx9()
 {
+	if (!is_initialised)
+		return;
 	ImGui_ImplDX9_InvalidateDeviceObjects();
 }
 
 void imgui_after_reset_dx9(IDirect3DDevice9 *device)
 {
+	if (!is_initialised)
+		return;
+
 	D3DPRESENT_PARAMETERS g_d3dpp = {};
 	HRESULT hr = device->Reset(&g_d3dpp);
 	if (hr == D3DERR_INVALIDCALL)

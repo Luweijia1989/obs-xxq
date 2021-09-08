@@ -559,8 +559,12 @@ static void d3d10_init(IDXGISwapChain *swap)
 
 	if (!success)
 		d3d10_free();
-	else
-		imgui_init_dx10(data.device, window);
+	else {
+		if (!global_hook_info->black_list)
+		{
+			imgui_init_dx10(data.device, window);
+		}
+	}
 }
 
 #define MAX_RENDER_TARGETS D3D10_SIMULTANEOUS_RENDER_TARGET_COUNT

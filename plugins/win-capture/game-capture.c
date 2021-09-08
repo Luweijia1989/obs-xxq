@@ -114,6 +114,7 @@ struct game_capture_config {
 	bool capture_overlays;
 	bool anticheat_hook;
 	bool only_lyric;
+	bool black_list;
 	enum hook_rate hook_rate;
 };
 
@@ -155,6 +156,8 @@ struct game_capture {
 	bool game_setup;
 	enum obs_source_game_status status;
 	struct game_capture_config config;
+	HANDLE handle;
+	char danmuBalckList[1025];
 
 	ipc_pipe_server_t pipe;
 	gs_texture_t *texture;
@@ -560,6 +563,24 @@ static void game_capture_update(void *data, obs_data_t *settings)
 		gc->activate_hook = !!window && !!*window;
 	}
 
+	bool isBlack = false;
+	if (gc->danmuBalckList && gc->activate_hook) {
+		char *p;
+		char list[1025];
+		memset(list, 0, 1025);
+		memcpy(list, gc->danmuBalckList, 1025);
+		p = strtok(list, ":");
+		while (p != NULL) {
+			char *child = strstr(window, p);
+			if (child) {
+				isBlack = true;
+				break;
+			}
+			p = strtok(NULL, ":");
+		}
+	}
+	cfg.black_list = isBlack;
+
 	free_config(&gc->config);
 	gc->config = cfg;
 	gc->retry_interval = DEFAULT_RETRY_INTERVAL *
@@ -591,7 +612,16 @@ extern void wait_for_hook_initialization(void);
 
 static void *game_capture_create(obs_data_t *settings, obs_source_t *source)
 {
+
 	struct game_capture *gc = bzalloc(sizeof(*gc));
+
+	memset(gc->danmuBalckList, 0, 1025);
+	HANDLE handle = OpenFileMappingA(FILE_MAP_ALL_ACCESS, false, "danmuBalckList");
+	if (handle)
+	{
+		char* list = MapViewOfFile(handle, FILE_MAP_ALL_ACCESS, 0, 0, 1024);
+		memcpy(gc->danmuBalckList, list, 1024);
+	}
 
 	wait_for_hook_initialization();
 
@@ -787,6 +817,7 @@ static inline bool init_hook_info(struct game_capture *gc)
 		     "(multi-adapter compatibility mode)");
 	}
 
+	gc->global_hook_info->black_list = gc->config.black_list;
 	gc->global_hook_info->only_lyric = gc->config.only_lyric;
 	gc->global_hook_info->offsets = gc->process_is_64bit ? offsets64
 							     : offsets32;
