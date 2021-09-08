@@ -81,8 +81,6 @@ private:
 	void dumpResourceImgs();
 	void resetState();
 	bool initPipe();
-	void parseNalus(uint8_t *data, size_t size, uint8_t **out,
-			size_t *out_len);
 	void handleMirrorStatus(int status);
 	bool handleMediaData();
 	const char *killProc();

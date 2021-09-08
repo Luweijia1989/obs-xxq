@@ -326,35 +326,6 @@ void ScreenMirrorServer::initDecoder(uint8_t *data, size_t len)
 	}
 }
 
-void ScreenMirrorServer::parseNalus(uint8_t *data, size_t size, uint8_t **out,
-				    size_t *out_len)
-{
-	int total_size = 0;
-	uint8_t *slice = data;
-	while (slice < data + size) {
-		size_t length = byteutils_get_int_be(slice, 0);
-		total_size += length + 4;
-		slice += length + 4;
-	}
-
-	if (total_size) {
-		*out = (uint8_t *)calloc(1, total_size);
-		uint8_t *ptr = *out;
-		*out_len = total_size;
-		slice = data;
-		size_t copy_index = 0;
-		while (slice < data + size) {
-			memcpy(ptr + copy_index, start_code, 4);
-			copy_index += 4;
-			size_t length = byteutils_get_int_be(slice, 0);
-			total_size += length + 4;
-			memcpy(ptr + copy_index, slice + 4, length);
-			copy_index += length;
-			slice += length + 4;
-		}
-	}
-}
-
 void ScreenMirrorServer::handleMirrorStatus(int status)
 {
 	auto status_func = [=]() {
