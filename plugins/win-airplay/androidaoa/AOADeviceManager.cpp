@@ -40,7 +40,6 @@ AOADeviceManager::AOADeviceManager()
 	connect(m_driverHelper, &DriverHelper::installProgress, this,
 		&AOADeviceManager::installProgress);
 
-	m_cacheBuffer = (uint8_t *)malloc(1024 * 1024);
 	circlebuf_init(&m_mediaDataBuffer);
 	ipc_client_create(&client);
 
@@ -54,7 +53,8 @@ AOADeviceManager::~AOADeviceManager()
 
 	circlebuf_free(&m_mediaDataBuffer);
 	ipc_client_destroy(&client);
-	free(m_cacheBuffer);
+	if (m_cacheBuffer)
+		free(m_cacheBuffer);
 
 	ipc_client_destroy(&m_client);
 }
@@ -318,6 +318,14 @@ bool AOADeviceManager::handleMediaData()
 	size_t totalSize = pktSize + headerSize;
 	if (m_mediaDataBuffer.size < totalSize)
 		return false;
+
+	if (!m_cacheBuffer) {
+		m_cacheBufferSize = headerSize + pktSize;
+		m_cacheBuffer = (uint8_t *)malloc(m_cacheBufferSize);
+	} else if (m_cacheBufferSize < headerSize + pktSize){
+		m_cacheBufferSize = headerSize + pktSize;
+		m_cacheBuffer = (uint8_t *)realloc(m_cacheBuffer, m_cacheBufferSize);
+	}
 
 	circlebuf_pop_front(&m_mediaDataBuffer, m_cacheBuffer, headerSize);
 	int type = m_cacheBuffer[4];

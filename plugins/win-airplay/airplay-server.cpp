@@ -765,9 +765,12 @@ void ScreenMirrorServer::dropFrame(int64_t now_ms)
 		auto p2 = next->pts;
 		auto p2ts = next->pts + m_offset + m_extraDelay;
 
+		VideoFrame &frame = m_videoFrames.front();
+		if (frame.video_info_index != m_lastVideoInfoIndex)
+			break;
+
 		if ((p1 == 0 && p2 == 0) ||
 		    p1ts < now_ms && p2ts < now_ms && now_ms - p2ts > 60) {
-			VideoFrame &frame = m_videoFrames.front();
 			if (m_decoder) {
 				m_encodedPacket.data = frame.data;
 				m_encodedPacket.size = frame.data_len;
