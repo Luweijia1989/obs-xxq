@@ -22,8 +22,6 @@
 #include <QOpenGLExtraFunctions>
 #include "..\win-dshow.h"
 
-extern video_format ConvertVideoFormat(DShow::VideoFormat format);
-
 bool g_st_checkpass = false;
 #define G_VALUE 1000
 #define STRAWBERRY_TIME 4
@@ -50,7 +48,7 @@ enum AVPixelFormat obs_to_ffmpeg_video_format(enum video_format format)
 	case VIDEO_FORMAT_BGRA:
 		return AV_PIX_FMT_BGRA;
 	case VIDEO_FORMAT_BGRX:
-		return AV_PIX_FMT_BGRA;
+		return AV_PIX_FMT_BGR0;
 	case VIDEO_FORMAT_Y800:
 		return AV_PIX_FMT_GRAY8;
 	}
@@ -286,7 +284,7 @@ void STThread::processImage(AVFrame *frame, quint64 ts)
 			m_swsctx = NULL;
 		}
 
-		flip = AV_PIX_FMT_BGRA == frame->format;
+		flip = AV_PIX_FMT_BGRA == frame->format || AV_PIX_FMT_BGR0 == frame->format;
 		m_swsctx = sws_getContext(frame->width, frame->height, (AVPixelFormat)frame->format, frame->width, frame->height, AVPixelFormat::AV_PIX_FMT_RGBA, SWS_BICUBIC, NULL, NULL, NULL);
 
 		if (m_fbo)
