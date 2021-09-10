@@ -26,6 +26,7 @@ class QOpenGLVertexArrayObject;
 class QOpenGLFramebufferObject;
 class QOpenGLTexture;
 class QOpenGLBuffer;
+class QOpenGLShader;
 
 extern bool g_st_checkpass;
 
@@ -48,7 +49,6 @@ public:
 	STThread(DShowInput *dsInput);
 	~STThread();
 	bool stInited() { return m_stFunc && m_stFunc->stInited() && g_st_checkpass; }
-	bool needProcess();
 	void updateInfo(const char *data);
 	void updateSticker(const QString &stickerId, bool isAdd);
 	void updateGameInfo(GameStickerType type, int region);
@@ -74,6 +74,8 @@ private:
 	void createTextures(int w, int h);
 	void createPBO(quint64 size);
 	void deletePBO();
+	void copyTexture(QOpenGLTexture *texture);
+	void ensureCacheBuffer(size_t size);
 
 signals:
 	void started();
@@ -86,8 +88,9 @@ private:
 	struct SwsContext *m_swsctx = NULL;
 	bool flip = false;
 	AVFrame *m_swsRetFrame = nullptr;
+	AVFrame *m_cacheFrame = nullptr;
 	QMap<QString, int> m_stickers;
-	QMutex m_stickerSetterMutex;
+	QRecursiveMutex m_stickerSetterMutex;
 	GameStickerType m_gameStickerType = None;
 	quint64 m_gameStartTime;
 	int m_curRegion = -1;
@@ -95,6 +98,11 @@ private:
 	QOffscreenSurface *surface;
 	QOpenGLContext *ctx;
 	QOpenGLShaderProgram *m_shader = nullptr;
+	QOpenGLShaderProgram *m_flipShader = nullptr;
+	QOpenGLShader *m_vertexShader = nullptr;
+	QOpenGLShader *m_vertexShader2 = nullptr;
+	QOpenGLShader *m_fragmentShader = nullptr;
+	QOpenGLShader *m_fragmentShader2 = nullptr;
 	QOpenGLVertexArrayObject *m_vao = nullptr;
 	QOpenGLFramebufferObject *m_fbo = nullptr;
 	QOpenGLTexture *m_backgroundTexture = nullptr;

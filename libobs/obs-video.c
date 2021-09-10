@@ -227,6 +227,50 @@ static inline gs_effect_t *get_scale_effect(struct obs_core_video *video,
 	}
 }
 
+static inline void
+render_texture_scale_internal(gs_texture_t *texture, gs_texture_t *target,
+			      gs_effect_t *effect, gs_technique_t *tech,
+			      uint32_t base_width, uint32_t base_height)
+{
+	uint32_t width = gs_texture_get_width(target);
+	uint32_t height = gs_texture_get_height(target);
+
+	gs_eparam_t *image = gs_effect_get_param_by_name(effect, "image");
+	gs_eparam_t *bres =
+		gs_effect_get_param_by_name(effect, "base_dimension");
+	gs_eparam_t *bres_i =
+		gs_effect_get_param_by_name(effect, "base_dimension_i");
+	size_t passes, i;
+
+	gs_set_render_target(target, NULL);
+	set_render_size(width, height);
+
+	if (bres) {
+		struct vec2 base;
+		vec2_set(&base, (float)base_width, (float)base_height);
+		gs_effect_set_vec2(bres, &base);
+	}
+
+	if (bres_i) {
+		struct vec2 base_i;
+		vec2_set(&base_i, 1.0f / (float)base_width,
+			 1.0f / (float)base_height);
+		gs_effect_set_vec2(bres_i, &base_i);
+	}
+
+	gs_effect_set_texture(image, texture);
+
+	gs_enable_blending(false);
+	passes = gs_technique_begin(tech);
+	for (i = 0; i < passes; i++) {
+		gs_technique_begin_pass(tech, i);
+		gs_draw_sprite(texture, 0, width, height);
+		gs_technique_end_pass(tech);
+	}
+	gs_technique_end(tech);
+	gs_enable_blending(true);
+}
+
 static const char *render_output_texture_name = "render_output_texture";
 static inline gs_texture_t *render_output_texture(struct obs_core_video *video)
 {
@@ -251,41 +295,8 @@ static inline gs_texture_t *render_output_texture(struct obs_core_video *video)
 
 	profile_start(render_output_texture_name);
 
-	gs_eparam_t *image = gs_effect_get_param_by_name(effect, "image");
-	gs_eparam_t *bres =
-		gs_effect_get_param_by_name(effect, "base_dimension");
-	gs_eparam_t *bres_i =
-		gs_effect_get_param_by_name(effect, "base_dimension_i");
-	size_t passes, i;
-
-	gs_set_render_target(target, NULL);
-	set_render_size(width, height);
-
-	if (bres) {
-		struct vec2 base;
-		vec2_set(&base, (float)video->base_width,
-			 (float)video->base_height);
-		gs_effect_set_vec2(bres, &base);
-	}
-
-	if (bres_i) {
-		struct vec2 base_i;
-		vec2_set(&base_i, 1.0f / (float)video->base_width,
-			 1.0f / (float)video->base_height);
-		gs_effect_set_vec2(bres_i, &base_i);
-	}
-
-	gs_effect_set_texture(image, texture);
-
-	gs_enable_blending(false);
-	passes = gs_technique_begin(tech);
-	for (i = 0; i < passes; i++) {
-		gs_technique_begin_pass(tech, i);
-		gs_draw_sprite(texture, 0, width, height);
-		gs_technique_end_pass(tech);
-	}
-	gs_technique_end(tech);
-	gs_enable_blending(true);
+	render_texture_scale_internal(texture, target, effect, tech,
+				      video->base_width, video->base_height);
 
 	profile_end(render_output_texture_name);
 
@@ -494,9 +505,326 @@ end:
 }
 #endif
 
+static inline void render_rtc_textures(gs_effect_t *effect,
+				       gs_technique_t *tech,
+				       gs_texture_t *texture, uint32_t x_pos,
+				       uint32_t y_pos, uint32_t crop_x,
+				       uint32_t crop_y, uint32_t crop_width,
+				       uint32_t crop_height)
+{
+	gs_eparam_t *image = gs_effect_get_param_by_name(effect, "image");
+	size_t passes, i;
+
+	gs_viewport_push();
+	gs_projection_push();
+	gs_matrix_push();
+	gs_matrix_identity();
+
+	uint32_t src_width = gs_texture_get_width(texture);
+	uint32_t src_height = gs_texture_get_height(texture);
+	gs_set_viewport(x_pos, y_pos, crop_width, crop_height);
+	gs_ortho(0.0f, (float)src_width, 0.0f, (float)src_height, -100.0f,
+		 100.0f);
+
+	float cx_scale = (float)src_width / (float)crop_width;
+	float cy_scale = (float)src_height / (float)crop_height;
+	gs_matrix_scale3f(cx_scale, cy_scale, 1.0f);
+	if (src_width < crop_width || src_height < crop_height)
+		gs_matrix_scale3f((float)crop_width / (float)src_width,
+				  (float)crop_height / (float)src_height, 1.0f);
+
+	gs_matrix_translate3f(-(float)crop_x, -(float)crop_y, 0.0f);
+
+	gs_effect_set_texture(image, texture);
+
+	gs_enable_blending(false);
+	passes = gs_technique_begin(tech);
+	for (i = 0; i < passes; i++) {
+		gs_technique_begin_pass(tech, i);
+		gs_draw_sprite(texture, 0, src_width, src_height);
+		gs_technique_end_pass(tech);
+	}
+	gs_technique_end(tech);
+	gs_enable_blending(true);
+
+	gs_matrix_pop();
+	gs_projection_pop();
+	gs_viewport_pop();
+}
+
+static inline gs_texture_t *
+render_rtc_output_texture(struct obs_core_video *video) //final output
+{
+	struct obs_rtc_mix *rtc_mix = &obs->video.rtc_mix;
+	gs_texture_t *texture = video->render_texture;
+	gs_texture_t *target = video->output_texture;
+	uint32_t width = gs_texture_get_width(target);
+	uint32_t height = gs_texture_get_height(target);
+
+	gs_effect_t *effect = video->default_effect;
+	gs_technique_t *tech;
+
+	if (video->ovi.output_format == VIDEO_FORMAT_RGBA) {
+		tech = gs_effect_get_technique(effect, "DrawAlphaDivide");
+	} else {
+		tech = gs_effect_get_technique(effect, "Draw");
+	}
+
+	gs_set_render_target(target, NULL);
+
+	struct vec4 clear_color;
+	vec4_zero(&clear_color);
+	gs_clear(GS_CLEAR_COLOR, &clear_color, 0.0f, 0);
+
+	//to do, auto texture layout, here we only user rtc_texture channel 0
+
+	//two
+	render_rtc_textures(
+		effect, tech, texture, 0, 0, rtc_mix->self_crop_x,
+		rtc_mix->self_crop_y, rtc_mix->self_crop_width,
+		rtc_mix->self_crop_height); // self data do not need to do a y offset
+	if (rtc_mix->rtc_textures[0]) {
+		uint32_t texh = gs_texture_get_height(rtc_mix->rtc_textures[0]);
+		if (texh == 1280) // app send this size. app-> 720 * 1280
+			render_rtc_textures(effect, tech, rtc_mix->rtc_textures[0], 720,
+					    -100, 0, 0, 720, 1280);
+		else // pc or app old version send this size. pc-> 720 * 1080
+			render_rtc_textures(effect, tech,
+					    rtc_mix->rtc_textures[0], 720, 0,
+					    0, 0, 720, 1080);
+	}
+
+	return target;
+}
+
+static inline gs_texture_t *
+render_rtc_frame_texture(struct obs_core_video *video,
+			 struct obs_rtc_mix *rtc_mix)
+{
+	gs_texture_t *ret = rtc_mix->rtc_frame_texture;
+	gs_texture_t *texture = video->render_texture;
+	gs_texture_t *target = rtc_mix->rtc_frame_texture;
+
+	gs_effect_t *effect = video->default_effect;
+	gs_technique_t *tech = gs_effect_get_technique(effect, "Draw");
+
+	gs_set_render_target(target, NULL);
+
+	struct vec4 clear_color;
+	vec4_zero(&clear_color);
+	gs_clear(GS_CLEAR_COLOR, &clear_color, 0.0f, 0);
+
+	render_rtc_textures(effect, tech, texture, 0, 0, rtc_mix->self_crop_x,
+			    rtc_mix->self_crop_y, rtc_mix->self_crop_width,
+			    rtc_mix->self_crop_height);
+
+	if (rtc_mix->output_texture_width != rtc_mix->capture_texture_width ||
+	    rtc_mix->output_texture_height != rtc_mix->capture_texture_height) {
+		render_texture_scale_internal(
+			rtc_mix->rtc_frame_texture,
+			rtc_mix->rtc_frame_output_texture,
+			video->bicubic_effect,
+			gs_effect_get_technique(video->bicubic_effect, "Draw"),
+			rtc_mix->capture_texture_width,
+			rtc_mix->capture_texture_height);
+		ret = rtc_mix->rtc_frame_output_texture;
+	}
+
+	return ret;
+}
+
+static void render_rtc_convert_texture(struct obs_core_video *video,
+				       struct obs_rtc_mix *rtc_mix,
+				       gs_texture_t *texture)
+{
+	gs_effect_t *effect = video->conversion_effect;
+	gs_eparam_t *color_vec0 =
+		gs_effect_get_param_by_name(effect, "color_vec0");
+	gs_eparam_t *color_vec1 =
+		gs_effect_get_param_by_name(effect, "color_vec1");
+	gs_eparam_t *color_vec2 =
+		gs_effect_get_param_by_name(effect, "color_vec2");
+	gs_eparam_t *image = gs_effect_get_param_by_name(effect, "image");
+	gs_eparam_t *width_i = gs_effect_get_param_by_name(effect, "width_i");
+
+	struct vec4 vec0, vec1, vec2;
+	vec4_set(&vec0, rtc_mix->color_matrix[4], rtc_mix->color_matrix[5],
+		 rtc_mix->color_matrix[6], rtc_mix->color_matrix[7]);
+	vec4_set(&vec1, rtc_mix->color_matrix[0], rtc_mix->color_matrix[1],
+		 rtc_mix->color_matrix[2], rtc_mix->color_matrix[3]);
+	vec4_set(&vec2, rtc_mix->color_matrix[8], rtc_mix->color_matrix[9],
+		 rtc_mix->color_matrix[10], rtc_mix->color_matrix[11]);
+
+	gs_enable_blending(false);
+
+	if (rtc_mix->convert_textures_raw[0]) {
+		gs_effect_set_texture(image, texture);
+		gs_effect_set_vec4(color_vec0, &vec0);
+		render_convert_plane(effect, rtc_mix->convert_textures_raw[0],
+				     rtc_mix->conversion_techs[0]);
+
+		if (rtc_mix->convert_textures_raw[1]) {
+			gs_effect_set_texture(image, texture);
+			gs_effect_set_vec4(color_vec1, &vec1);
+			if (!rtc_mix->convert_textures_raw[2])
+				gs_effect_set_vec4(color_vec2, &vec2);
+			gs_effect_set_float(width_i,
+					    rtc_mix->conversion_width_i_raw);
+			render_convert_plane(effect,
+					     rtc_mix->convert_textures_raw[1],
+					     rtc_mix->conversion_techs[1]);
+
+			if (rtc_mix->convert_textures_raw[2]) {
+				gs_effect_set_texture(image, texture);
+				gs_effect_set_vec4(color_vec2, &vec2);
+				gs_effect_set_float(
+					width_i,
+					rtc_mix->conversion_width_i_raw);
+				render_convert_plane(
+					effect,
+					rtc_mix->convert_textures_raw[2],
+					rtc_mix->conversion_techs[2]);
+			}
+		}
+	}
+
+	gs_enable_blending(true);
+
+	rtc_mix->texture_converted_raw = true;
+}
+
+static const uint8_t *set_gpu_converted_plane(uint32_t width, uint32_t height,
+					      uint32_t linesize_input,
+					      uint32_t linesize_output,
+					      const uint8_t *in, uint8_t *out)
+{
+	if ((width == linesize_input) && (width == linesize_output)) {
+		size_t total = width * height;
+		memcpy(out, in, total);
+		in += total;
+	} else {
+		for (size_t y = 0; y < height; y++) {
+			memcpy(out, in, width);
+			out += linesize_output;
+			in += linesize_input;
+		}
+	}
+
+	return in;
+}
+
+static void set_gpu_converted_data_internal(bool using_nv12_tex,
+					    struct video_frame *output,
+					    const struct video_data *input,
+					    enum video_format format,
+					    uint32_t width, uint32_t height)
+{
+	if (using_nv12_tex) {
+		const uint8_t *const in_uv = set_gpu_converted_plane(
+			width, height, input->linesize[0], output->linesize[0],
+			input->data[0], output->data[0]);
+
+		const uint32_t height_d2 = height / 2;
+		set_gpu_converted_plane(width, height_d2, input->linesize[0],
+					output->linesize[1], in_uv,
+					output->data[1]);
+	} else {
+		switch (format) {
+		case VIDEO_FORMAT_I420: {
+			set_gpu_converted_plane(width, height,
+						input->linesize[0],
+						output->linesize[0],
+						input->data[0],
+						output->data[0]);
+
+			const uint32_t width_d2 = width / 2;
+			const uint32_t height_d2 = height / 2;
+
+			set_gpu_converted_plane(width_d2, height_d2,
+						input->linesize[1],
+						output->linesize[1],
+						input->data[1],
+						output->data[1]);
+
+			set_gpu_converted_plane(width_d2, height_d2,
+						input->linesize[2],
+						output->linesize[2],
+						input->data[2],
+						output->data[2]);
+
+			break;
+		}
+		case VIDEO_FORMAT_NV12: {
+			set_gpu_converted_plane(width, height,
+						input->linesize[0],
+						output->linesize[0],
+						input->data[0],
+						output->data[0]);
+
+			const uint32_t height_d2 = height / 2;
+			set_gpu_converted_plane(width, height_d2,
+						input->linesize[1],
+						output->linesize[1],
+						input->data[1],
+						output->data[1]);
+
+			break;
+		}
+		case VIDEO_FORMAT_I444: {
+			set_gpu_converted_plane(width, height,
+						input->linesize[0],
+						output->linesize[0],
+						input->data[0],
+						output->data[0]);
+
+			set_gpu_converted_plane(width, height,
+						input->linesize[1],
+						output->linesize[1],
+						input->data[1],
+						output->data[1]);
+
+			set_gpu_converted_plane(width, height,
+						input->linesize[2],
+						output->linesize[2],
+						input->data[2],
+						output->data[2]);
+
+			break;
+		}
+
+		case VIDEO_FORMAT_NONE:
+		case VIDEO_FORMAT_YVYU:
+		case VIDEO_FORMAT_YUY2:
+		case VIDEO_FORMAT_UYVY:
+		case VIDEO_FORMAT_RGBA:
+		case VIDEO_FORMAT_BGRA:
+		case VIDEO_FORMAT_BGRX:
+		case VIDEO_FORMAT_Y800:
+		case VIDEO_FORMAT_BGR3:
+		case VIDEO_FORMAT_I422:
+		case VIDEO_FORMAT_I40A:
+		case VIDEO_FORMAT_I42A:
+		case VIDEO_FORMAT_YUVA:
+		case VIDEO_FORMAT_AYUV:
+			/* unimplemented */
+			;
+		}
+	}
+}
+
+static void set_gpu_converted_data(struct obs_core_video *video,
+				   struct video_frame *output,
+				   const struct video_data *input,
+				   const struct video_output_info *info)
+{
+	set_gpu_converted_data_internal(video->using_nv12_tex, output, input,
+					info->format, info->width,
+					info->height);
+}
+
 static inline void render_video(struct obs_core_video *video, bool raw_active,
 				const bool gpu_active, int cur_texture,
-				void *output_order)
+				int prev_texture, void *output_order)
 {
 	gs_begin_scene();
 
@@ -505,8 +833,82 @@ static inline void render_video(struct obs_core_video *video, bool raw_active,
 
 	render_main_texture(video, output_order);
 
+	struct obs_rtc_mix *rtc_mix = &obs->video.rtc_mix;
+	if (os_atomic_load_bool(&rtc_mix->rtc_frame_active)) {
+		gs_texture_t *texture =
+			render_rtc_frame_texture(video, &obs->video.rtc_mix);
+
+		if (video->gpu_conversion)
+			render_rtc_convert_texture(video, rtc_mix, texture);
+
+		for (int c = 0; c < NUM_CHANNELS; ++c) {
+			if (rtc_mix->mapped_surfaces_raw[c]) {
+				gs_stagesurface_unmap(
+					rtc_mix->mapped_surfaces_raw[c]);
+				rtc_mix->mapped_surfaces_raw[c] = NULL;
+			}
+		}
+
+		if (rtc_mix->texture_converted_raw) {
+			for (int i = 0; i < NUM_CHANNELS; i++) {
+				gs_stagesurf_t *copy =
+					rtc_mix->copy_surfaces_raw[cur_texture]
+								  [i];
+				if (copy)
+					gs_stage_texture(
+						copy,
+						rtc_mix->convert_textures_raw[i]);
+			}
+
+			rtc_mix->textures_copied_raw[cur_texture] = true;
+		}
+
+		if (rtc_mix->textures_copied_raw[prev_texture]) {
+			bool success = true;
+			struct video_data frame;
+			memset(&frame, 0, sizeof(struct video_data));
+			for (int channel = 0; channel < NUM_CHANNELS;
+			     ++channel) {
+				gs_stagesurf_t *surface =
+					rtc_mix->copy_surfaces_raw[prev_texture]
+								  [channel];
+				if (surface) {
+					if (!gs_stagesurface_map(
+						    surface,
+						    &frame.data[channel],
+						    &frame.linesize[channel])) {
+						success = false;
+						break;
+					}
+
+					rtc_mix->mapped_surfaces_raw[channel] =
+						surface;
+				}
+			}
+
+			if (success) {
+				set_gpu_converted_data_internal(
+					false, rtc_mix->cache_frame, &frame,
+					VIDEO_FORMAT_I420,
+					rtc_mix->output_texture_width,
+					rtc_mix->output_texture_height);
+
+				if (rtc_mix->output_cb)
+					rtc_mix->output_cb(
+						rtc_mix->cache_frame->data,
+						rtc_mix->cache_frame->linesize,
+						rtc_mix->output_texture_width,
+						rtc_mix->output_texture_height,
+						rtc_mix->output_cb_data);
+			}
+		}
+	}
+
 	if (raw_active || gpu_active) {
-		gs_texture_t *texture = render_output_texture(video);
+		gs_texture_t *texture =
+			os_atomic_load_bool(&rtc_mix->rtc_output_active)
+				? render_rtc_output_texture(video)
+				: render_output_texture(video);
 
 #ifdef _WIN32
 		if (gpu_active)
@@ -551,136 +953,6 @@ static inline bool download_frame(struct obs_core_video *video,
 		}
 	}
 	return true;
-}
-
-static const uint8_t *set_gpu_converted_plane(uint32_t width, uint32_t height,
-					      uint32_t linesize_input,
-					      uint32_t linesize_output,
-					      const uint8_t *in, uint8_t *out)
-{
-	if ((width == linesize_input) && (width == linesize_output)) {
-		size_t total = width * height;
-		memcpy(out, in, total);
-		in += total;
-	} else {
-		for (size_t y = 0; y < height; y++) {
-			memcpy(out, in, width);
-			out += linesize_output;
-			in += linesize_input;
-		}
-	}
-
-	return in;
-}
-
-static void set_gpu_converted_data(struct obs_core_video *video,
-				   struct video_frame *output,
-				   const struct video_data *input,
-				   const struct video_output_info *info)
-{
-	if (video->using_nv12_tex) {
-		const uint32_t width = info->width;
-		const uint32_t height = info->height;
-
-		const uint8_t *const in_uv = set_gpu_converted_plane(
-			width, height, input->linesize[0], output->linesize[0],
-			input->data[0], output->data[0]);
-
-		const uint32_t height_d2 = height / 2;
-		set_gpu_converted_plane(width, height_d2, input->linesize[0],
-					output->linesize[1], in_uv,
-					output->data[1]);
-	} else {
-		switch (info->format) {
-		case VIDEO_FORMAT_I420: {
-			const uint32_t width = info->width;
-			const uint32_t height = info->height;
-
-			set_gpu_converted_plane(width, height,
-						input->linesize[0],
-						output->linesize[0],
-						input->data[0],
-						output->data[0]);
-
-			const uint32_t width_d2 = width / 2;
-			const uint32_t height_d2 = height / 2;
-
-			set_gpu_converted_plane(width_d2, height_d2,
-						input->linesize[1],
-						output->linesize[1],
-						input->data[1],
-						output->data[1]);
-
-			set_gpu_converted_plane(width_d2, height_d2,
-						input->linesize[2],
-						output->linesize[2],
-						input->data[2],
-						output->data[2]);
-
-			break;
-		}
-		case VIDEO_FORMAT_NV12: {
-			const uint32_t width = info->width;
-			const uint32_t height = info->height;
-
-			set_gpu_converted_plane(width, height,
-						input->linesize[0],
-						output->linesize[0],
-						input->data[0],
-						output->data[0]);
-
-			const uint32_t height_d2 = height / 2;
-			set_gpu_converted_plane(width, height_d2,
-						input->linesize[1],
-						output->linesize[1],
-						input->data[1],
-						output->data[1]);
-
-			break;
-		}
-		case VIDEO_FORMAT_I444: {
-			const uint32_t width = info->width;
-			const uint32_t height = info->height;
-
-			set_gpu_converted_plane(width, height,
-						input->linesize[0],
-						output->linesize[0],
-						input->data[0],
-						output->data[0]);
-
-			set_gpu_converted_plane(width, height,
-						input->linesize[1],
-						output->linesize[1],
-						input->data[1],
-						output->data[1]);
-
-			set_gpu_converted_plane(width, height,
-						input->linesize[2],
-						output->linesize[2],
-						input->data[2],
-						output->data[2]);
-
-			break;
-		}
-
-		case VIDEO_FORMAT_NONE:
-		case VIDEO_FORMAT_YVYU:
-		case VIDEO_FORMAT_YUY2:
-		case VIDEO_FORMAT_UYVY:
-		case VIDEO_FORMAT_RGBA:
-		case VIDEO_FORMAT_BGRA:
-		case VIDEO_FORMAT_BGRX:
-		case VIDEO_FORMAT_Y800:
-		case VIDEO_FORMAT_BGR3:
-		case VIDEO_FORMAT_I422:
-		case VIDEO_FORMAT_I40A:
-		case VIDEO_FORMAT_I42A:
-		case VIDEO_FORMAT_YUVA:
-		case VIDEO_FORMAT_AYUV:
-			/* unimplemented */
-			;
-		}
-	}
 }
 
 static inline void copy_rgbx_frame(struct video_frame *output,
@@ -781,7 +1053,8 @@ static inline void output_frame(bool raw_active, const bool gpu_active)
 	profile_start(output_frame_render_video_name);
 	GS_DEBUG_MARKER_BEGIN(GS_DEBUG_COLOR_RENDER_VIDEO,
 			      output_frame_render_video_name);
-	render_video(video, raw_active, gpu_active, cur_texture, &output_order);
+	render_video(video, raw_active, gpu_active, cur_texture, prev_texture,
+		     &output_order);
 	GS_DEBUG_MARKER_END();
 	profile_end(output_frame_render_video_name);
 

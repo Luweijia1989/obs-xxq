@@ -57,6 +57,8 @@ struct d3d11_data {
 
 static struct d3d11_data data = {};
 
+ID3D11RenderTargetView* mainRenderTargetView = NULL;
+
 void d3d11_free(void)
 {
 	imgui_finish_dx11();
@@ -104,6 +106,11 @@ void d3d11_free(void)
 	}
 
 	memset(&data, 0, sizeof(data));
+
+	if (mainRenderTargetView) {
+		mainRenderTargetView->Release();
+		mainRenderTargetView = NULL;
+	}
 
 	hlog("----------------- d3d11 capture freed ----------------");
 }
@@ -566,6 +573,13 @@ static void d3d11_init(IDXGISwapChain *swap)
 	if (!success)
 		d3d11_free();
 	else {
+		ID3D11Texture2D *pBackBuffer;
+		swap->GetBuffer(0, __uuidof(ID3D11Texture2D),
+				      (LPVOID *)&pBackBuffer);
+		data.device->CreateRenderTargetView(pBackBuffer, NULL,
+						&mainRenderTargetView);
+		pBackBuffer->Release();
+
 		imgui_init_dx11(data.device, window, data.context);
 	}
 }
@@ -854,6 +868,9 @@ void d3d11_capture(void *swap_ptr, void *backbuffer_ptr, bool)
 
 		backbuffer->Release();
 	}
-
-	imgui_paint_dx11();
+	if (imgui_paint_dx11())
+	{
+		data.context->OMSetRenderTargets(1, &mainRenderTargetView, NULL);
+		ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
+	}
 }

@@ -135,5 +135,22 @@
         <file>NewCommon.qml</file>
         <file>image/empty.png</file>
         <file>image/empty@2x.png</file>
+        <file>NewRank.qml</file>
+        <file>image/newrank/showBackGround/deepblue.png</file>
+        <file>image/newrank/showBackGround/deepblue@2x.png</file>
+        <file>image/newrank/showBackGround/orangeblack.png</file>
+        <file>image/newrank/showBackGround/orangeblack@2x.png</file>
+        <file>image/newrank/showBackGround/tip.png</file>
+        <file>image/newrank/showBackGround/tip@2x.png</file>
+        <file>image/newrank/showBackGround/waterblue.png</file>
+        <file>image/newrank/showBackGround/waterblue@2x.png</file>
+        <file>image/newrank/hideBackGround/deepblue.png</file>
+        <file>image/newrank/hideBackGround/deepblue@2x.png</file>
+        <file>image/newrank/hideBackGround/orangeblack.png</file>
+        <file>image/newrank/hideBackGround/orangeblack@2x.png</file>
+        <file>image/newrank/hideBackGround/tip.png</file>
+        <file>image/newrank/hideBackGround/tip@2x.png</file>
+        <file>image/newrank/hideBackGround/waterblue.png</file>
+        <file>image/newrank/hideBackGround/waterblue@2x.png</file>
     </qresource>
 </RCC>

@@ -54,6 +54,8 @@ set(qmlview_SOURCES
     new-reward.cpp
     new-follow.cpp
     new-timer.cpp
+    enter-room.cpp
+    new-rank.cpp
 )
 
 set( qmlview_HEADERS
@@ -77,6 +79,8 @@ set( qmlview_HEADERS
     new-reward.h
     new-follow.h
     new-timer.h
+    enter-room.h
+    new-rank.h
 )
 
 set(qmlview_QRC qmlview.qrc)

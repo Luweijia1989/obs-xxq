@@ -261,7 +261,7 @@ bool STFunction::doFaceSticker(unsigned int input, unsigned int output, int widt
 		height,
 		flipv ? ST_CLOCKWISE_ROTATE_180 : ST_CLOCKWISE_ROTATE_0,
 		ST_CLOCKWISE_ROTATE_0,
-		flipv ^ fliph,
+		false,
 		&m_result,
 		nullptr,
 		output);
