@@ -462,6 +462,7 @@ int AOADeviceManager::startUSBPipe()
 {
 	m_continuousRead = true;
 	m_usbReadThread = std::thread(AOADeviceManager::a2s_usbRxThread, this);
+	m_heartbeatThread = std::thread(AOADeviceManager::heartbeatThread, this);
 
 	return 0;
 }
@@ -472,6 +473,11 @@ void AOADeviceManager::stopUSBPipe()
 	qDebug("waiting for usb rx thread...\n");
 	if (m_usbReadThread.joinable())
 		m_usbReadThread.join();
+
+	if (m_heartbeatThread.joinable()) {
+		m_timeoutCondition.wakeOne();
+		m_heartbeatThread.join();
+	}
 
 	qDebug("usb threads stopped\n");
 
@@ -486,9 +492,11 @@ void *AOADeviceManager::startThread(void *d)
 	while (!manager->m_exitStart) {
 		int len = 0;
 		unsigned char data = 1;
+		manager->m_usbMutex.lock();
 		r = libusb_bulk_transfer(
 				manager->m_droid.usbHandle, manager->m_droid.outendp,
 				&data, 1, &len, 10);
+		manager->m_usbMutex.unlock();
 
 		if (r == LIBUSB_ERROR_TIMEOUT)
 			continue;
@@ -505,6 +513,34 @@ void *AOADeviceManager::startThread(void *d)
 					  Qt::QueuedConnection);
 
 	qDebug() << "start thread exit.\n";
+	return NULL;
+}
+
+void *AOADeviceManager::heartbeatThread(void *d)
+{
+	AOADeviceManager *device = (AOADeviceManager *)d;
+
+	while (device->m_continuousRead) {
+		int len = 0;
+		uint8_t data[1] = { 2 };
+		device->m_usbMutex.lock();
+		int r = libusb_bulk_transfer(
+			device->m_droid.usbHandle, device->m_droid.outendp,
+			data, 1, &len, 10);
+		device->m_usbMutex.unlock();
+
+		if (r == 0 || r == LIBUSB_ERROR_TIMEOUT)
+		{
+			device->m_timeoutMutex.lock();
+			device->m_waitCondition.wait(&device->m_timeoutMutex, 200);
+			device->m_timeoutMutex.unlock();
+			continue;
+		}
+		else
+			break;
+	}
+
+	qDebug() << "heartbeat thread exit.\n";
 	return NULL;
 }
 

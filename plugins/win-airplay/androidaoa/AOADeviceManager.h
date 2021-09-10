@@ -88,6 +88,7 @@ public:
 
 	static void *a2s_usbRxThread(void *d);
 	static void *startThread(void *d);
+	static void *heartbeatThread(void *d);
 
 private:
 	int initUSB();
@@ -112,6 +113,10 @@ private:
 	int m_devs_count = 0;
 	std::thread m_usbReadThread;
 	std::thread m_startThread;
+	std::thread m_heartbeatThread;
+	QMutex m_usbMutex;
+	QWaitCondition m_timeoutCondition;
+	QMutex m_timeoutMutex;
 	bool m_continuousRead = false;
 	bool m_exitStart = false;
 	unsigned char *buffer = nullptr;
