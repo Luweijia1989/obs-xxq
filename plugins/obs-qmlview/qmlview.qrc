@@ -152,5 +152,14 @@
         <file>image/newrank/hideBackGround/tip@2x.png</file>
         <file>image/newrank/hideBackGround/waterblue.png</file>
         <file>image/newrank/hideBackGround/waterblue@2x.png</file>
+        <file>NewVote.qml</file>
+        <file>image/newvote/tips@2x.png</file>
+        <file>image/newvote/black.png</file>
+        <file>image/newvote/black@2x.png</file>
+        <file>image/newvote/blue.png</file>
+        <file>image/newvote/blue@2x.png</file>
+        <file>image/newvote/grey.png</file>
+        <file>image/newvote/grey@2x.png</file>
+        <file>image/newvote/tips.png</file>
     </qresource>
 </RCC>

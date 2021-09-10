@@ -240,6 +240,7 @@ extern struct obs_source_info quicknewfollowshow_source_info;
 extern struct obs_source_info quicknewtimershow_source_info;
 extern struct obs_source_info quickenterroomshow_source_info;
 extern struct obs_source_info quicknewrank_source_info;
+extern struct obs_source_info quickvote_source_info;
 
 bool obs_module_load(void)
 {
@@ -260,5 +261,6 @@ bool obs_module_load(void)
 	obs_register_source(&quicknewtimershow_source_info);
 	obs_register_source(&quickenterroomshow_source_info);
 	obs_register_source(&quicknewrank_source_info);
+	obs_register_source(&quickvote_source_info);
 	return true;
 }

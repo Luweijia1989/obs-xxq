@@ -56,6 +56,7 @@ set(qmlview_SOURCES
     new-timer.cpp
     enter-room.cpp
     new-rank.cpp
+    new-vote.cpp
 )
 
 set( qmlview_HEADERS
@@ -81,6 +82,7 @@ set( qmlview_HEADERS
     new-timer.h
     enter-room.h
     new-rank.h
+    new-vote.h
 )
 
 set(qmlview_QRC qmlview.qrc)
