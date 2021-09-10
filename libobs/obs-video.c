@@ -583,9 +583,16 @@ render_rtc_output_texture(struct obs_core_video *video) //final output
 		effect, tech, texture, 0, 0, rtc_mix->self_crop_x,
 		rtc_mix->self_crop_y, rtc_mix->self_crop_width,
 		rtc_mix->self_crop_height); // self data do not need to do a y offset
-	if (rtc_mix->rtc_textures[0])
-		render_rtc_textures(effect, tech, rtc_mix->rtc_textures[0], 720,
-				    -100, 0, 0, 720, 1280);
+	if (rtc_mix->rtc_textures[0]) {
+		uint32_t texh = gs_texture_get_height(rtc_mix->rtc_textures[0]);
+		if (texh == 1280) // app send this size. app-> 720 * 1280
+			render_rtc_textures(effect, tech, rtc_mix->rtc_textures[0], 720,
+					    -100, 0, 0, 720, 1280);
+		else // pc or app old version send this size. pc-> 720 * 1080
+			render_rtc_textures(effect, tech,
+					    rtc_mix->rtc_textures[0], 720, 0,
+					    0, 0, 720, 1080);
+	}
 
 	return target;
 }
