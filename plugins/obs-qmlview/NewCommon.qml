@@ -624,10 +624,10 @@ Item {
         onUpdate:{
 					if(newProperties.uitype !== 3)
 					{
+						text1.text = newProperties.firstname
 						squareavatarImage.source = avartarPath(newProperties.avatarpath)
 						if(newProperties.uitype !== 5)
 						{
-							text1.text = newProperties.firstname
 							text1.visible = newProperties.firstname === ""? false: true
 						}
 						else
