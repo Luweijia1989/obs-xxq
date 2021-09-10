@@ -59,7 +59,8 @@ void EnterRoom::doHide()
 {
 	emit hide();
 	setavatarpath("");
-	setfirstname(u8"用户昵称");
+	m_text = u8"用户昵称";
+	setfirstname(m_text);
 }
 
 void EnterRoom::doStart(bool isenter)
