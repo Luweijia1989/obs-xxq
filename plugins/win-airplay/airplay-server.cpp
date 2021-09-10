@@ -117,9 +117,11 @@ void ScreenMirrorServer::dumpResourceImgs()
 	m_resourceImgs.push_back(prefix + "pic_ios_wirelessprojection.png");
 	m_resourceImgs.push_back(
 		prefix + "pic_ios_screencastfailed_wirelessprojection.png");
+	m_resourceImgs.push_back(prefix + "pic_android_aoa.png");
+	m_resourceImgs.push_back(prefix + "pic_android_aoa_fail.png");
 
-	std::vector<int> ids = {IDB_PNG1, IDB_PNG2, IDB_PNG3,
-				IDB_PNG4, IDB_PNG5, IDB_PNG6};
+	std::vector<int> ids = {IDB_PNG1, IDB_PNG2, IDB_PNG3, IDB_PNG4,
+				IDB_PNG5, IDB_PNG6, IDB_PNG7, IDB_PNG8};
 
 	for (auto iter = 0; iter < m_resourceImgs.size(); iter++) {
 		const string &img = m_resourceImgs.at(iter);
@@ -242,7 +244,7 @@ void ScreenMirrorServer::updateStatusImage()
 				path = s;
 			}
 		} else if (m_backend == ANDROID_AOA) {
-			path = m_resourceImgs[1];
+			path = m_resourceImgs[7];
 		}
 		break;
 	case OBS_SOURCE_MIRROR_DEVICE_LOST: // 连接失败，检测超时
@@ -252,6 +254,8 @@ void ScreenMirrorServer::updateStatusImage()
 			path = m_resourceImgs[6];
 		else if (m_backend == ANDROID_USB_CABLE)
 			path = m_resourceImgs[2];
+		else if (m_backend == ANDROID_AOA)
+			path = m_resourceImgs[8];
 		break;
 	default:
 		break;
@@ -321,7 +325,8 @@ void ScreenMirrorServer::initDecoder(uint8_t *data, size_t len)
 
 	static bool loged = false;
 	if (!loged) {
-		blog(LOG_INFO, "mirror decoder init complete, use hardware: %s", m_decoder->IsHWDecode() ? "true" : "false");
+		blog(LOG_INFO, "mirror decoder init complete, use hardware: %s",
+		     m_decoder->IsHWDecode() ? "true" : "false");
 		loged = true;
 	}
 }
