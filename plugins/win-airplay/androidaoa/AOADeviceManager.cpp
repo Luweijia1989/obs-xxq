@@ -423,34 +423,7 @@ bool AOADeviceManager::isAndroidDevice(libusb_device *device, struct libusb_devi
 		return false;
 	}
 
-	if (!m_vids.contains(desc.idVendor))
-		return false;
-
-	struct libusb_config_descriptor *config;
-	int r = libusb_get_config_descriptor(device, 0, &config);
-	if (r < 0) {
-		return false;
-	}
-
-	const struct libusb_interface *inter;
-	const struct libusb_interface_descriptor *interdesc;
-	int i, j;
-
-	bool ret = false;
-	for (i = 0; i < (int)config->bNumInterfaces; i++) {
-		inter = &config->interface[i];
-		if (inter == NULL) {
-			continue;
-		}
-		for (j = 0; j < inter->num_altsetting; j++) {
-			interdesc = &inter->altsetting[j];
-			if (interdesc->bInterfaceClass == 0xff) {
-				return true;
-			}
-		}
-	}
-
-	return ret;
+	return m_vids.contains(desc.idVendor);
 }
 
 bool AOADeviceManager::isAndroidADBDevice(struct libusb_device_descriptor &desc)
