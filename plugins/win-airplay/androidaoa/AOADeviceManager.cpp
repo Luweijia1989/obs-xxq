@@ -505,7 +505,7 @@ void *AOADeviceManager::heartbeatThread(void *d)
 		if (r == 0 || r == LIBUSB_ERROR_TIMEOUT)
 		{
 			device->m_timeoutMutex.lock();
-			device->m_waitCondition.wait(&device->m_timeoutMutex, 200);
+			device->m_waitCondition.wait(&device->m_timeoutMutex, 100);
 			device->m_timeoutMutex.unlock();
 			continue;
 		}
