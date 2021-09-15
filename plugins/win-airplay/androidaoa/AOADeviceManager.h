@@ -150,11 +150,9 @@ public:
 				QMetaObject::invokeMethod(m_helper,
 							  "updateUsbInventory",
 							  Qt::QueuedConnection);
-			else {
-				QTimer::singleShot(200, m_helper, [=]() {
-					m_helper->signalWait();
-				});
-			}
+			
+			QTimer::singleShot(200, m_helper,
+					   [=]() { m_helper->signalWait(); });
 		}
 		return false;
 	}
