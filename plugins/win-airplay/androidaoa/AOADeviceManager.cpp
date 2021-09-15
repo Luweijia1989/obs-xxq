@@ -416,14 +416,17 @@ void *AOADeviceManager::a2s_usbRxThread(void *d)
 	return NULL;
 }
 
-bool AOADeviceManager::isAndroidDevice(libusb_device *device, struct libusb_device_descriptor &desc)
+int AOADeviceManager::isAndroidDevice(libusb_device *device, struct libusb_device_descriptor &desc)
 {
 	if (isAndroidADBDevice(desc)) {
 		emit infoPrompt(u8"系统检测到手机的'USB调试'功能被打开，请在手机'设置'界面中'开发人员选项'里关闭此功能，并重新拔插手机！！");
-		return false;
+		return 1;
 	}
 
-	return m_vids.contains(desc.idVendor);
+	if (m_vids.contains(desc.idVendor))
+		return 0;
+	else
+		return 2;
 }
 
 bool AOADeviceManager::isAndroidADBDevice(struct libusb_device_descriptor &desc)
@@ -574,8 +577,8 @@ bool AOADeviceManager::enumDeviceAndCheck()
 			continue;
 		}
 
-		bool isAndroid = isAndroidDevice(devs[i], desc);
-		if (isAndroid) {
+		int isAndroid = isAndroidDevice(devs[i], desc);
+		if (isAndroid == 0) {
 			ret = true;
 			break;
 		}
@@ -587,9 +590,9 @@ bool AOADeviceManager::enumDeviceAndCheck()
 	return ret;
 }
 
-bool AOADeviceManager::checkAndInstallDriver()
+int AOADeviceManager::checkAndInstallDriver() // 1->检测到adb 2->没找到android设备 3->切到aoa模式失败
 {
-	bool ret = false;
+	int ret = -1;
 	libusb_context *ctx = nullptr;
 	libusb_device **devs = nullptr;
 	int count = 0;
@@ -605,14 +608,21 @@ Retry:
 		return ret;
 
 	count = libusb_get_device_list(ctx, &devs);
-	for (int i = 0; i < count; i++) {
+	int i = 0;
+	for (; i < count; i++) {
 		struct libusb_device_descriptor desc;
 		int r = libusb_get_device_descriptor(devs[i], &desc);
 		if (r < 0) {
 			continue;
 		}
 
-		if (isAndroidDevice(devs[i], desc)) {
+		int isAndroid = isAndroidDevice(devs[i], desc);
+		if (isAndroid == 1) {
+			ret = 1;
+			break;
+		} else if (isAndroid == 2)
+			continue;
+		else {
 			if (m_driverHelper->checkInstall(desc.idVendor,
 							 desc.idProduct)) {
 				m_waitMutex.lock();
@@ -621,12 +631,14 @@ Retry:
 				goto Retry;
 			}
 			if (isDroidInAcc(devs[i])) {
-				ret = true;
+				ret = 0;
 				break;
 			} else {
 				switchAOACount++;
-				if (switchAOACount > 10)
+				if (switchAOACount > 10) {
+					ret = 3;
 					break;
+				}
 				switchDroidToAcc(devs[i], 1);
 				m_waitMutex.lock();
 				m_waitCondition.wait(&m_waitMutex, 500);
@@ -635,6 +647,9 @@ Retry:
 			}
 		}
 	}
+
+	if (i == count)
+		ret = 2;
 
 	libusb_free_device_list(devs, count);
 	libusb_exit(ctx);
@@ -672,14 +687,14 @@ void AOADeviceManager::updateUsbInventory()
 	inUpdate = true;
 	bool exist = enumDeviceAndCheck();
 	if (exist && !m_droid.connected) {
-		if (checkAndInstallDriver())
+		int ret = checkAndInstallDriver();
+		if (ret == 0)
 			startTask();
-		else
+		else if (ret == 3)
 			emit infoPrompt(u8"启动投屏服务失败，后台退出鱼耳直播APP后重启再试。");
 	}
 
 	if (!exist)
 		emit deviceLost();
-
 	inUpdate = false;
 }

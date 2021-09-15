@@ -8,6 +8,7 @@
 #include <QThread>
 #include <QTimer>
 #include <QFile>
+#include <QDebug>
 #include <QSet>
 #include "libusb.h"
 #include "DriverHelper.h"
@@ -76,7 +77,7 @@ public:
 	void stopUSBPipe();
 
 	bool enumDeviceAndCheck();
-	bool checkAndInstallDriver();
+	int checkAndInstallDriver();
 	bool startTask();
 
 	void signalWait()
@@ -93,7 +94,7 @@ public:
 private:
 	int initUSB();
 	void clearUSB();
-	bool isAndroidDevice(libusb_device *device, struct libusb_device_descriptor &desc);
+	int isAndroidDevice(libusb_device *device, struct libusb_device_descriptor &desc);
 	bool isAndroidADBDevice(struct libusb_device_descriptor &desc);
 	bool handleMediaData();
 
