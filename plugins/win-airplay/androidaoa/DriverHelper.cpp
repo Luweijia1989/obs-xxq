@@ -9,6 +9,11 @@
 const int GOOGLE_VID = 0x18D1;
 const int GOOGLE_PID = 0x2D04;
 
+static bool isAOADevice(int vid, int pid)
+{
+	return vid == GOOGLE_VID && pid == GOOGLE_PID;
+}
+
 #define safe_free(p)                     \
 	do {                             \
 		if ((void *)p != NULL) { \
@@ -127,7 +132,7 @@ bool DriverHelper::checkInstall(int vid, int pid)
 		auto iter = targetDevs.begin();
 		for (; iter != targetDevs.end(); iter++) {
 			auto dev = *iter;
-			if (dev->vid == GOOGLE_VID && dev->pid == GOOGLE_PID && dev->is_composite)
+			if (isAOADevice(dev->vid, dev->pid) && dev->is_composite)
 				continue;
 			QString desc(dev->desc);
 			if (desc.contains("Composite Parent",
@@ -148,13 +153,13 @@ bool DriverHelper::checkInstall(int vid, int pid)
 			ret = true;
 		else
 			emit installProgress(
-				targetDev->vid != GOOGLE_VID ? 0 : 1, 3);
+				!isAOADevice(targetDev->vid, targetDev->pid) ? 0 : 1, 3);
 	} else
 		ret = true;
 
 	if (ret) {
 		inInstall = true;
-		emit installProgress(targetDev->vid != GOOGLE_VID ? 0 : 1, 0);
+		emit installProgress(!isAOADevice(targetDev->vid, targetDev->pid) ? 0 : 1, 0);
 
 		install(targetDev);
 	}
@@ -167,7 +172,7 @@ bool DriverHelper::checkInstall(int vid, int pid)
 void DriverHelper::install(wdi_device_info *dev)
 {
 	QString dir = QString("%1\\%2").arg(temp_dir).arg(dev->pid);
-	int step = dev->vid != GOOGLE_VID ? 0 : 1;
+	int step = !isAOADevice(dev->vid, dev->pid) ? 0 : 1;
 	bool success = false;
 	char *inf_name = to_valid_filename(dev->desc, ".inf");
 	if (inf_name != NULL) {
