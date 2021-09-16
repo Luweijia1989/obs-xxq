@@ -19,7 +19,7 @@ public:
 	AVDecoder();
 	virtual ~AVDecoder();
 
-	virtual void Init(uint8_t *data, size_t len, void *d3d9_device);
+	virtual void Init(uint8_t *data, size_t len, void *d3d9_device, bool useSoftware);
 	virtual void Destroy();
 	bool AVDecoder::CheckSPSChanged(uint8_t *data, size_t len);
 

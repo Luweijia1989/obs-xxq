@@ -170,16 +170,18 @@ bool AVDecoder::CheckSPSChanged(uint8_t *data, size_t len)
 	       memcmp(data, codec_context_->extradata, len) != 0;
 }
 
-void AVDecoder::Init(uint8_t *data, size_t len, void* d3d9_device)
+void AVDecoder::Init(uint8_t *data, size_t len, void* d3d9_device, bool useSoftware)
 {
 	if (codec_context_ != nullptr) {
 		LOG("codec was opened.");
 		return;
 	}
 
-	if (initHwDecode(data, len, d3d9_device)) {
-		is_hw_decode = true;
-		return;
+	if (!useSoftware) {
+		if (initHwDecode(data, len, d3d9_device)) {
+			is_hw_decode = true;
+			return;
+		}
 	}
 
 	if (initSoftDecode(data, len))

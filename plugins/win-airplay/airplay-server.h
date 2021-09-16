@@ -88,7 +88,7 @@ private:
 	void loadImage(std::string path);
 	void saveStatusSettings();
 
-	void initDecoder(uint8_t *data, size_t len);
+	void initDecoder(uint8_t *data, size_t len, bool forceRecreate, bool forceSoftware);
 	void dropFrame(int64_t now_ms);
 	void dropAudioFrame(int64_t now_ms);
 	void initSoftOutputFrame();
@@ -131,4 +131,7 @@ private:
 	AVFrame* m_decodedFrame = av_frame_alloc();
 	AVPacket m_encodedPacket = { 0 };
 	obs_source_frame2 m_softOutputFrame;
+
+	uint8_t *pps_cache = nullptr;
+	size_t pps_cache_len;
 };

@@ -95,6 +95,9 @@ ScreenMirrorServer::~ScreenMirrorServer()
 
 	bfree(m_audioTempBuffer);
 
+	if (pps_cache)
+		free(pps_cache);
+
 #ifdef DUMPFILE
 	fclose(m_auioFile);
 	fclose(m_videoFile);
@@ -310,9 +313,9 @@ void ScreenMirrorServer::saveStatusSettings()
 	obs_data_set_int(setting, "status", mirror_status);
 }
 
-void ScreenMirrorServer::initDecoder(uint8_t *data, size_t len)
+void ScreenMirrorServer::initDecoder(uint8_t *data, size_t len, bool forceRecreate, bool forceSoftware)
 {
-	if (m_decoder && !m_decoder->CheckSPSChanged(data, len))
+	if (!forceRecreate && (m_decoder && !m_decoder->CheckSPSChanged(data, len)))
 		return;
 	if (m_decoder)
 		delete m_decoder;
@@ -323,7 +326,7 @@ void ScreenMirrorServer::initDecoder(uint8_t *data, size_t len)
 	}
 
 	m_decoder = new AVDecoder;
-	m_decoder->Init(data, len, m_renderer->GetDevice());
+	m_decoder->Init(data, len, m_renderer->GetDevice(), forceSoftware);
 
 	static bool loged = false;
 	if (!loged) {
@@ -826,7 +829,17 @@ void ScreenMirrorServer::doRenderer(gs_effect_t *effect)
 			if (framev.video_info_index != m_lastVideoInfoIndex) {
 				const VideoInfo &vi =
 					m_videoInfos[framev.video_info_index];
-				initDecoder(vi.data, vi.data_len);
+				if (!pps_cache) {
+					pps_cache = (uint8_t *)malloc(vi.data_len);
+					pps_cache_len = vi.data_len;
+				} else if (pps_cache_len < vi.data_len) {
+					pps_cache = (uint8_t *)realloc(pps_cache, vi.data_len);
+					pps_cache_len = vi.data_len;
+				}
+
+				memcpy(pps_cache, vi.data, vi.data_len);
+
+				initDecoder(vi.data, vi.data_len, false, false);
 				free(vi.data);
 				m_videoInfos.erase(framev.video_info_index);
 				m_lastVideoInfoIndex = framev.video_info_index;
@@ -836,6 +849,10 @@ void ScreenMirrorServer::doRenderer(gs_effect_t *effect)
 				m_encodedPacket.data = framev.data;
 				m_encodedPacket.size = framev.data_len;
 				int ret = m_decoder->Send(&m_encodedPacket);
+				if (ret == AVERROR_INVALIDDATA) {
+					initDecoder(pps_cache, pps_cache_len, true, true);
+					ret = m_decoder->Send(&m_encodedPacket);
+				}
 				while (ret >= 0) {
 					ret = m_decoder->Recv(m_decodedFrame);
 					if (ret >= 0) {
