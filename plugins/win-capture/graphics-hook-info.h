@@ -99,6 +99,7 @@ struct hook_info {
 	bool force_shmem;
 	bool capture_overlay;
 	bool only_lyric;
+	bool black_list;
 
 	/* hook addresses */
 	struct graphics_offsets offsets;
