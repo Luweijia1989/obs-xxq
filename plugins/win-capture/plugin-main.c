@@ -99,11 +99,11 @@ void init_hook_files(void);
 
 bool graphics_uses_d3d11 = false;
 bool wgc_supported = false;
+bool win8_or_above = false;
 
 bool obs_module_load(void)
 {
 	struct win_version_info ver;
-	bool win8_or_above = false;
 	char *config_dir;
 
 	struct win_version_info win1903 = {
