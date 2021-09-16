@@ -5,6 +5,10 @@
 #include <QStandardPaths>
 #include "../ipc.h"
 #include "../common-define.h"
+#include <winusb.h>
+#include <Setupapi.h>
+
+#pragma comment (lib , "winusb.lib" )
 
 const char *vendor = "YPP";
 const char *model = "XxqProjectionApp"; //根据这个model来打开手机的app
@@ -13,16 +17,23 @@ const char *version = "1.0";
 const char *uri = "https://www.yuerzhibo.com";
 const char *serial = "0000000012345678";
 
+GUID ADB_DEVICE_GUID = {0xf72fe0d4,
+			0xcbcb,
+			0x407d,
+			{0x88, 0x14, 0x9e, 0xd6, 0x73, 0xd0, 0xdd, 0x6b}};
+
 AOADeviceManager::AOADeviceManager()
 {
-	auto path = QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation) + "/vids.txt";
+	auto path = QStandardPaths::writableLocation(
+			    QStandardPaths::AppLocalDataLocation) +
+		    "/vids.txt";
 	QString vids;
 	QFile idFile(path);
 	if (idFile.exists()) {
 		idFile.open(QFile::ReadOnly);
 		vids = idFile.readAll();
 		idFile.close();
-	} else 
+	} else
 		vids = "2d95,12d1,22d9,2717,2a70,04e8,2a45,0b05,17ef,29a9,109b,054c,18d1,19d2";
 
 	bool ok = false;
@@ -116,30 +127,47 @@ int AOADeviceManager::setupDroid(libusb_device *usbDevice,
 			qDebug("interface is null\n");
 			continue;
 		}
-		qDebug("interface has %d alternate settings\n", inter->num_altsetting);
+		qDebug("interface has %d alternate settings\n",
+		       inter->num_altsetting);
 		for (j = 0; j < inter->num_altsetting; j++) {
 			interdesc = &inter->altsetting[j];
-			if (interdesc->bNumEndpoints == 2 && interdesc->bInterfaceClass == 0xff && interdesc->bInterfaceSubClass == 0xff && (device->inendp <= 0 || device->outendp <= 0)) {
-				qDebug("interface %d is accessory candidate\n", i);
-				for (k = 0; k < (int)interdesc->bNumEndpoints; k++) {
+			if (interdesc->bNumEndpoints == 2 &&
+			    interdesc->bInterfaceClass == 0xff &&
+			    interdesc->bInterfaceSubClass == 0xff &&
+			    (device->inendp <= 0 || device->outendp <= 0)) {
+				qDebug("interface %d is accessory candidate\n",
+				       i);
+				for (k = 0; k < (int)interdesc->bNumEndpoints;
+				     k++) {
 					epdesc = &interdesc->endpoint[k];
 					if (epdesc->bmAttributes != 0x02) {
 						break;
 					}
-					if ((epdesc->bEndpointAddress & LIBUSB_ENDPOINT_IN) && device->inendp <= 0) {
-						device->inendp = epdesc->bEndpointAddress;
-						device->inpacketsize = epdesc->wMaxPacketSize;
-						qDebug("using EP 0x%02x as bulk-in EP\n", (int)device->inendp);
-					} else if ((!(epdesc->bEndpointAddress & LIBUSB_ENDPOINT_IN)) && device->outendp <= 0) {
-						device->outendp = epdesc->bEndpointAddress;
-						device->outpacketsize = epdesc->wMaxPacketSize;
-						qDebug("using EP 0x%02x as bulk-out EP\n", (int)device->outendp);
+					if ((epdesc->bEndpointAddress &
+					     LIBUSB_ENDPOINT_IN) &&
+					    device->inendp <= 0) {
+						device->inendp =
+							epdesc->bEndpointAddress;
+						device->inpacketsize =
+							epdesc->wMaxPacketSize;
+						qDebug("using EP 0x%02x as bulk-in EP\n",
+						       (int)device->inendp);
+					} else if ((!(epdesc->bEndpointAddress &
+						      LIBUSB_ENDPOINT_IN)) &&
+						   device->outendp <= 0) {
+						device->outendp =
+							epdesc->bEndpointAddress;
+						device->outpacketsize =
+							epdesc->wMaxPacketSize;
+						qDebug("using EP 0x%02x as bulk-out EP\n",
+						       (int)device->outendp);
 					} else {
 						break;
 					}
 				}
 				if (device->inendp && device->outendp) {
-					device->bulkInterface = interdesc->bInterfaceNumber;
+					device->bulkInterface =
+						interdesc->bInterfaceNumber;
 				}
 			}
 		}
@@ -322,9 +350,10 @@ bool AOADeviceManager::handleMediaData()
 	if (!m_cacheBuffer) {
 		m_cacheBufferSize = headerSize + pktSize;
 		m_cacheBuffer = (uint8_t *)malloc(m_cacheBufferSize);
-	} else if (m_cacheBufferSize < headerSize + pktSize){
+	} else if (m_cacheBufferSize < headerSize + pktSize) {
 		m_cacheBufferSize = headerSize + pktSize;
-		m_cacheBuffer = (uint8_t *)realloc(m_cacheBuffer, m_cacheBufferSize);
+		m_cacheBuffer =
+			(uint8_t *)realloc(m_cacheBuffer, m_cacheBufferSize);
 	}
 
 	circlebuf_pop_front(&m_mediaDataBuffer, m_cacheBuffer, headerSize);
@@ -346,7 +375,7 @@ bool AOADeviceManager::handleMediaData()
 			info.format = AUDIO_FORMAT_16BIT;
 			info.samples_per_sec = 48000;
 			info.speakers = SPEAKERS_STEREO;
-		
+
 			memcpy(info.pps, m_cacheBuffer, pktSize);
 
 			ipc_client_write_2(client, &pack_info,
@@ -400,10 +429,9 @@ void *AOADeviceManager::a2s_usbRxThread(void *d)
 					break;
 			}
 		} else if (r == LIBUSB_ERROR_TIMEOUT) {
-			
+
 			continue;
-		}
-		else
+		} else
 			break;
 	}
 
@@ -416,10 +444,12 @@ void *AOADeviceManager::a2s_usbRxThread(void *d)
 	return NULL;
 }
 
-int AOADeviceManager::isAndroidDevice(libusb_device *device, struct libusb_device_descriptor &desc)
+int AOADeviceManager::isAndroidDevice(libusb_device *device,
+				      struct libusb_device_descriptor &desc)
 {
 	if (isAndroidADBDevice(desc)) {
-		emit infoPrompt(u8"系统检测到手机的'USB调试'功能被打开，请在手机'设置'界面中'开发人员选项'里关闭此功能，并重新拔插手机！！");
+		emit infoPrompt(
+			u8"系统检测到手机的'USB调试'功能被打开，请在手机'设置'界面中'开发人员选项'里关闭此功能，并重新拔插手机！！");
 		return 1;
 	}
 
@@ -431,14 +461,17 @@ int AOADeviceManager::isAndroidDevice(libusb_device *device, struct libusb_devic
 
 bool AOADeviceManager::isAndroidADBDevice(struct libusb_device_descriptor &desc)
 {
-	return desc.idProduct == PID_AOA_ACC_AU_ADB || desc.idProduct == PID_AOA_AU_ADB || desc.idProduct == PID_AOA_ACC_AU_ADB;
+	return desc.idProduct == PID_AOA_ACC_AU_ADB ||
+	       desc.idProduct == PID_AOA_AU_ADB ||
+	       desc.idProduct == PID_AOA_ACC_AU_ADB;
 }
 
 int AOADeviceManager::startUSBPipe()
 {
 	m_continuousRead = true;
 	m_usbReadThread = std::thread(AOADeviceManager::a2s_usbRxThread, this);
-	m_heartbeatThread = std::thread(AOADeviceManager::heartbeatThread, this);
+	m_heartbeatThread =
+		std::thread(AOADeviceManager::heartbeatThread, this);
 
 	return 0;
 }
@@ -469,9 +502,9 @@ void *AOADeviceManager::startThread(void *d)
 		int len = 0;
 		unsigned char data = 1;
 		manager->m_usbMutex.lock();
-		r = libusb_bulk_transfer(
-				manager->m_droid.usbHandle, manager->m_droid.outendp,
-				&data, 1, &len, 10);
+		r = libusb_bulk_transfer(manager->m_droid.usbHandle,
+					 manager->m_droid.outendp, &data, 1,
+					 &len, 10);
 		manager->m_usbMutex.unlock();
 
 		if (r == LIBUSB_ERROR_TIMEOUT)
@@ -479,7 +512,7 @@ void *AOADeviceManager::startThread(void *d)
 		else
 			break;
 	}
-	
+
 	if (r == LIBUSB_SUCCESS) {
 		manager->startUSBPipe();
 		qDebug("new Android connected");
@@ -498,21 +531,20 @@ void *AOADeviceManager::heartbeatThread(void *d)
 
 	while (device->m_continuousRead) {
 		int len = 0;
-		uint8_t data[1] = { 2 };
+		uint8_t data[1] = {2};
 		device->m_usbMutex.lock();
-		int r = libusb_bulk_transfer(
-			device->m_droid.usbHandle, device->m_droid.outendp,
-			data, 1, &len, 10);
+		int r = libusb_bulk_transfer(device->m_droid.usbHandle,
+					     device->m_droid.outendp, data, 1,
+					     &len, 10);
 		device->m_usbMutex.unlock();
 
-		if (r == 0 || r == LIBUSB_ERROR_TIMEOUT)
-		{
+		if (r == 0 || r == LIBUSB_ERROR_TIMEOUT) {
 			device->m_timeoutMutex.lock();
-			device->m_waitCondition.wait(&device->m_timeoutMutex, 100);
+			device->m_waitCondition.wait(&device->m_timeoutMutex,
+						     100);
 			device->m_timeoutMutex.unlock();
 			continue;
-		}
-		else
+		} else
 			break;
 	}
 
@@ -590,7 +622,8 @@ bool AOADeviceManager::enumDeviceAndCheck()
 	return ret;
 }
 
-int AOADeviceManager::checkAndInstallDriver() // 1->检测到adb 2->没找到android设备 3->切到aoa模式失败
+int AOADeviceManager::
+	checkAndInstallDriver() // 1->检测到adb 2->没找到android设备 3->切到aoa模式失败
 {
 	int ret = -1;
 	libusb_context *ctx = nullptr;
@@ -653,7 +686,7 @@ Retry:
 
 	libusb_free_device_list(devs, count);
 	libusb_exit(ctx);
-	
+
 	return ret;
 }
 
@@ -682,19 +715,122 @@ bool AOADeviceManager::startTask()
 	return ret;
 }
 
-void AOADeviceManager::updateUsbInventory()
+void AOADeviceManager::deferUpdateUsbInventory(bool isAdd)
 {
-	inUpdate = true;
-	bool exist = enumDeviceAndCheck();
-	if (exist && !m_droid.connected) {
-		int ret = checkAndInstallDriver();
-		if (ret == 0)
-			startTask();
-		else if (ret == 3)
-			emit infoPrompt(u8"启动投屏服务失败，后台退出鱼耳直播APP后重启再试。");
+	if (m_deviceChangeMutex.tryLock()) {
+		QMetaObject::invokeMethod(this, "updateUsbInventory",
+					  Qt::QueuedConnection,
+					  Q_ARG(bool, isAdd),
+					  Q_ARG(bool, true));
+		m_deviceChangeMutex.unlock();
+	}
+}
+
+static bool adbDeviceOpen(CHAR *devicePath)
+{
+	// Open generic handle to device
+	HANDLE hnd = CreateFileA(devicePath, GENERIC_WRITE | GENERIC_READ,
+				FILE_SHARE_WRITE | FILE_SHARE_READ, NULL,
+				OPEN_EXISTING,
+				FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OVERLAPPED,
+				NULL);
+	if ((hnd == NULL) || (hnd == INVALID_HANDLE_VALUE))
+		return false;
+
+	// Initialize WinUSB for this device and get a WinUSB handle for it
+	WINUSB_INTERFACE_HANDLE fd;
+	bool success = WinUsb_Initialize(hnd, &fd);
+	if (success)
+		WinUsb_Free(fd);
+	CloseHandle(hnd);
+	return success;
+}
+
+bool AOADeviceManager::adbDeviceExist()
+{
+	GUID hGuid = ADB_DEVICE_GUID;
+	// Get the set of device interfaces that have been matched by our INF
+	HDEVINFO deviceInfo = SetupDiGetClassDevs(
+		&hGuid, NULL, NULL, DIGCF_PRESENT | DIGCF_DEVICEINTERFACE);
+	if (!deviceInfo) {
+		return false;
 	}
 
-	if (!exist)
+	// Iterate over all interfaces
+	int ndevs = 0;
+	int devidx = 0;
+	while (ndevs < 50) {
+		// Get interface data for next interface and attempt to init it
+		SP_DEVICE_INTERFACE_DATA interfaceData;
+		interfaceData.cbSize = sizeof(SP_DEVICE_INTERFACE_DATA);
+		if (!SetupDiEnumDeviceInterfaces(deviceInfo, NULL, &hGuid,
+						 devidx++, &interfaceData)) {
+			break;
+		}
+
+		// Determine required size for interface detail data
+		ULONG requiredLength = 0;
+		if (!SetupDiGetDeviceInterfaceDetailA(deviceInfo, &interfaceData,
+						     NULL, 0, &requiredLength,
+						     NULL)) {
+			auto err = GetLastError();
+			if (err != ERROR_INSUFFICIENT_BUFFER)
+				return false;
+		}
+
+		// Allocate storage for interface detail data
+		PSP_DEVICE_INTERFACE_DETAIL_DATA_A detailData =
+			(PSP_DEVICE_INTERFACE_DETAIL_DATA_A)malloc(
+				requiredLength);
+		detailData->cbSize = sizeof(SP_DEVICE_INTERFACE_DETAIL_DATA_A);
+
+		// Fetch interface detail data
+		if (!SetupDiGetDeviceInterfaceDetailA(deviceInfo, &interfaceData,
+						     detailData, requiredLength,
+						     &requiredLength, NULL)) {
+			auto err = GetLastError();
+			free(detailData);
+			continue;
+		}
+
+		if (adbDeviceOpen(detailData->DevicePath))
+			ndevs++;
+
+		free(detailData);
+	}
+
+	SetupDiDestroyDeviceInfoList(deviceInfo);
+	return ndevs > 0;
+}
+
+void AOADeviceManager::updateUsbInventory(bool isDeviceAdd,
+					  bool needSleepForAdbCheck)
+{
+	QMutexLocker locker(&m_deviceChangeMutex);
+
+	bool doLost = true;
+	if (isDeviceAdd) {
+		if (needSleepForAdbCheck)
+			QThread::msleep(500);
+
+		if (!adbDeviceExist()) {
+			bool exist = enumDeviceAndCheck();
+			if (exist && !m_droid.connected) {
+				int ret = checkAndInstallDriver();
+				if (ret == 0)
+					startTask();
+				else if (ret == 3)
+					emit infoPrompt(
+						u8"启动投屏服务失败，后台退出鱼耳直播APP后重启再试。");
+			}
+
+			if (exist)
+				doLost = false;
+		} else
+			emit infoPrompt(
+				u8"系统检测到手机的'USB调试'功能被打开，请在手机'设置'界面中'开发人员选项'里关闭此功能，并重新拔插手机！！");
+	}
+
+	if (doLost)
 		emit deviceLost();
-	inUpdate = false;
 }

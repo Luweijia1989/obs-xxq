@@ -10,9 +10,12 @@
 #include <QFile>
 #include <QDebug>
 #include <QSet>
+#include <QWidget>
 #include "libusb.h"
 #include "DriverHelper.h"
 #include "util/circlebuf.h"
+#include <windows.h>
+#include <dbt.h>
 
 #define USE_AUDIO
 
@@ -64,7 +67,6 @@ typedef struct t_accessory_droid {
 class AOADeviceManager : public QObject {
 	Q_OBJECT
 public:
-	bool inUpdate = false;
 	AOADeviceManager();
 	~AOADeviceManager();
 
@@ -79,6 +81,7 @@ public:
 	bool enumDeviceAndCheck();
 	int checkAndInstallDriver();
 	bool startTask();
+	void deferUpdateUsbInventory(bool isAdd);
 
 	void signalWait()
 	{
@@ -94,9 +97,11 @@ public:
 private:
 	int initUSB();
 	void clearUSB();
-	int isAndroidDevice(libusb_device *device, struct libusb_device_descriptor &desc);
+	int isAndroidDevice(libusb_device *device,
+			    struct libusb_device_descriptor &desc);
 	bool isAndroidADBDevice(struct libusb_device_descriptor &desc);
 	bool handleMediaData();
+	bool adbDeviceExist();
 
 signals:
 	void installProgress(int step, int value);
@@ -104,10 +109,11 @@ signals:
 	void deviceLost();
 
 public slots:
-	void updateUsbInventory();
+	void updateUsbInventory(bool isDeviceAdd, bool needSleepForAdbCheck);
 	void disconnectDevice();
 
 private:
+	QMutex m_deviceChangeMutex;
 	libusb_context *m_ctx = nullptr;
 	accessory_droid m_droid;
 	libusb_device **m_devs = nullptr;
@@ -136,28 +142,55 @@ private:
 	QFile h264;
 };
 
-class NativeEventFilter : public QAbstractNativeEventFilter {
+class HelerWidget : public QWidget {
+	Q_OBJECT
 public:
-	NativeEventFilter(AOADeviceManager *helper) : m_helper(helper) {}
-	bool nativeEventFilter(const QByteArray &eventType, void *message,
-			       long *) override
-	{
-		Q_UNUSED(eventType)
-		MSG *msg = static_cast<MSG *>(message);
-		int msgType = msg->message;
-		if (msgType == WM_DEVICECHANGE) {
-			if (!m_helper->inUpdate)
-				QMetaObject::invokeMethod(m_helper,
-							  "updateUsbInventory",
-							  Qt::QueuedConnection);
-			
-			QTimer::singleShot(200, m_helper,
-					   [=]() { m_helper->signalWait(); });
+	HelerWidget(AOADeviceManager *helper, QWidget *parent = nullptr) : m_helper(helper), QWidget(parent) {
+		GUID WceusbshGUID = {0xA5DCBF10, 0x6530, 0x11D2, 0x90,
+				     0x1F,       0x00,   0xC0,   0x4F,
+				     0xB9,       0x51,   0xED};
+
+		DEV_BROADCAST_DEVICEINTERFACE NotificationFilter;
+		ZeroMemory(&NotificationFilter, sizeof(NotificationFilter));
+		NotificationFilter.dbcc_size =
+			sizeof(DEV_BROADCAST_DEVICEINTERFACE);
+		NotificationFilter.dbcc_devicetype = DBT_DEVTYP_DEVICEINTERFACE;
+		NotificationFilter.dbcc_classguid = WceusbshGUID;
+
+		hDeviceNotify = RegisterDeviceNotification(
+			(HWND)winId(),                       // events recipient
+			&NotificationFilter,        // type of device
+			DEVICE_NOTIFY_WINDOW_HANDLE // type of recipient handle
+		);
+	}
+
+	~HelerWidget() {
+		UnregisterDeviceNotification(hDeviceNotify);
+	}
+
+protected:
+	virtual bool nativeEvent(const QByteArray &eventType, void *message, long *result) {
+		MSG* winMsg = static_cast<MSG *>(message);
+		if (winMsg->message == WM_DEVICECHANGE) {
+			switch (winMsg->wParam) {
+			case DBT_DEVICEARRIVAL:
+				m_helper->deferUpdateUsbInventory(true);
+				break;
+			case DBT_DEVICEREMOVECOMPLETE:
+				m_helper->deferUpdateUsbInventory(false);
+				break;
+			case DBT_DEVNODES_CHANGED:
+				break;
+			default:
+				break;
+			}
 		}
-		return false;
+
+		return QWidget::nativeEvent(eventType, message, result);
 	}
 
 private:
+	HDEVNOTIFY hDeviceNotify;
 	AOADeviceManager *m_helper;
 };
 

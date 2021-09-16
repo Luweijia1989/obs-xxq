@@ -23,12 +23,10 @@ int main(int argc, char *argv[]){
     QObject::connect(&manager, &AOADeviceManager::infoPrompt, &widget, &InformationWidget::onInfoPrompt);
     QObject::connect(&manager, &AOADeviceManager::deviceLost, &widget, &InformationWidget::onDeviceLost);
 
-    QMetaObject::invokeMethod(&manager, "updateUsbInventory", Qt::QueuedConnection);
+    QMetaObject::invokeMethod(&manager, "updateUsbInventory", Qt::QueuedConnection, Q_ARG(bool, true), Q_ARG(bool, false));
 
-    NativeEventFilter filter(&manager);
-    app.installNativeEventFilter(&filter);
 
-    QWidget w;
+    HelerWidget w(&manager);
     w.setWindowFlags(Qt::FramelessWindowHint | Qt::Tool);
     w.setFixedSize(1, 1);
     w.show();
