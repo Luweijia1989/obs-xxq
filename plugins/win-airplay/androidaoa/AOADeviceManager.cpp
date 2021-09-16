@@ -8,7 +8,7 @@
 #include <winusb.h>
 #include <Setupapi.h>
 
-#pragma comment (lib , "winusb.lib" )
+#pragma comment(lib, "winusb.lib")
 
 const char *vendor = "YPP";
 const char *model = "XxqProjectionApp"; //根据这个model来打开手机的app
@@ -725,24 +725,42 @@ void AOADeviceManager::deferUpdateUsbInventory(bool isAdd)
 	}
 }
 
-static bool adbDeviceOpen(WCHAR *devicePath)
+static bool adbDeviceOpenAndCheck(WCHAR *devicePath)
 {
-    // Open generic handle to device
-    HANDLE hnd = CreateFile(devicePath, GENERIC_WRITE | GENERIC_READ,
-                FILE_SHARE_WRITE | FILE_SHARE_READ, NULL,
-                OPEN_EXISTING,
-                FILE_FLAG_OVERLAPPED,
-                NULL);
-    if ((hnd == NULL) || (hnd == INVALID_HANDLE_VALUE))
-        return false;
+	// Open generic handle to device
+	HANDLE hnd = CreateFile(devicePath, GENERIC_WRITE | GENERIC_READ,
+				FILE_SHARE_WRITE | FILE_SHARE_READ, NULL,
+				OPEN_EXISTING, FILE_FLAG_OVERLAPPED, NULL);
+	if ((hnd == NULL) || (hnd == INVALID_HANDLE_VALUE))
+		return false;
 
-    // Initialize WinUSB for this device and get a WinUSB handle for it
-    WINUSB_INTERFACE_HANDLE fd;
-    bool success = WinUsb_Initialize(hnd, &fd);
-    if (success)
-        WinUsb_Free(fd);
-    CloseHandle(hnd);
-    return success;
+	// Initialize WinUSB for this device and get a WinUSB handle for it
+	WINUSB_INTERFACE_HANDLE fd;
+	bool success = WinUsb_Initialize(hnd, &fd);
+	if (!success) {
+		CloseHandle(hnd);
+		return false;
+	}
+
+	auto sendControlMsg = [=]() {
+		/*WINUSB_SETUP_PACKET sp;
+		sp.RequestType = requesttype;
+		sp.Request = request;
+		sp.Value = value;
+		sp.Index = index;
+		sp.Length = size;
+
+		ULONG actlen = 0;
+		if (!WinUsb_ControlTransfer(dev->fd, sp, (unsigned char *)bytes,
+					    size, &actlen, NULL))
+			return -(int)GetLastError();
+
+		return actlen;*/
+	};
+
+	WinUsb_Free(fd);
+	CloseHandle(hnd);
+	return true;
 }
 
 bool AOADeviceManager::adbDeviceExist()
@@ -792,7 +810,7 @@ bool AOADeviceManager::adbDeviceExist()
 			continue;
 		}
 
-		if (adbDeviceOpen(detailData->DevicePath))
+		if (adbDeviceOpenAndCheck(detailData->DevicePath))
 			ndevs++;
 
 		free(detailData);
