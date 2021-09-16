@@ -811,7 +811,7 @@ void AOADeviceManager::updateUsbInventory(bool isDeviceAdd,
 	bool doLost = true;
 	if (isDeviceAdd) {
 		if (needSleepForAdbCheck)
-			QThread::msleep(500);
+			QThread::msleep(2000);
 
 		if (!adbDeviceExist()) {
 			bool exist = enumDeviceAndCheck();
