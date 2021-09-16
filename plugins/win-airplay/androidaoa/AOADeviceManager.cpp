@@ -385,7 +385,7 @@ bool AOADeviceManager::handleMediaData()
 			struct av_packet_info pack_info = {0};
 			pack_info.size = pktSize;
 			pack_info.type = FFM_PACKET_VIDEO;
-			pack_info.pts = 0;
+			pack_info.pts = pts * 1000;
 			ipc_client_write_2(client, &pack_info,
 					   sizeof(struct av_packet_info),
 					   m_cacheBuffer, pack_info.size,
@@ -395,7 +395,7 @@ bool AOADeviceManager::handleMediaData()
 		struct av_packet_info pack_info = {0};
 		pack_info.size = pktSize;
 		pack_info.type = FFM_PACKET_AUDIO;
-		pack_info.pts = 0;
+		pack_info.pts = pts * 1000000;
 		ipc_client_write_2(client, &pack_info,
 				   sizeof(struct av_packet_info), m_cacheBuffer,
 				   pack_info.size, INFINITE);
@@ -720,30 +720,9 @@ void AOADeviceManager::deferUpdateUsbInventory(bool isAdd)
 	if (m_deviceChangeMutex.tryLock()) {
 		QMetaObject::invokeMethod(this, "updateUsbInventory",
 					  Qt::QueuedConnection,
-					  Q_ARG(bool, isAdd),
-					  Q_ARG(bool, true));
+					  Q_ARG(bool, isAdd));
 		m_deviceChangeMutex.unlock();
 	}
-}
-
-static bool adbDeviceOpen(CHAR *devicePath)
-{
-	// Open generic handle to device
-	HANDLE hnd = CreateFileA(devicePath, GENERIC_WRITE | GENERIC_READ,
-				FILE_SHARE_WRITE | FILE_SHARE_READ, NULL,
-				OPEN_EXISTING,
-				FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OVERLAPPED,
-				NULL);
-	if ((hnd == NULL) || (hnd == INVALID_HANDLE_VALUE))
-		return false;
-
-	// Initialize WinUSB for this device and get a WinUSB handle for it
-	WINUSB_INTERFACE_HANDLE fd;
-	bool success = WinUsb_Initialize(hnd, &fd);
-	if (success)
-		WinUsb_Free(fd);
-	CloseHandle(hnd);
-	return success;
 }
 
 bool AOADeviceManager::adbDeviceExist()
@@ -793,8 +772,7 @@ bool AOADeviceManager::adbDeviceExist()
 			continue;
 		}
 
-		if (adbDeviceOpen(detailData->DevicePath))
-			ndevs++;
+		ndevs++;
 
 		free(detailData);
 	}
@@ -803,16 +781,12 @@ bool AOADeviceManager::adbDeviceExist()
 	return ndevs > 0;
 }
 
-void AOADeviceManager::updateUsbInventory(bool isDeviceAdd,
-					  bool needSleepForAdbCheck)
+void AOADeviceManager::updateUsbInventory(bool isDeviceAdd)
 {
 	QMutexLocker locker(&m_deviceChangeMutex);
 
 	bool doLost = true;
 	if (isDeviceAdd) {
-		if (needSleepForAdbCheck)
-			QThread::msleep(2000);
-
 		if (!adbDeviceExist()) {
 			bool exist = enumDeviceAndCheck();
 			if (exist && !m_droid.connected) {

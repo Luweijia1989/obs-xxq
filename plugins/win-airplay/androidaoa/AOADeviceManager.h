@@ -109,7 +109,7 @@ signals:
 	void deviceLost();
 
 public slots:
-	void updateUsbInventory(bool isDeviceAdd, bool needSleepForAdbCheck);
+	void updateUsbInventory(bool isDeviceAdd);
 	void disconnectDevice();
 
 private:

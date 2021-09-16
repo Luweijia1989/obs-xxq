@@ -15,7 +15,7 @@ using namespace std;
 #define INSTANCE_LOCK L"AIRPLAY-ONE-INSTANCE"
 
 #define AIRPLAY_AUDIO_PKT_SIZE 1920
-#define ANDROID_AOA_AUDIO_PKT_SIZE 3528
+#define ANDROID_AOA_AUDIO_PKT_SIZE 3840
 
 uint8_t start_code[4] = {00, 00, 00, 01};
 
@@ -269,6 +269,8 @@ void ScreenMirrorServer::setBackendType(int type)
 	m_backend = (MirrorBackEnd)type;
 	if (m_backend == IOS_AIRPLAY || m_backend == ANDROID_WIRELESS)
 		m_extraDelay = 250;
+	else if (m_backend == ANDROID_AOA)
+		m_extraDelay = 100;
 	else
 		m_extraDelay = 0;
 
@@ -596,7 +598,7 @@ void *ScreenMirrorServer::audio_tick_thread(void *data)
 	while (!s->m_stop) {
 		pthread_mutex_lock(&s->m_audioDataMutex);
 		if (s->m_audioFrames.size > 0) {
-			if (s->m_audioFrameType == IOS_AIRPLAY) {
+			if (s->m_audioFrameType == IOS_AIRPLAY || s->m_audioFrameType == ANDROID_AOA) {
 				int64_t target_pts = 0;
 				int64_t now_ms =
 					(int64_t)os_gettime_ns() / 1000000;
@@ -623,7 +625,7 @@ void *ScreenMirrorServer::audio_tick_thread(void *data)
 							    &pts,
 							    sizeof(uint64_t));
 					func(s->m_source, &s->m_audioFrames,
-					     AIRPLAY_AUDIO_PKT_SIZE,
+					     s->m_audioFrameType == IOS_AIRPLAY ? AIRPLAY_AUDIO_PKT_SIZE : ANDROID_AOA_AUDIO_PKT_SIZE,
 					     s->m_audioSampleRate);
 				}
 			} else {
@@ -659,7 +661,7 @@ void ScreenMirrorServer::outputAudio(size_t data_len, uint64_t pts, int serial)
 	circlebuf_pop_front(&m_avBuffer, m_audioCacheBuffer, data_len);
 
 	pthread_mutex_lock(&m_audioDataMutex);
-	if (m_audioFrameType == IOS_AIRPLAY)
+	if (m_audioFrameType == IOS_AIRPLAY || m_audioFrameType == ANDROID_AOA)
 		circlebuf_push_back(&m_audioFrames, &pts, sizeof(uint64_t));
 	circlebuf_push_back(&m_audioFrames, m_audioCacheBuffer, data_len);
 	pthread_mutex_unlock(&m_audioDataMutex);
