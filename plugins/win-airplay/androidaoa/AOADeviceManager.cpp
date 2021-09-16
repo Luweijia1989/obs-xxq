@@ -385,7 +385,7 @@ bool AOADeviceManager::handleMediaData()
 			struct av_packet_info pack_info = {0};
 			pack_info.size = pktSize;
 			pack_info.type = FFM_PACKET_VIDEO;
-			pack_info.pts = pts * 1000;
+			pack_info.pts = pts * 1000000;
 			ipc_client_write_2(client, &pack_info,
 					   sizeof(struct av_packet_info),
 					   m_cacheBuffer, pack_info.size,
@@ -725,6 +725,26 @@ void AOADeviceManager::deferUpdateUsbInventory(bool isAdd)
 	}
 }
 
+static bool adbDeviceOpen(WCHAR *devicePath)
+{
+    // Open generic handle to device
+    HANDLE hnd = CreateFile(devicePath, GENERIC_WRITE | GENERIC_READ,
+                FILE_SHARE_WRITE | FILE_SHARE_READ, NULL,
+                OPEN_EXISTING,
+                FILE_FLAG_OVERLAPPED,
+                NULL);
+    if ((hnd == NULL) || (hnd == INVALID_HANDLE_VALUE))
+        return false;
+
+    // Initialize WinUSB for this device and get a WinUSB handle for it
+    WINUSB_INTERFACE_HANDLE fd;
+    bool success = WinUsb_Initialize(hnd, &fd);
+    if (success)
+        WinUsb_Free(fd);
+    CloseHandle(hnd);
+    return success;
+}
+
 bool AOADeviceManager::adbDeviceExist()
 {
 	GUID hGuid = ADB_DEVICE_GUID;
@@ -749,7 +769,7 @@ bool AOADeviceManager::adbDeviceExist()
 
 		// Determine required size for interface detail data
 		ULONG requiredLength = 0;
-		if (!SetupDiGetDeviceInterfaceDetailA(deviceInfo, &interfaceData,
+		if (!SetupDiGetDeviceInterfaceDetail(deviceInfo, &interfaceData,
 						     NULL, 0, &requiredLength,
 						     NULL)) {
 			auto err = GetLastError();
@@ -758,13 +778,13 @@ bool AOADeviceManager::adbDeviceExist()
 		}
 
 		// Allocate storage for interface detail data
-		PSP_DEVICE_INTERFACE_DETAIL_DATA_A detailData =
-			(PSP_DEVICE_INTERFACE_DETAIL_DATA_A)malloc(
+		PSP_DEVICE_INTERFACE_DETAIL_DATA detailData =
+			(PSP_DEVICE_INTERFACE_DETAIL_DATA)malloc(
 				requiredLength);
-		detailData->cbSize = sizeof(SP_DEVICE_INTERFACE_DETAIL_DATA_A);
+		detailData->cbSize = sizeof(SP_DEVICE_INTERFACE_DETAIL_DATA);
 
 		// Fetch interface detail data
-		if (!SetupDiGetDeviceInterfaceDetailA(deviceInfo, &interfaceData,
+		if (!SetupDiGetDeviceInterfaceDetail(deviceInfo, &interfaceData,
 						     detailData, requiredLength,
 						     &requiredLength, NULL)) {
 			auto err = GetLastError();
@@ -772,7 +792,8 @@ bool AOADeviceManager::adbDeviceExist()
 			continue;
 		}
 
-		ndevs++;
+		if (adbDeviceOpen(detailData->DevicePath))
+			ndevs++;
 
 		free(detailData);
 	}
