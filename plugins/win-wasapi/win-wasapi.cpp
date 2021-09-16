@@ -54,6 +54,8 @@ class WASAPISource {
 	audio_format format;
 	uint32_t sampleRate;
 
+	CRITICAL_SECTION mutex;;
+
 	static DWORD WINAPI ReconnectThread(LPVOID param);
 	static DWORD WINAPI CaptureThread(LPVOID param);
 
@@ -139,6 +141,8 @@ WASAPISource::WASAPISource(obs_data_t *settings, obs_source_t *source_,
 			   bool input)
 	: source(source_), isInputDevice(input)
 {
+	InitializeCriticalSection(&mutex);
+
 	UpdateSettings(settings);
 
 	stopSignal = CreateEvent(nullptr, true, false, nullptr);
@@ -183,6 +187,8 @@ inline WASAPISource::~WASAPISource()
 {
 	enumerator->UnregisterEndpointNotificationCallback(notify);
 	Stop();
+
+	DeleteCriticalSection(&mutex);
 }
 
 void WASAPISource::UpdateSettings(obs_data_t *settings)
@@ -611,8 +617,10 @@ void WASAPISource::SetDefaultDevice(EDataFlow flow, ERole role, LPCWSTR id)
 		return;
 
 	std::thread([this]() {
+		EnterCriticalSection(&mutex);
 		Stop();
 		Start();
+		LeaveCriticalSection(&mutex);
 	}).detach();
 
 	lastNotifyTime = t;
