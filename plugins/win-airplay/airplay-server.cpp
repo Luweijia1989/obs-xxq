@@ -611,9 +611,12 @@ void *ScreenMirrorServer::audio_tick_thread(void *data)
 					circlebuf_peek_front(&s->m_audioFrames,
 							     &pts,
 							     sizeof(uint64_t));
-					s->m_audioOffset =
-						now_ms - pts -
-						100; // 音频接收到的就有点慢，延迟减去100ms
+					if (s->m_audioFrameType == IOS_AIRPLAY)
+						s->m_audioOffset =
+							now_ms - pts -
+							100; // 音频接收到的就有点慢，延迟减去100ms
+					else
+						s->m_audioOffset = now_ms - pts;
 				}
 
 				s->dropAudioFrame(now_ms);
