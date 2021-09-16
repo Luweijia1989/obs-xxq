@@ -271,9 +271,9 @@ void ScreenMirrorServer::setBackendType(int type)
 {
 	m_backend = (MirrorBackEnd)type;
 	if (m_backend == IOS_AIRPLAY || m_backend == ANDROID_WIRELESS)
-		m_extraDelay = 250;
+		m_extraDelay = 500;
 	else if (m_backend == ANDROID_AOA)
-		m_extraDelay = 100;
+		m_extraDelay = 0;
 	else
 		m_extraDelay = 0;
 
