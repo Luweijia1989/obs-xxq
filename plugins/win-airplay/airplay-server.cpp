@@ -641,7 +641,7 @@ void *ScreenMirrorServer::audio_tick_thread(void *data)
 			}
 		}
 		pthread_mutex_unlock(&s->m_audioDataMutex);
-		os_sleep_ms(5);
+		os_sleep_ms(8);
 	}
 
 	if (popBuffer)

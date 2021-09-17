@@ -1,4 +1,4 @@
-#ifndef AOADEVICEMANAGER_H
+﻿#ifndef AOADEVICEMANAGER_H
 #define AOADEVICEMANAGER_H
 
 #include <QObject>
@@ -82,6 +82,7 @@ public:
 	int checkAndInstallDriver();
 	bool startTask();
 	void deferUpdateUsbInventory(bool isAdd);
+	bool adbDeviceOpenAndCheck(WCHAR *devicePath);
 
 	void signalWait()
 	{
@@ -109,7 +110,7 @@ signals:
 	void deviceLost();
 
 public slots:
-	void updateUsbInventory(bool isDeviceAdd);
+	void updateUsbInventory(bool isDeviceAdd, bool checkAdb);
 	void disconnectDevice();
 
 private:
@@ -145,37 +146,90 @@ private:
 class HelerWidget : public QWidget {
 	Q_OBJECT
 public:
-	HelerWidget(AOADeviceManager *helper, QWidget *parent = nullptr) : m_helper(helper), QWidget(parent) {
+	HelerWidget(AOADeviceManager *helper, QWidget *parent = nullptr)
+		: m_helper(helper), QWidget(parent)
+	{
 		GUID WceusbshGUID = {0xA5DCBF10, 0x6530, 0x11D2, 0x90,
 				     0x1F,       0x00,   0xC0,   0x4F,
 				     0xB9,       0x51,   0xED};
 
-		DEV_BROADCAST_DEVICEINTERFACE NotificationFilter;
-		ZeroMemory(&NotificationFilter, sizeof(NotificationFilter));
-		NotificationFilter.dbcc_size =
-			sizeof(DEV_BROADCAST_DEVICEINTERFACE);
-		NotificationFilter.dbcc_devicetype = DBT_DEVTYP_DEVICEINTERFACE;
-		NotificationFilter.dbcc_classguid = WceusbshGUID;
+		GUID ADB_DEVICE_GUID = {0xf72fe0d4,
+					0xcbcb,
+					0x407d,
+					{0x88, 0x14, 0x9e, 0xd6, 0x73, 0xd0,
+					 0xdd, 0x6b}};
 
-		hDeviceNotify = RegisterDeviceNotification(
-			(HWND)winId(),                       // events recipient
-			&NotificationFilter,        // type of device
-			DEVICE_NOTIFY_WINDOW_HANDLE // type of recipient handle
-		);
+		auto registerNotification = [this](GUID id, HDEVNOTIFY &ret) {
+			DEV_BROADCAST_DEVICEINTERFACE NotificationFilter;
+			ZeroMemory(&NotificationFilter,
+				   sizeof(NotificationFilter));
+			NotificationFilter.dbcc_size =
+				sizeof(DEV_BROADCAST_DEVICEINTERFACE);
+			NotificationFilter.dbcc_devicetype =
+				DBT_DEVTYP_DEVICEINTERFACE;
+			NotificationFilter.dbcc_classguid = id;
+
+			ret = RegisterDeviceNotification(
+				(HWND)winId(),              // events recipient
+				&NotificationFilter,        // type of device
+				DEVICE_NOTIFY_WINDOW_HANDLE // type of recipient handle
+			);
+		};
+
+		registerNotification(WceusbshGUID, hDeviceNotify_normal);
+		registerNotification(ADB_DEVICE_GUID, hDeviceNotify_adb);
+
+		timer.setSingleShot(true);
+		timer.setInterval(2000);
+		connect(&timer, &QTimer::timeout, this,
+			[=]() { m_helper->deferUpdateUsbInventory(true); });
 	}
 
-	~HelerWidget() {
-		UnregisterDeviceNotification(hDeviceNotify);
+	~HelerWidget()
+	{
+		UnregisterDeviceNotification(hDeviceNotify_normal);
+		UnregisterDeviceNotification(hDeviceNotify_adb);
 	}
 
 protected:
-	virtual bool nativeEvent(const QByteArray &eventType, void *message, long *result) {
-		MSG* winMsg = static_cast<MSG *>(message);
+	virtual bool nativeEvent(const QByteArray &eventType, void *message,
+				 long *result)
+	{
+		MSG *winMsg = static_cast<MSG *>(message);
 		if (winMsg->message == WM_DEVICECHANGE) {
 			switch (winMsg->wParam) {
-			case DBT_DEVICEARRIVAL:
-				m_helper->deferUpdateUsbInventory(true);
-				break;
+			case DBT_DEVICEARRIVAL: {
+				auto info = (DEV_BROADCAST_DEVICEINTERFACE *)
+						    winMsg->lParam;
+
+				if (info->dbcc_devicetype ==
+				    DBT_DEVTYP_DEVICEINTERFACE) {
+					QString devicePath =
+						QString::fromWCharArray(
+							info->dbcc_name);
+					qDebug() << devicePath;
+					bool isAdbDevice = devicePath.endsWith(
+						"{f72fe0d4-cbcb-407d-8814-9ed673d0dd6b}");
+					if (timer.isActive())
+						timer.stop();
+
+					if (!isAdbDevice)
+						timer.start();
+					else {
+						if (!m_helper->adbDeviceOpenAndCheck(
+							    info->dbcc_name))
+							m_helper->deferUpdateUsbInventory(
+								true);
+						else
+							emit m_helper->infoPrompt(
+								u8"系统检测到手机的'USB调试'功能被打开，请在手机'设置'界面中'开发人员选项'里关闭此功能，并重新拔插手机！！");
+					}
+
+					QTimer::singleShot(200, this, [=]() {
+						m_helper->signalWait();
+					});
+				}
+			} break;
 			case DBT_DEVICEREMOVECOMPLETE:
 				m_helper->deferUpdateUsbInventory(false);
 				break;
@@ -190,8 +244,10 @@ protected:
 	}
 
 private:
-	HDEVNOTIFY hDeviceNotify;
+	HDEVNOTIFY hDeviceNotify_normal;
+	HDEVNOTIFY hDeviceNotify_adb;
 	AOADeviceManager *m_helper;
+	QTimer timer;
 };
 
 #endif // AOADEVICEMANAGER_H

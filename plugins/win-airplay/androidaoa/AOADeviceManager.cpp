@@ -720,17 +720,20 @@ void AOADeviceManager::deferUpdateUsbInventory(bool isAdd)
 	if (m_deviceChangeMutex.tryLock()) {
 		QMetaObject::invokeMethod(this, "updateUsbInventory",
 					  Qt::QueuedConnection,
-					  Q_ARG(bool, isAdd));
+					  Q_ARG(bool, isAdd),
+					  Q_ARG(bool, false));
 		m_deviceChangeMutex.unlock();
 	}
 }
 
-static bool adbDeviceOpenAndCheck(WCHAR *devicePath)
+bool AOADeviceManager::adbDeviceOpenAndCheck(WCHAR *devicePath)
 {
 	// Open generic handle to device
 	HANDLE hnd = CreateFile(devicePath, GENERIC_WRITE | GENERIC_READ,
 				FILE_SHARE_WRITE | FILE_SHARE_READ, NULL,
-				OPEN_EXISTING, FILE_FLAG_OVERLAPPED, NULL);
+				OPEN_EXISTING,
+				FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OVERLAPPED,
+				NULL);
 	if ((hnd == NULL) || (hnd == INVALID_HANDLE_VALUE))
 		return false;
 
@@ -742,25 +745,78 @@ static bool adbDeviceOpenAndCheck(WCHAR *devicePath)
 		return false;
 	}
 
-	auto sendControlMsg = [=]() {
-		/*WINUSB_SETUP_PACKET sp;
+	auto sendControlMsg = [](WINUSB_INTERFACE_HANDLE fd, UCHAR requesttype,
+				 UCHAR request, USHORT value, USHORT index,
+				 UCHAR *bytes, USHORT size) -> bool {
+		WINUSB_SETUP_PACKET sp;
 		sp.RequestType = requesttype;
 		sp.Request = request;
 		sp.Value = value;
 		sp.Index = index;
 		sp.Length = size;
 
-		ULONG actlen = 0;
-		if (!WinUsb_ControlTransfer(dev->fd, sp, (unsigned char *)bytes,
-					    size, &actlen, NULL))
-			return -(int)GetLastError();
+		UCHAR buf[256] = {0};
+		memcpy(buf, bytes, size);
 
-		return actlen;*/
+		ULONG actlen = 0;
+		if (!WinUsb_ControlTransfer(fd, sp, buf, size, &actlen, NULL)) {
+			return false;
+		}
+
+		return actlen > 0;
 	};
+
+	const char *setupStrings[6];
+	setupStrings[0] = vendor;
+	setupStrings[1] = model;
+	setupStrings[2] = description;
+	setupStrings[3] = version;
+	setupStrings[4] = uri;
+	setupStrings[5] = serial;
+
+	int i = 0;
+	for (; i < 6; i++) {
+		bool pass = sendControlMsg(fd, 0x40, 52, 0, i,
+					   (unsigned char *)setupStrings[i],
+					   strlen(setupStrings[i]));
+		if (!pass)
+			break;
+	}
+
+	if (i == 6) {
+		sendControlMsg(fd, 0x40, 58, 1, 0, NULL, 0);
+		sendControlMsg(fd, 0x40, 53, 0, 0, NULL, 0);
+	}
 
 	WinUsb_Free(fd);
 	CloseHandle(hnd);
-	return true;
+
+	QThread::msleep(500);
+
+	bool adbexist = false;
+	libusb_context *ctx = nullptr;
+	libusb_init(&ctx);
+
+	libusb_device **devs = nullptr;
+	int count = libusb_get_device_list(ctx, &devs);
+	for (int i = 0; i < count; i++) {
+		struct libusb_device_descriptor desc;
+		int r = libusb_get_device_descriptor(devs[i], &desc);
+		if (r < 0) {
+			continue;
+		}
+
+		int isAndroid = isAndroidADBDevice(desc);
+		if (isAndroid == 0) {
+			adbexist = true;
+			break;
+		}
+	}
+
+	libusb_free_device_list(devs, count);
+	libusb_exit(ctx);
+
+	return adbexist;
 }
 
 bool AOADeviceManager::adbDeviceExist()
@@ -820,15 +876,15 @@ bool AOADeviceManager::adbDeviceExist()
 	return ndevs > 0;
 }
 
-void AOADeviceManager::updateUsbInventory(bool isDeviceAdd)
+void AOADeviceManager::updateUsbInventory(bool isDeviceAdd, bool checkAdb)
 {
 	QMutexLocker locker(&m_deviceChangeMutex);
 
 	bool doLost = true;
-	if (isDeviceAdd) {
-		if (!adbDeviceExist()) {
+	if (isDeviceAdd && !m_droid.connected) {
+		if (!checkAdb || !adbDeviceExist()) {
 			bool exist = enumDeviceAndCheck();
-			if (exist && !m_droid.connected) {
+			if (exist) {
 				int ret = checkAndInstallDriver();
 				if (ret == 0)
 					startTask();
