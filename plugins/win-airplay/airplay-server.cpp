@@ -15,7 +15,7 @@ using namespace std;
 #define INSTANCE_LOCK L"AIRPLAY-ONE-INSTANCE"
 
 #define AIRPLAY_AUDIO_PKT_SIZE 1920
-#define ANDROID_AOA_AUDIO_PKT_SIZE 3840
+#define ANDROID_AOA_AUDIO_PKT_SIZE 1920
 
 uint8_t start_code[4] = {00, 00, 00, 01};
 
