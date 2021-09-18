@@ -254,7 +254,16 @@ void STThread::processImage(AVFrame *frame, quint64 ts)
 {
 	static bool needDrop = false;
 	QMutexLocker locker(&m_stickerSetterMutex);
-	if (m_stickers.isEmpty() && m_gameStickerType == None && !m_needBeautify) {
+	bool frameInfoChanged = (m_lastWidth != frame->width || m_lastHeight != frame->height || m_lastFormat != frame->format);
+	if (frameInfoChanged) {
+		if (m_swsctx) {
+			sws_freeContext(m_swsctx);
+			m_swsctx = NULL;
+		}
+
+		m_swsctx = sws_getContext(frame->width, frame->height, (AVPixelFormat)frame->format, frame->width, frame->height, AVPixelFormat::AV_PIX_FMT_RGBA, SWS_BICUBIC, NULL, NULL, NULL);
+	}
+	if (!m_swsctx || (m_stickers.isEmpty() && m_gameStickerType == None && !m_needBeautify)) {
 		m_dshowInput->OutputFrame(frame, ts, m_dshowInput->flipH);
 		needDrop = true;
 		return;
@@ -264,7 +273,6 @@ void STThread::processImage(AVFrame *frame, quint64 ts)
 		return;
 
 	quint64 m_textureBufferSize = frame->width * frame->height * 4;
-	bool frameInfoChanged = (m_lastWidth != frame->width || m_lastHeight != frame->height || m_lastFormat != frame->format);
 	m_lastWidth = frame->width;
 	m_lastHeight = frame->height;
 	m_lastFormat = frame->format;
@@ -279,14 +287,9 @@ void STThread::processImage(AVFrame *frame, quint64 ts)
 		}
 		m_swsRetFrame = av_frame_alloc();
 		av_image_alloc(m_swsRetFrame->data, m_swsRetFrame->linesize, frame->width, frame->height, AV_PIX_FMT_RGBA, 1);
-		if (m_swsctx) {
-			sws_freeContext(m_swsctx);
-			m_swsctx = NULL;
-		}
 
 		flip = AV_PIX_FMT_BGRA == frame->format || AV_PIX_FMT_BGR0 == frame->format;
-		m_swsctx = sws_getContext(frame->width, frame->height, (AVPixelFormat)frame->format, frame->width, frame->height, AVPixelFormat::AV_PIX_FMT_RGBA, SWS_BICUBIC, NULL, NULL, NULL);
-
+		
 		if (m_fbo)
 			delete m_fbo;
 
