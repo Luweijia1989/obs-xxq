@@ -260,8 +260,8 @@ void STThread::processImage(AVFrame *frame, quint64 ts)
 			sws_freeContext(m_swsctx);
 			m_swsctx = NULL;
 		}
-
 		m_swsctx = sws_getContext(frame->width, frame->height, (AVPixelFormat)frame->format, frame->width, frame->height, AVPixelFormat::AV_PIX_FMT_RGBA, SWS_BICUBIC, NULL, NULL, NULL);
+		blog(LOG_INFO, "sws_getContext param: src width: %d, src height: %d, src pixel format: %d,  m_swsctx: %p", frame->width, frame->height, frame->format, m_swsctx);
 	}
 	if (!m_swsctx || (m_stickers.isEmpty() && m_gameStickerType == None && !m_needBeautify)) {
 		m_dshowInput->OutputFrame(frame, ts, m_dshowInput->flipH);
