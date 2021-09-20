@@ -69,7 +69,7 @@ STThread::STThread(DShowInput *dsInput) : m_dshowInput(dsInput)
 STThread::~STThread()
 {
 	if (m_dataBuffer)
-		free(m_dataBuffer);
+		av_free(m_dataBuffer);
 
 	av_frame_free(&m_cacheFrame);
 }
@@ -182,9 +182,9 @@ void STThread::updateBeautifySetting(QString setting)
 void STThread::ensureCacheBuffer(size_t size)
 {
 	if (!m_dataBuffer) {
-		m_dataBuffer = (unsigned char *)malloc(size);
+		m_dataBuffer = (unsigned char *)av_malloc(size);
 	} else if (m_dataBufferSize < size) {
-		m_dataBuffer = (unsigned char *)realloc(m_dataBuffer, size);
+		m_dataBuffer = (unsigned char *)av_realloc(m_dataBuffer, size);
 	}
 
 	m_dataBufferSize = size;
@@ -195,14 +195,19 @@ void STThread::addFrame(unsigned char *data, size_t size, long long startTime, i
 	if (!m_running)
 		return;
 
-	ensureCacheBuffer(size);
-
 	FrameInfo info;
 	info.startTime = startTime;
 
-	memcpy(m_dataBuffer, data, size);
+	uint8_t *td[AV_NUM_DATA_POINTERS] = { 0 };
+	int tl[AV_NUM_DATA_POINTERS] = { 0 };
+	av_image_fill_arrays(td, tl, data, (AVPixelFormat)f, w, h, 1);
 
-	av_image_fill_arrays(m_cacheFrame->data, m_cacheFrame->linesize, m_dataBuffer, (AVPixelFormat)f, w, h, 1);
+	auto as = av_image_get_buffer_size((AVPixelFormat)f, w, h, 32);
+	ensureCacheBuffer(as);
+
+	av_image_copy_to_buffer(m_dataBuffer, as, td, tl, (AVPixelFormat)f, w, h, 32);
+	av_image_fill_arrays(m_cacheFrame->data, m_cacheFrame->linesize, m_dataBuffer, (AVPixelFormat)f, w, h, 32);
+
 	m_cacheFrame->width = w;
 	m_cacheFrame->height = h;
 	m_cacheFrame->format = f;
@@ -219,11 +224,11 @@ void STThread::addFrame(AVFrame *frame, long long startTime)
 
 	FrameInfo info;
 
-	auto size = av_image_get_buffer_size((AVPixelFormat)frame->format, frame->width, frame->height, 1);
+	auto size = av_image_get_buffer_size((AVPixelFormat)frame->format, frame->width, frame->height, 32);
 	ensureCacheBuffer(size);
 
-	av_image_copy_to_buffer(m_dataBuffer, size, frame->data, frame->linesize, (AVPixelFormat)frame->format, frame->width, frame->height, 1);
-	av_image_fill_arrays(m_cacheFrame->data, m_cacheFrame->linesize, m_dataBuffer, (AVPixelFormat)frame->format, frame->width, frame->height, 1);
+	av_image_copy_to_buffer(m_dataBuffer, size, frame->data, frame->linesize, (AVPixelFormat)frame->format, frame->width, frame->height, 32);
+	av_image_fill_arrays(m_cacheFrame->data, m_cacheFrame->linesize, m_dataBuffer, (AVPixelFormat)frame->format, frame->width, frame->height, 32);
 	m_cacheFrame->width = frame->width;
 	m_cacheFrame->height = frame->height;
 	m_cacheFrame->format = frame->format;
@@ -278,7 +283,7 @@ void STThread::processImage(AVFrame *frame, quint64 ts)
 			av_frame_free(&m_swsRetFrame);
 		}
 		m_swsRetFrame = av_frame_alloc();
-		av_image_alloc(m_swsRetFrame->data, m_swsRetFrame->linesize, frame->width, frame->height, AV_PIX_FMT_RGBA, 1);
+		av_image_alloc(m_swsRetFrame->data, m_swsRetFrame->linesize, frame->width, frame->height, AV_PIX_FMT_RGBA, 32);
 		if (m_swsctx) {
 			sws_freeContext(m_swsctx);
 			m_swsctx = NULL;
