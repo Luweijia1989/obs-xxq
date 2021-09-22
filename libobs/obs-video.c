@@ -27,6 +27,7 @@
 #ifdef _WIN32
 #define WIN32_MEAN_AND_LEAN
 #include <windows.h>
+#include <util/windows/win-version.h>
 #endif
 
 static uint64_t tick_sources(uint64_t cur_time, uint64_t last_time)
@@ -591,12 +592,13 @@ render_rtc_output_texture(struct obs_core_video *video) //final output
 	if (rtc_mix->rtc_textures[0]) {
 		uint32_t texh = gs_texture_get_height(rtc_mix->rtc_textures[0]);
 		if (texh == 1280) // app send this size. app-> 720 * 1280
-			render_rtc_textures(effect, tech, rtc_mix->rtc_textures[0], 720,
-					    -100, 0, 0, 720, 1280);
+			render_rtc_textures(effect, tech,
+					    rtc_mix->rtc_textures[0], 720, -100,
+					    0, 0, 720, 1280);
 		else // pc or app old version send this size. pc-> 720 * 1080
 			render_rtc_textures(effect, tech,
-					    rtc_mix->rtc_textures[0], 720, 0,
-					    0, 0, 720, 1080);
+					    rtc_mix->rtc_textures[0], 720, 0, 0,
+					    0, 720, 1080);
 	}
 
 	return target;
@@ -1184,6 +1186,13 @@ static bool load_winrt_imports(struct winrt_exports *exports, void *module,
 	return success;
 }
 
+static bool is_win8_or_above()
+{
+	struct win_version_info ver;
+	get_win_ver(&ver);
+	return ver.major > 6 || (ver.major == 6 && ver.minor >= 2);
+}
+
 struct winrt_state {
 	bool loaded;
 	void *winrt_module;
@@ -1193,6 +1202,9 @@ struct winrt_state {
 
 static void init_winrt_state(struct winrt_state *winrt)
 {
+	if (!is_win8_or_above())
+		return;
+
 	static const char *const module_name = "libobs-winrt";
 
 	winrt->winrt_module = os_dlopen(module_name);
@@ -1212,6 +1224,9 @@ static void init_winrt_state(struct winrt_state *winrt)
 
 static void uninit_winrt_state(struct winrt_state *winrt)
 {
+	if (!is_win8_or_above())
+		return;
+
 	if (winrt->winrt_module) {
 		if (winrt->loaded) {
 			winrt->exports.winrt_capture_thread_stop();
