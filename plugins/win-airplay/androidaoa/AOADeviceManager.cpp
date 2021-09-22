@@ -623,13 +623,14 @@ bool AOADeviceManager::enumDeviceAndCheck()
 }
 
 int AOADeviceManager::
-	checkAndInstallDriver() // 1->检测到adb 2->没找到android设备 3->切到aoa模式失败
+	checkAndInstallDriver() // 1->检测到adb 2->没找到android设备 3->切到aoa模式失败 4->还没切换呢就已经在aoa模式了，需要提醒用户插拔
 {
 	int ret = -1;
 	libusb_context *ctx = nullptr;
 	libusb_device **devs = nullptr;
 	int count = 0;
 	int switchAOACount = 0;
+	bool sendSwitchCommand = false;
 
 Retry:
 	if (devs)
@@ -664,7 +665,7 @@ Retry:
 				goto Retry;
 			}
 			if (isDroidInAcc(devs[i])) {
-				ret = 0;
+				ret = sendSwitchCommand ? 0 : 4;
 				break;
 			} else {
 				switchAOACount++;
@@ -891,6 +892,9 @@ void AOADeviceManager::updateUsbInventory(bool isDeviceAdd, bool checkAdb)
 				else if (ret == 3)
 					emit infoPrompt(
 						u8"启动投屏服务失败，后台退出鱼耳直播APP后重启再试。");
+				else if (ret == 4)
+					emit infoPrompt(
+						u8"启动投屏服务失败，请插拔手机后再试。");
 			}
 
 			if (exist)
