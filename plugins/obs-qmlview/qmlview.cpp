@@ -105,12 +105,12 @@ void OBSQuickview::loadUrl(QUrl url)
 
 quint32 OBSQuickview::width()
 {
-	return m_quickView->fboSize().width();
+	return m_quickView->quickWindowSize().width();
 }
 
 quint32 OBSQuickview::height()
 {
-	return m_quickView->fboSize().height();
+	return m_quickView->quickWindowSize().height();
 }
 
 void OBSQuickview::doLoad()
