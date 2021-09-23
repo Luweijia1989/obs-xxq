@@ -1,4 +1,4 @@
-﻿#include <QDebug>
+#include <QDebug>
 #include <QPaintEvent>
 #include <QOpenGLFramebufferObject>
 #include <QOpenGLPaintDevice>
@@ -39,13 +39,11 @@ int gettimeofday(struct timeval *tp, struct timezone *tzp)
 OBSQuickview::OBSQuickview(QObject *parent) : QObject(parent)
 {
 	texture = NULL;
-	m_bits = NULL;
 	m_quickView = NULL;
 	m_ready = false;
 	m_frameLimited = false;
 	m_nextFrame = qQNaN();
 	m_enabled = false;
-	m_canvas = QImage();
 	m_delete = false;
 
 	connect(this, SIGNAL(wantLoad()), this, SLOT(doLoad()),
@@ -58,7 +56,7 @@ OBSQuickview::OBSQuickview(QObject *parent) : QObject(parent)
 	m_quickView = new WindowSingleThreaded();
 
 	connect(m_quickView, &WindowSingleThreaded::capped, this,
-		&OBSQuickview::qmlCopy, Qt::DirectConnection);
+		&OBSQuickview::updateImageData, Qt::DirectConnection);
 
 	m_renderCounter = new FrameCounter("QmlView::render");
 	m_qmlFrameCounter = new FrameCounter("QmlView::frame");
@@ -73,10 +71,8 @@ OBSQuickview::~OBSQuickview()
 		obs_enter_graphics();
 		gs_texture_destroy(texture);
 		obs_leave_graphics();
-		delete[] m_bits;
 	}
 	texture = NULL;
-	m_bits = NULL;
 
 	delete m_quickView;
 
@@ -89,14 +85,11 @@ void OBSQuickview::makeTexture()
 	obs_enter_graphics();
 	if (texture) {
 		gs_texture_destroy(texture);
-		delete[] m_bits;
 	}
 
 	quint32 w = m_size.width();
 	quint32 h = m_size.height();
-	m_bits = new quint8[4 * w * h];
-	m_canvas = QImage(w, h, QImage::Format_RGBA8888);
-	texture = gs_texture_create(w, h, GS_RGBA, 1, (const uint8_t **)&m_bits,
+	texture = gs_texture_create(w, h, GS_RGBA, 1, NULL,
 				    GS_DYNAMIC);
 	obs_leave_graphics();
 	qDebug() << "makeTexture(" << w << "x" << h << ")";
@@ -112,12 +105,12 @@ void OBSQuickview::loadUrl(QUrl url)
 
 quint32 OBSQuickview::width()
 {
-	return m_canvas.width() ;
+	return m_quickView->fboSize().width();
 }
 
 quint32 OBSQuickview::height()
 {
-	return m_canvas.height();
+	return m_quickView->fboSize().height();
 }
 
 void OBSQuickview::doLoad()
@@ -181,27 +174,11 @@ void OBSQuickview::qmlFrame()
 	}
 }
 
-void OBSQuickview::qmlCopy(GLuint textid)
-{
-#ifndef GLCOPY
-	m_canvas = QImage(*m_quickView->getImage());
-#else
-	m_texid = textid;
-#endif
-
-	if (!texture) {
-		m_size = m_quickView->fboSize();
-		makeTexture();
-	}
-
-	obsdraw();
-}
-
-bool OBSQuickview::obsdraw()
+void OBSQuickview::updateImageData(quint8* imageData)
 {
 	if (!obs_source_active(source)) {
 		qDebug() << "Scene isn't active.";
-		return false;
+		return;
 	}
 
 	quint32 sw = obs_source_get_width(source);
@@ -209,16 +186,8 @@ bool OBSQuickview::obsdraw()
 	//qDebug() << "Source: " << sw << "x" << sh;
 	if (sw <= 0 || sh <= 0) {
 		qDebug() << "Invalid source dimensions.";
-		return false;
+		return;
 	}
-
-#ifndef GLCOPY
-	if (m_canvas.isNull()) {
-		qDebug() << "Null grab.";
-		return false;
-	}
-
-#endif
 
 	quint32 texw = 0, texh = 0;
 	if (texture) {
@@ -237,27 +206,20 @@ bool OBSQuickview::obsdraw()
 	}
 
 	obs_enter_graphics();
-#ifndef GLCOPY
-	gs_texture_set_image(texture, m_canvas.constBits(),
-			     4 * m_canvas.width(), false);
-#else
-	gs_load_texture(texture, m_texid);
-#endif
+	gs_texture_set_image(texture, imageData,
+			     4 * m_size.width(), false);
 	obs_leave_graphics();
-
-	return true;
 }
 
 void OBSQuickview::renderFrame(gs_effect_t *effect)
 {
 	if (!texture) {
-		//qDebug() << "!texture";
 		return;
 	}
 
 	gs_effect_set_texture(gs_effect_get_param_by_name(effect, "image"),
 			      texture);
-	obs_source_draw(texture, 0, 0, 0, 0, false);
+	obs_source_draw(texture, 0, 0, 0, 0, true);
 
 	m_renderCounter->inc();
 

@@ -48,6 +48,8 @@
 #include <QImage>
 #include <QOpenGLTexture>
 #include <QUrl>
+#include <QOpenGLBuffer>
+#include <QOpenGLFunctions>
 
 QT_FORWARD_DECLARE_CLASS(QOpenGLContext)
 QT_FORWARD_DECLARE_CLASS(QOpenGLFramebufferObject)
@@ -93,7 +95,7 @@ public slots:
     }
 };
 
-class WindowSingleThreaded : public QObject
+class WindowSingleThreaded : public QObject, protected QOpenGLFunctions
 {
     Q_OBJECT
 
@@ -136,7 +138,7 @@ public slots:
     void addContextProperties(QString name, QObject *value);
 
 signals:
-    void capped(GLuint texid);
+    void capped(quint8* imageData);
     void resized();
     void messages(const QStringList &messages);
     void snapWanted();
@@ -149,6 +151,8 @@ private slots:
     void handleScreenChange();
     void handleWarnings(const QList<QQmlError> &warnings);
     void handleFocusChanged(QObject *obj);
+    void createPBO();
+    void deletePBO();
 
 private:
     void updateSizes();
@@ -170,4 +174,5 @@ private:
     bool m_quickReady;
     QTimer m_updateTimer;
     QMap<QString, QObject*> m_context_properties;
+    QVector<QOpenGLBuffer*> m_pbos;
 };

@@ -21,13 +21,10 @@ public:
 	QUrl m_source;
 
 	QSize m_size;
-	QImage m_canvas;
 	bool m_enabled;
 	bool m_ready;
 
 	// Or... just... shared context stuff:
-	GLuint m_texid;
-	quint8 *m_bits;
 	bool m_delete;
 
 public:
@@ -50,10 +47,8 @@ public:
 
 	void obsshow();
 	void obshide();
-	bool obsdraw();
 	void renderFrame(gs_effect_t *effect);
 
-	void makeWidget();
 	void makeTexture();
 	void loadUrl(QUrl url);
 	void resize(quint32 w, quint32 h);
@@ -83,5 +78,5 @@ public slots:
 */
 	void qmlFrame();
 	void qmlCheckFrame();
-	void qmlCopy(GLuint textid);
+	void updateImageData(quint8* imageData);
 };

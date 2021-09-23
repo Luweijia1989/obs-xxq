@@ -55,6 +55,7 @@
 #include <QQuickWindow>
 #include <QQuickRenderControl>
 #include <QCoreApplication>
+#include <QOpenGLExtraFunctions>
 
 #include <QDir>
 #include <QUrlQuery>
@@ -136,6 +137,7 @@ WindowSingleThreaded::WindowSingleThreaded(QObject *parent)
 		&WindowSingleThreaded::handleScreenChange);
 
 	m_context->makeCurrent(m_offscreenSurface);
+	initializeOpenGLFunctions();
 	m_renderControl->initialize(m_context);
 }
 
@@ -178,6 +180,9 @@ void WindowSingleThreaded::createFbo()
 	if (m_quickWindow->size().isEmpty())
 		return;
 	m_context->makeCurrent(m_offscreenSurface);
+
+	createPBO();
+
 	m_fbo = new QOpenGLFramebufferObject(
 		m_quickWindow->size(),
 		QOpenGLFramebufferObject::CombinedDepthStencil, GL_TEXTURE_2D,
@@ -188,6 +193,7 @@ void WindowSingleThreaded::createFbo()
 
 void WindowSingleThreaded::destroyFbo()
 {
+	deletePBO();
 	delete m_fbo;
 	m_fbo = 0;
 }
@@ -229,19 +235,26 @@ void WindowSingleThreaded::render()
 
 	// Get something onto the screen.
 	if (m_fbo->bind()) {
-#ifndef GLCOPY
-		//m_image = m_renderControl->grab().convertToFormat(QImage::Format_RGBA8888);
-		m_image = m_fbo->toImage(true).convertToFormat(
-			QImage::Format_RGBA8888);
+		static int index = 0;
+		int nextIndex = 0; // pbo index used for next frame
+		index = (index + 1) % 2;
+		nextIndex = (index + 1) % 2;
+
+		QOpenGLExtraFunctions *extraFuncs = m_context->extraFunctions();
+		extraFuncs->glReadBuffer(GL_COLOR_ATTACHMENT0);
+
+		m_pbos[index]->bind();
+		glReadPixels(0, 0, m_quickWindow->width(), m_quickWindow->height(), GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+		m_pbos[index]->release();
+		m_pbos[nextIndex]->bind();
+		auto src = m_pbos[nextIndex]->map(QOpenGLBuffer::ReadOnly);
+		if (src) {
+			emit capped((quint8 *)src);
+			m_pbos[nextIndex]->unmap();
+		}
+		m_pbos[nextIndex]->release();
+
 		m_fbo->release();
-		//qDebug() << "Image updated, m_frameReady now TRUE";
-		emit capped(-1);
-#else
-		// TODO: Get this ... GL texture thing working, it's faster than copying fuckin' pixels:
-		GLuint texid = m_fbo->texture();
-		m_fbo->release();
-		emit capped(texid);
-#endif
 	} else
 		qDebug() << "Failed to bind FBO!";
 }
@@ -451,6 +464,31 @@ void WindowSingleThreaded::handleFocusChanged(QObject *obj)
 {
 	qDebug() << "Focus changed!!! --------------- ";
 	m_currentFocus = obj;
+}
+
+void WindowSingleThreaded::createPBO()
+{
+	auto size = m_quickWindow->size();
+	for (int i = 0; i < 2; i++) {
+		QOpenGLBuffer *pbo =
+			new QOpenGLBuffer(QOpenGLBuffer::PixelPackBuffer);
+		pbo->create();
+		pbo->bind();
+		pbo->allocate(size.width() * size.height() * 4);
+		m_pbos.append(pbo);
+	}
+}
+
+void WindowSingleThreaded::deletePBO()
+{
+	if (m_pbos.isEmpty())
+		return;
+
+	for (int i = 0; i < 2; i++) {
+		m_pbos[i]->destroy();
+		delete m_pbos[i];
+	}
+	m_pbos.clear();
 }
 
 #include <QMouseEvent>
