@@ -1885,7 +1885,7 @@ static obs_source_t *obs_load_source_type(obs_data_t *source_data)
 	if (!*v_id)
 		v_id = id;
 
-	source = obs_source_create_set_last_ver(v_id, name, settings, hotkeys,
+	source = obs_source_create_set_last_ver(v_id, duplicate_name, settings, hotkeys,
 						prev_ver);
 	obs_data_set_string(source_data, "name", duplicate_name);
 	if (source->owns_info_id) {
