@@ -1186,11 +1186,14 @@ static bool load_winrt_imports(struct winrt_exports *exports, void *module,
 	return success;
 }
 
-static bool is_win8_or_above()
+static bool is_win1903_or_above()
 {
+	struct win_version_info win1903 = {
+		.major = 10, .minor = 0, .build = 18362, .revis = 0};
+
 	struct win_version_info ver;
 	get_win_ver(&ver);
-	return ver.major > 6 || (ver.major == 6 && ver.minor >= 2);
+	return win_version_compare(&ver, &win1903) >= 0;
 }
 
 struct winrt_state {
@@ -1202,7 +1205,7 @@ struct winrt_state {
 
 static void init_winrt_state(struct winrt_state *winrt)
 {
-	if (!is_win8_or_above())
+	if (!is_win1903_or_above())
 		return;
 
 	static const char *const module_name = "libobs-winrt";
@@ -1224,7 +1227,7 @@ static void init_winrt_state(struct winrt_state *winrt)
 
 static void uninit_winrt_state(struct winrt_state *winrt)
 {
-	if (!is_win8_or_above())
+	if (!is_win1903_or_above())
 		return;
 
 	if (winrt->winrt_module) {
