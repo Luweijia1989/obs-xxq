@@ -203,7 +203,7 @@ protected:
 							info->dbcc_name);
 					qDebug() << devicePath;
 					bool isAdbDevice = devicePath.endsWith(
-						"{f72fe0d4-cbcb-407d-8814-9ed673d0dd6b}");
+						"{f72fe0d4-cbcb-407d-8814-9ed673d0dd6b}", Qt::CaseInsensitive);
 					if (timer.isActive())
 						timer.stop();
 
