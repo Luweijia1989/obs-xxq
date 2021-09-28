@@ -648,13 +648,14 @@ Retry:
 
 	count = libusb_get_device_list(ctx, &devs);
 	int i = 0;
+	
 	for (; i < count; i++) {
 		struct libusb_device_descriptor desc;
 		int r = libusb_get_device_descriptor(devs[i], &desc);
 		if (r < 0) {
 			continue;
 		}
-
+		
 		int isAndroid = isAndroidDevice(devs[i], desc);
 		if (isAndroid == 1) {
 			ret = 1;
@@ -672,7 +673,7 @@ Retry:
 							 desc.idProduct,
 							 path)) {
 				m_waitMutex.lock();
-				m_waitCondition.wait(&m_waitMutex, 500);
+				m_waitCondition.wait(&m_waitMutex, 5000);
 				m_waitMutex.unlock();
 				goto Retry;
 			}
@@ -685,9 +686,10 @@ Retry:
 					ret = 3;
 					break;
 				}
+				sendSwitchCommand = true;
 				switchDroidToAcc(devs[i], 1);
 				m_waitMutex.lock();
-				m_waitCondition.wait(&m_waitMutex, 500);
+				m_waitCondition.wait(&m_waitMutex, 5000);
 				m_waitMutex.unlock();
 				goto Retry;
 			}

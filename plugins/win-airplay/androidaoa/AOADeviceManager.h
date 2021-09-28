@@ -207,9 +207,10 @@ protected:
 					if (timer.isActive())
 						timer.stop();
 
-					if (!isAdbDevice)
+					if (!isAdbDevice) {
 						timer.start();
-					else {
+						m_helper->signalWait();
+					} else {
 						if (!m_helper->adbDeviceOpenAndCheck(
 							    info->dbcc_name))
 							m_helper->deferUpdateUsbInventory(
@@ -218,10 +219,6 @@ protected:
 							emit m_helper->infoPrompt(
 								u8"系统检测到手机的'USB调试'功能被打开，请在手机'设置'界面中'开发人员选项'里关闭此功能，并重新拔插手机！！");
 					}
-
-					QTimer::singleShot(200, this, [=]() {
-						m_helper->signalWait();
-					});
 				}
 			} break;
 			case DBT_DEVICEREMOVECOMPLETE:
