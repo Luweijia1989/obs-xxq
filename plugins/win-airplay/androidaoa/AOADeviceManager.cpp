@@ -22,6 +22,11 @@ GUID ADB_DEVICE_GUID = {0xf72fe0d4,
 			0x407d,
 			{0x88, 0x14, 0x9e, 0xd6, 0x73, 0xd0, 0xdd, 0x6b}};
 
+GUID USB_DEVICE_GUID = {0xA5DCBF10,
+			0x6530,
+			0x11D2,
+			{0x90, 0x1F, 0x00, 0xC0, 0x4F, 0xB9, 0x51, 0xED}};
+
 AOADeviceManager::AOADeviceManager()
 {
 	auto path = QStandardPaths::writableLocation(
@@ -657,8 +662,15 @@ Retry:
 		} else if (isAndroid == 2)
 			continue;
 		else {
+			auto path = targetUsbDevicePath(desc.idVendor, desc.idProduct);
+			if (path.length() < 4)
+				continue;
+			path = path.mid(4);
+			path = path.left(path.lastIndexOf('#'));
+			path.replace("#", "\\");
 			if (m_driverHelper->checkInstall(desc.idVendor,
-							 desc.idProduct)) {
+							 desc.idProduct,
+							 path)) {
 				m_waitMutex.lock();
 				m_waitCondition.wait(&m_waitMutex, 500);
 				m_waitMutex.unlock();
@@ -818,6 +830,68 @@ bool AOADeviceManager::adbDeviceOpenAndCheck(WCHAR *devicePath)
 	libusb_exit(ctx);
 
 	return adbexist;
+}
+
+QString AOADeviceManager::targetUsbDevicePath(int vid, int pid)
+{
+	QString ret;
+	GUID hGuid = USB_DEVICE_GUID;
+	// Get the set of device interfaces that have been matched by our INF
+	HDEVINFO deviceInfo = SetupDiGetClassDevs(
+		&hGuid, NULL, NULL, DIGCF_PRESENT | DIGCF_DEVICEINTERFACE);
+	if (!deviceInfo) {
+		return ret;
+	}
+
+	// Iterate over all interfaces
+	int ndevs = 0;
+	int devidx = 0;
+	while (ndevs < 50) {
+		// Get interface data for next interface and attempt to init it
+		SP_DEVICE_INTERFACE_DATA interfaceData;
+		interfaceData.cbSize = sizeof(SP_DEVICE_INTERFACE_DATA);
+		if (!SetupDiEnumDeviceInterfaces(deviceInfo, NULL, &hGuid,
+						 devidx++, &interfaceData)) {
+			break;
+		}
+
+		// Determine required size for interface detail data
+		ULONG requiredLength = 0;
+		if (!SetupDiGetDeviceInterfaceDetail(deviceInfo, &interfaceData,
+						     NULL, 0, &requiredLength,
+						     NULL)) {
+			auto err = GetLastError();
+			if (err != ERROR_INSUFFICIENT_BUFFER)
+				return ret;
+		}
+
+		// Allocate storage for interface detail data
+		PSP_DEVICE_INTERFACE_DETAIL_DATA detailData =
+			(PSP_DEVICE_INTERFACE_DETAIL_DATA)malloc(
+				requiredLength);
+		detailData->cbSize = sizeof(SP_DEVICE_INTERFACE_DETAIL_DATA);
+
+		// Fetch interface detail data
+		if (!SetupDiGetDeviceInterfaceDetail(deviceInfo, &interfaceData,
+						     detailData, requiredLength,
+						     &requiredLength, NULL)) {
+			auto err = GetLastError();
+			free(detailData);
+			continue;
+		}
+
+		QString path = QString::fromWCharArray(detailData->DevicePath);
+		if (path.contains(QString::number(vid, 16), Qt::CaseInsensitive) && path.contains(QString::number(pid, 16), Qt::CaseInsensitive))
+			ret = path;
+
+		free(detailData);
+
+		if (!ret.isEmpty())
+			break;
+	}
+
+	SetupDiDestroyDeviceInfoList(deviceInfo);
+	return ret;
 }
 
 bool AOADeviceManager::adbDeviceExist()

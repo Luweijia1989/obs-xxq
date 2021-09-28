@@ -9,7 +9,7 @@ class DriverHelper : public QObject
     Q_OBJECT
 public:
     explicit DriverHelper(QObject *parent = nullptr);
-    bool checkInstall(int vid, int pid);
+    bool checkInstall(int vid, int pid, QString targetDevicePath);
 
 private:
     void install(wdi_device_info *dev);

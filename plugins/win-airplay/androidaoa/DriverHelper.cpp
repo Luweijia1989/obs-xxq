@@ -108,7 +108,7 @@ DriverHelper::DriverHelper(QObject *parent) : QObject(parent)
 	pd_options.driver_type = WDI_LIBUSBK;
 }
 
-bool DriverHelper::checkInstall(int vid, int pid)
+bool DriverHelper::checkInstall(int vid, int pid, QString targetDevicePath)
 {
 	int ret = false;
 
@@ -134,10 +134,8 @@ bool DriverHelper::checkInstall(int vid, int pid)
 			auto dev = *iter;
 			if (isAOADevice(dev->vid, dev->pid) && dev->is_composite)
 				continue;
-			QString desc(dev->desc);
-			if (desc.contains("Composite Parent",
-					  Qt::CaseInsensitive) ||
-			    desc.contains("android", Qt::CaseInsensitive)) {
+			QString path(dev->device_id);
+			if (!path.isEmpty() && targetDevicePath.contains(path, Qt::CaseInsensitive)) {
 				targetDev = dev;
 				break;
 			}

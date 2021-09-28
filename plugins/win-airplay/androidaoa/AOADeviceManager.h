@@ -1,4 +1,4 @@
-﻿#ifndef AOADEVICEMANAGER_H
+#ifndef AOADEVICEMANAGER_H
 #define AOADEVICEMANAGER_H
 
 #include <QObject>
@@ -31,6 +31,9 @@
 #define PID_AOA_ACC_AU_ADB 0x2D05
 
 typedef void (*fnusb_iso_cb)(uint8_t *buf, int len);
+
+extern GUID ADB_DEVICE_GUID;
+extern GUID USB_DEVICE_GUID;
 
 typedef struct {
 	struct libusb_transfer **xfers;
@@ -103,6 +106,7 @@ private:
 	bool isAndroidADBDevice(struct libusb_device_descriptor &desc);
 	bool handleMediaData();
 	bool adbDeviceExist();
+	QString targetUsbDevicePath(int vid, int pid);
 
 signals:
 	void installProgress(int step, int value);
@@ -149,16 +153,6 @@ public:
 	HelerWidget(AOADeviceManager *helper, QWidget *parent = nullptr)
 		: m_helper(helper), QWidget(parent)
 	{
-		GUID WceusbshGUID = {0xA5DCBF10, 0x6530, 0x11D2, 0x90,
-				     0x1F,       0x00,   0xC0,   0x4F,
-				     0xB9,       0x51,   0xED};
-
-		GUID ADB_DEVICE_GUID = {0xf72fe0d4,
-					0xcbcb,
-					0x407d,
-					{0x88, 0x14, 0x9e, 0xd6, 0x73, 0xd0,
-					 0xdd, 0x6b}};
-
 		auto registerNotification = [this](GUID id, HDEVNOTIFY &ret) {
 			DEV_BROADCAST_DEVICEINTERFACE NotificationFilter;
 			ZeroMemory(&NotificationFilter,
@@ -176,7 +170,7 @@ public:
 			);
 		};
 
-		registerNotification(WceusbshGUID, hDeviceNotify_normal);
+		registerNotification(USB_DEVICE_GUID, hDeviceNotify_normal);
 		registerNotification(ADB_DEVICE_GUID, hDeviceNotify_adb);
 
 		timer.setSingleShot(true);
