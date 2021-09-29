@@ -1,4 +1,4 @@
-#include "DriverHelper.h"
+﻿#include "DriverHelper.h"
 #include "msapi_utf8.h"
 #include <QStandardPaths>
 #include <QDir>

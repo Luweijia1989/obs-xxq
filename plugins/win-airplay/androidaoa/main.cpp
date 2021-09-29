@@ -1,4 +1,4 @@
-#include "AOADeviceManager.h"
+﻿#include "AOADeviceManager.h"
 #include "InformationWidget.h"
 #include <QApplication>
 #include "DriverHelper.h"

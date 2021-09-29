@@ -1,4 +1,4 @@
-#ifndef AOADEVICEMANAGER_H
+﻿#ifndef AOADEVICEMANAGER_H
 #define AOADEVICEMANAGER_H
 
 #include <QObject>

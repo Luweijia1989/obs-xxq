@@ -1,4 +1,4 @@
-#ifndef DRIVERHELPER_H
+﻿#ifndef DRIVERHELPER_H
 #define DRIVERHELPER_H
 
 #include <QObject>
