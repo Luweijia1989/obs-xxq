@@ -5,7 +5,50 @@
 #include <QDateTime>
 #include <QEventLoop>
 
+#include <Shlwapi.h>
+#include "resource.h"
+
+#include <graphics/image-file.h>
+
 extern enum AVPixelFormat obs_to_ffmpeg_video_format(enum video_format format);
+
+std::vector<std::string> resourceImgs;
+HMODULE DllHandle;
+
+void dumpResourceImgs()
+{
+	string prefix;
+	prefix.resize(MAX_PATH);
+	DWORD len = GetTempPathA(MAX_PATH, (char *)prefix.data());
+	prefix.resize(len);
+	resourceImgs.push_back(prefix + "camera_busy.png");
+
+	std::vector<int> ids = { IDB_PNG1};
+
+	for (auto iter = 0; iter < resourceImgs.size(); iter++)
+	{
+		const string &img = resourceImgs.at(iter);
+		if (!PathFileExistsA(img.c_str()))
+		{
+			HANDLE hFile = CreateFileA(img.c_str(), GENERIC_WRITE, FILE_SHARE_READ, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+			if (hFile != INVALID_HANDLE_VALUE)
+			{
+				HRSRC res = NULL;
+
+				res = FindResource(DllHandle, MAKEINTRESOURCE(ids[iter]), L"PNG");
+				
+				auto g = GetLastError();
+				HGLOBAL res_handle = LoadResource(DllHandle, res);
+				auto res_data = LockResource(res_handle);
+				auto res_size = SizeofResource(DllHandle, res);
+
+				DWORD byteWritten = 0;
+				WriteFile(hFile, res_data, res_size, &byteWritten, NULL);
+				CloseHandle(hFile);
+			}
+		}
+	}
+}
 
 static inline enum video_format convert_pixel_format(int f)
 {
@@ -137,6 +180,7 @@ void DShowInput::QueueActivate(obs_data_t *settings)
 DShowInput::DShowInput(obs_source_t *source_, obs_data_t *settings)
 	: source(source_), device(InitGraph::False)
 {
+	dumpResourceImgs();
 	stThread = new STThread(this);
 	stThread->setBeautifyEnabled(obs_data_get_bool(settings, "beautifyEnabled"));
 	QEventLoop loop;
@@ -249,8 +293,22 @@ void DShowInput::DShowLoop()
 					}
 					deviceActivated = false;
 					obs_data_set_bool(settings, "deviceActivated", deviceActivated);
-					obs_source_output_video2(source,
-								 nullptr);
+
+					gs_image_file_t img_ctx;
+					img_ctx.texture_data = gs_create_texture_file_data(resourceImgs[0].c_str(),
+						&img_ctx.format,
+						&img_ctx.cx, &img_ctx.cy);
+
+					obs_source_frame frame = {};
+					frame.data[0] = img_ctx.texture_data;
+					frame.linesize[0] = img_ctx.cx * 4;
+					frame.format = VIDEO_FORMAT_RGBA;
+					frame.width = img_ctx.cx;
+					frame.height = img_ctx.cy;
+					frame.timestamp = 0;
+					frame.prev_frame = true;
+
+					obs_source_output_video(source, &frame);
 				} else {
 					deviceActivated = true;
 					obs_data_set_bool(settings, "deviceActivated", deviceActivated);
@@ -2040,4 +2098,9 @@ void RegisterDShowSource()
 	info.video_tick = DShowInputTick;
 	info.make_command = DShowInputCustomCommnad;
 	obs_register_source(&info);
+}
+
+BOOL APIENTRY DllMain(HMODULE hModule, DWORD dwReason, LPVOID lpReserved) {
+	if (dwReason == DLL_PROCESS_ATTACH) DllHandle = hModule;
+	return TRUE;
 }

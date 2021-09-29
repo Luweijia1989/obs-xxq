@@ -29,7 +29,8 @@ set(win-dshow_SOURCES
 	dshow-plugin.cpp
 	ffmpeg-decode.c
 	facesticker/st-function.cpp
-	facesticker/st-thread.cpp)
+	facesticker/st-thread.cpp
+	Resource.rc)
 
 set(libdshowcapture_SOURCES
 	libdshowcapture/source/capture-filter.cpp
@@ -71,6 +72,7 @@ target_link_libraries(win-dshow
 	libobs
 	strmiids
 	ksuser
+	Shlwapi
 	wmcodecdspuuid
 	"${CMAKE_CURRENT_SOURCE_DIR}/facesticker/sensetime/libs/st_mobile.lib"
 	${FFMPEG_LIBRARIES})
