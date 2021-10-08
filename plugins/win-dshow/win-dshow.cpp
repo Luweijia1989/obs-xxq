@@ -3,7 +3,6 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QDateTime>
-#include <QEventLoop>
 
 extern enum AVPixelFormat obs_to_ffmpeg_video_format(enum video_format format);
 
@@ -139,13 +138,8 @@ DShowInput::DShowInput(obs_source_t *source_, obs_data_t *settings)
 {
 	stThread = new STThread(this);
 	stThread->setBeautifyEnabled(obs_data_get_bool(settings, "beautifyEnabled"));
-	QEventLoop loop;
-	QObject obj;
-	QObject::connect(stThread, &STThread::started, &obj, [=, &loop](){
-		loop.quit();
-	});
-	stThread->start(QThread::TimeCriticalPriority);
-	loop.exec();
+	stThread->waitStarted();
+
 	memset(&audio, 0, sizeof(audio));
 	memset(&frame, 0, sizeof(frame));
 
@@ -178,6 +172,7 @@ DShowInput::DShowInput(obs_source_t *source_, obs_data_t *settings)
 
 DShowInput::~DShowInput()
 {
+	blog(LOG_INFO, "DShowInput finish");
 	{
 		CriticalScope scope(mutex);
 		actions.resize(1);
