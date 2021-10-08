@@ -89,7 +89,7 @@ private:
 	bool m_running = false;
 	struct SwsContext *m_swsctx = NULL;
 	bool flip = false;
-	AVFrame *m_swsRetFrame = nullptr;
+	uint8_t *m_outDataBuffer = nullptr;
 	AVFrame *m_cacheFrame = nullptr;
 	QMap<QString, int> m_stickers;
 	QRecursiveMutex m_stickerSetterMutex;
