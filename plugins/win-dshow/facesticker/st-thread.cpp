@@ -74,6 +74,14 @@ STThread::~STThread()
 	av_frame_free(&m_cacheFrame);
 }
 
+void STThread::waitStarted()
+{
+	start(QThread::TimeCriticalPriority);
+	waitMutex.lock();
+	waitCondition.wait(&waitMutex);
+	waitMutex.unlock();
+}
+
 void STThread::run()
 {
 	initOpenGLContext();
@@ -86,7 +94,7 @@ void STThread::run()
 	m_running = true;
 	if (!g_st_checkpass) {
 		m_running = false;
-		emit started();
+		waitCondition.wakeOne();
 		goto Clear;
 	}
 
@@ -95,10 +103,10 @@ void STThread::run()
 	qDebug() << "SenseTime init result: " << m_stFunc->stInited();
 	if (!m_stFunc->stInited()) {
 		m_running = false;
-		emit started();
+		waitCondition.wakeOne();
 		goto Clear;
 	}
-	emit started();
+	waitCondition.wakeOne();
 	while (m_running)
 	{
 		FrameInfo frame;
