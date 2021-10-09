@@ -5,13 +5,13 @@
 #include <QMutex>
 #include "qmlsourcebase.h"
 
-#define RoleOptionContent Qt::UserRole + 1
-#define RoleVoteCount Qt::UserRole + 2
-#define RoleFontFamily Qt::UserRole + 3
-#define RoleFontSize Qt::UserRole + 4
-#define RoleOptionColor Qt::UserRole + 5
-#define RoleBold Qt::UserRole + 6
-#define RoleItalic Qt::UserRole + 7
+#define NewRoleOptionContent Qt::UserRole + 1
+#define NewRoleVoteCount Qt::UserRole + 2
+#define NewRoleFontFamily Qt::UserRole + 3
+#define NewRoleFontSize Qt::UserRole + 4
+#define NewRoleOptionColor Qt::UserRole + 5
+#define NewRoleBold Qt::UserRole + 6
+#define NewRoleItalic Qt::UserRole + 7
 
 struct NewVoteOption {
 	NewVoteOption() {}
