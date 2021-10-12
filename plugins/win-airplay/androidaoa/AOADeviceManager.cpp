@@ -420,7 +420,7 @@ void *AOADeviceManager::a2s_usbRxThread(void *d)
 		int len = 0;
 		int r = libusb_bulk_transfer(
 			device->m_droid.usbHandle, device->m_droid.inendp,
-			device->buffer, device->m_droid.inpacketsize, &len, 10);
+			device->buffer, device->m_droid.inpacketsize, &len, 200);
 		if (r == 0) {
 			circlebuf_push_back(&device->m_mediaDataBuffer,
 					    device->buffer, len);

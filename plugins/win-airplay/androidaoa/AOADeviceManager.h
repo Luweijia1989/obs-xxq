@@ -30,21 +30,8 @@
 #define PID_AOA_ACC_AU 0x2D04
 #define PID_AOA_ACC_AU_ADB 0x2D05
 
-typedef void (*fnusb_iso_cb)(uint8_t *buf, int len);
-
 extern GUID ADB_DEVICE_GUID;
 extern GUID USB_DEVICE_GUID;
-
-typedef struct {
-	struct libusb_transfer **xfers;
-	uint8_t *buffer;
-	fnusb_iso_cb cb;
-	int num_xfers;
-	int pkts;
-	int len;
-	int dead;
-	int dead_xfers;
-} fnusb_isoc_stream;
 
 typedef struct t_accessory_droid {
 	libusb_device_handle *usbHandle = nullptr;
@@ -63,8 +50,6 @@ typedef struct t_accessory_droid {
 	bool connected = false;
 	uint16_t c_vid;
 	uint16_t c_pid;
-
-	fnusb_isoc_stream isocStream;
 } accessory_droid;
 
 class AOADeviceManager : public QObject {
