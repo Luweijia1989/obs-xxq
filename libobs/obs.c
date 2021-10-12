@@ -1885,7 +1885,7 @@ static obs_source_t *obs_load_source_type(obs_data_t *source_data)
 	if (!*v_id)
 		v_id = id;
 
-	source = obs_source_create_set_last_ver(v_id, name, settings, hotkeys,
+	source = obs_source_create_set_last_ver(v_id, duplicate_name, settings, hotkeys,
 						prev_ver);
 	obs_data_set_string(source_data, "name", duplicate_name);
 	if (source->owns_info_id) {
@@ -2200,7 +2200,7 @@ obs_data_t *obs_save_source(obs_source_t *source)
 	int64_t sync = obs_source_get_sync_offset(source);
 	uint32_t flags = obs_source_get_flags(source);
 	const char *name = obs_source_get_name(source);
-	const char *id = source->info.unversioned_id;
+	const char *id = source->info.id;
 	const char *v_id = source->info.id;
 	bool enabled = obs_source_enabled(source);
 	bool muted = obs_source_muted(source);

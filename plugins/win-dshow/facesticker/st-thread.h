@@ -60,6 +60,8 @@ public:
 	void freeResource();
 	void setBeautifyEnabled(bool enabled);
 
+	void waitStarted();
+
 protected:
 	virtual void run() override;
 
@@ -77,10 +79,10 @@ private:
 	void copyTexture(QOpenGLTexture *texture);
 	void ensureCacheBuffer(size_t size);
 
-signals:
-	void started();
-
 private:
+	QMutex waitMutex;
+	QWaitCondition waitCondition;
+
 	moodycamel::BlockingReaderWriterQueue<FrameInfo> m_frameQueue;
 	DShowInput *m_dshowInput = nullptr;
 	STFunction *m_stFunc = nullptr;
