@@ -15,6 +15,9 @@
 #include "app-helpers.h"
 #include "nt-stuff.h"
 
+#include <graphics/image-file.h>
+
+
 #define do_log(level, format, ...)                  \
 	blog(level, "[game-capture: '%s'] " format, \
 	     obs_source_get_name(gc->source), ##__VA_ARGS__)
@@ -175,6 +178,8 @@ struct game_capture {
 	wchar_t *app_sid;
 	int retrying;
 	float cursor_check_time;
+
+	gs_image_file2_t img_ctx;
 
 	union {
 		struct {
@@ -396,6 +401,7 @@ static void game_capture_destroy(void *data)
 
 	obs_enter_graphics();
 	cursor_data_free(&gc->cursor_data);
+	gs_image_file2_free(&gc->img_ctx);
 	obs_leave_graphics();
 
 	dstr_free(&gc->title);
@@ -1896,7 +1902,16 @@ static void game_capture_render(void *data, gs_effect_t *effect)
 {
 	struct game_capture *gc = data;
 	if (!gc->texture || !gc->active)
+	{
+		if (gc->img_ctx.image.loaded)
+		{
+			effect = obs_get_base_effect(OBS_EFFECT_DEFAULT);
+			while (gs_effect_loop(effect, "Draw")) {
+				obs_source_draw(gc->img_ctx.image.texture, 0, 0, 1920, 1080, false);
+			}
+		}
 		return;
+	}
 
 	effect = obs_get_base_effect(gc->config.allow_transparency
 					     ? OBS_EFFECT_DEFAULT
@@ -1925,13 +1940,13 @@ static void game_capture_render(void *data, gs_effect_t *effect)
 static uint32_t game_capture_width(void *data)
 {
 	struct game_capture *gc = data;
-	return gc->active ? gc->cx : 0;
+	return gc->active ? gc->cx : 1920;
 }
 
 static uint32_t game_capture_height(void *data)
 {
 	struct game_capture *gc = data;
-	return gc->active ? gc->cy : 0;
+	return gc->active ? gc->cy : 1080;
 }
 
 static const char *game_capture_name(void *unused)
@@ -2188,6 +2203,26 @@ static obs_properties_t *game_capture_properties(void *data)
 	return ppts;
 }
 
+static void game_capture_command(void *data, obs_data_t *command)
+{
+	struct game_capture *gc = data;
+
+	obs_enter_graphics();
+	gs_image_file2_free(&gc->img_ctx);
+	obs_leave_graphics();
+
+	char* filePath = obs_data_get_string(command, "file_path");
+
+	if ( filePath && *filePath)
+	{
+		gs_image_file2_init(&gc->img_ctx, filePath);
+
+		obs_enter_graphics();
+		gs_image_file2_init_texture(&gc->img_ctx);
+		obs_leave_graphics();
+	}
+}
+
 struct obs_source_info game_capture_info = {
 	.id = "game_capture",
 	.type = OBS_SOURCE_TYPE_INPUT,
@@ -2203,6 +2238,7 @@ struct obs_source_info game_capture_info = {
 	.update = game_capture_update,
 	.video_tick = game_capture_tick,
 	.video_render = game_capture_render,
+	.make_command = game_capture_command,
 };
 
 struct obs_source_info lyric_capture_info = {
