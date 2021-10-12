@@ -274,7 +274,7 @@ void DShowInput::DShowLoop()
 						obs_source_frame frame = {};
 						frame.data[0] = img_ctx.texture_data;
 						frame.linesize[0] = img_ctx.cx * 4;
-						frame.format = VIDEO_FORMAT_RGBA;
+						frame.format = VIDEO_FORMAT_BGRA;
 						frame.width = img_ctx.cx;
 						frame.height = img_ctx.cy;
 						frame.timestamp = 0;
