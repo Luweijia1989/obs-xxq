@@ -35,6 +35,7 @@ target_link_libraries(android-aoa-server
 	optimized ${PROJECT_SOURCE_DIR}/libwdi/lib/libwdi.lib
 	debug ${PROJECT_SOURCE_DIR}/libusb/lib/libusb-1.0-d.lib
 	optimized ${PROJECT_SOURCE_DIR}/libusb/lib/libusb-1.0.lib
-	Setupapi)
+	Setupapi
+	ntdll)
 
 install_obs_core(android-aoa-server)

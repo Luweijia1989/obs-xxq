@@ -5,6 +5,7 @@
 #include <QDebug>
 #include <QRunnable>
 #include <QThreadPool>
+#include "libusb.h"
 
 const int GOOGLE_VID = 0x18D1;
 const int GOOGLE_PID = 0x2D04;
@@ -108,7 +109,7 @@ DriverHelper::DriverHelper(QObject *parent) : QObject(parent)
 	pd_options.driver_type = WDI_LIBUSBK;
 }
 
-bool DriverHelper::checkInstall(int vid, int pid, QString targetDevicePath)
+bool DriverHelper::checkInstall(int vid, int pid, QString targetDevicePath, void (*func)(libusb_context **, libusb_device ***, int), libusb_context **c, libusb_device ***d, int ct)
 {
 	int ret = false;
 
@@ -159,6 +160,7 @@ bool DriverHelper::checkInstall(int vid, int pid, QString targetDevicePath)
 		inInstall = true;
 		emit installProgress(!isAOADevice(targetDev->vid, targetDev->pid) ? 0 : 1, 0);
 
+		func(c, d, ct);
 		install(targetDev);
 	}
 
@@ -187,12 +189,16 @@ void DriverHelper::install(wdi_device_info *dev)
 				emit installProgress(step, 3);
 				qDebug() << "Successfully install the driver";
 				success = true;
+			} else {
+				qDebug() << "wdi_install_driver error: " << res;
 			}
+		} else {
+			qDebug() << "wdi_prepare_driver error: " << res;
 		}
 	}
 
 	inInstall = false;
 	safe_free(inf_name);
-	if (!success)
-		emit installProgress(step, -1);
+	if(!success)
+		emit installError(u8"驱动安装失败，正在重试，请耐心等待。。。");
 }

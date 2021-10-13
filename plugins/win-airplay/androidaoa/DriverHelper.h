@@ -4,18 +4,22 @@
 #include <QObject>
 #include <libwdi.h>
 
+struct libusb_context;
+struct libusb_device;
+
 class DriverHelper : public QObject
 {
     Q_OBJECT
 public:
     explicit DriverHelper(QObject *parent = nullptr);
-    bool checkInstall(int vid, int pid, QString targetDevicePath);
+    bool checkInstall(int vid, int pid, QString targetDevicePath, void (*func)(libusb_context **, libusb_device ***, int), libusb_context **c, libusb_device ***d, int ct);
 
 private:
     void install(wdi_device_info *dev);
 
 signals:
     void installProgress(int step, int value);
+    void installError(QString msg);
 
 private:
     QString temp_dir;

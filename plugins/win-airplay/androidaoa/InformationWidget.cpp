@@ -16,8 +16,8 @@ InformationWidget::InformationWidget(QWidget *parent) : QWidget(parent)
 	ly->setMargin(0);
 	ly->setSpacing(0);
 
-	QLabel *lb = new QLabel(u8"正在安装驱动");
-	ly->addWidget(lb);
+	m_tipLabel = new QLabel(u8"正在安装驱动");
+	ly->addWidget(m_tipLabel);
 
 	m_progressBar = new QProgressBar;
 	m_progressBar->setOrientation(Qt::Horizontal);
@@ -33,32 +33,35 @@ InformationWidget::InformationWidget(QWidget *parent) : QWidget(parent)
 void InformationWidget::onInstallStatus(int step, int value)
 {
 	bool show = true;
-	if (value == -1) { //失败
-		setVisible(false);
-	} else {
-		if (m_progressBar) {
-			int v = 0;
-			switch (value) {
-			case 0: //开始安装驱动
-				v = step == 0 ? 0 : 50;
-				break;
-			case 1: //安装一阶段
-				v = step == 0 ? 10 : 60;
-				break;
-			case 2: //安装二阶段，释放驱动
-				v = step == 0 ? 25 : 75;
-				break;
-			case 3: //安装三阶段，成功
-				if (step == 0)
-					show = false;
-				v = step == 0 ? 50 : 100;
-				break;
-			}
-
-			m_progressBar->setValue(v);
-			setVisible(show && m_progressBar->value() != 100);
+	if (m_progressBar) {
+		int v = 0;
+		switch (value) {
+		case 0: //开始安装驱动
+			if (step == 0)
+				m_tipLabel->setText(u8"正在安装驱动");
+			v = step == 0 ? 0 : 50;
+			break;
+		case 1: //安装一阶段
+			v = step == 0 ? 10 : 60;
+			break;
+		case 2: //安装二阶段，释放驱动
+			v = step == 0 ? 25 : 75;
+			break;
+		case 3: //安装三阶段，成功
+			if (step == 0)
+				show = false;
+			v = step == 0 ? 50 : 100;
+			break;
 		}
+
+		m_progressBar->setValue(v);
+		setVisible(show && m_progressBar->value() != 100);
 	}
+}
+
+void InformationWidget::onInstallError(QString msg)
+{
+	m_tipLabel->setText(QString(u8"正在安装驱动(%1)").arg(msg));
 }
 
 void InformationWidget::onInfoPrompt(const QString &msg)

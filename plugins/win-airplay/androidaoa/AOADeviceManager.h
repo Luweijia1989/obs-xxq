@@ -95,6 +95,7 @@ private:
 
 signals:
 	void installProgress(int step, int value);
+	void installError(QString msg);
 	void infoPrompt(const QString &msg);
 	void deviceLost();
 

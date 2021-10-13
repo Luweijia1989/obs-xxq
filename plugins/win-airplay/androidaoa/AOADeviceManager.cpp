@@ -55,6 +55,8 @@ AOADeviceManager::AOADeviceManager()
 	m_driverHelper = new DriverHelper(this);
 	connect(m_driverHelper, &DriverHelper::installProgress, this,
 		&AOADeviceManager::installProgress);
+	connect(m_driverHelper, &DriverHelper::installError, this,
+		&AOADeviceManager::installError);
 
 	circlebuf_init(&m_mediaDataBuffer);
 	ipc_client_create(&client);
@@ -645,7 +647,7 @@ Retry:
 
 	if (libusb_init(&ctx) < 0)
 		return ret;
-
+	
 	count = libusb_get_device_list(ctx, &devs);
 	int i = 0;
 	
@@ -669,9 +671,21 @@ Retry:
 			path = path.mid(4);
 			path = path.left(path.lastIndexOf('#'));
 			path.replace("#", "\\");
+
+			auto func = [](libusb_context **c, libusb_device ***d, int ct) {
+				if (*d) {
+					libusb_free_device_list(*d, ct);
+					*d = nullptr;
+				}
+				if (*c) {
+					libusb_exit(*c);
+					*c = nullptr;
+				}
+			};
+
 			if (m_driverHelper->checkInstall(desc.idVendor,
 							 desc.idProduct,
-							 path)) {
+							 path, func, &ctx, &devs, count)) {
 				m_waitMutex.lock();
 				m_waitCondition.wait(&m_waitMutex, 5000);
 				m_waitMutex.unlock();
@@ -956,7 +970,7 @@ bool AOADeviceManager::adbDeviceExist()
 void AOADeviceManager::updateUsbInventory(bool isDeviceAdd, bool checkAdb)
 {
 	QMutexLocker locker(&m_deviceChangeMutex);
-
+	qDebug() << "enter updateUsbInventory";
 	bool doLost = true;
 	if (isDeviceAdd && !m_droid.connected) {
 		if (!checkAdb || !adbDeviceExist()) {
@@ -971,6 +985,8 @@ void AOADeviceManager::updateUsbInventory(bool isDeviceAdd, bool checkAdb)
 				else if (ret == 4)
 					emit infoPrompt(
 						u8"启动投屏服务失败，请插拔手机后再试。");
+				else
+					qDebug() << "checkAndInstallDriver return : " << ret;
 			}
 
 			if (exist)
@@ -982,4 +998,6 @@ void AOADeviceManager::updateUsbInventory(bool isDeviceAdd, bool checkAdb)
 
 	if (doLost)
 		emit deviceLost();
+
+	qDebug() << "leave updateUsbInventory";
 }
