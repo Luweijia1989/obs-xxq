@@ -7,6 +7,7 @@
 #include "../common-define.h"
 #include <winusb.h>
 #include <Setupapi.h>
+#include <Devpkey.h>
 
 #pragma comment(lib, "winusb.lib")
 
@@ -16,6 +17,8 @@ const char *description = u8"鱼耳直播助手";
 const char *version = "1.0";
 const char *uri = "https://www.yuerzhibo.com";
 const char *serial = "0000000012345678";
+
+extern bool isAOADevice(int vid, int pid);
 
 GUID ADB_DEVICE_GUID = {0xf72fe0d4,
 			0xcbcb,
@@ -511,7 +514,7 @@ void *AOADeviceManager::startThread(void *d)
 		manager->m_usbMutex.lock();
 		r = libusb_bulk_transfer(manager->m_droid.usbHandle,
 					 manager->m_droid.outendp, &data, 1,
-					 &len, 10);
+					 &len, 100);
 		manager->m_usbMutex.unlock();
 
 		if (r == LIBUSB_ERROR_TIMEOUT)
@@ -629,6 +632,94 @@ bool AOADeviceManager::enumDeviceAndCheck()
 	return ret;
 }
 
+static void disableAndEnableDevice(QString targetPath)
+{
+    GUID hGuid = USB_DEVICE_GUID;
+    // Get the set of device interfaces that have been matched by our INF
+    HDEVINFO devInfo = SetupDiGetClassDevs(
+	    &hGuid, NULL, NULL, DIGCF_PRESENT | DIGCF_DEVICEINTERFACE);
+
+    if (devInfo)
+    {
+        DWORD dwBuffersize;
+        SP_DEVINFO_DATA devData;
+        DEVPROPTYPE devProptype;
+        LPWSTR devBuffer;
+
+        devData.cbSize = sizeof(SP_DEVINFO_DATA);
+        for (int i = 0; ; i++)
+        {
+            SetupDiEnumDeviceInfo(devInfo, i, &devData);
+            if (GetLastError() == ERROR_NO_MORE_ITEMS) break;
+
+
+	    SP_DEVICE_INTERFACE_DATA interfaceData;
+	    interfaceData.cbSize = sizeof(SP_DEVICE_INTERFACE_DATA);
+	    if (!SetupDiEnumDeviceInterfaces(devInfo, NULL, &hGuid, i, &interfaceData)) {
+		    break;
+	    }
+
+	    // Determine required size for interface detail data
+	    ULONG requiredLength = 0;
+	    if (!SetupDiGetDeviceInterfaceDetail(devInfo, &interfaceData,
+						 NULL, 0, &requiredLength,
+						 NULL)) {
+		    auto err = GetLastError();
+		    if (err != ERROR_INSUFFICIENT_BUFFER) {
+			    SetupDiDestroyDeviceInfoList(devInfo);
+			    return;
+		    }
+	    }
+
+	    // Allocate storage for interface detail data
+	    PSP_DEVICE_INTERFACE_DETAIL_DATA detailData =
+		    (PSP_DEVICE_INTERFACE_DETAIL_DATA)malloc(requiredLength);
+	    detailData->cbSize = sizeof(SP_DEVICE_INTERFACE_DETAIL_DATA);
+
+	    // Fetch interface detail data
+	    if (!SetupDiGetDeviceInterfaceDetail(devInfo, &interfaceData,
+						 detailData, requiredLength,
+						 &requiredLength, NULL)) {
+		    auto err = GetLastError();
+		    free(detailData);
+		    continue;
+	    }
+
+	    QString path = QString::fromWCharArray(detailData->DevicePath);
+	    free(detailData);
+
+	    if (targetPath == path) {
+		    /* matched */
+		    SP_CLASSINSTALL_HEADER ciHeader;
+		    ciHeader.cbSize = sizeof(SP_CLASSINSTALL_HEADER);
+		    ciHeader.InstallFunction = DIF_PROPERTYCHANGE;
+
+		    SP_PROPCHANGE_PARAMS pcParams;
+		    pcParams.ClassInstallHeader = ciHeader;
+		    pcParams.StateChange = DICS_DISABLE;
+		    pcParams.Scope = DICS_FLAG_GLOBAL;
+		    pcParams.HwProfile = 0;
+
+		    BOOL FLAG = SetupDiSetClassInstallParams(
+			    devInfo, &devData,
+			    (PSP_CLASSINSTALL_HEADER)&pcParams,
+			    sizeof(SP_PROPCHANGE_PARAMS));
+		    SetupDiChangeState(devInfo, &devData);
+
+		    pcParams.StateChange = DICS_ENABLE;
+		    FLAG = SetupDiSetClassInstallParams(
+			    devInfo, &devData,
+			    (PSP_CLASSINSTALL_HEADER)&pcParams,
+			    sizeof(SP_PROPCHANGE_PARAMS));
+		    SetupDiChangeState(devInfo, &devData);
+
+		    break;
+	    }
+        }
+        SetupDiDestroyDeviceInfoList(devInfo);
+    }
+}
+
 int AOADeviceManager::
 	checkAndInstallDriver() // 1->检测到adb 2->没找到android设备 3->切到aoa模式失败 4->还没切换呢就已经在aoa模式了，需要提醒用户插拔
 {
@@ -638,8 +729,11 @@ int AOADeviceManager::
 	int count = 0;
 	int switchAOACount = 0;
 	bool sendSwitchCommand = false;
+	bool needReenableDevice = false;
+	QString devicePath;
 
 Retry:
+	qDebug() << "start usb stask";
 	if (devs)
 		libusb_free_device_list(devs, count);
 	if (ctx)
@@ -647,6 +741,15 @@ Retry:
 
 	if (libusb_init(&ctx) < 0)
 		return ret;
+
+	if (needReenableDevice) {
+		qDebug() << "reenable device: path " << devicePath;
+		disableAndEnableDevice(devicePath);
+
+		m_waitMutex.lock();
+		m_waitCondition.wait(&m_waitMutex, 2500);
+		m_waitMutex.unlock();
+	}
 	
 	count = libusb_get_device_list(ctx, &devs);
 	int i = 0;
@@ -666,6 +769,7 @@ Retry:
 			continue;
 		else {
 			auto path = targetUsbDevicePath(desc.idVendor, desc.idProduct);
+			devicePath = path;
 			if (path.length() < 4)
 				continue;
 			path = path.mid(4);
@@ -686,30 +790,35 @@ Retry:
 			if (m_driverHelper->checkInstall(desc.idVendor,
 							 desc.idProduct,
 							 path, func, &ctx, &devs, count)) {
+				qDebug() << "checkInstall wait device reconnect";
 				m_waitMutex.lock();
-				m_waitCondition.wait(&m_waitMutex, 5000);
+				m_waitCondition.wait(&m_waitMutex, 2500);
 				m_waitMutex.unlock();
+				qDebug() << "checkInstall wait device reconnect finish";
+				if (isAOADevice(desc.idVendor, desc.idProduct))
+					needReenableDevice = true;
 				goto Retry;
 			}
 			if (isDroidInAcc(devs[i])) {
 				ret = sendSwitchCommand ? 0 : 4;
 				break;
 			} else {
+				qDebug() << "switch command loop count: " << switchAOACount;
 				switchAOACount++;
-				if (switchAOACount > 10) {
+				if (switchAOACount > 3) {
 					ret = 3;
 					break;
 				}
 				sendSwitchCommand = true;
 				switchDroidToAcc(devs[i], 1);
 				m_waitMutex.lock();
-				m_waitCondition.wait(&m_waitMutex, 5000);
+				m_waitCondition.wait(&m_waitMutex, 2500);
 				m_waitMutex.unlock();
 				goto Retry;
 			}
 		}
 	}
-
+	qDebug() << "end loop";
 	if (i == count)
 		ret = 2;
 
@@ -877,8 +986,10 @@ QString AOADeviceManager::targetUsbDevicePath(int vid, int pid)
 						     NULL, 0, &requiredLength,
 						     NULL)) {
 			auto err = GetLastError();
-			if (err != ERROR_INSUFFICIENT_BUFFER)
+			if (err != ERROR_INSUFFICIENT_BUFFER) {
+				SetupDiDestroyDeviceInfoList(deviceInfo);
 				return ret;
+			}
 		}
 
 		// Allocate storage for interface detail data
@@ -938,8 +1049,10 @@ bool AOADeviceManager::adbDeviceExist()
 						     NULL, 0, &requiredLength,
 						     NULL)) {
 			auto err = GetLastError();
-			if (err != ERROR_INSUFFICIENT_BUFFER)
+			if (err != ERROR_INSUFFICIENT_BUFFER) {
+				SetupDiDestroyDeviceInfoList(deviceInfo);
 				return false;
+			}
 		}
 
 		// Allocate storage for interface detail data
@@ -981,7 +1094,7 @@ void AOADeviceManager::updateUsbInventory(bool isDeviceAdd, bool checkAdb)
 					startTask();
 				else if (ret == 3)
 					emit infoPrompt(
-						u8"启动投屏服务失败，后台退出鱼耳直播APP后重启再试。");
+						u8"启动投屏服务失败，后台退出鱼耳直播APP，插拔手机后再试。");
 				else if (ret == 4)
 					emit infoPrompt(
 						u8"启动投屏服务失败，请插拔手机后再试。");

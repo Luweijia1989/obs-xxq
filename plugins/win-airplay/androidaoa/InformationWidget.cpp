@@ -9,8 +9,7 @@
 InformationWidget::InformationWidget(QWidget *parent) : QWidget(parent)
 {
 	setWindowFlags(Qt::Tool | Qt::CustomizeWindowHint |
-		       Qt::WindowTitleHint | Qt::WindowStaysOnTopHint |
-		       Qt::FramelessWindowHint);
+		       Qt::WindowTitleHint | Qt::WindowStaysOnTopHint);
 	setFixedWidth(280);
 	QVBoxLayout *ly = new QVBoxLayout(this);
 	ly->setMargin(0);
@@ -48,14 +47,14 @@ void InformationWidget::onInstallStatus(int step, int value)
 			v = step == 0 ? 25 : 75;
 			break;
 		case 3: //安装三阶段，成功
-			if (step == 0)
+			if (step == 1)
 				show = false;
 			v = step == 0 ? 50 : 100;
 			break;
 		}
 
 		m_progressBar->setValue(v);
-		setVisible(show && m_progressBar->value() != 100);
+		setVisible(show);
 	}
 }
 

@@ -10,7 +10,7 @@
 const int GOOGLE_VID = 0x18D1;
 const int GOOGLE_PID = 0x2D04;
 
-static bool isAOADevice(int vid, int pid)
+bool isAOADevice(int vid, int pid)
 {
 	return vid == GOOGLE_VID && pid == GOOGLE_PID;
 }
@@ -147,14 +147,12 @@ bool DriverHelper::checkInstall(int vid, int pid, QString targetDevicePath, void
 	}
 
 	QString driverName(targetDev->driver);
-	if (driverName.startsWith("libusbK")) {
-		if (targetDev->driver_version != target_driver_version)
-			ret = true;
-		else
-			emit installProgress(
-				!isAOADevice(targetDev->vid, targetDev->pid) ? 0 : 1, 3);
-	} else
+	if (!driverName.startsWith("libusbK"))
 		ret = true;
+	else {
+		if(isAOADevice(targetDev->vid, targetDev->pid))
+			emit installProgress(1, 3);
+	}
 
 	if (ret) {
 		inInstall = true;

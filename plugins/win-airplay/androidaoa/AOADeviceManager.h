@@ -187,7 +187,7 @@ protected:
 					QString devicePath =
 						QString::fromWCharArray(
 							info->dbcc_name);
-					qDebug() << devicePath;
+					qDebug() << "new device: " << devicePath;
 					bool isAdbDevice = devicePath.endsWith(
 						"{f72fe0d4-cbcb-407d-8814-9ed673d0dd6b}", Qt::CaseInsensitive);
 					if (timer.isActive())
@@ -208,7 +208,18 @@ protected:
 				}
 			} break;
 			case DBT_DEVICEREMOVECOMPLETE:
+			{
+				auto info = (DEV_BROADCAST_DEVICEINTERFACE *)
+						    winMsg->lParam;
+				if (info->dbcc_devicetype ==
+				    DBT_DEVTYP_DEVICEINTERFACE) {
+					QString devicePath =
+						QString::fromWCharArray(
+							info->dbcc_name);
+					qDebug() << "device remove: " << devicePath;
+				}
 				m_helper->deferUpdateUsbInventory(false);
+			}
 				break;
 			case DBT_DEVNODES_CHANGED:
 				break;
