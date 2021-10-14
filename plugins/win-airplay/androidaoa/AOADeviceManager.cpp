@@ -706,6 +706,8 @@ static void disableAndEnableDevice(QString targetPath)
 			    sizeof(SP_PROPCHANGE_PARAMS));
 		    SetupDiChangeState(devInfo, &devData);
 
+		    QThread::sleep(5);
+
 		    pcParams.StateChange = DICS_ENABLE;
 		    FLAG = SetupDiSetClassInstallParams(
 			    devInfo, &devData,
@@ -741,15 +743,6 @@ Retry:
 
 	if (libusb_init(&ctx) < 0)
 		return ret;
-
-	if (needReenableDevice) {
-		qDebug() << "reenable device: path " << devicePath;
-		disableAndEnableDevice(devicePath);
-
-		m_waitMutex.lock();
-		m_waitCondition.wait(&m_waitMutex, 2500);
-		m_waitMutex.unlock();
-	}
 	
 	count = libusb_get_device_list(ctx, &devs);
 	int i = 0;
@@ -795,8 +788,6 @@ Retry:
 				m_waitCondition.wait(&m_waitMutex, 2500);
 				m_waitMutex.unlock();
 				qDebug() << "checkInstall wait device reconnect finish";
-				if (isAOADevice(desc.idVendor, desc.idProduct))
-					needReenableDevice = true;
 				goto Retry;
 			}
 			if (isDroidInAcc(devs[i])) {

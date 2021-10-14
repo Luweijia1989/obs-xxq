@@ -167,9 +167,37 @@ bool DriverHelper::checkInstall(int vid, int pid, QString targetDevicePath, void
 	return ret;
 }
 
+bool deleteDir(const QString &path)
+{
+	if (path.isEmpty()) {
+		return false;
+	}
+
+	QDir dir(path);
+	if (!dir.exists()) {
+		return true;
+	}
+
+	dir.setFilter(QDir::AllEntries | QDir::NoDotAndDotDot);
+	QFileInfoList fileList = dir.entryInfoList();
+	foreach(QFileInfo file, fileList)
+	{
+		if (file.isFile()) {
+			file.dir().remove(file.fileName());
+		} else {
+			deleteDir(file.absoluteFilePath());
+		}
+	}
+
+	return dir.rmpath(dir.absolutePath());
+}
+
 void DriverHelper::install(wdi_device_info *dev)
 {
+	int res = -1;
+Retry:
 	QString dir = QString("%1\\%2").arg(temp_dir).arg(dev->pid);
+	deleteDir(dir);
 	int step = !isAOADevice(dev->vid, dev->pid) ? 0 : 1;
 	bool success = false;
 	char *inf_name = to_valid_filename(dev->desc, ".inf");
@@ -189,6 +217,9 @@ void DriverHelper::install(wdi_device_info *dev)
 				success = true;
 			} else {
 				qDebug() << "wdi_install_driver error: " << res;
+
+				if (res == WDI_ERROR_PENDING_INSTALLATION)
+					goto Retry;
 			}
 		} else {
 			qDebug() << "wdi_prepare_driver error: " << res;
