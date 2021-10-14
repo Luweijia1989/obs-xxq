@@ -14,19 +14,19 @@ QVariant NewVoteModel::data(const QModelIndex &index, int role) const
 
 	const NewVoteOption &d = voteOptionInfos[index.row()];
 	switch (role) {
-	case RoleOptionContent:
+	case NewRoleOptionContent:
 		return d.optionContent;
-	case RoleVoteCount:
+	case NewRoleVoteCount:
 		return d.voteCount;
-	case RoleOptionColor:
+	case NewRoleOptionColor:
 		return d.color;
-	case RoleFontFamily:
+	case NewRoleFontFamily:
 		return d.fontFamily;
-	case RoleFontSize:
+	case NewRoleFontSize:
 		return 24;
-	case RoleItalic:
+	case NewRoleItalic:
 		return d.italic;
-	case RoleBold:
+	case NewRoleBold:
 		return d.bold;
 	default:
 		return QVariant();
@@ -42,13 +42,13 @@ int NewVoteModel::rowCount(const QModelIndex &parent) const
 QHash<int, QByteArray> NewVoteModel::roleNames() const
 {
 	QHash<int, QByteArray> roles;
-	roles[RoleOptionContent] = "optionContent";
-	roles[RoleVoteCount] = "voteCount";
-	roles[RoleFontFamily] = "fontFamily";
-	roles[RoleFontSize] = "fontSize";
-	roles[RoleOptionColor] = "color";
-	roles[RoleItalic] = "italic";
-	roles[RoleBold] = "bold";
+	roles[NewRoleOptionContent] = "optionContent";
+	roles[NewRoleVoteCount] = "voteCount";
+	roles[NewRoleFontFamily] = "fontFamily";
+	roles[NewRoleFontSize] = "fontSize";
+	roles[NewRoleOptionColor] = "color";
+	roles[NewRoleItalic] = "italic";
+	roles[NewRoleBold] = "bold";
 	return roles;
 }
 
@@ -77,7 +77,7 @@ void NewVoteModel::updateVoteCount(const QJsonObject &data)
 		auto begin = createIndex(0, 0, nullptr);
 		auto end = createIndex(voteOptionInfos.count() - 1, 0, nullptr);
 		QVector<int> changedRoles;
-		changedRoles.append(RoleVoteCount);
+		changedRoles.append(NewRoleVoteCount);
 		emit dataChanged(begin, end, changedRoles);
 	} else {
 		int row = data["index"].toInt();
@@ -89,7 +89,7 @@ void NewVoteModel::updateVoteCount(const QJsonObject &data)
 
 		auto ii = createIndex(row, 0, nullptr);
 		QVector<int> changedRoles;
-		changedRoles.append(RoleVoteCount);
+		changedRoles.append(NewRoleVoteCount);
 		emit dataChanged(ii, ii, changedRoles);
 	}
 }

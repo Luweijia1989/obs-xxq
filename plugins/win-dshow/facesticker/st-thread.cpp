@@ -210,11 +210,11 @@ void STThread::addFrame(unsigned char *data, size_t size, long long startTime, i
 	int tl[AV_NUM_DATA_POINTERS] = { 0 };
 	av_image_fill_arrays(td, tl, data, (AVPixelFormat)f, w, h, 1);
 
-	auto as = av_image_get_buffer_size((AVPixelFormat)f, w, h, 32);
+	auto as = av_image_get_buffer_size((AVPixelFormat)f, w, h, 16);
 	ensureCacheBuffer(as);
 
-	av_image_copy_to_buffer(m_dataBuffer, as, td, tl, (AVPixelFormat)f, w, h, 32);
-	av_image_fill_arrays(m_cacheFrame->data, m_cacheFrame->linesize, m_dataBuffer, (AVPixelFormat)f, w, h, 32);
+	av_image_copy_to_buffer(m_dataBuffer, as, td, tl, (AVPixelFormat)f, w, h, 16);
+	av_image_fill_arrays(m_cacheFrame->data, m_cacheFrame->linesize, m_dataBuffer, (AVPixelFormat)f, w, h, 16);
 
 	m_cacheFrame->width = w;
 	m_cacheFrame->height = h;
@@ -232,11 +232,11 @@ void STThread::addFrame(AVFrame *frame, long long startTime)
 
 	FrameInfo info;
 
-	auto size = av_image_get_buffer_size((AVPixelFormat)frame->format, frame->width, frame->height, 32);
+	auto size = av_image_get_buffer_size((AVPixelFormat)frame->format, frame->width, frame->height, 16);
 	ensureCacheBuffer(size);
 
-	av_image_copy_to_buffer(m_dataBuffer, size, frame->data, frame->linesize, (AVPixelFormat)frame->format, frame->width, frame->height, 32);
-	av_image_fill_arrays(m_cacheFrame->data, m_cacheFrame->linesize, m_dataBuffer, (AVPixelFormat)frame->format, frame->width, frame->height, 32);
+	av_image_copy_to_buffer(m_dataBuffer, size, frame->data, frame->linesize, (AVPixelFormat)frame->format, frame->width, frame->height, 16);
+	av_image_fill_arrays(m_cacheFrame->data, m_cacheFrame->linesize, m_dataBuffer, (AVPixelFormat)frame->format, frame->width, frame->height, 16);
 	m_cacheFrame->width = frame->width;
 	m_cacheFrame->height = frame->height;
 	m_cacheFrame->format = frame->format;
@@ -286,12 +286,10 @@ void STThread::processImage(AVFrame *frame, quint64 ts)
 	bool needSticker = !m_stickers.isEmpty();
 	
 	if (frameInfoChanged) {
-		if (m_swsRetFrame) {
-			av_freep(m_swsRetFrame->data);
-			av_frame_free(&m_swsRetFrame);
-		}
-		m_swsRetFrame = av_frame_alloc();
-		av_image_alloc(m_swsRetFrame->data, m_swsRetFrame->linesize, frame->width, frame->height, AV_PIX_FMT_RGBA, 32);
+		if (m_outDataBuffer) 
+			av_freep(&m_outDataBuffer);
+		
+		m_outDataBuffer = (uint8_t *)av_mallocz(av_image_get_buffer_size(AV_PIX_FMT_RGBA, frame->width + 16, frame->height, 16));
 		if (m_swsctx) {
 			sws_freeContext(m_swsctx);
 			m_swsctx = NULL;
@@ -318,11 +316,13 @@ void STThread::processImage(AVFrame *frame, quint64 ts)
 		createPBO(m_textureBufferSize);
 	}
 
-	int ret = sws_scale(m_swsctx, (const uint8_t *const *)(frame->data), frame->linesize, 0, frame->height, m_swsRetFrame->data, m_swsRetFrame->linesize);
+	uint8_t *out[8] = {m_outDataBuffer};
+	int ls[8] = { frame->width * 4 };
+	int ret = sws_scale(m_swsctx, (const uint8_t *const *)(frame->data), frame->linesize, 0, frame->height, out, ls);
 
-	m_backgroundTexture->setData(QOpenGLTexture::RGBA, QOpenGLTexture::UInt8, m_swsRetFrame->data[0]);
+	m_backgroundTexture->setData(QOpenGLTexture::RGBA, QOpenGLTexture::UInt8, m_outDataBuffer);
 
-	m_stFunc->doFaceDetect(m_needBeautify, needSticker, m_swsRetFrame->data[0], frame->width, frame->height, flip);
+	m_stFunc->doFaceDetect(m_needBeautify, needSticker, m_outDataBuffer, frame->width, frame->height, flip);
 
 	QOpenGLTexture *nextSrc = m_backgroundTexture;
 	if (m_needBeautify) {//是否美颜
@@ -564,8 +564,8 @@ void STThread::freeResource()
 	if (m_swsctx)
 		sws_freeContext(m_swsctx);
 
-	if (m_swsRetFrame)
-		av_frame_free(&m_swsRetFrame);
+	if (m_outDataBuffer)
+		av_freep(&m_outDataBuffer);
 
 	m_stFunc->freeStResource();
 	delete m_stFunc;
