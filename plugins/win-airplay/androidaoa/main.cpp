@@ -1,7 +1,26 @@
-﻿#include "AOADeviceManager.h"
+#include "AOADeviceManager.h"
 #include "InformationWidget.h"
 #include <QApplication>
 #include "DriverHelper.h"
+
+void stdin_read_thread()
+{
+	uint8_t buf[1024] = {0};
+	while (true) {
+		int read_len =
+			fread(buf, 1, 1024,
+			      stdin); // read 0 means parent has been stopped
+		if (read_len) {
+			if (buf[0] == 1) {
+				qApp->quit();
+				break;
+			}
+		} else {
+			qApp->quit();
+			break;
+		}
+	}
+}
 
 int main(int argc, char *argv[]){
     QGuiApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
@@ -33,6 +52,8 @@ int main(int argc, char *argv[]){
     w.show();
     w.hide();
 
+    std::thread th(stdin_read_thread);
+    th.detach();
 
     return app.exec();
 }
