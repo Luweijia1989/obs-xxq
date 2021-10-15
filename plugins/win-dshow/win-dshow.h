@@ -138,7 +138,7 @@ enum class Action {
 
 static DWORD CALLBACK DShowThread(LPVOID ptr);
 
-class STThread;
+class BDThread;
 
 class DShowInput {
 public:
@@ -156,7 +156,7 @@ public:
 	CriticalSection deviceActivatedMutex;
 	float timeElapsed = 0.f;
 
-	STThread *stThread = nullptr;
+	BDThread *stThread = nullptr;
 	QMutex outputMutex;
 
 	Decoder audio_decoder;

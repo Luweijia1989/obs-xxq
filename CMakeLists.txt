@@ -12,6 +12,9 @@ option(BUILD_CAPTIONS "Build captions" FALSE)
 if(WIN32)
 	cmake_minimum_required(VERSION 3.16)
 
+	add_compile_options("$<$<C_COMPILER_ID:MSVC>:/utf-8>")
+	add_compile_options("$<$<CXX_COMPILER_ID:MSVC>:/utf-8>")
+
 	# Check for Win SDK version 10.0.19041 or above
 	if(MSVC AND MSVC_VERSION LESS 1920)
 		message(STATUS "Windows API version is ${CMAKE_VS_WINDOWS_TARGET_PLATFORM_VERSION}")

@@ -1,5 +1,5 @@
 #include "win-dshow.h"
-#include "facesticker/st-thread.h"
+#include "facesticker/bd-thread.h"
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QDateTime>
@@ -136,7 +136,7 @@ void DShowInput::QueueActivate(obs_data_t *settings)
 DShowInput::DShowInput(obs_source_t *source_, obs_data_t *settings)
 	: source(source_), device(InitGraph::False)
 {
-	stThread = new STThread(this);
+	stThread = new BDThread(this);
 	stThread->setBeautifyEnabled(obs_data_get_bool(settings, "beautifyEnabled"));
 	stThread->waitStarted();
 
