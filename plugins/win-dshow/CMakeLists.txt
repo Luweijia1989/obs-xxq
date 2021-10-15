@@ -29,7 +29,7 @@ set(BEAUTIFY_SRCS
 	)
    	 
 source_group("beautify" FILES ${BEAUTIFY_SRCS})
-
+  
 set(win-dshow_HEADERS
 	win-dshow.h
 	encode-dstr.hpp
@@ -38,7 +38,7 @@ set(win-dshow_HEADERS
 	facesticker/atomicops.h
 	facesticker/readerwriterqueue.h
 	)
-
+  
 set(win-dshow_SOURCES
 	win-dshow.cpp
 	win-dshow-encoder.cpp

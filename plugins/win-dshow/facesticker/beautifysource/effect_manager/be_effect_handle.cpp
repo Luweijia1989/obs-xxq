@@ -49,10 +49,10 @@ bef_effect_result_t EffectHandle::initializeHandle(bool bImageMode) {
 }
 
 void EffectHandle::initEffectLog(const std::string& logFile) {
-    bef_effect_result_t ret = bef_effect_ai_set_log_to_local_func(logFuncForEffect);
-    if (ret != 0) {
-        printf("bef_effect_ai_set_log_to_local_func: %d\n", ret);
-    }
+    //bef_effect_result_t ret = bef_effect_ai_set_log_to_local_func(logFuncForEffect);
+    //if (ret != 0) {
+    //    printf("bef_effect_ai_set_log_to_local_func: %d\n", ret);
+    //}
 }
 
 void EffectHandle::initEffectMessage(void* receiver) {

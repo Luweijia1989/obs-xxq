@@ -8,10 +8,10 @@
 #include <map>
 #include <list>
 #include <vector>
-#include <QOpenGLFunctions>
 
 #include "bef_effect_ai_api.h"
 #include "be_composer_node.h"
+#include "gles_loader_autogen.h"
 //avatar 交互相关
 //#include "bef_msg_delegate_manager.h"
 
