@@ -271,8 +271,12 @@ void BDThread::processImage(AVFrame *frame, quint64 ts, BEF::BEFEffectGLContext 
         double timestamp = (double)starTime.count() / 1000.0;
 	auto result = m_stFunc->process(m_backgroundTexture, m_outputTexture, frame->width, frame->height, false, timestamp);
 
+	
+	auto err = glGetError();
 	glBindFramebuffer(GL_FRAMEBUFFER, m_fbo);
+	err = glGetError();
 	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, m_outputTexture2, 0);
+	err = glGetError();
 	GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
 	if (status != GL_FRAMEBUFFER_COMPLETE) {
 		printf("GLError BERender::drawFace \n");
@@ -280,12 +284,16 @@ void BDThread::processImage(AVFrame *frame, quint64 ts, BEF::BEFEffectGLContext 
 
 	glActiveTexture(GL_TEXTURE0);
 	glBindTexture(GL_TEXTURE_2D, m_outputTexture);
-
+	
 	glViewport(0, 0, frame->width, frame->height);
 	glClearColor(0, 0, 0, 0);
+	err = glGetError();
 	glBindVertexArray(m_vao);
-	glEnableVertexAttribArray(m_vao);
+	err = glGetError();
+	glEnableVertexAttribArray(0);
+	err = glGetError();
 	glUseProgram(m_shader);
+	err = glGetError();
 	{
 		QMatrix4x4 model;
 		model.scale(1, -1);
@@ -299,6 +307,7 @@ void BDThread::processImage(AVFrame *frame, quint64 ts, BEF::BEFEffectGLContext 
 		}
 		glUniformMatrix4fv(glGetUniformLocation(m_shader, "model"), 1, GL_FALSE, model.constData());
 		glDrawArrays(GL_TRIANGLES, 0, 6);
+		err = glGetError();
 	}
 
 	glBindVertexArray(0);
@@ -431,47 +440,78 @@ void BDThread::initShader()
 {
 	auto m_vertexShader = glCreateShader(GL_VERTEX_SHADER);
 	auto m_fragmentShader = glCreateShader(GL_FRAGMENT_SHADER);
-	char *vstr = R"(#version 300 es
-			layout (location = 0) in vec4 vertex;
+	char *vstr = R"(
+			attribute vec4 vertex;
 
-			out vec2 TexCoords;
-			out vec4 mainPosition;
-
+			varying vec2 v_texCoord;
 			uniform mat4 model;
-			uniform mat4 projection;
 
 			void main()
 			{
-				TexCoords = vertex.zw;
-				mainPosition = vec4(vertex.xy, 0.0, 1.0);
-				gl_Position = model * mainPosition;
+				v_texCoord = vertex.zw;
+				gl_Position = model * vec4(vertex.xy, 0.0, 1.0);
 			}
 			)";
 
 
-	char *fstr = R"(#version 300 es
+	char *fstr = R"(
 			precision mediump float;
-			in vec2 TexCoords;
-			out vec4 color;
+			varying vec2 v_texCoord;
 
 			uniform sampler2D image;
 			void main()
 			{
-			color = vec4(texture(image, TexCoords).rgb, 1);
+				gl_FragColor = vec4(texture2D(image, v_texCoord).rgb, 1);
 			}
 			)";
 
+	/*char *vstr = R"(
+			attribute vec4 vertex;
+
+			void main()
+			{
+				gl_Position = vec4(vertex.xy, 0.0, 1.0);
+			}
+			)";
+
+	char *fstr = R"(
+			precision mediump float;
+			void main()
+			{
+				gl_FragColor = vec4(1.0, 0.0, 0.0, 1.0);
+			}
+			)";
+*/
 	
 	glShaderSource(m_vertexShader, 1, &vstr, NULL);
 	glCompileShader(m_vertexShader);
 
+	GLint success;
+	GLchar infoLog[1024];
+	glGetShaderiv(m_vertexShader, GL_COMPILE_STATUS, &success);
+	if (!success) {
+		glGetShaderInfoLog(m_vertexShader, 1024, NULL, infoLog);
+	}
+
 	glShaderSource(m_fragmentShader, 1, &fstr, NULL);
 	glCompileShader(m_fragmentShader);
+
+	glGetShaderiv(m_fragmentShader, GL_COMPILE_STATUS, &success);
+	if (!success) {
+		glGetShaderInfoLog(m_fragmentShader, 1024, NULL, infoLog);
+	}
+
 
 	m_shader = glCreateProgram();
 	glAttachShader(m_shader, m_vertexShader);
 	glAttachShader(m_shader, m_fragmentShader);
 	glLinkProgram(m_shader);
+
+	glGetProgramiv(m_shader, GL_LINK_STATUS, &success);
+        if(!success)
+        {
+		glGetProgramInfoLog(m_shader, 1024, NULL, infoLog);
+        }
 
 	glDeleteShader(m_vertexShader);
 	glDeleteShader(m_fragmentShader);
@@ -483,19 +523,25 @@ void BDThread::initShader()
 
 void BDThread::initVertexData()
 {
+	auto err = glGetError();
 	glGenVertexArrays(1, &m_vao);
+	err = glGetError();
 	glGenBuffers(1, &m_vbo);
+	err = glGetError();
 	glBindVertexArray(m_vao);
-
+	err = glGetError();
 	glBindBuffer(GL_ARRAY_BUFFER, m_vbo);
+	err = glGetError();
 	float vertices[] = {-1.0f, 1.0f,  0.0f, 0.0f, 1.0f,  -1.0f, 1.0f, 1.0f,
 			    -1.0f, -1.0f, 0.0f, 1.0f, -1.0f, 1.0f,  0.0f, 0.0f,
 			    1.0f,  -1.0f, 1.0f, 1.0f, 1.0f,  1.0f,  1.0f, 0.0f};
-	glBufferData(m_vbo, sizeof(vertices), vertices, GL_STATIC_DRAW);
+	glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+	err = glGetError();
 	glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, 4 * sizeof(float),
 			      (void *)0);
+	err = glGetError();
 	glEnableVertexAttribArray(0);
-
+	err = glGetError();
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
 	glBindVertexArray(0);
 }
