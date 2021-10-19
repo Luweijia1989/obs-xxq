@@ -86,7 +86,7 @@ void BDThread::run()
 
 	effectHandlerInited = false;
 	m_stFunc = new EffectHandle;
-	auto ret = m_stFunc->initializeHandle(false);
+	auto ret = m_stFunc->initializeHandle();
 	effectHandlerInited = BEF_RESULT_SUC == ret;
 
 	qDebug() << "SenseTime init result: " << effectHandlerInited;
@@ -271,53 +271,49 @@ void BDThread::processImage(AVFrame *frame, quint64 ts, BEF::BEFEffectGLContext 
         double timestamp = (double)starTime.count() / 1000.0;
 	auto result = m_stFunc->process(m_backgroundTexture, m_outputTexture, frame->width, frame->height, false, timestamp);
 
-	
-	auto err = glGetError();
-	glBindFramebuffer(GL_FRAMEBUFFER, m_fbo);
-	err = glGetError();
-	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, m_outputTexture2, 0);
-	err = glGetError();
-	GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
-	if (status != GL_FRAMEBUFFER_COMPLETE) {
-		printf("GLError BERender::drawFace \n");
-	}
+	GLuint toReadTexture = m_outputTexture;
 
-	glActiveTexture(GL_TEXTURE0);
-	glBindTexture(GL_TEXTURE_2D, m_outputTexture);
-	
-	glViewport(0, 0, frame->width, frame->height);
-	glClearColor(0, 0, 0, 0);
-	err = glGetError();
-	glBindVertexArray(m_vao);
-	err = glGetError();
-	glEnableVertexAttribArray(0);
-	err = glGetError();
-	glUseProgram(m_shader);
-	err = glGetError();
-	{
-		QMatrix4x4 model;
-		model.scale(1, -1);
-
-		if (m_dshowInput->flipH) {
-			model.scale(-1, 1);
+	if (m_dshowInput->flipH || flip) {
+		glBindFramebuffer(GL_FRAMEBUFFER, m_fbo);
+		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, m_outputTexture2, 0);
+		GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+		if (status != GL_FRAMEBUFFER_COMPLETE) {
+			printf("GLError BERender::drawFace \n");
 		}
 
-		if (true) {
+		glActiveTexture(GL_TEXTURE0);
+		glBindTexture(GL_TEXTURE_2D, m_outputTexture);
+	
+		glViewport(0, 0, frame->width, frame->height);
+		glClearColor(0, 0, 0, 0);
+		glBindVertexArray(m_vao);
+		glEnableVertexAttribArray(0);
+		glUseProgram(m_shader);
+		{
+			QMatrix4x4 model;
 			model.scale(1, -1);
+
+			if (m_dshowInput->flipH) {
+				model.scale(-1, 1);
+			}
+
+			if (flip) {
+				model.scale(1, -1);
+			}
+			glUniformMatrix4fv(glGetUniformLocation(m_shader, "model"), 1, GL_FALSE, model.constData());
+			glDrawArrays(GL_TRIANGLES, 0, 6);
 		}
-		glUniformMatrix4fv(glGetUniformLocation(m_shader, "model"), 1, GL_FALSE, model.constData());
-		glDrawArrays(GL_TRIANGLES, 0, 6);
-		err = glGetError();
+
+		glBindVertexArray(0);
+		glUseProgram(0);
+		glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+		toReadTexture = m_outputTexture2;
 	}
-
-	glBindVertexArray(0);
-	glUseProgram(0);
-	glBindFramebuffer(GL_FRAMEBUFFER, 0);
-
 	
 	if (ctx->usePbo()) {
 		PBOReader::DisposableBuffer buf;
-		if (m_reader->read(m_outputTexture2, frame->width, frame->height, buf)) {
+		if (m_reader->read(toReadTexture, frame->width, frame->height, buf)) {
 			m_dshowInput->OutputFrame(DShow::VideoFormat::ARGB, (unsigned char *)buf.get(), m_textureBufferSize, ts, 0, frame->width, frame->height);
 		}
 	}
@@ -418,24 +414,6 @@ void BDThread::setBeautifyEnabled(bool enabled)
 	m_needBeautify = enabled;
 }
 
-void BDThread::calcPosition(int &width, int &height, int w, int h)
-{
-	if (m_curRegion == -1) {
-		width = 0;
-		height = 0;
-	}
-
-	int totalCount = 15;
-
-	int stepx = w / 5;
-	int stepy = h / 3;
-	int x_r = m_curRegion % 5;
-	int y_r = m_curRegion / 5;
-
-	width = (x_r < 2 ? (x_r - 2.5) * stepx : (x_r - 1.5) * stepx);
-	height = h - (y_r + 0.5) * stepy;
-}
-
 void BDThread::initShader()
 {
 	auto m_vertexShader = glCreateShader(GL_VERTEX_SHADER);
@@ -464,24 +442,6 @@ void BDThread::initShader()
 				gl_FragColor = vec4(texture2D(image, v_texCoord).rgb, 1);
 			}
 			)";
-
-	/*char *vstr = R"(
-			attribute vec4 vertex;
-
-			void main()
-			{
-				gl_Position = vec4(vertex.xy, 0.0, 1.0);
-			}
-			)";
-
-	char *fstr = R"(
-			precision mediump float;
-			void main()
-			{
-				gl_FragColor = vec4(1.0, 0.0, 0.0, 1.0);
-			}
-			)";
-*/
 	
 	glShaderSource(m_vertexShader, 1, &vstr, NULL);
 	glCompileShader(m_vertexShader);
@@ -523,25 +483,17 @@ void BDThread::initShader()
 
 void BDThread::initVertexData()
 {
-	auto err = glGetError();
 	glGenVertexArrays(1, &m_vao);
-	err = glGetError();
 	glGenBuffers(1, &m_vbo);
-	err = glGetError();
 	glBindVertexArray(m_vao);
-	err = glGetError();
 	glBindBuffer(GL_ARRAY_BUFFER, m_vbo);
-	err = glGetError();
 	float vertices[] = {-1.0f, 1.0f,  0.0f, 0.0f, 1.0f,  -1.0f, 1.0f, 1.0f,
 			    -1.0f, -1.0f, 0.0f, 1.0f, -1.0f, 1.0f,  0.0f, 0.0f,
 			    1.0f,  -1.0f, 1.0f, 1.0f, 1.0f,  1.0f,  1.0f, 0.0f};
 	glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
-	err = glGetError();
 	glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, 4 * sizeof(float),
 			      (void *)0);
-	err = glGetError();
 	glEnableVertexAttribArray(0);
-	err = glGetError();
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
 	glBindVertexArray(0);
 }

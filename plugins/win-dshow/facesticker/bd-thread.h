@@ -61,7 +61,6 @@ protected:
 	virtual void run() override;
 
 private:
-	void calcPosition(int &width, int &height, int w, int h);
 	void initShader();
 	void initVertexData();
 	void processImage(AVFrame *frame, quint64 ts, BEF::BEFEffectGLContext *ctx);

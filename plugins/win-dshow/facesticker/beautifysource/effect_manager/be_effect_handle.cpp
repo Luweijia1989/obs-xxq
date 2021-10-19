@@ -24,7 +24,7 @@ EffectHandle::EffectHandle() {}
 
 EffectHandle::~EffectHandle() {}
 
-bef_effect_result_t EffectHandle::initializeHandle(bool bImageMode) {
+bef_effect_result_t EffectHandle::initializeHandle() {
     bef_effect_result_t ret = 0;
     if (m_initialized)
     {
@@ -43,7 +43,7 @@ bef_effect_result_t EffectHandle::initializeHandle(bool bImageMode) {
     ret = bef_effect_ai_composer_set_mode(m_renderMangerHandle, 1, 0);
     CHECK_BEF_AI_RET_SUCCESS(ret, "EffectHandle::initializeHandle:: bef_effect_ai_composer_set_mode failed !");
 
-    registerBeautyComposerNodes(bImageMode);
+    registerBeautyComposerNodes();
 
     return ret;
 }
@@ -218,11 +218,9 @@ void EffectHandle::updateComposerNodeValue(BEComposerNode *node) {
 }
 
 
-void EffectHandle::registerBeautyComposerNodes(bool bImageMode) {
-    registerBeautyFaceNodes(bImageMode);
+void EffectHandle::registerBeautyComposerNodes() {
+    registerBeautyFaceNodes();
     registerBeautyReshaperNodes();
-    registerBeautyMakeupNodes();
-    registerBeautyBodyNodes();
 }
 
 void EffectHandle::registerComposerNode(int majorId, int subId, bool isMajor, std::string NodeName, std::string key) {
@@ -233,17 +231,11 @@ void EffectHandle::registerComposerNode(int majorId, int subId, bool isMajor, st
     }
 }
 
-void EffectHandle::registerBeautyFaceNodes(bool bImageMode) {
-    if (!bImageMode) {
-        registerComposerNode(TYPE_BEAUTY_FACE, TYPE_BEAUTY_FACE_SMOOTH, true, NODE_BEAUTY, "smooth");
-        registerComposerNode(TYPE_BEAUTY_FACE, TYPE_BEAUTY_FACE_WHITEN, true, NODE_BEAUTY, "whiten");
-        registerComposerNode(TYPE_BEAUTY_FACE, TYPE_BEAUTY_FACE_SHARPEN, true, NODE_BEAUTY, "sharp");
-    }
-    else {
-        registerComposerNode(TYPE_BEAUTY_FACE, TYPE_BEAUTY_FACE_SMOOTH, true, NODE_BEAUTY_IMAGE, "smooth");
-        registerComposerNode(TYPE_BEAUTY_FACE, TYPE_BEAUTY_FACE_WHITEN, true, NODE_BEAUTY_IMAGE, "whiten");
-        registerComposerNode(TYPE_BEAUTY_FACE, TYPE_BEAUTY_FACE_SHARPEN, true, NODE_BEAUTY_IMAGE, "sharp");
-    }
+void EffectHandle::registerBeautyFaceNodes() {
+
+    registerComposerNode(TYPE_BEAUTY_FACE, TYPE_BEAUTY_FACE_SMOOTH, true, NODE_BEAUTY, "smooth");
+    registerComposerNode(TYPE_BEAUTY_FACE, TYPE_BEAUTY_FACE_WHITEN, true, NODE_BEAUTY, "whiten");
+    registerComposerNode(TYPE_BEAUTY_FACE, TYPE_BEAUTY_FACE_SHARPEN, true, NODE_BEAUTY, "sharp");
 }
 
 void EffectHandle::registerBeautyReshaperNodes() {
@@ -273,78 +265,10 @@ void EffectHandle::registerBeautyReshaperNodes() {
     registerComposerNode(TYPE_BEAUTY_RESHAPE, TYPE_BEAUTY_RESHAPE_EYE_PLUMP, true, "wocan/ziran", "BEF_BEAUTY_EYE_PLUMP");
 }
 
-void EffectHandle::registerBeautyBodyNodes() {
-    registerComposerNode(TYPE_BEAUTY_BODY, TYPE_BEAUTY_BODY_THIN, true, NODE_BODY, "BEF_BEAUTY_BODY_THIN");
-    registerComposerNode(TYPE_BEAUTY_BODY, TYPE_BEAUTY_BODY_LONG_LEG, true, NODE_BODY, "BEF_BEAUTY_BODY_LONG_LEG");
-    //registerComposerNode(TYPE_BEAUTY_BODY, TYPE_BEAUTY_BODY_SHRINK_HEAD, true, NODE_BODY, "BEF_BEAUTY_BODY_SHRINK_HEAD");
-    //registerComposerNode(TYPE_BEAUTY_BODY, TYPE_BEAUTY_BODY_SLIM_LEG, true, NODE_BODY, "BEF_BEAUTY_BODY_SLIM_LEG");
-    //registerComposerNode(TYPE_BEAUTY_BODY, TYPE_BEAUTY_BODY_SLIM_WAIST, true, NODE_BODY, "BEF_BEAUTY_BODY_SLIM_WAIST");
-    //registerComposerNode(TYPE_BEAUTY_BODY, TYPE_BEAUTY_BODY_ENLARGE_BREAST, true, NODE_BODY, "BEF_BEAUTY_BODY_ENLARGR_BREAST");
-    //registerComposerNode(TYPE_BEAUTY_BODY, TYPE_BEAUTY_BODY_ENHANCE_HIP, true, NODE_BODY, "BEF_BEAUTY_BODY_ENHANCE_HIP");
-    //registerComposerNode(TYPE_BEAUTY_BODY, TYPE_BEAUTY_BODY_ENHANCE_NECK, true, NODE_BODY, "BEF_BEAUTY_BODY_ENHANCE_NECK");
-    //registerComposerNode(TYPE_BEAUTY_BODY, TYPE_BEAUTY_BODY_SLIM_ARM, true, NODE_BODY, "BEF_BEAUTY_BODY_SLIM_ARM");
+void EffectHandle::registerBeautyStyleMakeup()
+{
+
 }
-
-void EffectHandle::registerBeautyMakeupNodes() {
-    //case TYPE_MAKEUP_LIP:
-    registerComposerNode(TYPE_MAKEUP_OPTION, TYPE_MAKEUP_LIP_FUGUHONG, false, "lip/fuguhong", "Internal_Makeup_Lips");
-    registerComposerNode(TYPE_MAKEUP_OPTION, TYPE_MAKEUP_LIP_SHAONVFEN, false, "lip/shaonvfen", "Internal_Makeup_Lips");
-    registerComposerNode(TYPE_MAKEUP_OPTION, TYPE_MAKEUP_LIP_YUANQIJU, false, "lip/yuanqiju", "Internal_Makeup_Lips");
-    registerComposerNode(TYPE_MAKEUP_OPTION, TYPE_MAKEUP_LIP_XIYOUSE, false, "lip/xiyouse", "Internal_Makeup_Lips");
-    registerComposerNode(TYPE_MAKEUP_OPTION, TYPE_MAKEUP_LIP_XIGUAHONG, false, "lip/xiguahong", "Internal_Makeup_Lips");
-    registerComposerNode(TYPE_MAKEUP_OPTION, TYPE_MAKEUP_LIP_SIRONGHONG, false, "lip/sironghong", "Internal_Makeup_Lips");
-    registerComposerNode(TYPE_MAKEUP_OPTION, TYPE_MAKEUP_LIP_ZANGJUSE, false, "lip/zangjuse", "Internal_Makeup_Lips");
-    registerComposerNode(TYPE_MAKEUP_OPTION, TYPE_MAKEUP_LIP_MEIZISE, false, "lip/meizise", "Internal_Makeup_Lips");
-    registerComposerNode(TYPE_MAKEUP_OPTION, TYPE_MAKEUP_LIP_SHANHUSE, false, "lip/shanhuse", "Internal_Makeup_Lips");
-    registerComposerNode(TYPE_MAKEUP_OPTION, TYPE_MAKEUP_LIP_DOUSHAFEN, false, "lip/doushafen", "Internal_Makeup_Lips");
-
-    //case TYPE_MAKEUP_BLUSH:
-    registerComposerNode(TYPE_MAKEUP_OPTION, TYPE_MAKEUP_BLUSH_WEIXUN, false, "blush/weixun", "Internal_Makeup_Blusher");
-    registerComposerNode(TYPE_MAKEUP_OPTION, TYPE_MAKEUP_BLUSH_RICHANG, false, "blush/richang", "Internal_Makeup_Blusher");
-    registerComposerNode(TYPE_MAKEUP_OPTION, TYPE_MAKEUP_BLUSH_MITAO, false, "blush/mitao", "Internal_Makeup_Blusher");
-    registerComposerNode(TYPE_MAKEUP_OPTION, TYPE_MAKEUP_BLUSH_TIANCHENG, false, "blush/tiancheng", "Internal_Makeup_Blusher");
-    registerComposerNode(TYPE_MAKEUP_OPTION, TYPE_MAKEUP_BLUSH_QIAOPI, false, "blush/qiaopi", "Internal_Makeup_Blusher");
-    registerComposerNode(TYPE_MAKEUP_OPTION, TYPE_MAKEUP_BLUSH_XINJI, false, "blush/xinji", "Internal_Makeup_Blusher");
-    registerComposerNode(TYPE_MAKEUP_OPTION, TYPE_MAKEUP_BLUSH_SHAISHANG, false, "blush/shaishang", "Internal_Makeup_Blusher");
-
-
-    //case TYPE_MAKEUP_PUPIL:
-    registerComposerNode(TYPE_MAKEUP_OPTION, TYPE_MAKEUP_PUPIL_HUNXUEZONG, false, "pupil/hunxuezong", "Internal_Makeup_Pupil");
-    registerComposerNode(TYPE_MAKEUP_OPTION, TYPE_MAKEUP_PUPIL_KEKEZONG, false, "pupil/kekezong", "Internal_Makeup_Pupil");
-    registerComposerNode(TYPE_MAKEUP_OPTION, TYPE_MAKEUP_PUPIL_MITAOFEN, false, "pupil/mitaofen", "Internal_Makeup_Pupil");
-    registerComposerNode(TYPE_MAKEUP_OPTION, TYPE_MAKEUP_PUPIL_SHUIGUANGHEI, false, "pupil/shuiguanghei", "Internal_Makeup_Pupil");
-    registerComposerNode(TYPE_MAKEUP_OPTION, TYPE_MAKEUP_PUPIL_XINGKONGLAN, false, "pupil/xingkonglan", "Internal_Makeup_Pupil");
-    registerComposerNode(TYPE_MAKEUP_OPTION, TYPE_MAKEUP_PUPIL_CHUJIANHUI, false, "pupil/chujianhui", "Internal_Makeup_Pupil");
-
-    //case TYPE_MAKEUP_HAIRDYE:
-    registerComposerNode(TYPE_MAKEUP_OPTION, TYPE_MAKEUP_HAIRDYE_ANLAN, false, "hair/anlan", "");
-    registerComposerNode(TYPE_MAKEUP_OPTION, TYPE_MAKEUP_HAIRDYE_MOLV, false, "hair/molv", "");
-    registerComposerNode(TYPE_MAKEUP_OPTION, TYPE_MAKEUP_HAIRDYE_SHENZONG, false, "hair/shenzong", "");
-
-    //case TYPE_MAKEUP_EYESHADOW:
-    registerComposerNode(TYPE_MAKEUP_OPTION, TYPE_MAKEUP_EYESHADOW_DADIZONG, false, "eyeshadow/dadizong", "Internal_Makeup_Eye");
-    registerComposerNode(TYPE_MAKEUP_OPTION, TYPE_MAKEUP_EYESHADOW_WANXIAHONG, false, "eyeshadow/wanxiahong", "Internal_Makeup_Eye");
-    registerComposerNode(TYPE_MAKEUP_OPTION, TYPE_MAKEUP_EYESHADOW_SHAONVFEN, false, "eyeshadow/shaonvfen", "Internal_Makeup_Eye");
-    registerComposerNode(TYPE_MAKEUP_OPTION, TYPE_MAKEUP_EYESHADOW_QIZHIFEN, false, "eyeshadow/qizhifen", "Internal_Makeup_Eye");
-    registerComposerNode(TYPE_MAKEUP_OPTION, TYPE_MAKEUP_EYESHADOW_MEIZIHONG, false, "eyeshadow/meizihong", "Internal_Makeup_Eye");
-    registerComposerNode(TYPE_MAKEUP_OPTION, TYPE_MAKEUP_EYESHADOW_JIAOTANGZONG, false, "eyeshadow/jiaotangzong", "Internal_Makeup_Eye");
-    registerComposerNode(TYPE_MAKEUP_OPTION, TYPE_MAKEUP_EYESHADOW_YUANQIJU, false, "eyeshadow/yuanqiju", "Internal_Makeup_Eye");
-    registerComposerNode(TYPE_MAKEUP_OPTION, TYPE_MAKEUP_EYESHADOW_NAICHASE, false, "eyeshadow/naichase", "Internal_Makeup_Eye");
-
-    //case TYPE_MAKEUP_BROW:
-    registerComposerNode(TYPE_MAKEUP_OPTION, TYPE_MAKEUP_BROW_BR01, false, "eyebrow/BR01", "Internal_Makeup_Brow");
-    registerComposerNode(TYPE_MAKEUP_OPTION, TYPE_MAKEUP_BROW_BK01, false, "eyebrow/BK01", "Internal_Makeup_Brow");
-    registerComposerNode(TYPE_MAKEUP_OPTION, TYPE_MAKEUP_BROW_BK02, false, "eyebrow/BK02", "Internal_Makeup_Brow");
-    registerComposerNode(TYPE_MAKEUP_OPTION, TYPE_MAKEUP_BROW_BK03, false, "eyebrow/BK03", "Internal_Makeup_Brow");
-
-
-    //case TYPE_MAKEUP_TRIM:
-    registerComposerNode(TYPE_MAKEUP_OPTION, TYPE_MAKEUP_TRIM_TRIM01, false, "facial/xiurong01", "Internal_Makeup_Facial");
-    registerComposerNode(TYPE_MAKEUP_OPTION, TYPE_MAKEUP_TRIM_TRIM02, false, "facial/xiurong02", "Internal_Makeup_Facial");
-    registerComposerNode(TYPE_MAKEUP_OPTION, TYPE_MAKEUP_TRIM_TRIM03, false, "facial/xiurong03", "Internal_Makeup_Facial");
-    registerComposerNode(TYPE_MAKEUP_OPTION, TYPE_MAKEUP_TRIM_TRIM04, false, "facial/xiurong04", "Internal_Makeup_Facial");
-}
-
 
 void EffectHandle::setIntensity(int key, float val) {
     bef_effect_ai_set_intensity(m_renderMangerHandle, key, val);

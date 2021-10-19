@@ -164,11 +164,9 @@ const int TYPE_MAKEUP_TRIM_TRIM04 = TYPE_MAKEUP_TRIM + 4;    // 修容04
 
 // Node name 结点名称
 const std::string NODE_BEAUTY = "beauty_Android_live";
-const std::string NODE_BEAUTY_IMAGE = "beauty_image";
 const std::string NODE_BEAUTY_4ITEMS = "beauty_4Items";
 const std::string NODE_RESHAPE = "reshape_live";
-const std::string NODE_BODY = "body/allslimqy";
-const std::string NODE_EYE = "beauty_eye_surgery";
+const std::string NODE_STYLE_MAKEUP = "style_makeup";
 
 
 
@@ -184,7 +182,7 @@ public:
 	void test();
     EffectHandle();
     ~EffectHandle();
-    bef_effect_result_t initializeHandle(bool bImageMode);
+    bef_effect_result_t initializeHandle();
     void initEffectLog(const std::string& logFile);
     void initEffectMessage(void* receiver);
     bef_effect_result_t releaseHandle();
@@ -209,11 +207,10 @@ private:
     bool removeComposerPath(std::list<std::string> &pathMap, BEComposerNode *node);
 
 private:
-    void registerBeautyComposerNodes(bool bImageMode);
-    void registerBeautyFaceNodes(bool bImageMode);
+    void registerBeautyComposerNodes();
+    void registerBeautyFaceNodes();
     void registerBeautyReshaperNodes();
-    void registerBeautyBodyNodes();
-    void registerBeautyMakeupNodes();
+    void registerBeautyStyleMakeup();
     void registerComposerNode(int majorId,int subId, bool isMajor, std::string NodeName, std::string key);
 public:
     void setIntensity(int key, float val);
