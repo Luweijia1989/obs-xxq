@@ -307,7 +307,7 @@ int raop_buffer_enqueue(raop_buffer_t *raop_buffer, unsigned char *data,
 	}
 	if (datalen == 16 && data[12] == 0x0 && data[13] == 0x68 &&
 	    data[14] == 0x34 && data[15] == 0x0) {
-		return 0;
+		return 2;
 	}
 	int payload_size = datalen - 12;
 
