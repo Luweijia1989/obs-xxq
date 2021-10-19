@@ -180,12 +180,11 @@ void ScreenMirrorServer::mirrorServerSetup()
 	if (process)
 		return;
 
-	const char *processName = killProc();
-
+	os_kill_process(m_backendProcessName.c_str());
 	ipc_server_create(&m_ipcServer, ScreenMirrorServer::pipeCallback, this);
 
 	struct dstr cmd;
-	dstr_init_move_array(&cmd, os_get_executable_path_ptr(processName));
+	dstr_init_move_array(&cmd, os_get_executable_path_ptr(m_backendProcessName.c_str()));
 	dstr_insert_ch(&cmd, 0, '\"');
 	dstr_cat(&cmd, "\" \"");
 	process = os_process_pipe_create(cmd.array, "w");
@@ -207,23 +206,6 @@ void ScreenMirrorServer::mirrorServerDestroy()
 	circlebuf_free(&m_avBuffer);
 }
 
-const char *ScreenMirrorServer::killProc()
-{
-	const char *processName = nullptr;
-	if (m_backend == IOS_USB_CABLE) {
-		processName = DRIVER_EXE;
-	} else if (m_backend == IOS_AIRPLAY) {
-		processName = AIRPLAY_EXE;
-	} else if (m_backend == ANDROID_USB_CABLE) {
-		processName = ANDROID_USB_EXE;
-	} else if (m_backend == ANDROID_AOA) {
-		processName = ANDROID_AOA_EXE;
-	} else if (m_backend == ANDROID_WIRELESS)
-		processName = ANDROID_WIRELESS_EXE;
-	os_kill_process(processName);
-	return processName;
-}
-
 void ScreenMirrorServer::updateStatusImage()
 {
 	if (mirror_status == OBS_SOURCE_MIRROR_OUTPUT)
@@ -234,32 +216,10 @@ void ScreenMirrorServer::updateStatusImage()
 		path = m_resourceImgs[0].c_str();
 		break;
 	case OBS_SOURCE_MIRROR_STOP:
-		if (m_backend == IOS_USB_CABLE)
-			path = m_resourceImgs[3];
-		else if (m_backend == IOS_AIRPLAY)
-			path = m_resourceImgs[5];
-		else if (m_backend == ANDROID_USB_CABLE)
-			path = m_resourceImgs[1];
-		else if (m_backend == ANDROID_WIRELESS) {
-			auto list = streamUrlImages();
-			if (!list.isEmpty()) {
-				auto s = list.first().toStdString();
-				path = s;
-			}
-		} else if (m_backend == ANDROID_AOA) {
-			path = m_resourceImgs[7];
-		}
+		path = m_backendStopImagePath;
 		break;
 	case OBS_SOURCE_MIRROR_DEVICE_LOST: // 连接失败，检测超时
-		if (m_backend == IOS_USB_CABLE)
-			path = m_resourceImgs[4];
-		else if (m_backend == IOS_AIRPLAY)
-			path = m_resourceImgs[6];
-		else if (m_backend == ANDROID_USB_CABLE)
-			path = m_resourceImgs[2];
-		else if (m_backend == ANDROID_AOA)
-			path = m_resourceImgs[8];
-		break;
+		path = m_backendLostImagePath;
 	default:
 		break;
 	}
@@ -270,6 +230,45 @@ void ScreenMirrorServer::updateStatusImage()
 void ScreenMirrorServer::setBackendType(int type)
 {
 	m_backend = (MirrorBackEnd)type;
+	switch (m_backend)
+	{
+	case ScreenMirrorServer::None:
+		m_backendProcessName = "";
+		break;
+	case ScreenMirrorServer::IOS_USB_CABLE:
+		m_backendProcessName = DRIVER_EXE;
+		m_backendLostImagePath = m_resourceImgs[4];
+		m_backendStopImagePath = m_resourceImgs[3];
+		break;
+	case ScreenMirrorServer::IOS_AIRPLAY:
+		m_backendProcessName = AIRPLAY_EXE;
+		m_backendLostImagePath = m_resourceImgs[6];
+		m_backendStopImagePath = m_resourceImgs[5];
+		break;
+	case ScreenMirrorServer::ANDROID_USB_CABLE:
+		m_backendProcessName = ANDROID_USB_EXE;
+		m_backendLostImagePath = m_resourceImgs[2];
+		m_backendStopImagePath = m_resourceImgs[1];
+		break;
+	case ScreenMirrorServer::ANDROID_AOA:
+		m_backendProcessName = ANDROID_AOA_EXE;
+		m_backendLostImagePath = m_resourceImgs[8];
+		m_backendStopImagePath = m_resourceImgs[7];
+		break;
+	case ScreenMirrorServer::ANDROID_WIRELESS:
+	{
+		m_backendProcessName = ANDROID_WIRELESS_EXE;
+		auto list = streamUrlImages();
+		if (!list.isEmpty()) {
+			auto s = list.first().toStdString();
+			m_backendStopImagePath = s;
+		}
+	}
+		break;
+	default:
+		break;
+	}
+
 	if (m_backend == IOS_AIRPLAY || m_backend == ANDROID_WIRELESS)
 		m_extraDelay = 500;
 	else if (m_backend == ANDROID_AOA)
@@ -287,9 +286,14 @@ void ScreenMirrorServer::setBackendType(int type)
 	handleMirrorStatus(MIRROR_STOP);
 }
 
-int ScreenMirrorServer::backendType()
+void ScreenMirrorServer::changeBackendType(int type)
 {
-	return m_backend;
+	if (type == m_backend)
+		return;
+
+	mirrorServerDestroy();
+	setBackendType((int)type);
+	mirrorServerSetup();
 }
 
 void ScreenMirrorServer::loadImage(std::string path)
@@ -698,14 +702,6 @@ static const char *GetWinAirplayName(void *type_data)
 
 static void UpdateWinAirplaySource(void *obj, obs_data_t *settings)
 {
-	ScreenMirrorServer *s = (ScreenMirrorServer *)obj;
-	auto type = obs_data_get_int(settings, "type");
-	if (type == s->backendType())
-		return;
-
-	s->mirrorServerDestroy();
-	s->setBackendType((int)type);
-	s->mirrorServerSetup();
 }
 
 static void GetWinAirplayDefaultsOutput(obs_data_t *settings)
@@ -739,7 +735,7 @@ void *ScreenMirrorServer::CreateWinAirplay(obs_data_t *settings,
 
 	ScreenMirrorServer *server = new ScreenMirrorServer(source);
 	server->m_handler = handler;
-	UpdateWinAirplaySource(server, settings);
+	server->changeBackendType(obs_data_get_int(settings, "type"));
 	return server;
 }
 
@@ -938,6 +934,19 @@ static void WinAirplayCustomCommand(void *data, obs_data_t *cmd)
 	if (strcmp("airplayRestart", cmdType) == 0) {
 		s->mirrorServerDestroy();
 		s->mirrorServerSetup();
+	} else if (strcmp("changeBackend", cmdType) == 0) {
+		int t = obs_data_get_int(cmd, "backendType");
+		s->changeBackendType(t);
+		
+		obs_data_t *settings = obs_source_get_settings(s->m_source);
+		obs_data_set_int(settings, "type", t);
+		obs_data_release(settings);
+
+		struct calldata data;
+		uint8_t stack[128];
+		calldata_init_fixed(&data, stack, sizeof(stack));
+		calldata_set_ptr(&data, "source", s->m_source);
+		signal_handler_signal(obs_source_get_signal_handler(s->m_source), "settings_update", &data);
 	}
 }
 

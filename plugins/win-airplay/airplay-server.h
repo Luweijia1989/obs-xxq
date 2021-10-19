@@ -63,7 +63,7 @@ public:
 	void mirrorServerDestroy();
 
 	void setBackendType(int type);
-	int backendType();
+	void changeBackendType(int type);
 
 	static void pipeCallback(void *param, uint8_t *data, size_t size);
 	static void WinAirplayVideoTick(void *data, float seconds);
@@ -83,7 +83,6 @@ private:
 	bool initPipe();
 	void handleMirrorStatus(int status);
 	bool handleMediaData();
-	const char *killProc();
 	void updateStatusImage();
 	void loadImage(std::string path);
 	void saveStatusSettings();
@@ -123,6 +122,9 @@ private:
 	MirrorBackEnd m_backend = None;
 	MirrorBackEnd m_lastStopType = None;
 	MirrorBackEnd m_audioFrameType = None;
+	std::string m_backendProcessName;
+	std::string m_backendStopImagePath;
+	std::string m_backendLostImagePath;
 
 	std::vector<std::string> m_resourceImgs;
 
