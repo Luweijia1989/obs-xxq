@@ -32,7 +32,7 @@ void BEResourceContext::initializeContext() {
     }
     m_featureContext = new BEFeatureContext();
     m_initialized = true;
-    m_featureContext->setResourceDir(m_applicationDir + "resource/");
+    m_featureContext->setResourceDir(m_applicationDir + "beautyresource/");
     m_featureContext->initializeContext();
 }
 

@@ -30,17 +30,13 @@ const int TYPE_BEAUTY_FACE_4ITEMS = (1 << OFFSET) +  (1<< SUB_OFFSET);
 
 // Beautify reshape 美型
 const int TYPE_BEAUTY_RESHAPE     = 2 << OFFSET;
-// Beautify body 美体
-const int TYPE_BEAUTY_BODY        = 3 << OFFSET;
-// Makeup 美妆
-const int TYPE_MAKEUP             = 4 << OFFSET;
 // Filiter 滤镜
 const int TYPE_FILTER             = 5 << OFFSET;
 // Makeup option 美妆类型
 const int TYPE_MAKEUP_OPTION      = 6 << OFFSET;
 
-const int TYPE_AVATAR_BOY         = 9 << OFFSET;
-const int TYPE_AVATAR_GIRL        = 10 << OFFSET;
+
+const int TYPE_BEAUTY_STYLE_MAKEUP = 11 << OFFSET;
 
 // 二级菜单
 //The secondary menu
@@ -81,93 +77,41 @@ const int TYPE_BEAUTY_RESHAPE_WHITEN_TEETH = TYPE_BEAUTY_RESHAPE + 20;    // 白
 const int TYPE_BEAUTY_RESHAPE_SINGLE_TO_DOUBLE = TYPE_BEAUTY_RESHAPE + 21;    // 双眼皮
 const int TYPE_BEAUTY_RESHAPE_EYE_PLUMP = TYPE_BEAUTY_RESHAPE + 22;    // 卧蚕
 
-// Beautify body 美体
-const int TYPE_BEAUTY_BODY_THIN             = TYPE_BEAUTY_BODY + 1;     // 瘦身
-const int TYPE_BEAUTY_BODY_LONG_LEG         = TYPE_BEAUTY_BODY + 2;     // 长腿
-//const int TYPE_BEAUTY_BODY_SHRINK_HEAD      = TYPE_BEAUTY_BODY + 3;     // 小头
-//const int TYPE_BEAUTY_BODY_SLIM_LEG         = TYPE_BEAUTY_BODY + 4;     // 瘦腿
-//const int TYPE_BEAUTY_BODY_SLIM_WAIST       = TYPE_BEAUTY_BODY + 5;     // 瘦腰
-//const int TYPE_BEAUTY_BODY_ENLARGE_BREAST   = TYPE_BEAUTY_BODY + 6;     // 丰胸
-//const int TYPE_BEAUTY_BODY_ENHANCE_HIP      = TYPE_BEAUTY_BODY + 7;     // 美胯
-//const int TYPE_BEAUTY_BODY_ENHANCE_NECK     = TYPE_BEAUTY_BODY + 8;     // 天鹅颈
-//const int TYPE_BEAUTY_BODY_SLIM_ARM         = TYPE_BEAUTY_BODY + 9;     // 瘦手臂
+const int TYPE_BEAUTY_STYLE_MAKEUP_AIDOU   = TYPE_BEAUTY_STYLE_MAKEUP + 1;
+const int TYPE_BEAUTY_STYLE_MAKEUP_BAIXI   = TYPE_BEAUTY_STYLE_MAKEUP + 2;
+const int TYPE_BEAUTY_STYLE_MAKEUP_CWEI    = TYPE_BEAUTY_STYLE_MAKEUP + 3;
+const int TYPE_BEAUTY_STYLE_MAKEUP_DUANMEI = TYPE_BEAUTY_STYLE_MAKEUP + 4;
+const int TYPE_BEAUTY_STYLE_MAKEUP_HANXI   = TYPE_BEAUTY_STYLE_MAKEUP + 5;
+const int TYPE_BEAUTY_STYLE_MAKEUP_NUANNAN = TYPE_BEAUTY_STYLE_MAKEUP + 6;
+const int TYPE_BEAUTY_STYLE_MAKEUP_OUMEI   = TYPE_BEAUTY_STYLE_MAKEUP + 7;
+const int TYPE_BEAUTY_STYLE_MAKEUP_QISE    = TYPE_BEAUTY_STYLE_MAKEUP + 8;
+const int TYPE_BEAUTY_STYLE_MAKEUP_SHENSUI = TYPE_BEAUTY_STYLE_MAKEUP + 9;
+const int TYPE_BEAUTY_STYLE_MAKEUP_TIANMEI = TYPE_BEAUTY_STYLE_MAKEUP + 10;
+const int TYPE_BEAUTY_STYLE_MAKEUP_WENNUAN = TYPE_BEAUTY_STYLE_MAKEUP + 11;
+const int TYPE_BEAUTY_STYLE_MAKEUP_YOUYA   = TYPE_BEAUTY_STYLE_MAKEUP + 12;
+const int TYPE_BEAUTY_STYLE_MAKEUP_YUANQI  = TYPE_BEAUTY_STYLE_MAKEUP + 13;
+const int TYPE_BEAUTY_STYLE_MAKEUP_ZHIGAN  = TYPE_BEAUTY_STYLE_MAKEUP + 14;
 
-
-
-// Makeup 美妆
-const int TYPE_MAKEUP_LIP        = TYPE_MAKEUP_OPTION + (1 << SUB_OFFSET);    // 腮红
-const int TYPE_MAKEUP_BLUSH      = TYPE_MAKEUP_OPTION + (2 << SUB_OFFSET);    // 口红
-const int TYPE_MAKEUP_PUPIL      = TYPE_MAKEUP_OPTION + (3 << SUB_OFFSET);    // 美瞳
-const int TYPE_MAKEUP_HAIRDYE    = TYPE_MAKEUP_OPTION + (4 << SUB_OFFSET);    // 染发
-const int TYPE_MAKEUP_EYESHADOW  = TYPE_MAKEUP_OPTION + (5 << SUB_OFFSET);    // 眼影
-const int TYPE_MAKEUP_BROW       = TYPE_MAKEUP_OPTION + (6 << SUB_OFFSET);    // 眉毛
-const int TYPE_MAKEUP_TRIM       = TYPE_MAKEUP_OPTION + (7 << SUB_OFFSET);    // 修容
-
-//MakeUp-Lip
-const int TYPE_MAKEUP_LIP_FUGUHONG      = TYPE_MAKEUP_LIP + 1;    // 复古红
-const int TYPE_MAKEUP_LIP_SHAONVFEN     = TYPE_MAKEUP_LIP + 2;    // 少女粉
-const int TYPE_MAKEUP_LIP_YUANQIJU      = TYPE_MAKEUP_LIP + 3;    // 元气橘
-const int TYPE_MAKEUP_LIP_XIYOUSE       = TYPE_MAKEUP_LIP + 4;    // 西柚色
-const int TYPE_MAKEUP_LIP_XIGUAHONG     = TYPE_MAKEUP_LIP + 5;    // 西瓜红
-const int TYPE_MAKEUP_LIP_SIRONGHONG    = TYPE_MAKEUP_LIP + 6;    // 丝绒色
-const int TYPE_MAKEUP_LIP_ZANGJUSE      = TYPE_MAKEUP_LIP + 7;    // 脏橘色
-const int TYPE_MAKEUP_LIP_MEIZISE       = TYPE_MAKEUP_LIP + 8;    // 梅子红
-const int TYPE_MAKEUP_LIP_SHANHUSE      = TYPE_MAKEUP_LIP + 9;    // 珊瑚色
-const int TYPE_MAKEUP_LIP_DOUSHAFEN     = TYPE_MAKEUP_LIP + 10;   // 豆沙粉
-
-//MakeUp-Blush 腮红
-const int TYPE_MAKEUP_BLUSH_WEIXUN       = TYPE_MAKEUP_BLUSH + 1;    // 微醺
-const int TYPE_MAKEUP_BLUSH_RICHANG      = TYPE_MAKEUP_BLUSH + 2;    // 日常
-const int TYPE_MAKEUP_BLUSH_MITAO        = TYPE_MAKEUP_BLUSH + 3;    // 蜜桃
-const int TYPE_MAKEUP_BLUSH_TIANCHENG    = TYPE_MAKEUP_BLUSH + 4;    // 甜橙
-const int TYPE_MAKEUP_BLUSH_QIAOPI       = TYPE_MAKEUP_BLUSH + 5;    // 俏皮
-const int TYPE_MAKEUP_BLUSH_XINJI        = TYPE_MAKEUP_BLUSH + 6;    // 心机
-const int TYPE_MAKEUP_BLUSH_SHAISHANG    = TYPE_MAKEUP_BLUSH + 7;    // 晒伤
-
-//MakeUp-PUPIL 美瞳
-const int TYPE_MAKEUP_PUPIL_HUNXUEZONG     = TYPE_MAKEUP_PUPIL + 1;    // 混血棕
-const int TYPE_MAKEUP_PUPIL_KEKEZONG       = TYPE_MAKEUP_PUPIL + 2;    // 可可棕
-const int TYPE_MAKEUP_PUPIL_MITAOFEN       = TYPE_MAKEUP_PUPIL + 3;    // 蜜桃粉
-const int TYPE_MAKEUP_PUPIL_SHUIGUANGHEI   = TYPE_MAKEUP_PUPIL + 4;    // 水光黑
-const int TYPE_MAKEUP_PUPIL_XINGKONGLAN    = TYPE_MAKEUP_PUPIL + 5;    // 星空蓝
-const int TYPE_MAKEUP_PUPIL_CHUJIANHUI     = TYPE_MAKEUP_PUPIL + 6;    // 初见灰
-
-
-//MakeUp-HAIRDYE 染发
-const int TYPE_MAKEUP_HAIRDYE_ANLAN        = TYPE_MAKEUP_HAIRDYE + 1;    // 暗蓝
-const int TYPE_MAKEUP_HAIRDYE_MOLV         = TYPE_MAKEUP_HAIRDYE + 2;    // 墨绿
-const int TYPE_MAKEUP_HAIRDYE_SHENZONG     = TYPE_MAKEUP_HAIRDYE + 3;    // 深棕
-
-//MakeUp-EYESHADOW 眼影
-const int TYPE_MAKEUP_EYESHADOW_DADIZONG       = TYPE_MAKEUP_EYESHADOW + 1;    // 大地棕
-const int TYPE_MAKEUP_EYESHADOW_WANXIAHONG     = TYPE_MAKEUP_EYESHADOW + 2;    // 晚霞红
-const int TYPE_MAKEUP_EYESHADOW_SHAONVFEN      = TYPE_MAKEUP_EYESHADOW + 3;    // 少女粉
-const int TYPE_MAKEUP_EYESHADOW_QIZHIFEN       = TYPE_MAKEUP_EYESHADOW + 4;    // 气质粉
-const int TYPE_MAKEUP_EYESHADOW_MEIZIHONG      = TYPE_MAKEUP_EYESHADOW + 5;    // 梅子红
-const int TYPE_MAKEUP_EYESHADOW_JIAOTANGZONG   = TYPE_MAKEUP_EYESHADOW + 6;    // 焦糖棕
-const int TYPE_MAKEUP_EYESHADOW_YUANQIJU       = TYPE_MAKEUP_EYESHADOW + 7;    // 元气橘
-const int TYPE_MAKEUP_EYESHADOW_NAICHASE       = TYPE_MAKEUP_EYESHADOW + 8;    // 奶茶色
-
-
-//MakeUp-BROW 眉毛
-const int TYPE_MAKEUP_BROW_BR01 = TYPE_MAKEUP_BROW + 1;    // BR01
-const int TYPE_MAKEUP_BROW_BK01 = TYPE_MAKEUP_BROW + 2;    // BK01
-const int TYPE_MAKEUP_BROW_BK02 = TYPE_MAKEUP_BROW + 3;    // BK02
-const int TYPE_MAKEUP_BROW_BK03 = TYPE_MAKEUP_BROW + 4;    // BK03
-
-//MakeUp-TRIM 修容
-const int TYPE_MAKEUP_TRIM_TRIM01 = TYPE_MAKEUP_TRIM + 1;    // 修容01
-const int TYPE_MAKEUP_TRIM_TRIM02 = TYPE_MAKEUP_TRIM + 2;    // 修容02
-const int TYPE_MAKEUP_TRIM_TRIM03 = TYPE_MAKEUP_TRIM + 3;    // 修容03
-const int TYPE_MAKEUP_TRIM_TRIM04 = TYPE_MAKEUP_TRIM + 4;    // 修容04
+const int TYPE_BEAUTY_STYLE_MAKEUP_AIDOU_F   = TYPE_BEAUTY_STYLE_MAKEUP + 15;
+const int TYPE_BEAUTY_STYLE_MAKEUP_BAIXI_F   = TYPE_BEAUTY_STYLE_MAKEUP + 16;
+const int TYPE_BEAUTY_STYLE_MAKEUP_CWEI_F    = TYPE_BEAUTY_STYLE_MAKEUP + 17;
+const int TYPE_BEAUTY_STYLE_MAKEUP_DUANMEI_F = TYPE_BEAUTY_STYLE_MAKEUP + 18;
+const int TYPE_BEAUTY_STYLE_MAKEUP_HANXI_F   = TYPE_BEAUTY_STYLE_MAKEUP + 19;
+const int TYPE_BEAUTY_STYLE_MAKEUP_NUANNAN_F = TYPE_BEAUTY_STYLE_MAKEUP + 20;
+const int TYPE_BEAUTY_STYLE_MAKEUP_OUMEI_F   = TYPE_BEAUTY_STYLE_MAKEUP + 21;
+const int TYPE_BEAUTY_STYLE_MAKEUP_QISE_F    = TYPE_BEAUTY_STYLE_MAKEUP + 22;
+const int TYPE_BEAUTY_STYLE_MAKEUP_SHENSUI_F = TYPE_BEAUTY_STYLE_MAKEUP + 23;
+const int TYPE_BEAUTY_STYLE_MAKEUP_TIANMEI_F = TYPE_BEAUTY_STYLE_MAKEUP + 24;
+const int TYPE_BEAUTY_STYLE_MAKEUP_WENNUAN_F = TYPE_BEAUTY_STYLE_MAKEUP + 25;
+const int TYPE_BEAUTY_STYLE_MAKEUP_YOUYA_F   = TYPE_BEAUTY_STYLE_MAKEUP + 26;
+const int TYPE_BEAUTY_STYLE_MAKEUP_YUANQI_F  = TYPE_BEAUTY_STYLE_MAKEUP + 27;
+const int TYPE_BEAUTY_STYLE_MAKEUP_ZHIGAN_F  = TYPE_BEAUTY_STYLE_MAKEUP + 28;
 
 
 // Node name 结点名称
 const std::string NODE_BEAUTY = "beauty_Android_live";
 const std::string NODE_BEAUTY_4ITEMS = "beauty_4Items";
 const std::string NODE_RESHAPE = "reshape_live";
-const std::string NODE_STYLE_MAKEUP = "style_makeup";
-
 
 
 typedef enum
@@ -193,6 +137,7 @@ public:
     typedef std::map<int, BEComposerNode*> ComposerNodeMap;
     //updateStatus 0: off , 1: on, 2: update value
     void updateComposerNode(int subId, int updateStatus, float value);
+    int getComposerNodeCount();
     
     // 性能测试接口
     void setComposerForTest(std::vector<std::string>& nodePath);

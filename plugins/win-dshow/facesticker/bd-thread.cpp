@@ -11,6 +11,7 @@
 #include <QEvent>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QJsonArray>
 #include <QDebug>
 #include "..\win-dshow.h"
 #include "BEFEffectGLContext.h"
@@ -74,6 +75,9 @@ void BDThread::waitStarted()
 
 void BDThread::run()
 {
+	QString filterPath;
+	QString stickerPath;
+
 	BEF::BEFEffectGLContext ctx;
 	ctx.initGLContext();
 	ctx.makeCurrentContext();
@@ -96,6 +100,7 @@ void BDThread::run()
 		goto Clear;
 	}
 	waitCondition.wakeOne();
+
 	while (m_running)
 	{
 		FrameInfo frame;
@@ -105,12 +110,38 @@ void BDThread::run()
 			break;
 
 		m_beautifySettingMutex.lock();
-		for (auto iter = m_beautifySettings.begin(); iter != m_beautifySettings.end(); iter++)
+		if (!m_beautifySettings.isEmpty())
 		{
-			QJsonDocument jd = QJsonDocument::fromJson((*iter).toUtf8());
-			//m_stFunc->updateBeautifyParam(jd.object());
+			for (auto iter = m_beautifySettings.begin(); iter != m_beautifySettings.end(); iter++)
+			{
+				//设置项总共有美颜 美妆 滤镜 贴纸
+				//美颜设置参数=> id value
+				//美妆设置参数=> id value
+				//贴纸=>传个文件夹的名字
+				//滤镜=>传滤镜文件夹的名字，切换滤镜的值需要有一个id，id有一个对应关系
+				QJsonDocument jd = QJsonDocument::fromJson((*iter).toUtf8());
+				auto p = jd.object();
+				int type = p["type"].toInt();
+				if (type == 1) { //设置美颜
+					auto arr = p["beautyParam"].toArray();
+					for (int i = 0; i < arr.size(); i++) {
+						auto beautyOne = arr.at(i).toObject();
+						int id = beautyOne["id"].toInt();
+						float value = beautyOne["value"].toInt() / 100.0;
+						bool isAdd = beautyOne["isAdd"].toBool();
+						m_stFunc->updateComposerNode(id, isAdd ? 1 : 0, value);
+					}
+				} else if (type == 2) { //设置美妆
+				} else if (type == 3) { //设置滤镜
+
+				} else if (type == 4) { //设置贴纸
+
+				}
+			}
+			m_beautifySettings.clear();
+
+			m_needBeautify = m_stFunc->getComposerNodeCount() > 0 || !filterPath.isEmpty() || !stickerPath.isEmpty();
 		}
-		m_beautifySettings.clear();
 		m_beautifySettingMutex.unlock();
 
 		processImage(frame.avFrame, frame.startTime, &ctx);

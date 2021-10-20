@@ -45,6 +45,11 @@ bef_effect_result_t EffectHandle::initializeHandle() {
 
     registerBeautyComposerNodes();
 
+    /*updateComposerNode(TYPE_BEAUTY_STYLE_MAKEUP_NUANNAN, 1, 0.5);
+    updateComposerNode(TYPE_BEAUTY_STYLE_MAKEUP_NUANNAN_F, 1, 0.5);*/
+    /* setSticker("lizishengdan");
+    setFilter("Filter_01_38");*/
+
     return ret;
 }
 
@@ -101,6 +106,11 @@ void EffectHandle::setInitWidthAndHeight(int width, int height) {
 bef_effect_result_t EffectHandle::setEffectWidthAndHeight(int width, int height) {
     bef_effect_ai_set_width_height(m_renderMangerHandle, width, height);
     return 0;
+}
+
+int EffectHandle::getComposerNodeCount()
+{
+    return m_currentMajorPaths.size() + m_currentSubPaths.size();
 }
 
 void EffectHandle::updateComposerNode(int subId, int updateStatus, float value) {
@@ -221,6 +231,7 @@ void EffectHandle::updateComposerNodeValue(BEComposerNode *node) {
 void EffectHandle::registerBeautyComposerNodes() {
     registerBeautyFaceNodes();
     registerBeautyReshaperNodes();
+    registerBeautyStyleMakeup();
 }
 
 void EffectHandle::registerComposerNode(int majorId, int subId, bool isMajor, std::string NodeName, std::string key) {
@@ -267,7 +278,35 @@ void EffectHandle::registerBeautyReshaperNodes() {
 
 void EffectHandle::registerBeautyStyleMakeup()
 {
+    registerComposerNode(TYPE_BEAUTY_STYLE_MAKEUP, TYPE_BEAUTY_STYLE_MAKEUP_AIDOU, true, "style_makeup/aidou", "Makeup_ALL");
+    registerComposerNode(TYPE_BEAUTY_STYLE_MAKEUP, TYPE_BEAUTY_STYLE_MAKEUP_BAIXI, true, "style_makeup/baixi", "Makeup_ALL");
+    registerComposerNode(TYPE_BEAUTY_STYLE_MAKEUP, TYPE_BEAUTY_STYLE_MAKEUP_CWEI, true, "style_makeup/cwei", "Makeup_ALL");
+    registerComposerNode(TYPE_BEAUTY_STYLE_MAKEUP, TYPE_BEAUTY_STYLE_MAKEUP_DUANMEI, true, "style_makeup/duanmei", "Makeup_ALL");
+    registerComposerNode(TYPE_BEAUTY_STYLE_MAKEUP, TYPE_BEAUTY_STYLE_MAKEUP_HANXI, true, "style_makeup/hanxi", "Makeup_ALL");
+    registerComposerNode(TYPE_BEAUTY_STYLE_MAKEUP, TYPE_BEAUTY_STYLE_MAKEUP_NUANNAN, true, "style_makeup/nuannan", "Makeup_ALL");
+    registerComposerNode(TYPE_BEAUTY_STYLE_MAKEUP, TYPE_BEAUTY_STYLE_MAKEUP_OUMEI, true, "style_makeup/oumei", "Makeup_ALL");
+    registerComposerNode(TYPE_BEAUTY_STYLE_MAKEUP, TYPE_BEAUTY_STYLE_MAKEUP_QISE, true, "style_makeup/qise", "Makeup_ALL");
+    registerComposerNode(TYPE_BEAUTY_STYLE_MAKEUP, TYPE_BEAUTY_STYLE_MAKEUP_SHENSUI, true, "style_makeup/shensui", "Makeup_ALL");
+    registerComposerNode(TYPE_BEAUTY_STYLE_MAKEUP, TYPE_BEAUTY_STYLE_MAKEUP_TIANMEI, true, "style_makeup/tianmei", "Makeup_ALL");
+    registerComposerNode(TYPE_BEAUTY_STYLE_MAKEUP, TYPE_BEAUTY_STYLE_MAKEUP_WENNUAN, true, "style_makeup/wennuan", "Makeup_ALL");
+    registerComposerNode(TYPE_BEAUTY_STYLE_MAKEUP, TYPE_BEAUTY_STYLE_MAKEUP_YOUYA, true, "style_makeup/youya", "Makeup_ALL");
+    registerComposerNode(TYPE_BEAUTY_STYLE_MAKEUP, TYPE_BEAUTY_STYLE_MAKEUP_YUANQI, true, "style_makeup/yuanqi", "Makeup_ALL");
+    registerComposerNode(TYPE_BEAUTY_STYLE_MAKEUP, TYPE_BEAUTY_STYLE_MAKEUP_ZHIGAN, true, "style_makeup/zhigan", "Makeup_ALL");
 
+    registerComposerNode(TYPE_BEAUTY_STYLE_MAKEUP, TYPE_BEAUTY_STYLE_MAKEUP_AIDOU_F, true, "style_makeup/aidou", "Filter_ALL");
+    registerComposerNode(TYPE_BEAUTY_STYLE_MAKEUP, TYPE_BEAUTY_STYLE_MAKEUP_BAIXI_F, true, "style_makeup/baixi", "Filter_ALL");
+    registerComposerNode(TYPE_BEAUTY_STYLE_MAKEUP, TYPE_BEAUTY_STYLE_MAKEUP_CWEI_F, true, "style_makeup/cwei", "Filter_ALL");
+    registerComposerNode(TYPE_BEAUTY_STYLE_MAKEUP, TYPE_BEAUTY_STYLE_MAKEUP_DUANMEI_F, true, "style_makeup/duanmei", "Filter_ALL");
+    registerComposerNode(TYPE_BEAUTY_STYLE_MAKEUP, TYPE_BEAUTY_STYLE_MAKEUP_HANXI_F, true, "style_makeup/hanxi", "Filter_ALL");
+    registerComposerNode(TYPE_BEAUTY_STYLE_MAKEUP, TYPE_BEAUTY_STYLE_MAKEUP_NUANNAN_F, true, "style_makeup/nuannan", "Filter_ALL");
+    registerComposerNode(TYPE_BEAUTY_STYLE_MAKEUP, TYPE_BEAUTY_STYLE_MAKEUP_OUMEI_F, true, "style_makeup/oumei", "Filter_ALL");
+    registerComposerNode(TYPE_BEAUTY_STYLE_MAKEUP, TYPE_BEAUTY_STYLE_MAKEUP_QISE_F, true, "style_makeup/qise", "Filter_ALL");
+    registerComposerNode(TYPE_BEAUTY_STYLE_MAKEUP, TYPE_BEAUTY_STYLE_MAKEUP_SHENSUI_F, true, "style_makeup/shensui", "Filter_ALL");
+    registerComposerNode(TYPE_BEAUTY_STYLE_MAKEUP, TYPE_BEAUTY_STYLE_MAKEUP_TIANMEI_F, true, "style_makeup/tianmei", "Filter_ALL");
+    registerComposerNode(TYPE_BEAUTY_STYLE_MAKEUP, TYPE_BEAUTY_STYLE_MAKEUP_WENNUAN_F, true, "style_makeup/wennuan", "Filter_ALL");
+    registerComposerNode(TYPE_BEAUTY_STYLE_MAKEUP, TYPE_BEAUTY_STYLE_MAKEUP_YOUYA_F, true, "style_makeup/youya", "Filter_ALL");
+    registerComposerNode(TYPE_BEAUTY_STYLE_MAKEUP, TYPE_BEAUTY_STYLE_MAKEUP_YUANQI_F, true, "style_makeup/yuanqi", "Filter_ALL");
+    registerComposerNode(TYPE_BEAUTY_STYLE_MAKEUP, TYPE_BEAUTY_STYLE_MAKEUP_ZHIGAN_F, true, "style_makeup/zhigan", "Filter_ALL");
 }
 
 void EffectHandle::setIntensity(int key, float val) {

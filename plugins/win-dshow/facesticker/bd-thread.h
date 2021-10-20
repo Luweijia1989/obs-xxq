@@ -41,6 +41,7 @@ public:
 		GameStop,
 		None,
 	};
+
 	BDThread(DShowInput *dsInput);
 	~BDThread();
 	bool stInited() { return effectHandlerInited; }

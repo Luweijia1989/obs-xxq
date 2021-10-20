@@ -1999,19 +1999,8 @@ static void DShowInputTick(void *data, float seconds)
 static void DShowInputCustomCommnad(void *data, obs_data_t *command)
 {
 	DShowInput *input = reinterpret_cast<DShowInput *>(data);
-	int type = obs_data_get_int(command, "type");
 	QString beautifyStr = obs_data_get_string(command, "beautifySetting");
-	if (type == 0)
-		input->stThread->updateBeautifySetting(beautifyStr);
-	else if (type == 1) {
-		QJsonDocument jd = QJsonDocument::fromJson(beautifyStr.toUtf8());
-		QJsonObject obj = jd.object();
-		input->stThread->setBeautifyEnabled(obj["enabled"].toBool());
-	}
-	else if (type == 2) {
-		auto info = obs_data_get_string(command, FACE_STICKER_ID);
-		input->updateInfo(info);
-	}
+	input->stThread->updateBeautifySetting(beautifyStr);
 }
 
 
