@@ -343,7 +343,10 @@ void EffectHandle::setMiniGame(const std::string &miniGamePath) {
 
 void EffectHandle::setFilter(const std::string &filterPath) {
     std::string tempPath = getResourceContext()->getFeatureContext()->getFilterDir() + filterPath;
-    bef_effect_ai_set_color_filter_v2(m_renderMangerHandle, tempPath.c_str());
+    if (filterPath.length() == 0)
+	bef_effect_ai_set_color_filter_v2(m_renderMangerHandle, "");
+    else
+	bef_effect_ai_set_color_filter_v2(m_renderMangerHandle, tempPath.c_str());
 }
 
 // message callback

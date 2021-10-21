@@ -7,6 +7,7 @@ project(win-dshow)
 
 find_package(FFmpeg REQUIRED COMPONENTS avcodec avutil swscale)
 find_package(Qt5Widgets REQUIRED)
+find_package(Qt5Network REQUIRED)
 include_directories(${FFMPEG_INCLUDE_DIRS})
 include_directories(SYSTEM "${PROJECT_SOURCE_DIR}/facesticker/bytedance/include")
 include_directories(SYSTEM "${PROJECT_SOURCE_DIR}/facesticker/bytedance/angle_dynamic/inc")
@@ -84,6 +85,7 @@ add_library(win-dshow MODULE
 	${libdshowcapture_HEADERS})
 target_link_libraries(win-dshow
 	Qt5::Widgets
+	Qt5::Network
 	libobs
 	strmiids
 	ksuser
