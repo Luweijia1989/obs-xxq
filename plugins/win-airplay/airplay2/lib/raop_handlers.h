@@ -556,19 +556,12 @@ static void raop_handler_setup(raop_conn_t *conn, http_request_t *request,
 				}
 
 				plist_t res_stream_node = plist_new_dict();
-				plist_t res_stream_data_port_node =
-					plist_new_uint(dport);
-				plist_t res_stream_control_port_node =
-					plist_new_uint(cport);
-				plist_t res_stream_type_node =
-					plist_new_uint(96);
-				plist_dict_set_item(res_stream_node, "dataPort",
-						    res_stream_data_port_node);
-				plist_dict_set_item(
-					res_stream_node, "controlPort",
-					res_stream_control_port_node);
-				plist_dict_set_item(res_stream_node, "type",
-						    res_stream_type_node);
+				plist_t res_stream_data_port_node = plist_new_uint(dport);
+				plist_t res_stream_control_port_node = plist_new_uint(cport);
+				plist_t res_stream_type_node = plist_new_uint(96);
+				plist_dict_set_item(res_stream_node, "dataPort", res_stream_data_port_node);
+				plist_dict_set_item(res_stream_node, "controlPort", res_stream_control_port_node);
+				plist_dict_set_item(res_stream_node, "type", res_stream_type_node);
 				plist_array_append_item(res_streams_node,
 							res_stream_node);
 

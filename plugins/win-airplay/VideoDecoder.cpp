@@ -2,6 +2,33 @@
 #include "airplay-server.h"
 #include <obs.hpp>
 
+enum AVHWDeviceType hw_priority[] = {
+	AV_HWDEVICE_TYPE_D3D11VA, AV_HWDEVICE_TYPE_DXVA2,
+	AV_HWDEVICE_TYPE_VAAPI,   AV_HWDEVICE_TYPE_VDPAU,
+	AV_HWDEVICE_TYPE_QSV,     AV_HWDEVICE_TYPE_NONE,
+};
+
+static bool has_hw_type(AVCodec *c, enum AVHWDeviceType type,
+			enum AVPixelFormat *hw_format)
+{
+	for (int i = 0;; i++) {
+		const AVCodecHWConfig *config = avcodec_get_hw_config(c, i);
+		if (!config) {
+			break;
+		}
+
+		if (config->methods & AV_CODEC_HW_CONFIG_METHOD_HW_DEVICE_CTX &&
+		    config->device_type == type) {
+			*hw_format = config->pix_fmt;
+			return true;
+		}
+	}
+
+	return false;
+}
+
+void VideoDecoder::init_hw_decoder() {}
+
 VideoDecoder::VideoDecoder(ScreenMirrorServer *s) : m_server(s) {}
 
 VideoDecoder::~VideoDecoder()
@@ -27,9 +54,6 @@ void VideoDecoder::docode(uint8_t *data, size_t data_len, bool is_key,
 		if (m_bCodecOpened) {
 			AVPacket pkt1, *packet = &pkt1;
 			int frameFinished;
-			AVFrame *pFrame;
-
-			pFrame = av_frame_alloc();
 
 			av_new_packet(packet, data_len);
 			memcpy(packet->data, data, data_len);
@@ -37,16 +61,22 @@ void VideoDecoder::docode(uint8_t *data, size_t data_len, bool is_key,
 			int ret =
 				avcodec_send_packet(this->m_pCodecCtx, packet);
 			frameFinished = avcodec_receive_frame(this->m_pCodecCtx,
-							      pFrame);
+							      hw_frame);
 
 			av_packet_unref(packet);
 
 			// Did we get a video frame?
-			if (frameFinished == 0) {
-				pFrame->pts = ts;
-				m_server->outputVideo(pFrame);
-			} else
-				av_frame_free(&pFrame);
+			/*if (frameFinished == 0) {
+				AVFrame *frame = av_frame_alloc();
+				int err = av_hwframe_transfer_data(frame,
+								   hw_frame, 0);
+				if (err == 0)
+					m_server->outputVideo(frame);
+				else {
+					av_frame_unref(frame);
+					av_free(frame);
+				}
+			}*/
 		}
 	}
 }
@@ -60,6 +90,28 @@ int VideoDecoder::initFFMPEG(const void *privatedata, int privatedatalen)
 	if (m_pCodec == NULL) {
 		return -1;
 	}
+
+	enum AVHWDeviceType *priority = hw_priority;
+	AVBufferRef *hw_ctx = NULL;
+
+	while (*priority != AV_HWDEVICE_TYPE_NONE) {
+		if (has_hw_type(m_pCodec, *priority, &hw_format)) {
+			int ret = av_hwdevice_ctx_create(&hw_ctx, *priority,
+							 NULL, NULL, 0);
+			if (ret == 0)
+				break;
+		}
+
+		priority++;
+	}
+
+	if (hw_ctx) {
+		m_pCodecCtx->hw_device_ctx = av_buffer_ref(hw_ctx);
+		m_pCodecCtx->opaque = this;
+		this->hw_ctx = hw_ctx;
+	}
+
+	hw_frame = av_frame_alloc();
 
 	m_pCodecCtx->extradata = (uint8_t *)av_malloc(privatedatalen);
 	m_pCodecCtx->extradata_size = privatedatalen;
@@ -83,6 +135,16 @@ void VideoDecoder::uninitFFMPEG()
 		if (m_pCodecCtx->extradata) {
 			av_freep(&m_pCodecCtx->extradata);
 		}
+
+		if (hw_ctx) {
+			av_buffer_unref(&hw_ctx);
+		}
+
+		if (hw_frame) {
+			av_frame_unref(hw_frame);
+			av_free(hw_frame);
+		}
+
 		avcodec_free_context(&m_pCodecCtx);
 		m_pCodecCtx = NULL;
 		m_pCodec = NULL;

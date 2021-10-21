@@ -456,13 +456,16 @@ uint64_t raop_rtp_convert_rtp_time(raop_rtp_t *raop_rtp, uint32_t rtp_time)
 
 static THREAD_RETVAL raop_rtp_thread_udp(void *arg)
 {
+	uint8_t empty[RAOP_PACKET_LEN] = { 0 };
 	raop_rtp_t *raop_rtp = arg;
 	unsigned char packet[RAOP_PACKET_LEN];
 	unsigned int packetlen;
 	struct sockaddr_storage saddr;
 	socklen_t saddrlen;
-	assert(raop_rtp);
+	uint64_t last_audio_ts = 0;
+	bool first_audio = false;
 
+	assert(raop_rtp);
 	while (1) {
 		fd_set rfds;
 		struct timeval tv;
@@ -560,7 +563,6 @@ static THREAD_RETVAL raop_rtp_thread_udp(void *arg)
 					   "raop_rtp unknown packet");
 			}
 		}
-
 		if (FD_ISSET(raop_rtp->dsock, &rfds)) {
 			//logger_log(raop_rtp->logger, LOGGER_INFO, "Would have data packet in queue");
 			// Receiving audio data here
@@ -593,46 +595,76 @@ static THREAD_RETVAL raop_rtp_thread_udp(void *arg)
 					((int64_t)ntp_now) -
 						((int64_t)ntp_timestamp),
 					rtp_timestamp);*/
-
 				int result = raop_buffer_enqueue(
 					raop_rtp->buffer, packet, packetlen,
 					ntp_timestamp, 1,
 					raop_rtp->rtp_sync_offset);
 				assert(result >= 0);
+				if (result == 2) {
+					/*if (first_audio) {
+						if (ntp_timestamp > last_audio_ts) {
+							uint64_t delta = ntp_timestamp - last_audio_ts;
+							int len = 4 * 44100 * delta / 1000000.;
+							if (len > 0) {
+								pcm_data_struct pcm_data;
+								pcm_data.data_len = len;
+								pcm_data.data = empty;
+								pcm_data.pts = ntp_timestamp * 1000;
+								pcm_data.sample_rate = 44100;
+								pcm_data.channels = 2;
+								pcm_data.bits_per_sample = 16;
+								pcm_data.serial = raop_rtp->audio_packet_serial;
+						
+								raop_rtp->callbacks.audio_process(
+									raop_rtp->callbacks.cls,
+									raop_rtp->ntp, &pcm_data,
+									raop_rtp->remoteName,
+									raop_rtp->remoteDeviceId);
+							}
+							last_audio_ts = ntp_timestamp;
+						}
+					}*/
+				} else {
+					// Render continuous buffer entries
+					void *audiobuf = NULL;
+					size_t audiobuf_size;
+					uint64_t timestamp;
+					uint32_t sample_rate = 0;
+					uint16_t channels = 0;
+					uint16_t bits_per_sample = 0;
+					while ((audiobuf = raop_buffer_dequeue(
+							raop_rtp->buffer,
+							&audiobuf_size, &timestamp,
+							no_resend, &sample_rate,
+							&channels, &bits_per_sample))) {
+						
+						pcm_data_struct pcm_data;
+						pcm_data.data_len = audiobuf_size;
+						pcm_data.data = audiobuf;
+						pcm_data.pts = timestamp * 1000;
+						pcm_data.sample_rate = sample_rate;
+						pcm_data.channels = channels;
+						pcm_data.bits_per_sample = bits_per_sample;
+						pcm_data.serial = raop_rtp->audio_packet_serial;
+						if (!first_audio) {
+							first_audio = true;
+						} 
+						last_audio_ts = timestamp;
+						
+						raop_rtp->callbacks.audio_process(
+							raop_rtp->callbacks.cls,
+							raop_rtp->ntp, &pcm_data,
+							raop_rtp->remoteName,
+							raop_rtp->remoteDeviceId);
+					}
 
-				// Render continuous buffer entries
-				void *audiobuf = NULL;
-				size_t audiobuf_size;
-				uint64_t timestamp;
-				uint32_t sample_rate = 0;
-				uint16_t channels = 0;
-				uint16_t bits_per_sample = 0;
-				while ((audiobuf = raop_buffer_dequeue(
-						raop_rtp->buffer,
-						&audiobuf_size, &timestamp,
-						no_resend, &sample_rate,
-						&channels, &bits_per_sample))) {
-					pcm_data_struct pcm_data;
-					pcm_data.data_len = audiobuf_size;
-					pcm_data.data = audiobuf;
-					pcm_data.pts = timestamp * 1000;
-					pcm_data.sample_rate = sample_rate;
-					pcm_data.channels = channels;
-					pcm_data.bits_per_sample = bits_per_sample;
-					pcm_data.serial = raop_rtp->audio_packet_serial;
-					raop_rtp->callbacks.audio_process(
-						raop_rtp->callbacks.cls,
-						raop_rtp->ntp, &pcm_data,
-						raop_rtp->remoteName,
-						raop_rtp->remoteDeviceId);
-				}
-
-				/* Handle possible resend requests */
-				if (!no_resend) {
-					raop_buffer_handle_resends(
-						raop_rtp->buffer,
-						raop_rtp_resend_callback,
-						raop_rtp);
+					/* Handle possible resend requests */
+					if (!no_resend) {
+						raop_buffer_handle_resends(
+							raop_rtp->buffer,
+							raop_rtp_resend_callback,
+							raop_rtp);
+					}
 				}
 			}
 		}

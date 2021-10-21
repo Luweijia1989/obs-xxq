@@ -3064,6 +3064,14 @@ void obs_rtc_update_frame(int channel, char *data, uint32_t width,
 		return;
 	obs_enter_graphics();
 	struct obs_rtc_mix *rtc_mix = &obs->video.rtc_mix;
+	if (rtc_mix->rtc_textures[channel]) {
+		uint32_t w = gs_texture_get_width(rtc_mix->rtc_textures[channel]);
+		uint32_t h = gs_texture_get_height(rtc_mix->rtc_textures[channel]);
+		if (w != width || h != height) {
+			gs_texture_destroy(rtc_mix->rtc_textures[channel]);
+			rtc_mix->rtc_textures[channel] = NULL;
+		}
+	}
 	if (!rtc_mix->rtc_textures[channel])
 		rtc_mix->rtc_textures[channel] = gs_texture_create(
 			width, height, GS_BGRA, GS_DYNAMIC, NULL, GS_DYNAMIC);

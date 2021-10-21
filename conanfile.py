@@ -47,6 +47,8 @@ class ObsXXQConan(ConanFile):
             self.copy("*.exe", dst="bin", src="build32/plugins/win-airplay/iosusbmirror/Debug", keep_path=False)
             self.copy("*.dll", dst="bin", src="build32/plugins/win-airplay/iosusbmirror/Debug", keep_path=False)
             self.copy("*.pdb", dst="bin", src="build32/plugins/win-airplay/iosusbmirror/Debug", keep_path=False)
+            self.copy("*.exe", dst="bin", src="build32/plugins/win-airplay/androidaoa/Debug", keep_path=False)
+            self.copy("*.pdb", dst="bin", src="build32/plugins/win-airplay/androidaoa/Debug", keep_path=False)
            
             self.copy("*.dll", dst="plugins/obs-plugins/32bit", src="build32/plugins/coreaudio-encoder/Debug", keep_path=False)
             self.copy("*.pdb", dst="plugins/obs-plugins/32bit", src="build32/plugins/coreaudio-encoder/Debug", keep_path=False)
@@ -123,6 +125,8 @@ class ObsXXQConan(ConanFile):
             self.copy("*.exe", dst="bin", src="build32/plugins/win-airplay/iosusbmirror/RelWithDebInfo", keep_path=False)
             self.copy("*.dll", dst="bin", src="build32/plugins/win-airplay/iosusbmirror/RelWithDebInfo", keep_path=False)
             self.copy("*.pdb", dst="bin", src="build32/plugins/win-airplay/iosusbmirror/RelWithDebInfo", keep_path=False)
+            self.copy("*.exe", dst="bin", src="build32/plugins/win-airplay/androidaoa/RelWithDebInfo", keep_path=False)
+            self.copy("*.pdb", dst="bin", src="build32/plugins/win-airplay/androidaoa/RelWithDebInfo", keep_path=False)
            
             self.copy("*.dll", dst="plugins/obs-plugins/32bit", src="build32/plugins/coreaudio-encoder/RelWithDebInfo", keep_path=False)
             self.copy("*.pdb", dst="plugins/obs-plugins/32bit", src="build32/plugins/coreaudio-encoder/RelWithDebInfo", keep_path=False)

@@ -20,8 +20,7 @@ extern "C" {
 
 class ScreenMirrorServer;
 
-class VideoDecoder
-{
+class VideoDecoder {
 public:
 	VideoDecoder(ScreenMirrorServer *s);
 	~VideoDecoder();
@@ -30,10 +29,15 @@ public:
 
 private:
 	int initFFMPEG(const void *privatedata, int privatedatalen);
+	void init_hw_decoder();
 	void uninitFFMPEG();
+
 private:
 	AVCodec *m_pCodec = NULL;
 	AVCodecContext *m_pCodecCtx = NULL;
+	AVBufferRef *hw_ctx;
+	AVFrame *hw_frame;
+	enum AVPixelFormat hw_format;
 	SwsContext *m_pSwsCtx = NULL;
 	bool m_bCodecOpened = false;
 	ScreenMirrorServer *m_server;
