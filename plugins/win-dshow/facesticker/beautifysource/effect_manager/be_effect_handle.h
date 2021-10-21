@@ -161,6 +161,7 @@ public:
     void setIntensity(int key, float val);
     void setReshapeIntensity(float val1, float val2);
     void setSticker(const std::string &stickerPath);
+    void setStickerNoAutoPath(const std::string &stickerPath);
     void setAnimoji(const std::string& animojiPath);
     void setAvatar(const std::string& avatarPath);
     void setMiniGame(const std::string &miniGamePath);

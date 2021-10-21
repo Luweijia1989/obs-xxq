@@ -122,8 +122,8 @@ void BDThread::run()
 				QJsonDocument jd = QJsonDocument::fromJson((*iter).toUtf8());
 				auto p = jd.object();
 				int type = p["type"].toInt();
+				auto arr = p["beautyParam"].toArray();
 				if (type == 1) { //设置美颜
-					auto arr = p["beautyParam"].toArray();
 					for (int i = 0; i < arr.size(); i++) {
 						auto beautyOne = arr.at(i).toObject();
 						int id = beautyOne["id"].toInt();
@@ -131,11 +131,23 @@ void BDThread::run()
 						bool isAdd = beautyOne["isAdd"].toBool();
 						m_stFunc->updateComposerNode(id, isAdd ? 1 : 0, value);
 					}
-				} else if (type == 2) { //设置美妆
-				} else if (type == 3) { //设置滤镜
-
-				} else if (type == 4) { //设置贴纸
-
+				} else if (type == 2) { //设置滤镜
+					for (int i = 0; i < arr.size(); i++) {
+						auto beautyOne = arr.at(i).toObject();
+						int subType = beautyOne["subType"].toInt();
+						if (subType == 0) {
+							m_stFunc->setIntensity(BEF_INTENSITY_TYPE_GLOBAL_FILTER_V2, beautyOne["value"].toInt() / 100.0);
+						} else if (subType == 1) {
+							filterPath = beautyOne["path"].toString();
+							m_stFunc->setFilter(filterPath.toStdString());
+						}
+					}
+				} else if (type == 3) { //设置贴纸
+					for (int i = 0; i < arr.size(); i++) {
+						auto beautyOne = arr.at(i).toObject();
+						QString path = beautyOne["path"].toString();
+						m_stFunc->setStickerNoAutoPath(path.toStdString());
+					}
 				}
 			}
 			m_beautifySettings.clear();

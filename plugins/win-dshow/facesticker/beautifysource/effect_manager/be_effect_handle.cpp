@@ -322,6 +322,10 @@ void EffectHandle::setSticker(const std::string &stickerPath) {
     bef_effect_ai_set_effect(m_renderMangerHandle, tempPath.c_str());
 }
 
+void EffectHandle::setStickerNoAutoPath(const std::string &stickerPath) {
+    bef_effect_ai_set_effect(m_renderMangerHandle, stickerPath.c_str());
+}
+
 void EffectHandle::setAnimoji(const std::string& animojiPath) {
     std::string tempPath = getResourceContext()->getFeatureContext()->getAnimojiDir() + animojiPath;
     bef_effect_ai_set_effect(m_renderMangerHandle, tempPath.c_str());
