@@ -85,7 +85,9 @@ static int logFuncForEffect(int logLevel, const char *msg)
 
 static void initBDResource(std::string appPath)
 {
+#ifdef DEBUG
 	bef_effect_ai_set_log_to_local_func(logFuncForEffect);
+#endif // DEBUG
 
 	beResourceContext = new BEResourceContext;
 	beResourceContext->setApplicationDir(appPath);
