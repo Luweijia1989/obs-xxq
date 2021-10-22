@@ -4,8 +4,18 @@
 #include "gles_loader_autogen.h"
 #include "bef_effect_ai_load_library.h"
 #include "bef_effect_ai_api.h"
+#include "bef_effect_ai_auth_msg.h"
 #include "be_resource_context.h"
 #include <QApplication>
+#include <QMessageAuthenticationCode>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QDateTime>
+#include <QFile>
+#include <QDir>
+#include <QNetworkAccessManager>
+#include <QNetworkReply>
+#include <QNetworkRequest>
 
 OBS_DECLARE_MODULE()
 OBS_MODULE_USE_DEFAULT_LOCALE("win-dshow", "en-US")
@@ -80,6 +90,64 @@ static void initBDResource(std::string appPath)
 	beResourceContext = new BEResourceContext;
 	beResourceContext->setApplicationDir(appPath);
 	beResourceContext->initializeContext();
+
+	if (!QFile::exists(getResourceContext()->getFeatureContext()->getLicensePath().c_str())) {
+		char *authMsg = nullptr;
+		int authMsgLen = 0;
+		bef_effect_ai_get_auth_msg(&authMsg, &authMsgLen);
+
+		QString key = "biz_license_tool_test_keycdda5d158b4d4254ba5c4f3bdd8a1127";
+		QString screct = "39da2a8d5cf5054e77a15e33bbb60883";
+		auto nonce = rand();
+		auto timestamp = QDateTime::currentSecsSinceEpoch();
+		QJsonObject obj;
+		obj["key"] = key;
+		obj["authMsg"] = authMsg;
+		obj["nonce"] = nonce;
+		obj["timestamp"] = timestamp;
+		auto func = [](QByteArray data, const char* const digits = "0123456789ABCDEF")
+		{
+		    QString str;
+
+		    for (unsigned char gap = 0; gap < data.size();) {
+			unsigned char beg = data[gap];
+			++gap;
+			str.append(digits[beg >> 4]);
+			str.append(digits[beg & 15]);
+		    }
+		    return str;
+		};
+
+		QString temp = QString("%1%2%3%4").arg(key).arg(nonce).arg(timestamp).arg(authMsg);
+		auto data = QMessageAuthenticationCode::hash(temp.toUtf8(), screct.toUtf8(), QCryptographicHash::Sha256);
+		obj["digest"] = func(data);
+
+		QNetworkAccessManager *manager = new QNetworkAccessManager;
+		QNetworkRequest req;
+		req.setUrl(QUrl("https://cv-tob.bytedance.com/v1/api/sdk/tob_license/getlicense"));
+		req.setRawHeader("Content-Type", "application/json");
+		req.setRawHeader("cache-control", "no-cache");
+		QJsonDocument jd(obj);
+		qDebug() << jd;
+		auto reply = manager->post(req, jd.toJson());
+		QObject::connect(reply, &QNetworkReply::finished, [=](){
+			QJsonDocument doc = QJsonDocument::fromJson(reply->readAll());
+			auto o = doc.object();
+			if (!o.isEmpty()) {
+				QDir dir(QString::fromStdString(getResourceContext()->getFeatureContext()->getResourceDir()));
+				if (!dir.exists("license"))
+					dir.mkdir("license");
+				QString base64Str = o["data"].toString();
+				auto towrite = QByteArray::fromBase64(base64Str.toUtf8());
+				QFile f(getResourceContext()->getFeatureContext()->getLicensePath().c_str());
+				f.open(QFile::ReadWrite | QFile::Truncate);
+				f.write(towrite);
+				f.close();
+			}
+			reply->deleteLater();
+			manager->deleteLater();
+		});
+	}
 
 	blog(LOG_INFO, "EffectDemoVersion %s\n",
 	       beResourceContext->getVersion().c_str());
