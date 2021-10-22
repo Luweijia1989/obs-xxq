@@ -43,6 +43,7 @@ public:
     void initializeContext();
     void releaeseContext();    
     void setResourceDir(const std::string &resDir);
+    const std::string &getResourceDir() const;
     const std::string &getLicensePath() const;
     const std::string &getLicenseDir() const;
     const std::string &getMaterialDir() const;

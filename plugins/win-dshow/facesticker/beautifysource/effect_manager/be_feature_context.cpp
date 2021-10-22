@@ -101,6 +101,11 @@ void BEFeatureContext::setResourceDir(const std::string &resDir) {
     }
 }
 
+const std::string &BEFeatureContext::getResourceDir() const
+{
+	return m_resourceDir;
+}
+
 void BEFeatureContext::registerAllModelPath() {
     if (!m_modelDir.length())
     {

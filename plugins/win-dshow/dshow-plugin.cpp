@@ -12,6 +12,7 @@
 #include <QJsonObject>
 #include <QDateTime>
 #include <QFile>
+#include <QDir>
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QNetworkRequest>
@@ -133,6 +134,9 @@ static void initBDResource(std::string appPath)
 			QJsonDocument doc = QJsonDocument::fromJson(reply->readAll());
 			auto o = doc.object();
 			if (!o.isEmpty()) {
+				QDir dir(QString::fromStdString(getResourceContext()->getFeatureContext()->getResourceDir()));
+				if (!dir.exists("license"))
+					dir.mkdir("license");
 				QString base64Str = o["data"].toString();
 				auto towrite = QByteArray::fromBase64(base64Str.toUtf8());
 				QFile f(getResourceContext()->getFeatureContext()->getLicensePath().c_str());
