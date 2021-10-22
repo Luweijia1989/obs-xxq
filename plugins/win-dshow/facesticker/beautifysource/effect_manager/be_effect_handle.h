@@ -133,6 +133,7 @@ public:
     bef_effect_result_t process(GLint texture, GLint textureSticker, int width, int height, bool imageMode, int timeStamp);
     void setInitWidthAndHeight(int width, int height);
     bef_effect_result_t setEffectWidthAndHeight(int width, int height);
+    void setFlip(bool b);
 public:
     typedef std::map<int, BEComposerNode*> ComposerNodeMap;
     //updateStatus 0: off , 1: on, 2: update value

@@ -294,6 +294,7 @@ void BDThread::processImage(AVFrame *frame, quint64 ts, BEF::BEFEffectGLContext 
 		}
 
 		flip = AV_PIX_FMT_BGRA == frame->format || AV_PIX_FMT_BGR0 == frame->format;
+		m_stFunc->setFlip(flip);
 		m_swsctx = sws_getContext(frame->width, frame->height, (AVPixelFormat)frame->format, frame->width, frame->height, AVPixelFormat::AV_PIX_FMT_RGBA, SWS_BICUBIC, NULL, NULL, NULL);
 
 		deletePBO();

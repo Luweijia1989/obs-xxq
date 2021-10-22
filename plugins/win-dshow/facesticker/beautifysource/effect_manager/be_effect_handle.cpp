@@ -73,6 +73,11 @@ bef_effect_result_t EffectHandle::releaseHandle() {
     return 0;
 }
 
+void EffectHandle::setFlip(bool b)
+{
+	bef_effect_ai_set_orientation(m_renderMangerHandle, b ? BEF_AI_CLOCKWISE_ROTATE_180 : BEF_AI_CLOCKWISE_ROTATE_0);
+}
+
 bef_effect_result_t EffectHandle::process(GLint texture, GLint textureSticker, int width, int height, bool imageMode, int timeStamp) {
     bef_effect_result_t ret = 0;
     m_effectMutex.lock();
