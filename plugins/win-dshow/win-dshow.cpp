@@ -513,8 +513,7 @@ void DShowInput::OutputFrame(bool f, bool fh, VideoFormat vf,
 	UNUSED_PARAMETER(size);
 }
 
-void DShowInput::OutputFrame(VideoFormat vf,
-			     unsigned char *data, size_t size,
+void DShowInput::OutputFrame(unsigned char *data, size_t size,
 			     long long startTime, long long endTime, int w, int h)
 {
 	QMutexLocker locker(&outputMutex);
@@ -524,14 +523,14 @@ void DShowInput::OutputFrame(VideoFormat vf,
 	frame.timestamp = (uint64_t)startTime * 100;
 	frame.width = w;
 	frame.height = h;
-	frame.format = ConvertVideoFormat(vf);
+	frame.format = VIDEO_FORMAT_RGBA;
 	frame.flip = false;
 	frame.flip_h = false;
 
 	if (flip)
 		frame.flip = !frame.flip;
 	 
-	fillFrameDataInfo(vf, frame.data, frame.linesize, cx, cy, data);
+	fillFrameDataInfo(VideoFormat::ARGB, frame.data, frame.linesize, cx, cy, data); // 实际这里是rgba的数据，但是rgba和argb的数据排布是一样的
 
 	obs_source_output_video2(source, &frame);
 

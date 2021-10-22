@@ -241,7 +241,7 @@ void BDThread::addFrame(unsigned char *data, size_t size, long long startTime, i
 	m_cacheFrame->pts = startTime;
 	info.avFrame = m_cacheFrame;
 	info.startTime = startTime;
-	m_frameQueue.enqueue(info);
+	m_frameQueue.try_enqueue(info);
 }
 
 void BDThread::addFrame(AVFrame *frame, long long startTime)
@@ -261,7 +261,7 @@ void BDThread::addFrame(AVFrame *frame, long long startTime)
 	m_cacheFrame->format = frame->format;
 	info.avFrame = m_cacheFrame;
 	info.startTime = startTime;
-	m_frameQueue.enqueue(info);
+	m_frameQueue.try_enqueue(info);
 }
 #include <QMatrix4x4>
 void BDThread::processImage(AVFrame *frame, quint64 ts, BEF::BEFEffectGLContext *ctx)
@@ -358,7 +358,10 @@ void BDThread::processImage(AVFrame *frame, quint64 ts, BEF::BEFEffectGLContext 
 	if (ctx->usePbo()) {
 		PBOReader::DisposableBuffer buf;
 		if (m_reader->read(toReadTexture, frame->width, frame->height, buf)) {
-			m_dshowInput->OutputFrame(DShow::VideoFormat::ARGB, (unsigned char *)buf.get(), m_textureBufferSize, ts, 0, frame->width, frame->height);
+			if (needDrop)
+				needDrop = false;
+			else
+				m_dshowInput->OutputFrame((unsigned char *)buf.get(), m_textureBufferSize, ts, 0, frame->width, frame->height);
 		}
 	}
 }

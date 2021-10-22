@@ -138,7 +138,7 @@ public:
         
         glBindBuffer(GL_PIXEL_PACK_BUFFER, pboIds[index]);
         //kickoff aysnc read, this call return immediately
-        glReadPixels(0, 0, width, height, 0x80E1, GL_UNSIGNED_BYTE, 0);
+        glReadPixels(0, 0, width, height, GL_RGBA, GL_UNSIGNED_BYTE, 0);
         
         DisposableBuffer buffer(pboIds[nextIndex], width*height*4);
         readback = std::move(buffer);
