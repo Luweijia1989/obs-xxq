@@ -294,7 +294,6 @@ void BDThread::processImage(AVFrame *frame, quint64 ts, BEF::BEFEffectGLContext 
 		}
 
 		flip = AV_PIX_FMT_BGRA == frame->format || AV_PIX_FMT_BGR0 == frame->format;
-		m_stFunc->setFlip(flip);
 		m_swsctx = sws_getContext(frame->width, frame->height, (AVPixelFormat)frame->format, frame->width, frame->height, AVPixelFormat::AV_PIX_FMT_RGBA, SWS_BICUBIC, NULL, NULL, NULL);
 
 		deletePBO();
@@ -311,23 +310,20 @@ void BDThread::processImage(AVFrame *frame, quint64 ts, BEF::BEFEffectGLContext 
 	glBindTexture(GL_TEXTURE_2D, m_backgroundTexture);
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, frame->width, frame->height, 0, GL_RGBA, GL_UNSIGNED_BYTE, m_outDataBuffer);
 	glBindTexture(GL_TEXTURE_2D, 0);
-	auto starTime = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch());
-        double timestamp = (double)starTime.count() / 1000.0;
-	auto result = m_stFunc->process(m_backgroundTexture, m_outputTexture, frame->width, frame->height, false, timestamp);
 
-	GLuint toReadTexture = m_outputTexture;
-
-	if (m_dshowInput->flipH || flip) {
+	bool copyDraw = m_dshowInput->flipH || flip;
+	if (copyDraw) {
 		glBindFramebuffer(GL_FRAMEBUFFER, m_fbo);
-		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, m_outputTexture2, 0);
+		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
+				       GL_TEXTURE_2D, m_outputTexture2, 0);
 		GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
 		if (status != GL_FRAMEBUFFER_COMPLETE) {
 			printf("GLError BERender::drawFace \n");
 		}
 
 		glActiveTexture(GL_TEXTURE0);
-		glBindTexture(GL_TEXTURE_2D, m_outputTexture);
-	
+		glBindTexture(GL_TEXTURE_2D, m_backgroundTexture);
+
 		glViewport(0, 0, frame->width, frame->height);
 		glClearColor(0, 0, 0, 0);
 		glBindVertexArray(m_vao);
@@ -344,20 +340,24 @@ void BDThread::processImage(AVFrame *frame, quint64 ts, BEF::BEFEffectGLContext 
 			if (flip) {
 				model.scale(1, -1);
 			}
-			glUniformMatrix4fv(glGetUniformLocation(m_shader, "model"), 1, GL_FALSE, model.constData());
+			glUniformMatrix4fv(glGetUniformLocation(m_shader,
+								"model"),
+					   1, GL_FALSE, model.constData());
 			glDrawArrays(GL_TRIANGLES, 0, 6);
 		}
 
 		glBindVertexArray(0);
 		glUseProgram(0);
 		glBindFramebuffer(GL_FRAMEBUFFER, 0);
-
-		toReadTexture = m_outputTexture2;
 	}
+
+	auto starTime = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now().time_since_epoch());
+        double timestamp = (double)starTime.count() / 1000.0;
+	auto result = m_stFunc->process(copyDraw ? m_outputTexture2 : m_backgroundTexture, m_outputTexture, frame->width, frame->height, false, timestamp);	
 	
 	if (ctx->usePbo()) {
 		PBOReader::DisposableBuffer buf;
-		if (m_reader->read(toReadTexture, frame->width, frame->height, buf)) {
+		if (m_reader->read(m_outputTexture, frame->width, frame->height, buf)) {
 			if (needDrop)
 				needDrop = false;
 			else
