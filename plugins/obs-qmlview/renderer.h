@@ -175,4 +175,6 @@ private:
     QTimer m_updateTimer;
     QMap<QString, QObject*> m_context_properties;
     QVector<QOpenGLBuffer*> m_pbos;
+    QTimer m_pboTimer;
+    int m_pboIndex = 0;
 };

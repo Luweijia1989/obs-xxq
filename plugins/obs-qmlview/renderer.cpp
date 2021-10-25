@@ -139,6 +139,19 @@ WindowSingleThreaded::WindowSingleThreaded(QObject *parent)
 	m_context->makeCurrent(m_offscreenSurface);
 	initializeOpenGLFunctions();
 	m_renderControl->initialize(m_context);
+
+	connect(&m_pboTimer, &QTimer::timeout, this, [=](){
+		m_context->makeCurrent(m_offscreenSurface);
+		m_pbos[m_pboIndex]->bind();
+		auto src = m_pbos[m_pboIndex]->map(QOpenGLBuffer::ReadOnly);
+		if (src) {
+			emit capped((quint8 *)src);
+			m_pbos[m_pboIndex]->unmap();
+		}
+		m_pbos[m_pboIndex]->release();
+		m_context->doneCurrent();
+	});
+	m_pboTimer.setSingleShot(true);
 }
 
 WindowSingleThreaded::~WindowSingleThreaded()
@@ -235,17 +248,16 @@ void WindowSingleThreaded::render()
 
 	// Get something onto the screen.
 	if (m_fbo->bind()) {
-		static int index = 0;
 		int nextIndex = 0; // pbo index used for next frame
-		index = (index + 1) % 2;
-		nextIndex = (index + 1) % 2;
+		m_pboIndex = (m_pboIndex + 1) % 2;
+		nextIndex = (m_pboIndex + 1) % 2;
 
 		QOpenGLExtraFunctions *extraFuncs = m_context->extraFunctions();
 		extraFuncs->glReadBuffer(GL_COLOR_ATTACHMENT0);
 
-		m_pbos[index]->bind();
+		m_pbos[m_pboIndex]->bind();
 		glReadPixels(0, 0, m_quickWindow->width(), m_quickWindow->height(), GL_RGBA, GL_UNSIGNED_BYTE, NULL);
-		m_pbos[index]->release();
+		m_pbos[m_pboIndex]->release();
 		m_pbos[nextIndex]->bind();
 		auto src = m_pbos[nextIndex]->map(QOpenGLBuffer::ReadOnly);
 		if (src) {
@@ -255,6 +267,8 @@ void WindowSingleThreaded::render()
 		m_pbos[nextIndex]->release();
 
 		m_fbo->release();
+
+		m_pboTimer.start(100);
 	} else
 		qDebug() << "Failed to bind FBO!";
 }
