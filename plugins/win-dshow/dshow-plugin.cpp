@@ -98,8 +98,8 @@ static void initBDResource(std::string appPath)
 		int authMsgLen = 0;
 		bef_effect_ai_get_auth_msg(&authMsg, &authMsgLen);
 
-		QString key = "biz_license_tool_test_keycdda5d158b4d4254ba5c4f3bdd8a1127";
-		QString screct = "39da2a8d5cf5054e77a15e33bbb60883";
+		QString key = "biz_license_tool_test_key1dc40f68d29c421e977b01d61b13f5e0";
+		QString screct = "9a671942ec36a5e7d3ff21f96aca2b79";
 		auto nonce = rand();
 		auto timestamp = QDateTime::currentSecsSinceEpoch();
 		QJsonObject obj;
