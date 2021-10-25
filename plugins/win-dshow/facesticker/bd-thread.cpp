@@ -145,8 +145,8 @@ void BDThread::run()
 				} else if (type == 3) { //设置贴纸
 					for (int i = 0; i < arr.size(); i++) {
 						auto beautyOne = arr.at(i).toObject();
-						QString path = beautyOne["path"].toString();
-						m_stFunc->setStickerNoAutoPath(path.toStdString());
+						stickerPath = beautyOne["path"].toString();
+						m_stFunc->setStickerNoAutoPath(stickerPath.toStdString());
 					}
 				}
 			}
