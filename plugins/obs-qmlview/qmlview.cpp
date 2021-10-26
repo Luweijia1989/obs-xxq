@@ -176,34 +176,24 @@ void OBSQuickview::qmlFrame()
 
 void OBSQuickview::updateImageData(quint8* imageData)
 {
-	if (!obs_source_active(source)) {
-		qDebug() << "Scene isn't active.";
+	m_size = m_quickView->fboSize();
+	if (m_size.isEmpty())
 		return;
-	}
 
-	quint32 sw = obs_source_get_width(source);
-	quint32 sh = obs_source_get_height(source);
-	//qDebug() << "Source: " << sw << "x" << sh;
-	if (sw <= 0 || sh <= 0) {
-		qDebug() << "Invalid source dimensions.";
-		return;
-	}
-
-	quint32 texw = 0, texh = 0;
+	auto reCreate = false;
 	if (texture) {
 		obs_enter_graphics();
-		texw = gs_texture_get_width(texture);
-		texh = gs_texture_get_height(texture);
+		auto texw = gs_texture_get_width(texture);
+		auto texh = gs_texture_get_height(texture);
+
+		if (texw != m_size.width() || texh != m_size.height())
+			reCreate = true;
+
 		obs_leave_graphics();
 	}
 
-	if (!texture || sw != texw || sh != texh) {
-		m_size = m_quickView->fboSize();
-		if (texture)
-			qDebug() << sw << "!=" << texw << "||" << sh
-				 << "!=" << texh;
+	if (!texture || reCreate)
 		makeTexture();
-	}
 
 	obs_enter_graphics();
 	gs_texture_set_image(texture, imageData,
