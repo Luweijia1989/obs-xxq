@@ -1857,7 +1857,6 @@ static obs_source_t *obs_load_source_type(obs_data_t *source_data)
 	const char *name = obs_data_get_string(source_data, "name");
 	char duplicate_name[256];
 	const char *id = obs_data_get_string(source_data, "id");
-	const char *v_id = obs_data_get_string(source_data, "versioned_id");
 	obs_data_t *settings = obs_data_get_obj(source_data, "settings");
 	obs_data_t *hotkeys = obs_data_get_obj(source_data, "hotkeys");
 	double volume;
@@ -1882,16 +1881,9 @@ static obs_source_t *obs_load_source_type(obs_data_t *source_data)
 		sprintf(duplicate_name, "%s %d", name, search_index++);
 	}
 
-	if (!*v_id)
-		v_id = id;
-
-	source = obs_source_create_set_last_ver(v_id, duplicate_name, settings, hotkeys,
+	source = obs_source_create_set_last_ver(id, duplicate_name, settings, hotkeys,
 						prev_ver);
 	obs_data_set_string(source_data, "name", duplicate_name);
-	if (source->owns_info_id) {
-		bfree((void *)source->info.unversioned_id);
-		source->info.unversioned_id = bstrdup(id);
-	}
 
 	obs_data_release(hotkeys);
 
@@ -2200,8 +2192,7 @@ obs_data_t *obs_save_source(obs_source_t *source)
 	int64_t sync = obs_source_get_sync_offset(source);
 	uint32_t flags = obs_source_get_flags(source);
 	const char *name = obs_source_get_name(source);
-	const char *id = source->info.id;
-	const char *v_id = source->info.id;
+	const char *id = obs_source_get_id(source);
 	bool enabled = obs_source_enabled(source);
 	bool muted = obs_source_muted(source);
 	bool push_to_mute = obs_source_push_to_mute_enabled(source);
@@ -2226,7 +2217,6 @@ obs_data_t *obs_save_source(obs_source_t *source)
 	obs_data_set_bool(settings, "saved", true);
 	obs_data_set_string(source_data, "name", name);
 	obs_data_set_string(source_data, "id", id);
-	obs_data_set_string(source_data, "versioned_id", v_id);
 	obs_data_set_obj(source_data, "settings", settings);
 	obs_data_set_int(source_data, "mixers", mixers);
 	obs_data_set_int(source_data, "sync", sync);
