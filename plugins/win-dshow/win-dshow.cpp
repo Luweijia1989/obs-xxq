@@ -258,14 +258,9 @@ void DShowInput::DShowLoop()
 					if (!img_ctx.loaded)
 					{
 						auto file_path = obs_data_get_string(settings, "file_path");
-						if (file_path && *file_path)
+						if (strlen(file_path))
 						{
 							gs_image_file_init(&img_ctx, file_path);
-							obs_enter_graphics();
-							img_ctx.texture_data = gs_create_texture_file_data(file_path,
-								&img_ctx.format,
-								&img_ctx.cx, &img_ctx.cy);
-							obs_leave_graphics();
 						}
 					}
 
