@@ -1407,6 +1407,12 @@ void device_debug_marker_end(gs_device_t *device)
 	glPopDebugGroupKHR();
 }
 
+void device_init_imgui(gs_device_t *device, void (*callback)(void *, void *, void *),
+		  void *p)
+{
+	
+}
+
 void gs_swapchain_destroy(gs_swapchain_t *swapchain)
 {
 	if (!swapchain)

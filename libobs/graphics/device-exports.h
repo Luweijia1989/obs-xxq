@@ -175,6 +175,9 @@ EXPORT void device_debug_marker_begin(gs_device_t *device,
 				      const float color[4]);
 EXPORT void device_debug_marker_end(gs_device_t *device);
 
+EXPORT void device_init_imgui(gs_device_t *device, void (*callback)(void *, void *, void *),
+		  void *p);
+
 #ifdef __cplusplus
 }
 #endif

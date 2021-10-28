@@ -561,7 +561,7 @@ void DShowInput::OutputFrame(unsigned char *data, size_t size,
 	if (flip)
 		frame.flip = !frame.flip;
 	 
-	fillFrameDataInfo(VideoFormat::ARGB, frame.data, frame.linesize, cx, cy, data); // 实际这里是rgba的数据，但是rgba和argb的数据排布是一样的
+	fillFrameDataInfo(VideoFormat::ARGB, frame.data, frame.linesize, cx, cy, data); // 瀹為檯杩欓噷鏄痳gba鐨勬暟鎹紝浣嗘槸rgba鍜宎rgb鐨勬暟鎹帓甯冩槸涓�鏍风殑
 
 	obs_source_output_video2(source, &frame);
 
