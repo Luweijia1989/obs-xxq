@@ -184,7 +184,9 @@ static void new_vote_source_update(void *data, obs_data_t *settings)
 
 	{
 		QString option = obs_data_get_string(settings, "option");
+		if (s->m_lastOption != option)
 		{
+			s->m_lastOption = option;
 			QJsonDocument jd =
 				QJsonDocument::fromJson(option.toUtf8());
 			auto array = jd.array();

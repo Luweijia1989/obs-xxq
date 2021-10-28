@@ -78,4 +78,5 @@ public:
 public:
 	NewVoteModel *newVoteModel;
 	obs_data_t *m_s;
+	QString m_lastOption;
 };
