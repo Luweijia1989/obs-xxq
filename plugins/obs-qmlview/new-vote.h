@@ -11,7 +11,7 @@
 #define NewRoleFontSize Qt::UserRole + 4
 #define NewRoleOptionColor Qt::UserRole + 5
 #define NewRoleBold Qt::UserRole + 6
-#define NewRoleItalic Qt::UserRole + 7
+#define NewRoleItalic2 Qt::UserRole + 7
 
 struct NewVoteOption {
 	NewVoteOption() {}

@@ -1,5 +1,5 @@
 #include "win-dshow.h"
-#include "facesticker/st-thread.h"
+#include "facesticker/bd-thread.h"
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QDateTime>
@@ -140,7 +140,7 @@ void DShowInput::QueueActivate(obs_data_t *settings)
 DShowInput::DShowInput(obs_source_t *source_, obs_data_t *settings)
 	: source(source_), device(InitGraph::False)
 {
-	stThread = new STThread(this);
+	stThread = new BDThread(this);
 	stThread->setBeautifyEnabled(obs_data_get_bool(settings, "beautifyEnabled"));
 	stThread->waitStarted();
 
@@ -258,14 +258,9 @@ void DShowInput::DShowLoop()
 					if (!img_ctx.loaded)
 					{
 						auto file_path = obs_data_get_string(settings, "file_path");
-						if (file_path && *file_path)
+						if (strlen(file_path))
 						{
 							gs_image_file_init(&img_ctx, file_path);
-							obs_enter_graphics();
-							img_ctx.texture_data = gs_create_texture_file_data(file_path,
-								&img_ctx.format,
-								&img_ctx.cx, &img_ctx.cy);
-							obs_leave_graphics();
 						}
 					}
 
@@ -549,8 +544,7 @@ void DShowInput::OutputFrame(bool f, bool fh, VideoFormat vf,
 	UNUSED_PARAMETER(size);
 }
 
-void DShowInput::OutputFrame(VideoFormat vf,
-			     unsigned char *data, size_t size,
+void DShowInput::OutputFrame(unsigned char *data, size_t size,
 			     long long startTime, long long endTime, int w, int h)
 {
 	QMutexLocker locker(&outputMutex);
@@ -560,14 +554,14 @@ void DShowInput::OutputFrame(VideoFormat vf,
 	frame.timestamp = (uint64_t)startTime * 100;
 	frame.width = w;
 	frame.height = h;
-	frame.format = ConvertVideoFormat(vf);
+	frame.format = VIDEO_FORMAT_RGBA;
 	frame.flip = false;
 	frame.flip_h = false;
 
 	if (flip)
 		frame.flip = !frame.flip;
 	 
-	fillFrameDataInfo(vf, frame.data, frame.linesize, cx, cy, data);
+	fillFrameDataInfo(VideoFormat::ARGB, frame.data, frame.linesize, cx, cy, data); // 实际这里是rgba的数据，但是rgba和argb的数据排布是一样的
 
 	obs_source_output_video2(source, &frame);
 
@@ -2035,19 +2029,8 @@ static void DShowInputTick(void *data, float seconds)
 static void DShowInputCustomCommnad(void *data, obs_data_t *command)
 {
 	DShowInput *input = reinterpret_cast<DShowInput *>(data);
-	int type = obs_data_get_int(command, "type");
 	QString beautifyStr = obs_data_get_string(command, "beautifySetting");
-	if (type == 0)
-		input->stThread->updateBeautifySetting(beautifyStr);
-	else if (type == 1) {
-		QJsonDocument jd = QJsonDocument::fromJson(beautifyStr.toUtf8());
-		QJsonObject obj = jd.object();
-		input->stThread->setBeautifyEnabled(obj["enabled"].toBool());
-	}
-	else if (type == 2) {
-		auto info = obs_data_get_string(command, FACE_STICKER_ID);
-		input->updateInfo(info);
-	}
+	input->stThread->updateBeautifySetting(beautifyStr);
 }
 
 

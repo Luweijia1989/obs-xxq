@@ -1,4 +1,4 @@
-﻿#include "new-vote.h"
+#include "new-vote.h"
 #include "renderer.h"
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -24,7 +24,7 @@ QVariant NewVoteModel::data(const QModelIndex &index, int role) const
 		return d.fontFamily;
 	case NewRoleFontSize:
 		return 24;
-	case NewRoleItalic:
+	case NewRoleItalic2:
 		return d.italic;
 	case NewRoleBold:
 		return d.bold;
@@ -47,7 +47,7 @@ QHash<int, QByteArray> NewVoteModel::roleNames() const
 	roles[NewRoleFontFamily] = "fontFamily";
 	roles[NewRoleFontSize] = "fontSize";
 	roles[NewRoleOptionColor] = "color";
-	roles[NewRoleItalic] = "italic";
+	roles[NewRoleItalic2] = "italic";
 	roles[NewRoleBold] = "bold";
 	return roles;
 }
