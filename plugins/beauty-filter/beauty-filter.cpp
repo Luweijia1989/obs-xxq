@@ -65,6 +65,12 @@ beauty_filter_video(void *data, struct obs_source_frame *frame)
 	return filter->processFrame(frame);
 }
 
+void beauty_custom_command(void *data, obs_data_t *command)
+{
+	BeautyHandle *filter = (BeautyHandle *)data;
+	filter->updateBeautySettings(command);
+}
+
 OBS_DECLARE_MODULE()
 OBS_MODULE_USE_DEFAULT_LOCALE("beauty-filter", "en-US")
 MODULE_EXPORT const char *obs_module_description(void)
@@ -211,6 +217,7 @@ bool obs_module_load(void)
 	beauty_filter.get_properties = beauty_filter_properties;
 	beauty_filter.filter_video = beauty_filter_video;
 	beauty_filter.filter_remove = beauty_filter_remove;
+	beauty_filter.make_command = beauty_custom_command;
 	
 	obs_register_source(&beauty_filter);
 

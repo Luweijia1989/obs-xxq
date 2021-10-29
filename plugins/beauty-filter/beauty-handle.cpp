@@ -32,12 +32,8 @@ void BeautyHandle::initOpenGL()
 	m_glctx.doneCurrentContext();
 }
 
-bool BeautyHandle::checkBeautySettings()
+void BeautyHandle::checkBeautySettings()
 {
-	bool ret = false;
-	if (effectHandlerInited)
-		return ret;
-
 	QString filterPath;
 	QString stickerPath;
 	m_beautifySettingMutex.lock();
@@ -83,18 +79,16 @@ bool BeautyHandle::checkBeautySettings()
 		}
 		m_beautifySettings.clear();
 
-		ret = m_effectHandle->getComposerNodeCount() > 0 || !filterPath.isEmpty() || !stickerPath.isEmpty();
+		beautyEnabled = m_effectHandle->getComposerNodeCount() > 0 || !filterPath.isEmpty() || !stickerPath.isEmpty();
 	}
 	m_beautifySettingMutex.unlock();
-
-	return ret;
 }
 
 obs_source_frame *BeautyHandle::processFrame(obs_source_frame *frame)
 {
 	static bool needDrop = false;
-	bool doBeauty = checkBeautySettings();
-	//doBeauty = true; // to test code remove
+	checkBeautySettings();
+	bool doBeauty = effectHandlerInited && beautyEnabled;
 	auto settings = obs_source_get_settings(m_source);
 	obs_data_set_int(settings, "need_beauty", doBeauty ? 1 : 0);
 	obs_data_release(settings);
@@ -180,6 +174,13 @@ obs_source_frame *BeautyHandle::processFrame(obs_source_frame *frame)
 
 	m_glctx.doneCurrentContext();
 	return frame;
+}
+
+void BeautyHandle::updateBeautySettings(obs_data_t *beautySetting)
+{
+	const char *s = obs_data_get_string(beautySetting, "beautifySetting");
+	QMutexLocker locker(&m_beautifySettingMutex);
+	m_beautifySettings.append(s);
 }
 
 void BeautyHandle::initShader()

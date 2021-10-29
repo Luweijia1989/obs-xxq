@@ -12,6 +12,7 @@ public:
 	BeautyHandle(obs_source_t *context);
 	~BeautyHandle();
 	obs_source_frame *processFrame(obs_source_frame *frame);
+	void updateBeautySettings(obs_data_t *beautySetting);
 
 private:
 	void initOpenGL();
@@ -23,13 +24,14 @@ private:
 	void freeResource();
 	void createPBO(int w, int h);
 	void deletePBO();
-	bool checkBeautySettings();
+	void checkBeautySettings();
 
 private:
 	obs_source_t *m_source;
 	BEF::BEFEffectGLContext m_glctx;
 
 	bool effectHandlerInited = false;
+	bool beautyEnabled = false;
 	EffectHandle *m_effectHandle = nullptr;
 
 	QMutex m_beautifySettingMutex;
