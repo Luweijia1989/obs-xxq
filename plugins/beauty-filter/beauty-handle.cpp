@@ -94,51 +94,22 @@ obs_source_frame *BeautyHandle::processFrame(obs_source_frame *frame)
 {
 	static bool needDrop = false;
 	bool doBeauty = checkBeautySettings();
-	if (!doBeauty) {
+	//doBeauty = true; // to test code remove
+	auto settings = obs_source_get_settings(m_source);
+	obs_data_set_int(settings, "need_beauty", doBeauty ? 1 : 0);
+	obs_data_release(settings);
+	if (!doBeauty || frame->format != VIDEO_FORMAT_RGBA) {
 		needDrop = true;
 		return frame;
 	}
 
 	m_glctx.makeCurrentContext();
 
-	quint64 m_textureBufferSize = frame->width * frame->height * 4;
-	bool frameInfoChanged = (m_lastWidth != frame->width || m_lastHeight != frame->height || m_lastFormat != frame->format);
+	bool frameInfoChanged = (m_lastWidth != frame->width || m_lastHeight != frame->height);
 	m_lastWidth = frame->width;
 	m_lastHeight = frame->height;
-	m_lastFormat = frame->format;
 
 	if (frameInfoChanged) {
-		auto ts = (frame->width + 10) * frame->height * 4;
-		if (!m_cacheBuffer) {
-			m_cacheBufferSize = ts;
-			m_cacheBuffer = (uint8_t *)malloc(m_cacheBufferSize);
-		} else if (m_cacheBufferSize < ts) {
-			m_cacheBufferSize = ts;
-			m_cacheBuffer = (uint8_t *)realloc(m_cacheBuffer, m_cacheBufferSize);
-		}
-
-		if (scaler2RGBA) {
-			video_scaler_destroy(scaler2RGBA);
-			scaler2RGBA = NULL;
-		}
-
-		if (scalerBack) {
-			video_scaler_destroy(scalerBack);
-			scalerBack = nullptr;
-		}
-
-		video_scale_info src;
-		src.colorspace = frame->color_matrix[2] > 1.5 ? VIDEO_CS_709 : VIDEO_CS_601;
-		src.format = frame->format;
-		src.height = frame->height;
-		src.width = frame->width;
-		src.range = frame->full_range ? VIDEO_RANGE_FULL : VIDEO_RANGE_PARTIAL;
-		video_scale_info dst = src;
-		dst.format = VIDEO_FORMAT_RGBA;
-
-		video_scaler_create(&scaler2RGBA, &dst, &src, VIDEO_SCALE_POINT);
-		video_scaler_create(&scalerBack, &src, &dst, VIDEO_SCALE_POINT);
-
 		deletePBO();
 		createPBO(frame->width, frame->height);
 
@@ -146,12 +117,8 @@ obs_source_frame *BeautyHandle::processFrame(obs_source_frame *frame)
 		createTextures(frame->width, frame->height);
 	}
 
-	uint8_t *out[8] = {m_cacheBuffer};
-	uint32_t ls[8] = { frame->width * 4 };
-	video_scaler_scale(scaler2RGBA, out, ls, frame->data, frame->linesize);
-
 	glBindTexture(GL_TEXTURE_2D, m_backgroundTexture);
-	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, frame->width, frame->height, 0, GL_RGBA, GL_UNSIGNED_BYTE, m_cacheBuffer);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, frame->width, frame->height, 0, GL_RGBA, GL_UNSIGNED_BYTE, frame->data[0]);
 	glBindTexture(GL_TEXTURE_2D, 0);
 
 	bool copyDraw = frame->flip_h || frame->flip;
@@ -204,9 +171,7 @@ obs_source_frame *BeautyHandle::processFrame(obs_source_frame *frame)
 			if (needDrop)
 				needDrop = false;
 			else {
-				uint8_t *out[8] = { buf.get() };
-				uint32_t ls[8] = { frame->width * 4 };
-				video_scaler_scale(scalerBack, frame->data, frame->linesize, out, ls);
+				memcpy(frame->data[0], buf.get(), frame->width * frame->height * 4);
 				frame->flip = false;
 				frame->flip_h = false;
 			}
@@ -345,15 +310,6 @@ void BeautyHandle::deleteTextures()
 
 void BeautyHandle::freeResource()
 {
-	if (m_cacheBuffer)
-		free(m_cacheBuffer);
-
-	if (scaler2RGBA)
-		video_scaler_destroy(scaler2RGBA);
-
-	if (scalerBack)
-		video_scaler_destroy(scalerBack);
-
 	m_effectHandle->releaseHandle();
 	delete m_effectHandle;
 	m_effectHandle = nullptr;

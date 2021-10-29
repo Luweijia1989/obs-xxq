@@ -9,6 +9,7 @@
 #include "libdshowcapture/dshowcapture.hpp"
 #include "ffmpeg-decode.h"
 #include "encode-dstr.hpp"
+#include <media-io/video-scaler.h>
 #include <graphics/image-file.h>
 
 #include <algorithm>
@@ -180,6 +181,11 @@ struct DShowInput {
 	float timeElapsed = 0.f;
 	gs_image_file_t img_ctx;
 
+	video_scaler_t *scaler2RGBA = nullptr;
+	struct video_scale_info conversion = { VIDEO_FORMAT_NONE, 0, 0, VIDEO_RANGE_DEFAULT, VIDEO_CS_DEFAULT };
+	uint8_t *m_cacheBuffer = nullptr;
+	uint32_t m_cacheBufferSize = 0;
+
 	Decoder audio_decoder;
 	Decoder video_decoder;
 
@@ -255,6 +261,12 @@ struct DShowInput {
 		gs_image_file_free(&img_ctx);
 		obs_leave_graphics();
 
+		if (scaler2RGBA)
+			video_scaler_destroy(scaler2RGBA);
+
+		if (m_cacheBuffer)
+			free(m_cacheBuffer);
+
 		{
 			CriticalScope scope(mutex);
 			actions.resize(1);
@@ -275,6 +287,8 @@ struct DShowInput {
 			 size_t size, long long startTime, long long endTime);
 	void OnAudioData(const AudioConfig &config, unsigned char *data,
 			 size_t size, long long startTime, long long endTime);
+	void OutputSourceFrame(obs_source_t *source,
+			       struct obs_source_frame2 *frame);
 
 	bool UpdateVideoConfig(obs_data_t *settings);
 	bool UpdateAudioConfig(obs_data_t *settings);
@@ -563,7 +577,7 @@ void DShowInput::OnEncodedVideoData(enum AVCodecID id, unsigned char *data,
 #if LOG_ENCODED_VIDEO_TS
 		blog(LOG_DEBUG, "video ts: %llu", frame.timestamp);
 #endif
-		obs_source_output_video2(source, &frame);
+		OutputSourceFrame(source, &frame);
 	}
 }
 
@@ -595,6 +609,54 @@ static bool VideoDataSizeValid(int w, int h, size_t size, VideoFormat format)
 	}
 
 	return expectSize != 0 && size == expectSize;
+}
+
+void DShowInput::OutputSourceFrame(obs_source_t *source, struct obs_source_frame2 *frame)
+{
+	auto filter = obs_source_filter_get_by_name(source, "YPPBeautyFilter");
+	if (filter) {
+		auto settings = obs_source_get_settings(filter);
+		bool needBeauty = obs_data_get_int(settings, "need_beauty") == 1;
+		obs_data_release(settings);
+		if (needBeauty) {
+			if (frame->format != VIDEO_FORMAT_RGBA) {
+				if (conversion.width != frame->width
+					|| conversion.height != frame->height
+					|| conversion.format != frame->format) {
+					conversion.width = frame->width;
+					conversion.height = frame->height;
+					conversion.format = frame->format;
+					conversion.colorspace = frame->color_matrix[2] > 1.5 ? VIDEO_CS_709 : VIDEO_CS_601;
+					conversion.range = frame->range;
+
+					if (scaler2RGBA)
+						video_scaler_destroy(scaler2RGBA);
+
+					video_scale_info dst = conversion;
+					dst.format = VIDEO_FORMAT_RGBA;
+					video_scaler_create(&scaler2RGBA, &dst, &conversion, VIDEO_SCALE_POINT);
+
+					auto ts = (frame->width + 10) * frame->height * 4;
+					if (!m_cacheBuffer) {
+						m_cacheBuffer = (uint8_t *)malloc(ts);
+						m_cacheBufferSize = ts;
+					} else if (m_cacheBufferSize < ts) {
+						m_cacheBuffer = (uint8_t *)realloc(m_cacheBuffer, ts);
+						m_cacheBufferSize = ts;
+					}
+				}
+
+				uint8_t *out[8] = {m_cacheBuffer};
+				uint32_t ls[8] = { frame->width * 4 };
+				video_scaler_scale(scaler2RGBA, out, ls, frame->data, frame->linesize);
+				frame->data[0] = m_cacheBuffer;
+				frame->linesize[0] = frame->width * 4;
+				frame->format = VIDEO_FORMAT_RGBA;
+			}
+		}
+	}
+
+	obs_source_output_video2(source, frame);
 }
 
 void DShowInput::OnVideoData(const VideoConfig &config, unsigned char *data,
@@ -670,8 +732,8 @@ void DShowInput::OnVideoData(const VideoConfig &config, unsigned char *data,
 		/* TODO: other formats */
 		return;
 	}
-
-	obs_source_output_video2(source, &frame);
+	
+	OutputSourceFrame(source, &frame);
 
 	UNUSED_PARAMETER(endTime); /* it's the enndd tiimmes! */
 	UNUSED_PARAMETER(size);
