@@ -9,6 +9,7 @@
 #include "libdshowcapture/dshowcapture.hpp"
 #include "ffmpeg-decode.h"
 #include "encode-dstr.hpp"
+#include <graphics/image-file.h>
 
 #include <algorithm>
 #include <limits>
@@ -172,6 +173,13 @@ struct DShowInput {
 	bool flip = false;
 	bool active = false;
 
+	string lastDeviceId;
+	bool deviceActivated = false;
+	bool triggerDeviceFail = false;
+	CriticalSection deviceActivatedMutex;
+	float timeElapsed = 0.f;
+	gs_image_file_t img_ctx;
+
 	Decoder audio_decoder;
 	Decoder video_decoder;
 
@@ -211,6 +219,7 @@ struct DShowInput {
 	{
 		memset(&audio, 0, sizeof(audio));
 		memset(&frame, 0, sizeof(frame));
+		memset(&img_ctx, 0, sizeof(struct gs_image_file));
 
 		av_log_set_level(AV_LOG_WARNING);
 		av_log_set_callback(ffmpeg_log);
@@ -242,6 +251,10 @@ struct DShowInput {
 
 	inline ~DShowInput()
 	{
+		obs_enter_graphics();
+		gs_image_file_free(&img_ctx);
+		obs_leave_graphics();
+
 		{
 			CriticalScope scope(mutex);
 			actions.resize(1);
@@ -326,8 +339,56 @@ void DShowInput::DShowLoop()
 
 			obs_data_t *settings;
 			settings = obs_source_get_settings(source);
-			if (!Activate(settings)) {
-				obs_source_output_video2(source, nullptr);
+			string curDevice = obs_data_get_string(settings, VIDEO_DEVICE_ID);
+			if (lastDeviceId != curDevice)
+				triggerDeviceFail = false;
+
+			lastDeviceId = curDevice;
+
+			{
+				CriticalScope scope(deviceActivatedMutex);
+				if (!Activate(settings))
+				{
+					if (!triggerDeviceFail && curDevice.length() > 0)
+					{
+						obs_data_t *event = obs_data_create();
+						obs_data_set_string(event, "eventType", "cameraOpenStatus");
+						obs_data_set_int(event, "value", 0);
+						obs_source_signal_event(source, event);
+						obs_data_release(event);
+						triggerDeviceFail = true;
+					}
+					deviceActivated = false;
+					obs_data_set_bool(settings, "deviceActivated", deviceActivated);
+
+					if (!img_ctx.loaded)
+					{
+						auto file_path = obs_data_get_string(settings, "file_path");
+						if (strlen(file_path))
+						{
+							gs_image_file_init(&img_ctx, file_path);
+						}
+					}
+
+					if (img_ctx.loaded)
+					{
+						obs_source_frame frame = {};
+						frame.data[0] = img_ctx.texture_data;
+						frame.linesize[0] = img_ctx.cx * 4;
+						frame.format = VIDEO_FORMAT_BGRA;
+						frame.width = img_ctx.cx;
+						frame.height = img_ctx.cy;
+						frame.timestamp = 0;
+						frame.prev_frame = true;
+
+						obs_source_output_video(source, &frame);
+					}
+				}
+				else
+				{
+					deviceActivated = true;
+					obs_data_set_bool(settings, "deviceActivated", deviceActivated);
+				}
 			}
 			if (block)
 				SetEvent(activated_event);
@@ -336,7 +397,14 @@ void DShowInput::DShowLoop()
 		}
 
 		case Action::Deactivate:
+		{
+			CriticalScope scope(deviceActivatedMutex);
+			deviceActivated = false;
+			obs_data_t *settings = obs_source_get_settings(source);
+			obs_data_set_bool(settings, "deviceActivated", deviceActivated);
+			obs_data_release(settings);
 			Deactivate();
+		}
 			break;
 
 		case Action::Shutdown:
@@ -2007,6 +2075,20 @@ static void ShowDShowInput(void *data)
 		input->QueueAction(Action::Activate);
 }
 
+static void DShowInputTick(void *data, float seconds)
+{
+	DShowInput *input = reinterpret_cast<DShowInput *>(data);
+	input->timeElapsed += seconds;
+	if (input->timeElapsed > 2) {
+		if (input->active) {
+			CriticalScope scope(input->deviceActivatedMutex);
+			if (!input->deviceActivated)
+				input->QueueAction(Action::Activate);
+		}
+		input->timeElapsed = 0.f;
+	}
+}
+
 void RegisterDShowSource()
 {
 	SetLogCallback(DShowModuleLogCallback, nullptr);
@@ -2024,5 +2106,6 @@ void RegisterDShowSource()
 	info.update = UpdateDShowInput;
 	info.get_defaults = GetDShowDefaults;
 	info.get_properties = GetDShowProperties;
+	info.video_tick = DShowInputTick;
 	obs_register_source(&info);
 }
