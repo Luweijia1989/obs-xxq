@@ -169,6 +169,8 @@ Clear:
 	glDeleteBuffers(1, &m_vbo);
 	glDeleteFramebuffers(1, &m_fbo);
 
+	deletePBO();
+
 	ctx.doneCurrentContext();
 	qDebug() << "STThread stopped...";
 }
