@@ -226,6 +226,8 @@ obs_source_frame *BeautyHandle::processFrame(obs_source_frame *frame)
 				uint8_t *out[8] = { buf.get() };
 				int ls[8] = { frame->width * 4 };
 				int ret = sws_scale(m_swsctxBack, out, ls, 0, frame->height, frame->data, (const int *)frame->linesize);
+				frame->flip = false;
+				frame->flip_h = false;
 			}
 		}
 	}
