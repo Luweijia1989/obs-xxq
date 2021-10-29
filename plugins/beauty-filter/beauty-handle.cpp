@@ -4,35 +4,6 @@
 #include <QJsonArray>
 #include <QJsonObject>
 
-static enum AVPixelFormat obs_to_ffmpeg_video_format(enum video_format format)
-{
-	switch (format) {
-	case VIDEO_FORMAT_NONE:
-		return AV_PIX_FMT_NONE;
-	case VIDEO_FORMAT_I444:
-		return AV_PIX_FMT_YUV444P;
-	case VIDEO_FORMAT_I420:
-		return AV_PIX_FMT_YUV420P;
-	case VIDEO_FORMAT_NV12:
-		return AV_PIX_FMT_NV12;
-	case VIDEO_FORMAT_YVYU:
-		return AV_PIX_FMT_NONE;
-	case VIDEO_FORMAT_YUY2:
-		return AV_PIX_FMT_YUYV422;
-	case VIDEO_FORMAT_UYVY:
-		return AV_PIX_FMT_UYVY422;
-	case VIDEO_FORMAT_RGBA:
-		return AV_PIX_FMT_RGBA;
-	case VIDEO_FORMAT_BGRA:
-		return AV_PIX_FMT_BGRA;
-	case VIDEO_FORMAT_BGRX:
-		return AV_PIX_FMT_BGR0;
-	case VIDEO_FORMAT_Y800:
-		return AV_PIX_FMT_GRAY8;
-	}
-
-	return AV_PIX_FMT_NONE;
-}
 
 BeautyHandle::BeautyHandle(obs_source_t *context) : m_source(context)
 {
@@ -146,17 +117,27 @@ obs_source_frame *BeautyHandle::processFrame(obs_source_frame *frame)
 			m_cacheBuffer = (uint8_t *)realloc(m_cacheBuffer, m_cacheBufferSize);
 		}
 
-		if (m_swsctx) {
-			sws_freeContext(m_swsctx);
-			m_swsctx = NULL;
+		if (scaler2RGBA) {
+			video_scaler_destroy(scaler2RGBA);
+			scaler2RGBA = NULL;
 		}
-		m_swsctx = sws_getContext(frame->width, frame->height, obs_to_ffmpeg_video_format(frame->format), frame->width, frame->height, AVPixelFormat::AV_PIX_FMT_RGBA, SWS_POINT, NULL, NULL, NULL);
 
-		if (m_swsctxBack) {
-			sws_freeContext(m_swsctxBack);
-			m_swsctxBack = NULL;
+		if (scalerBack) {
+			video_scaler_destroy(scalerBack);
+			scalerBack = nullptr;
 		}
-		m_swsctxBack = sws_getContext(frame->width, frame->height, AVPixelFormat::AV_PIX_FMT_RGBA, frame->width, frame->height, obs_to_ffmpeg_video_format(frame->format), SWS_POINT, NULL, NULL, NULL);
+
+		video_scale_info src;
+		src.colorspace = frame->color_matrix[2] > 1.5 ? VIDEO_CS_709 : VIDEO_CS_601;
+		src.format = frame->format;
+		src.height = frame->height;
+		src.width = frame->width;
+		src.range = frame->full_range ? VIDEO_RANGE_FULL : VIDEO_RANGE_PARTIAL;
+		video_scale_info dst = src;
+		dst.format = VIDEO_FORMAT_RGBA;
+
+		video_scaler_create(&scaler2RGBA, &dst, &src, VIDEO_SCALE_POINT);
+		video_scaler_create(&scalerBack, &src, &dst, VIDEO_SCALE_POINT);
 
 		deletePBO();
 		createPBO(frame->width, frame->height);
@@ -166,8 +147,8 @@ obs_source_frame *BeautyHandle::processFrame(obs_source_frame *frame)
 	}
 
 	uint8_t *out[8] = {m_cacheBuffer};
-	int ls[8] = { frame->width * 4 };
-	int ret = sws_scale(m_swsctx, (const uint8_t *const *)(frame->data), (const int *)frame->linesize, 0, frame->height, out, ls);
+	uint32_t ls[8] = { frame->width * 4 };
+	video_scaler_scale(scaler2RGBA, out, ls, frame->data, frame->linesize);
 
 	glBindTexture(GL_TEXTURE_2D, m_backgroundTexture);
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, frame->width, frame->height, 0, GL_RGBA, GL_UNSIGNED_BYTE, m_cacheBuffer);
@@ -224,8 +205,8 @@ obs_source_frame *BeautyHandle::processFrame(obs_source_frame *frame)
 				needDrop = false;
 			else {
 				uint8_t *out[8] = { buf.get() };
-				int ls[8] = { frame->width * 4 };
-				int ret = sws_scale(m_swsctxBack, out, ls, 0, frame->height, frame->data, (const int *)frame->linesize);
+				uint32_t ls[8] = { frame->width * 4 };
+				video_scaler_scale(scalerBack, frame->data, frame->linesize, out, ls);
 				frame->flip = false;
 				frame->flip_h = false;
 			}
@@ -367,11 +348,11 @@ void BeautyHandle::freeResource()
 	if (m_cacheBuffer)
 		free(m_cacheBuffer);
 
-	if (m_swsctx)
-		sws_freeContext(m_swsctx);
+	if (scaler2RGBA)
+		video_scaler_destroy(scaler2RGBA);
 
-	if (m_swsctxBack)
-		sws_freeContext(m_swsctxBack);
+	if (scalerBack)
+		video_scaler_destroy(scalerBack);
 
 	m_effectHandle->releaseHandle();
 	delete m_effectHandle;

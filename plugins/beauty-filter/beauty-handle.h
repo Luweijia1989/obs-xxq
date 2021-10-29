@@ -5,11 +5,8 @@
 #include "effect_manager/be_render.h"
 #include <obs-module.h>
 #include "PBOReader.h"
+#include "media-io/video-scaler.h"
 #include <QMutex>
-
-extern "C" {
-#include "libswscale/swscale.h"
-}
 
 class BeautyHandle {
 public:
@@ -42,8 +39,6 @@ private:
 	uint32_t m_lastWidth = 0;
 	uint32_t m_lastHeight = 0;
 	video_format m_lastFormat = VIDEO_FORMAT_NONE;
-	struct SwsContext *m_swsctx = NULL;
-	struct SwsContext *m_swsctxBack = NULL;
 	uint8_t *m_cacheBuffer = nullptr;
 	uint32_t m_cacheBufferSize = 0;
 
@@ -55,4 +50,7 @@ private:
 	GLuint m_backgroundTexture = 0;
 	GLuint m_outputTexture = 0;
 	GLuint m_outputTexture2 = 0;
+
+	video_scaler_t *scaler2RGBA = nullptr;
+	video_scaler_t *scalerBack = nullptr;
 };
