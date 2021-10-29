@@ -499,6 +499,36 @@ void DShowInput::OnEncodedVideoData(enum AVCodecID id, unsigned char *data,
 	}
 }
 
+static bool VideoDataSizeValid(int w, int h, size_t size, VideoFormat format)
+{
+	size_t expectSize = 0;
+	switch (format) {
+	case DShow::VideoFormat::ARGB:
+	case DShow::VideoFormat::XRGB:
+		expectSize = w * h * 4;
+		break;
+	case DShow::VideoFormat::I420:
+	case DShow::VideoFormat::NV12:
+	case DShow::VideoFormat::YV12:
+		expectSize = w * h * 3 / 2;
+		break;
+	case DShow::VideoFormat::Y800:
+		expectSize = w * h;
+		break;
+	case DShow::VideoFormat::YVYU:
+	case DShow::VideoFormat::YUY2:
+	case DShow::VideoFormat::UYVY:
+	case DShow::VideoFormat::HDYC:
+	case DShow::VideoFormat::MJPEG:
+		expectSize = w * h * 2;
+		break;
+	default:
+		break;
+	}
+
+	return expectSize != 0 && size == expectSize;
+}
+
 void DShowInput::OnVideoData(const VideoConfig &config, unsigned char *data,
 			     size_t size, long long startTime,
 			     long long endTime)
@@ -512,6 +542,10 @@ void DShowInput::OnVideoData(const VideoConfig &config, unsigned char *data,
 		OnEncodedVideoData(AV_CODEC_ID_MJPEG, data, size, startTime);
 		return;
 	}
+
+	if (!VideoDataSizeValid(videoConfig.cx, videoConfig.cy, size,
+				videoConfig.format))
+		return;
 
 	const int cx = config.cx;
 	const int cy = config.cy;
