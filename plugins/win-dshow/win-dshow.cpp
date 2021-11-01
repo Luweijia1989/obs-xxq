@@ -42,6 +42,7 @@ using namespace DShow;
 #define LAST_RESOLUTION   "last_resolution"
 #define BUFFERING_VAL     "buffering"
 #define FLIP_IMAGE        "flip_vertically"
+#define FLIP_IMAGE_H	  "flipH"
 #define AUDIO_OUTPUT_MODE "audio_output_mode"
 #define USE_CUSTOM_AUDIO  "use_custom_audio_device"
 #define AUDIO_DEVICE_ID   "audio_device_id"
@@ -172,6 +173,7 @@ struct DShowInput {
 	bool deviceHasAudio = false;
 	bool deviceHasSeparateAudioFilter = false;
 	bool flip = false;
+	bool flipH = false;
 	bool active = false;
 
 	string lastDeviceId;
@@ -656,6 +658,7 @@ void DShowInput::OutputSourceFrame(obs_source_t *source, struct obs_source_frame
 		}
 	}
 
+	frame->flip_h = flipH;
 	obs_source_output_video2(source, frame);
 }
 
@@ -1004,6 +1007,7 @@ bool DShowInput::UpdateVideoConfig(obs_data_t *settings)
 	string video_device_id = obs_data_get_string(settings, VIDEO_DEVICE_ID);
 	deactivateWhenNotShowing = obs_data_get_bool(settings, DEACTIVATE_WNS);
 	flip = obs_data_get_bool(settings, FLIP_IMAGE);
+	flipH = obs_data_get_bool(settings, FLIP_IMAGE_H);
 
 	DeviceId id;
 	if (!DecodeDeviceId(id, video_device_id.c_str())) {
