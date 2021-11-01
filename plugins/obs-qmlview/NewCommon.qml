@@ -8,33 +8,31 @@ Item {
     {
         if(themeType === 1)
         {
-			if(uiType === 1)
-				return "qrc:/qmlfiles/image/newreward/background_gift1.png";
-			else if(uiType === 2)
-				return "qrc:/qmlfiles/image/newfollow/background_guanzhu1.png";
-			else
-				return "qrc:/qmlfiles/image/listfirst/background_zhoubang1.png";
+			return "qrc:/qmlfiles/image/newcom/orangeblack.png";
         }
         else if(themeType === 2)
         {
-			if(uiType === 1)
-				return "qrc:/qmlfiles/image/newreward/background_gift2.png";
-			else if(uiType === 2)
-				return "qrc:/qmlfiles/image/newfollow/background_guanzhu2.png";
-			else
-				return "qrc:/qmlfiles/image/listfirst/background_zhoubang2.png";
+			return "qrc:/qmlfiles/image/newcom/waterblue.png";
         }
         else if(themeType === 3)
         {
-			return "qrc:/qmlfiles/image/newtheme/tip.png";
+			return "qrc:/qmlfiles/image/newcom/tip.png";
 		}
         else if(themeType === 4)
         {
-			return "qrc:/qmlfiles/image/newtheme/switch.png";
+			return "qrc:/qmlfiles/image/newcom/switch.png";
+		}
+        else if(themeType === 5)
+        {
+			return "qrc:/qmlfiles/image/newcom/grayblue.png";
+		}
+        else if(themeType === 6)
+        {
+			return "qrc:/qmlfiles/image/newcom/bluewhale.png";
 		}
         else
         {
-			return "qrc:/qmlfiles/image/newtheme/deepblue.png";
+			return "qrc:/qmlfiles/image/newcom/pinkHeart.png";
 		}
     }
 
@@ -42,48 +40,37 @@ Item {
     {
         if(themeType === 1)
         {
-            return 602;
+            return 600;
         }
         else if(themeType === 2)
         {
-            return 593;
+            return 707;
         }
         else if(themeType === 3)
         {
-            return 542;
+            return 560;
         }
         else if(themeType === 4)
         {
-            return 644;
+            return 700;
         }
+		 else if(themeType === 5)
+        {
+            return 600;
+		}
+		 else if(themeType === 6)
+        {
+            return 700;
+		}
         else
         {
-            return 568;
+            return 707;
         }
     }
 
     function backGroundHeight(themeType)
     {
-        if(themeType === 1)
-        {
-            return 164;
-        }
-        else if(themeType === 2)
-        {
-            return 174;
-        }
-        else if(themeType === 3)
-        {
-            return 247;
-        }
-        else if(themeType === 4)
-        {
-            return 172;
-        }
-        else
-        {
-            return 166;
-        }
+         return 176;
     }
 	
 	function itemPosX(themeType)
@@ -210,73 +197,45 @@ Item {
 	}
     function avatarRadius(themeType)
     {
-        if(themeType === 1)
+        if(themeType === 3 || themeType === 4)
         {
-            return 59;
-        }
-        else if(themeType === 2)
-        {
-            return 59
-        }
-        else if(themeType === 3)
-        {
-            return 59;
-        }
-        else if(themeType === 4)
-        {
-            return 50;
+            return 56;
         }
         else
         {
-            return 59;
+            return 62;
         }
 	}
 	
     function avatarPosX(themeType)
     {
-        if(themeType === 1)
+		if(themeType === 3)
         {
-            return 24;
-        }
-        else if(themeType === 2)
-        {
-            return 12
-        }
-        else if(themeType === 3)
-        {
-            return 51;
+            return 32;
         }
         else if(themeType === 4)
         {
-            return 97;
+            return 130;
         }
         else
         {
-            return 9;
+            return 40;
         }
 	}
 	
     function avatarPosY(themeType)
     {
-	    if(themeType === 1)
+		if(themeType === 3)
         {
-            return 11;
-        }
-        else if(themeType === 2)
-        {
-            return 11
-        }
-        else if(themeType === 3)
-        {
-            return 45;
+            return 32;
         }
         else if(themeType === 4)
         {
-            return 20;
+            return 32;
         }
         else
         {
-            return 9;
+            return 26;
         }
 	}
 	
@@ -284,44 +243,19 @@ Item {
     {
         if(themeType === 1)
         {
-            return 82;
-        }
-        else if(themeType === 2)
-        {
-            return 24;
-        }
-        else if(themeType === 3)
-        {
-            return 20;
-        }
-        else if(themeType === 4)
-        {
-            return 12;
+            return 88;
         }
         else
         {
             return 24;
         }
 	}
-	
-	
+
     function topTextPosY(themeType)
     {
-        if(themeType === 1)
+        if(themeType === 3 || themeType === 4)
         {
-            return 13;
-        }
-        else if(themeType === 2)
-        {
-            return 13;
-        }
-        else if(themeType === 3)
-        {
-            return 8;
-        }
-        else if(themeType === 4)
-        {
-            return 5;
+            return 0;
         }
         else
         {
@@ -336,106 +270,69 @@ Item {
 			if(uiType!== 3&&uiType!== 5)
 			{
 				if(empty)
-					return 45;
+					return 66;
 				else
-					return 20;
+					return 32;
 			}
 			else
-				return 20;
+				return 32;
         }
         else if(newProperties.themetype === 2)
         {
 			if(uiType!== 3&&uiType!== 5)
 			{
 				if(empty)
-					return 45;
+					return 66;
 				else
-					return 20;
+					return 32;
 			}
 			else
-				return 20;
+				return 32;
         }
         else if(newProperties.themetype === 3)
         {
 			if(uiType!== 3&&uiType!== 5)
 			{
 				if(empty)
-					return 82;
+					return 66;
 				else
-					return 52;
+					return 32;
 			}
 			else
-				return 52;
+				return 32;
         }
         else if(newProperties.themetype === 4)
         {
 			if(uiType!== 3&&uiType!== 5)
 			{
 				if(empty)
-					return 49;
+					return 66;
 				else
-					return 25;
+					return 32;
 			}
 			else
-				return 25;
+				return 32;
         }
         else
         {
 			if(uiType!== 3&&uiType!== 5)
 			{
 				if(empty)
-					return 47;
+					return 66;
 				else
-					return 23;
+					return 32;
 			}
 			else
-				return 23;
+				return 32;
         }
 	}
-	
 	function getTopFontSize()
     {
-        if(newProperties.themetype === 1)
-        {
-            return 32;
-        }
-        else if(newProperties.themetype === 2)
-        {
-            return 32;
-        }
-        else if(newProperties.themetype === 3)
-        {
-            return 32;
-        }
-        else if(newProperties.themetype === 4)
-        {
-            return 32;
-        }
-        else
-            return 38;
+       return 44;
 	}
-	
-	
 	function getBottomFontSize()
     {
-        if(newProperties.themetype === 1)
-        {
-            return 32;
-        }
-        else if(newProperties.themetype === 2)
-        {
-            return 32;
-        }
-        else if(newProperties.themetype === 3)
-        {
-            return 30;
-        }
-        else if(newProperties.themetype === 4)
-        {
-            return 30;
-        }
-        else
-            return 32;
+       return 32;
 	}
     id: container
 	visible:newProperties.uitype===5?false:true
@@ -460,11 +357,9 @@ Item {
         Item{
             id:item1
             anchors.left: parent.left
-            anchors.leftMargin: itemPosX(newProperties.themetype)
             anchors.top: parent.top
-            anchors.topMargin:  itemPosY(newProperties.themetype)
-            width:parent.width - 2*itemPosX(newProperties.themetype)
-            height:parent.height - 2*itemPosY(newProperties.themetype)
+            width:parent.width
+            height:parent.height
 			
 			Rectangle {
                 id: avartar
@@ -472,8 +367,8 @@ Item {
                 anchors.leftMargin: avatarPosX(newProperties.themetype)
                 anchors.top: parent.top
                 anchors.topMargin: avatarPosY(newProperties.themetype)
-                width: newProperties.themetype === 5 ? 118:2*avatarRadius(newProperties.themetype)
-                height:newProperties.themetype === 5 ? 118:2*avatarRadius(newProperties.themetype)
+                width: 2*avatarRadius(newProperties.themetype)
+                height:2*avatarRadius(newProperties.themetype)
                 radius: avatarRadius(newProperties.themetype)
 				Rectangle {
 					id: imgeBg
@@ -501,8 +396,8 @@ Item {
 					visible: true
 					antialiasing: true
 					smooth: true
-					border.width: newProperties.themetype === 5 ? 5:0
-					border.color: newProperties.themetype === 5 ?"#F3B458":"#00000000"
+					border.width:0
+					border.color:"#00000000"
 				}
 				}
 				Rectangle {
@@ -522,7 +417,6 @@ Item {
 					maskSource: mask1
 					visible: true
 					antialiasing: true
-
 				}
 			}
 
