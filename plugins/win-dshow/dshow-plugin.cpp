@@ -16,6 +16,7 @@
 #include <QNetworkAccessManager>
 #include <QNetworkReply>
 #include <QNetworkRequest>
+#include <QDebug>
 
 OBS_DECLARE_MODULE()
 OBS_MODULE_USE_DEFAULT_LOCALE("win-dshow", "en-US")
@@ -83,6 +84,69 @@ static int logFuncForEffect(int logLevel, const char *msg)
 	return 0;
 }
 
+
+static const std::string base64_chars = 
+             "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+             "abcdefghijklmnopqrstuvwxyz"
+             "0123456789+/";
+
+static inline bool is_base64(BYTE c)
+{
+	return (isalnum(c) || (c == '+') || (c == '/'));
+}
+
+std::vector<BYTE> base64_decode(std::string const &encoded_string)
+{
+	int in_len = encoded_string.size();
+	int i = 0;
+	int j = 0;
+	int in_ = 0;
+	BYTE char_array_4[4], char_array_3[3];
+	std::vector<BYTE> ret;
+
+	while (in_len-- && (encoded_string[in_] != '=') &&
+	       is_base64(encoded_string[in_])) {
+		char_array_4[i++] = encoded_string[in_];
+		in_++;
+		if (i == 4) {
+			for (i = 0; i < 4; i++)
+				char_array_4[i] =
+					base64_chars.find(char_array_4[i]);
+
+			char_array_3[0] = (char_array_4[0] << 2) +
+					  ((char_array_4[1] & 0x30) >> 4);
+			char_array_3[1] = ((char_array_4[1] & 0xf) << 4) +
+					  ((char_array_4[2] & 0x3c) >> 2);
+			char_array_3[2] = ((char_array_4[2] & 0x3) << 6) +
+					  char_array_4[3];
+
+			for (i = 0; (i < 3); i++)
+				ret.push_back(char_array_3[i]);
+			i = 0;
+		}
+	}
+
+	if (i) {
+		for (j = i; j < 4; j++)
+			char_array_4[j] = 0;
+
+		for (j = 0; j < 4; j++)
+			char_array_4[j] = base64_chars.find(char_array_4[j]);
+
+		char_array_3[0] = (char_array_4[0] << 2) +
+				  ((char_array_4[1] & 0x30) >> 4);
+		char_array_3[1] = ((char_array_4[1] & 0xf) << 4) +
+				  ((char_array_4[2] & 0x3c) >> 2);
+		char_array_3[2] =
+			((char_array_4[2] & 0x3) << 6) + char_array_4[3];
+
+		for (j = 0; (j < i - 1); j++)
+			ret.push_back(char_array_3[j]);
+	}
+
+	return ret;
+}
+
 static void initBDResource(std::string appPath)
 {
 #ifdef DEBUG
@@ -92,8 +156,8 @@ static void initBDResource(std::string appPath)
 	beResourceContext = new BEResourceContext;
 	beResourceContext->setApplicationDir(appPath);
 	beResourceContext->initializeContext();
-
-	if (!QFile::exists(getResourceContext()->getFeatureContext()->getLicensePath().c_str())) {
+	QFileInfo finfo(getResourceContext()->getFeatureContext()->getLicensePath().c_str());
+	if (!finfo.exists() || finfo.size() == 0) {
 		char *authMsg = nullptr;
 		int authMsgLen = 0;
 		bef_effect_ai_get_auth_msg(&authMsg, &authMsgLen);
@@ -130,20 +194,20 @@ static void initBDResource(std::string appPath)
 		req.setRawHeader("Content-Type", "application/json");
 		req.setRawHeader("cache-control", "no-cache");
 		QJsonDocument jd(obj);
-		qDebug() << jd;
 		auto reply = manager->post(req, jd.toJson());
 		QObject::connect(reply, &QNetworkReply::finished, [=](){
 			QJsonDocument doc = QJsonDocument::fromJson(reply->readAll());
+			qDebug() << "license doc " << doc;
 			auto o = doc.object();
 			if (!o.isEmpty()) {
 				QDir dir(QString::fromStdString(getResourceContext()->getFeatureContext()->getResourceDir()));
 				if (!dir.exists("license"))
 					dir.mkdir("license");
 				QString base64Str = o["data"].toString();
-				auto towrite = QByteArray::fromBase64(base64Str.toUtf8());
+				std::vector<uint8_t> lic_b = base64_decode(base64Str.toStdString());
 				QFile f(getResourceContext()->getFeatureContext()->getLicensePath().c_str());
 				f.open(QFile::ReadWrite | QFile::Truncate);
-				f.write(towrite);
+				f.write((const char *)lic_b.data(), lic_b.size());
 				f.close();
 			}
 			reply->deleteLater();

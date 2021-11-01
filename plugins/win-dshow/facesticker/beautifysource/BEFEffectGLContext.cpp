@@ -96,10 +96,10 @@ bool BEFEffectGLContext::createGLESContext(int major) {
             EGL_NONE
     };
     // EGL context attributes
-    const EGLint ctxAttr[] = {
-            EGL_CONTEXT_CLIENT_VERSION, clientVersion,// very important!
-            EGL_NONE
-    };
+    std::vector<EGLint> ctxAttr;
+
+    ctxAttr.push_back(EGL_CONTEXT_CLIENT_VERSION);
+    ctxAttr.push_back(clientVersion);
     const EGLint confAttr_screen[] = {
             EGL_RENDERABLE_TYPE, renderType,// very important!
             EGL_SURFACE_TYPE,EGL_PBUFFER_BIT,//EGL_WINDOW_BIT EGL_PBUFFER_BIT we will create a pixelbuffer surface
@@ -196,12 +196,27 @@ bool BEFEffectGLContext::createGLESContext(int major) {
         LOGS("create surface failed");
         return false;
     }
-    m_effectGLEnv->eglContext = eglCreateContext(m_effectGLEnv->eglDisplay, m_effectGLEnv->eglConfig, EGL_NO_CONTEXT, ctxAttr);
+    const char* displayExtensions = eglQueryString(m_effectGLEnv->eglDisplay, EGL_EXTENSIONS);
+    bool hasProgramCacheControlExtention = strstr(displayExtensions, "EGL_ANGLE_program_cache_control") != nullptr;
+
+    if (hasProgramCacheControlExtention)
+    {
+        ctxAttr.push_back(EGL_CONTEXT_PROGRAM_BINARY_CACHE_ENABLED_ANGLE);
+        ctxAttr.push_back(EGL_TRUE);
+        eglProgramCacheResizeANGLE(m_effectGLEnv->eglDisplay, 10 * 1024 * 1024, EGL_PROGRAM_CACHE_RESIZE_ANGLE);
+        //isSupportProgramCache = true;
+    }
+
+    ctxAttr.push_back(EGL_NONE);
+
+    m_effectGLEnv->eglContext = eglCreateContext(m_effectGLEnv->eglDisplay, m_effectGLEnv->eglConfig, EGL_NO_CONTEXT, ctxAttr.data());
+
+    //m_effectGLEnv->eglContext = eglCreateContext(m_effectGLEnv->eglDisplay, m_effectGLEnv->eglConfig, EGL_NO_CONTEXT, ctxAttr);
     if (m_effectGLEnv->eglContext == EGL_NO_CONTEXT)
     {
         EGLint error = eglGetError();
         if (error == EGL_BAD_CONFIG)
-        {
+        { 
             // Handle error and recover
             LOGS("EGL_BAD_CONFIG");
         }
