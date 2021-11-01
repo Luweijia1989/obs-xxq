@@ -339,6 +339,15 @@ Item {
     width: backGroundWidth(newProperties.themetype)
     height: backGroundHeight(newProperties.themetype)
     focus: true
+	
+    Image {
+            id: backGroundImage
+            opacity: newProperties.transparence
+            anchors.centerIn: parent
+            source: backGroundPath(newProperties.themetype,newProperties.uitype)
+            fillMode: Image.Pad
+    }
+	
     Rectangle {
         id:rec1
         width: backGroundWidth(newProperties.themetype)
@@ -347,13 +356,6 @@ Item {
         y:0
         color:"#00000000";
         visible: true;
-        Image {
-            id: backGroundImage
-            opacity: newProperties.transparence
-            anchors.centerIn: parent
-            source: backGroundPath(newProperties.themetype,newProperties.uitype)
-            fillMode: Image.Pad
-        }
         Item{
             id:item1
             anchors.left: parent.left
@@ -451,17 +453,66 @@ Item {
             }
         }
     }
-
+	
+    NumberAnimation {
+        id:enterIn
+        target: rec1
+		from:-1 * backGroundHeight(newProperties.themetype)
+        to:0
+        property: "y"
+        duration: 300
+        easing.type: Easing.InOutQuad
+    }
+	
+    NumberAnimation {
+        id:getOut
+        target: rec1
+		from:0
+        to:backGroundHeight(newProperties.themetype)
+        property: "y"
+        duration: 300
+        easing.type: Easing.InOutQuad
+        onStopped:{
+			if(nameList.length === 0)
+				return;
+			if(newProperties.uitype !== 3)
+			{
+				text1.text = nameList.shift()
+				squareavatarImage.source = avartarPath(pathList.shift())
+				if(newProperties.uitype !== 5)
+				{
+					text1.visible = text1.text === ""? false: true
+				}
+				else
+				{
+					text1.visible = true
+				}
+				text2.text = descText(text1.text,newProperties.uitype)
+				text2.anchors.bottomMargin = bottomTextPosY(text1.text === "",newProperties.uitype)
+				index = 1
+			}
+			else
+			{
+				squareavatarImage.source = avartarPath(pathList.shift())
+				text2.text = descText(nameList.shift(),newProperties.uitype)
+				index = 1
+			}
+			enterIn.start()
+			if(nameList.length > 0)
+				enterOutTimer.start()
+        }
+    }
+    property var pathList: []
+	property var nameList: []
     property var index: 1
     Timer {
-        id:previewtimer
-        interval: 18000;
+        id:enterOutTimer
+        interval: 1000;
         triggeredOnStart: true;
         repeat: false
         onTriggered: {
-                    index = 1
-					if(newProperties.uitype === 5&&!newProperties.canstay)
-						container.visible = false
+		if(nameList.length > 0)
+			getOut.start();
        }
     }
     Connections {
@@ -501,7 +552,7 @@ Item {
 					}
 					else
 					{
-						if(newProperties.firstname!="")
+						if(newProperties.firstname!=="")
 						{
 							squareavatarImage.source = avartarPath(newProperties.avatarpath)
 							text1.text = newProperties.firstname
@@ -516,28 +567,11 @@ Item {
                }
         }
         onUpdate:{
-					if(newProperties.uitype !== 3)
-					{
-						text1.text = newProperties.firstname
-						squareavatarImage.source = avartarPath(newProperties.avatarpath)
-						if(newProperties.uitype !== 5)
-						{
-							text1.visible = newProperties.firstname === ""? false: true
-						}
-						else
-						{
-							text1.visible = true
-						}
-						text2.text = descText(newProperties.firstname,newProperties.uitype)
-						text2.anchors.bottomMargin = bottomTextPosY(newProperties.firstname === "",newProperties.uitype)
-						index = 1
-					}
-					else
-					{
-						squareavatarImage.source = avartarPath(newProperties.avatarpath)
-						text2.text = descText(newProperties.firstname,newProperties.uitype)
-						index = 1
-					}
+		    pathList.push(newProperties.avatarpath);
+			nameList.push(newProperties.firstname);
+			console.log(sprintf("-------------%d",nameList.length))
+			if(nameList.length === 1)
+				getOut.start();
         }
 		
         onShow:{

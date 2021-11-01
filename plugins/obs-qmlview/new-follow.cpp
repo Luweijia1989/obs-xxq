@@ -100,8 +100,8 @@ static void newfollow_source_update(void *data, obs_data_t *settings)
 	transparence = transparence / 100.0f;
 	s->settransparence(transparence);
 
-	//if (textChange)
-	emit s->update();
+	if (textChange)
+		emit s->update();
 }
 
 static void *newfollow_source_create(obs_data_t *settings, obs_source_t *source)
