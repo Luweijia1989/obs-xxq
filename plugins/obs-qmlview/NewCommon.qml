@@ -430,6 +430,8 @@ Item {
                 anchors.top: avartar.top
                 anchors.topMargin: topTextPosY(newProperties.themetype)
                 text: newProperties.uitype === 3? theNameText(newProperties.listtype):newProperties.firstname
+                elide: Text.ElideRight
+                width: 259
                 font.family: newProperties.themefont
                 font.pixelSize: getTopFontSize()
                 font.bold: newProperties.themebold
@@ -457,7 +459,7 @@ Item {
     NumberAnimation {
         id:enterIn
         target: rec1
-		from:-1 * backGroundHeight(newProperties.themetype)
+		from:backGroundHeight(newProperties.themetype)
         to:0
         property: "y"
         duration: 300
@@ -468,7 +470,7 @@ Item {
         id:getOut
         target: rec1
 		from:0
-        to:backGroundHeight(newProperties.themetype)
+        to:-1*backGroundHeight(newProperties.themetype)
         property: "y"
         duration: 300
         easing.type: Easing.InOutQuad
@@ -489,13 +491,27 @@ Item {
 				}
 				text2.text = descText(text1.text,newProperties.uitype)
 				text2.anchors.bottomMargin = bottomTextPosY(text1.text === "",newProperties.uitype)
-				index = 1
+				if(isRePlay)
+				{
+					isRePlay = false;
+				}
+				else
+				{
+					index = 1;
+				}
 			}
 			else
 			{
 				squareavatarImage.source = avartarPath(pathList.shift())
 				text2.text = descText(nameList.shift(),newProperties.uitype)
-				index = 1
+				if(isRePlay)
+				{
+					isRePlay = false;
+				}
+				else
+				{
+					index = 1;
+				}
 			}
 			enterIn.start()
 			if(nameList.length > 0)
@@ -505,10 +521,11 @@ Item {
     property var pathList: []
 	property var nameList: []
     property var index: 1
+    property var isRePlay: false
     Timer {
         id:enterOutTimer
         interval: 1000;
-        triggeredOnStart: true;
+        triggeredOnStart: false;
         repeat: false
         onTriggered: {
 		if(nameList.length > 0)
@@ -518,58 +535,51 @@ Item {
     Connections {
             target: newProperties
             onReplay:{
-                if(index <4)
-                {
-                    squareavatarImage.source = sprintf("qrc:/qmlfiles/image/boke%d.png",index)
-					if(newProperties.uitype !== 3)
-					{
-	                    text1.text = sprintf("啵克%d号",index)
-						text1.visible = true
-						text2.text = descText(text1.text,newProperties.uitype)
-						text2.anchors.bottomMargin = bottomTextPosY(text1.text === "",newProperties.uitype)
-					}
-					else{
-						text2.text = sprintf("啵克%d号",index)
-					}
-					index = index+1;
+			if(nameList.length > 0)
+				nameList.splice(0,nameList.length)
+				
+			if(pathList.length > 0)
+				pathList.splice(0,pathList.length)
+				
+			if(index <4)
+			{
+				pathList.push(sprintf("qrc:/qmlfiles/image/boke%d.png",index));
+				nameList.push(sprintf("啵克%d号",index))
+				index = index+1;
+				isRePlay = true;
+				getOut.start();
+			}
+		   else if(index === 4)
+		   {
+				if(newProperties.uitype !== 5)
+				{
+					pathList.push(newProperties.avatarpath);
+					nameList.push(newProperties.firstname);
+					isRePlay = true;
+					getOut.start();
 				}
-               else if(index === 4)
-               {
-				   if(newProperties.uitype !== 5)
-				   {
-						squareavatarImage.source = avartarPath(newProperties.avatarpath)
-						if(newProperties.uitype !== 3)
-						{
-							text1.visible = newProperties.firstname === ""? false: true
-							text1.text = newProperties.firstname
-							text2.text = descText(newProperties.firstname,newProperties.uitype)
-							text2.anchors.bottomMargin = bottomTextPosY(newProperties.firstname === "",newProperties.uitype)
-						}
-						else
-						{
-							text2.text = descText(newProperties.firstname,newProperties.uitype)
-						}
+				else
+				{
+					if(newProperties.firstname!=="")
+					{
+						pathList.push(newProperties.avatarpath);
+						nameList.push(newProperties.firstname);
+						text1.visible = true
+						isRePlay = true;
+						getOut.start();
 					}
 					else
 					{
-						if(newProperties.firstname!=="")
-						{
-							squareavatarImage.source = avartarPath(newProperties.avatarpath)
-							text1.text = newProperties.firstname
-						}
-						else
-						{
-							container.visible = false
-						}
-						text1.visible = true
+						container.visible = false
 					}
-					 index = 1
-               }
+						text1.visible = true
+				}
+				index = 1 
+		   }
         }
         onUpdate:{
 		    pathList.push(newProperties.avatarpath);
 			nameList.push(newProperties.firstname);
-			console.log(sprintf("-------------%d",nameList.length))
 			if(nameList.length === 1)
 				getOut.start();
         }
