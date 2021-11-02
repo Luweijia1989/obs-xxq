@@ -281,7 +281,7 @@ void ScreenMirrorServer::setBackendType(int type)
 		m_source,
 		m_backend == ANDROID_AOA || m_backend == ANDROID_WIRELESS
 			? OBS_MONITORING_TYPE_NONE
-			: OBS_MONITORING_TYPE_MONITOR_AND_OUTPUT);
+			: OBS_MONITORING_TYPE_MONITOR_ONLY);
 
 	resetState();
 	handleMirrorStatus(MIRROR_STOP);
