@@ -3050,10 +3050,12 @@ void obs_rtc_output_begin()
 void obs_rtc_update_frame(int channel, char *data, uint32_t width,
 			  uint32_t height)
 {
+	struct obs_rtc_mix *rtc_mix = &obs->video.rtc_mix;
+	if (!os_atomic_load_bool(&rtc_mix->rtc_output_active))
+		return;
 	if (channel > NUM_RTC_CHANNEL)
 		return;
 	obs_enter_graphics();
-	struct obs_rtc_mix *rtc_mix = &obs->video.rtc_mix;
 	if (rtc_mix->rtc_textures[channel]) {
 		uint32_t w = gs_texture_get_width(rtc_mix->rtc_textures[channel]);
 		uint32_t h = gs_texture_get_height(rtc_mix->rtc_textures[channel]);
