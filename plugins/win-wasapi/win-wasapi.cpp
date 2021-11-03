@@ -84,6 +84,7 @@ public:
 	void Update(obs_data_t *settings);
 
 	void SetDefaultDevice(EDataFlow flow, ERole role, LPCWSTR id);
+	void OutputCaptureFail(HRESULT res);
 };
 
 class WASAPINotify : public IMMNotificationClient {
@@ -268,6 +269,16 @@ void WASAPISource::InitClient()
 		throw HRError("Failed to get initialize audio client", res);
 }
 
+void WASAPISource::OutputCaptureFail(HRESULT res)
+{
+	if (res == AUDCLNT_E_UNSUPPORTED_FORMAT) {
+		obs_data_t *event = obs_data_create();
+		obs_data_set_string(event, "type", "Fail2InitRender");
+		obs_source_signal_event(source, event);
+		obs_data_release(event);
+	}
+}
+
 void WASAPISource::InitRender()
 {
 	CoTaskMemPtr<WAVEFORMATEX> wfex;
@@ -287,8 +298,10 @@ void WASAPISource::InitRender()
 
 	res = client->Initialize(AUDCLNT_SHAREMODE_SHARED, 0, BUFFER_TIME_100NS,
 				 0, wfex, nullptr);
-	if (FAILED(res))
+	if (FAILED(res)) {
+		OutputCaptureFail(res);
 		throw HRError("Failed to get initialize audio client", res);
+	}
 
 	/* Silent loopback fix. Prevents audio stream from stopping and */
 	/* messing up timestamps and other weird glitches during silence */
