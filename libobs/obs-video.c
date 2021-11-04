@@ -528,9 +528,9 @@ static inline void render_rtc_textures(gs_effect_t *effect,
 
 	uint32_t src_width = gs_texture_get_width(texture);
 	uint32_t src_height = gs_texture_get_height(texture);
-	gs_set_viewport(x_pos, y_pos, crop_width, crop_height);
 	gs_ortho(0.0f, (float)src_width, 0.0f, (float)src_height, -100.0f,
 		 100.0f);
+	gs_set_viewport(x_pos, y_pos, crop_width, crop_height);
 
 	float cx_scale = (float)src_width / (float)crop_width;
 	float cy_scale = (float)src_height / (float)crop_height;
@@ -577,14 +577,14 @@ static inline void render_rtc_remote_textures(gs_effect_t *effect,
 
 	uint32_t ret_width = 0;
 	uint32_t ret_height = 0;
-	uint32_t rw = (float)target_height * (float)src_width / (float)src_height;
+	uint32_t rw = (uint32_t)((float)target_height * (float)src_width / (float)src_height);
 	bool use_height = (rw >= target_width);
 	if (use_height) {
 		ret_width = rw;
 		ret_height = target_height;
 	} else {
 		ret_width = target_width;
-		ret_height = (float)target_width * (float)src_height / (float)src_width;
+		ret_height = (uint32_t)((float)target_width * (float)src_height / (float)src_width);
 	}
 
 	int width_o = target_width - ret_width;
@@ -595,9 +595,8 @@ static inline void render_rtc_remote_textures(gs_effect_t *effect,
 	int view_w = view_x < 0 ? abs(view_x) * 2 + final_width : final_width;
 	int view_h = view_y < 0 ? abs(view_y) * 2 + final_height : final_height;
 
+	gs_ortho(0.0f, (float)view_w, 0.0f, (float)view_h, -100.0f, 100.0f);
 	gs_set_viewport(view_x, view_y, view_w, view_h);
-	gs_ortho(0.0f, (float)view_w, 0.0f, (float)view_h, -100.0f,
-		 100.0f);
 
 	float ratio = (float)ret_width / (float)src_width;
 	gs_matrix_scale3f(ratio, ratio, 1.0f);
