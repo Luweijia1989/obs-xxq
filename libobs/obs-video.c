@@ -558,6 +558,66 @@ static inline void render_rtc_textures(gs_effect_t *effect,
 	gs_viewport_pop();
 }
 
+static inline void render_rtc_remote_textures(gs_effect_t *effect,
+				       gs_technique_t *tech,
+				       gs_texture_t *src_texture, int x_pos,
+				       int y_pos, uint32_t target_width,
+				       uint32_t target_height, uint32_t final_width, uint32_t final_height)
+{
+	gs_eparam_t *image = gs_effect_get_param_by_name(effect, "image");
+	size_t passes, i;
+
+	gs_viewport_push();
+	gs_projection_push();
+	gs_matrix_push();
+	gs_matrix_identity();
+
+	uint32_t src_width = gs_texture_get_width(src_texture);
+	uint32_t src_height = gs_texture_get_height(src_texture);
+
+	uint32_t ret_width = 0;
+	uint32_t ret_height = 0;
+	uint32_t rw = (float)target_height * (float)src_width / (float)src_height;
+	bool use_height = (rw >= target_width);
+	if (use_height) {
+		ret_width = rw;
+		ret_height = target_height;
+	} else {
+		ret_width = target_width;
+		ret_height = (float)target_width * (float)src_height / (float)src_width;
+	}
+
+	int width_o = target_width - ret_width;
+	int height_o = target_height - ret_height;
+	int view_x = x_pos + width_o / 2;
+	int view_y = y_pos + height_o / 2;
+
+	int view_w = view_x < 0 ? abs(view_x) * 2 + final_width : final_width;
+	int view_h = view_y < 0 ? abs(view_y) * 2 + final_height : final_height;
+
+	gs_set_viewport(view_x, view_y, view_w, view_h);
+	gs_ortho(0.0f, (float)view_w, 0.0f, (float)view_h, -100.0f,
+		 100.0f);
+
+	float ratio = (float)ret_width / (float)src_width;
+	gs_matrix_scale3f(ratio, ratio, 1.0f);
+	gs_effect_set_texture(image, src_texture);
+
+	gs_enable_blending(false);
+	passes = gs_technique_begin(tech);
+	for (i = 0; i < passes; i++) {
+		gs_technique_begin_pass(tech, i);
+		gs_draw_sprite(src_texture, 0, src_width, src_height);
+		gs_technique_end_pass(tech);
+	}
+	gs_technique_end(tech);
+	gs_enable_blending(true);
+
+	gs_matrix_pop();
+	gs_projection_pop();
+	gs_viewport_pop();
+}
+
 static inline gs_texture_t *
 render_rtc_output_texture(struct obs_core_video *video) //final output
 {
@@ -584,22 +644,15 @@ render_rtc_output_texture(struct obs_core_video *video) //final output
 
 	//to do, auto texture layout, here we only user rtc_texture channel 0
 
-	//two
+	
+	if (rtc_mix->rtc_textures[0]) {
+		render_rtc_remote_textures(effect, tech, rtc_mix->rtc_textures[0], 720, 0, 720, 1080, width, height);
+	}
+	//two 
 	render_rtc_textures(
 		effect, tech, texture, 0, 0, rtc_mix->self_crop_x,
 		rtc_mix->self_crop_y, rtc_mix->self_crop_width,
 		rtc_mix->self_crop_height); // self data do not need to do a y offset
-	if (rtc_mix->rtc_textures[0]) {
-		uint32_t texh = gs_texture_get_height(rtc_mix->rtc_textures[0]);
-		if (texh == 1280) // app send this size. app-> 720 * 1280
-			render_rtc_textures(effect, tech,
-					    rtc_mix->rtc_textures[0], 720, -100,
-					    0, 0, 720, 1280);
-		else // pc or app old version send this size. pc-> 720 * 1080
-			render_rtc_textures(effect, tech,
-					    rtc_mix->rtc_textures[0], 720, 0, 0,
-					    0, 720, 1080);
-	}
 
 	return target;
 }
