@@ -27,14 +27,12 @@ set(BEAUTIFY_SRCS
 source_group("beauty" FILES ${BEAUTIFY_SRCS})
   
 set(beauty-filter_HEADERS
-	bd-thread.h
 	beauty-handle.h
 	atomicops.h
 	readerwriterqueue.h
 	)
   
 set(beauty-filter_SOURCES
-	bd-thread.cpp
 	beauty-handle.cpp
 	beauty-filter.cpp)
 
