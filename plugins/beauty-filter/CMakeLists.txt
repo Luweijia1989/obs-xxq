@@ -28,8 +28,6 @@ source_group("beauty" FILES ${BEAUTIFY_SRCS})
   
 set(beauty-filter_HEADERS
 	beauty-handle.h
-	atomicops.h
-	readerwriterqueue.h
 	)
   
 set(beauty-filter_SOURCES
