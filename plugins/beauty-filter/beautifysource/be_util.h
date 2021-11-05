@@ -30,13 +30,6 @@ delete[] ptr; \
 }
 
 long GetCurrentMillieconds();
-    
-extern bool ENABLE_PROFILE_TIME_COST;
-
-
-
-void SetEnableProfileTimeCost(bool status);
-
 bool GetEnableProfileTimeCost();
 
 

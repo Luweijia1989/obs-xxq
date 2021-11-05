@@ -4,25 +4,12 @@
 
 #include <memory>
 #include <time.h>
-#include <QMutex>
 
-
-static QMutex PROFILE_MUTEX;
 bool ENABLE_PROFILE_TIME_COST = false;
-
-
-void SetEnableProfileTimeCost(bool status) {
-    PROFILE_MUTEX.lock();
-    ENABLE_PROFILE_TIME_COST = status;
-    PROFILE_MUTEX.unlock();
-}
 
 bool GetEnableProfileTimeCost()
 {
-    bool ret = false;
-    PROFILE_MUTEX.lock();
-    ret = ENABLE_PROFILE_TIME_COST;
-    PROFILE_MUTEX.unlock();
+    bool ret = ENABLE_PROFILE_TIME_COST;
     return ret;
 }
 

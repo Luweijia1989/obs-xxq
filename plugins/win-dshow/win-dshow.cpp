@@ -1,83 +1,100 @@
-#include "win-dshow.h"
-#include "facesticker/bd-thread.h"
-#include <QJsonDocument>
-#include <QJsonObject>
-#include <QDateTime>
+#include <objbase.h>
 
+#include <obs-module.h>
+#include <obs.hpp>
+#include <util/dstr.hpp>
+#include <util/platform.h>
+#include <util/windows/WinHandle.hpp>
+#include <util/threading.h>
+#include "libdshowcapture/dshowcapture.hpp"
+#include "ffmpeg-decode.h"
+#include "encode-dstr.hpp"
+#include <media-io/video-scaler.h>
 #include <graphics/image-file.h>
 
-static gs_image_file_t img_ctx;
+#include <algorithm>
+#include <limits>
+#include <set>
+#include <string>
+#include <vector>
 
-extern enum AVPixelFormat obs_to_ffmpeg_video_format(enum video_format format);
+/*
+ * TODO:
+ *   - handle disconnections and reconnections
+ *   - if device not present, wait for device to be plugged in
+ */
 
-static inline enum video_format convert_pixel_format(int f)
-{
-	switch (f) {
-	case AV_PIX_FMT_NONE:
-		return VIDEO_FORMAT_NONE;
-	case AV_PIX_FMT_YUV420P:
-	case AV_PIX_FMT_YUVJ420P:
-		return VIDEO_FORMAT_I420;
-	case AV_PIX_FMT_NV12:
-		return VIDEO_FORMAT_NV12;
-	case AV_PIX_FMT_YUYV422:
-		return VIDEO_FORMAT_YUY2;
-	case AV_PIX_FMT_UYVY422:
-		return VIDEO_FORMAT_UYVY;
-	case AV_PIX_FMT_RGBA:
-		return VIDEO_FORMAT_RGBA;
-	case AV_PIX_FMT_BGRA:
-		return VIDEO_FORMAT_BGRA;
-	case AV_PIX_FMT_BGR0:
-		return VIDEO_FORMAT_BGRX;
-	default:;
-	}
+#undef min
+#undef max
 
-	return VIDEO_FORMAT_NONE;
-}
+using namespace std;
+using namespace DShow;
 
-static void fillFrameDataInfo(VideoFormat vf, uint8_t **outdata, uint32_t *linesize, int cx, int cy, unsigned char *data)
-{
-	if (vf == VideoFormat::XRGB || vf == VideoFormat::ARGB) {
-		outdata[0] = data;
-		linesize[0] = cx * 4;
+/* clang-format off */
 
-	} else if (vf == VideoFormat::YVYU || vf == VideoFormat::YUY2 ||
-		   vf == VideoFormat::HDYC || vf == VideoFormat::UYVY) {
-		outdata[0] = data;
-		linesize[0] = cx * 2;
+/* settings defines that will cause errors if there are typos */
+#define VIDEO_DEVICE_ID   "video_device_id"
+#define RES_TYPE          "res_type"
+#define RESOLUTION        "resolution"
+#define FRAME_INTERVAL    "frame_interval"
+#define VIDEO_FORMAT      "video_format"
+#define LAST_VIDEO_DEV_ID "last_video_device_id"
+#define LAST_RESOLUTION   "last_resolution"
+#define BUFFERING_VAL     "buffering"
+#define FLIP_IMAGE        "flip_vertically"
+#define FLIP_IMAGE_H	  "flipH"
+#define AUDIO_OUTPUT_MODE "audio_output_mode"
+#define USE_CUSTOM_AUDIO  "use_custom_audio_device"
+#define AUDIO_DEVICE_ID   "audio_device_id"
+#define COLOR_SPACE       "color_space"
+#define COLOR_RANGE       "color_range"
+#define DEACTIVATE_WNS    "deactivate_when_not_showing"
 
-	} else if (vf == VideoFormat::I420) {
-		outdata[0] = data;
-		outdata[1] = outdata[0] + (cx * cy);
-		outdata[2] = outdata[1] + (cx * cy / 4);
-		linesize[0] = cx;
-		linesize[1] = cx / 2;
-		linesize[2] = cx / 2;
+#define TEXT_INPUT_NAME     obs_module_text("VideoCaptureDevice")
+#define TEXT_DEVICE         obs_module_text("Device")
+#define TEXT_CONFIG_VIDEO   obs_module_text("ConfigureVideo")
+#define TEXT_CONFIG_XBAR    obs_module_text("ConfigureCrossbar")
+#define TEXT_RES_FPS_TYPE   obs_module_text("ResFPSType")
+#define TEXT_CUSTOM_RES     obs_module_text("ResFPSType.Custom")
+#define TEXT_PREFERRED_RES  obs_module_text("ResFPSType.DevPreferred")
+#define TEXT_FPS_MATCHING   obs_module_text("FPS.Matching")
+#define TEXT_FPS_HIGHEST    obs_module_text("FPS.Highest")
+#define TEXT_RESOLUTION     obs_module_text("Resolution")
+#define TEXT_VIDEO_FORMAT   obs_module_text("VideoFormat")
+#define TEXT_FORMAT_UNKNOWN obs_module_text("VideoFormat.Unknown")
+#define TEXT_BUFFERING      obs_module_text("Buffering")
+#define TEXT_BUFFERING_AUTO obs_module_text("Buffering.AutoDetect")
+#define TEXT_BUFFERING_ON   obs_module_text("Buffering.Enable")
+#define TEXT_BUFFERING_OFF  obs_module_text("Buffering.Disable")
+#define TEXT_FLIP_IMAGE     obs_module_text("FlipVertically")
+#define TEXT_AUDIO_MODE     obs_module_text("AudioOutputMode")
+#define TEXT_MODE_CAPTURE   obs_module_text("AudioOutputMode.Capture")
+#define TEXT_MODE_DSOUND    obs_module_text("AudioOutputMode.DirectSound")
+#define TEXT_MODE_WAVEOUT   obs_module_text("AudioOutputMode.WaveOut")
+#define TEXT_CUSTOM_AUDIO   obs_module_text("UseCustomAudioDevice")
+#define TEXT_AUDIO_DEVICE   obs_module_text("AudioDevice")
+#define TEXT_ACTIVATE       obs_module_text("Activate")
+#define TEXT_DEACTIVATE     obs_module_text("Deactivate")
+#define TEXT_COLOR_SPACE    obs_module_text("ColorSpace")
+#define TEXT_COLOR_DEFAULT  obs_module_text("ColorSpace.Default")
+#define TEXT_COLOR_RANGE    obs_module_text("ColorRange")
+#define TEXT_RANGE_DEFAULT  obs_module_text("ColorRange.Default")
+#define TEXT_RANGE_PARTIAL  obs_module_text("ColorRange.Partial")
+#define TEXT_RANGE_FULL     obs_module_text("ColorRange.Full")
+#define TEXT_DWNS           obs_module_text("DeactivateWhenNotShowing")
 
-	} else if (vf == VideoFormat::YV12) {
-		outdata[0] = data;
-		outdata[2] = outdata[0] + (cx * cy);
-		outdata[1] = outdata[2] + (cx * cy / 4);
-		linesize[0] = cx;
-		linesize[1] = cx / 2;
-		linesize[2] = cx / 2;
+/* clang-format on */
 
-	} else if (vf == VideoFormat::NV12) {
-		outdata[0] = data;
-		outdata[1] = outdata[0] + (cx * cy);
-		linesize[0] = cx;
-		linesize[1] = cx;
+enum ResType {
+	ResType_Preferred,
+	ResType_Custom,
+};
 
-	} else if (vf == VideoFormat::Y800) {
-		outdata[0] = data;
-		linesize[0] = cx;
-
-	} else {
-		/* TODO: other formats */
-		return;
-	}
-}
+enum class BufferingType : int64_t {
+	Auto,
+	On,
+	Off,
+};
 
 void ffmpeg_log(void *bla, int level, const char *msg, va_list args)
 {
@@ -99,6 +116,195 @@ void ffmpeg_log(void *bla, int level, const char *msg, va_list args)
 	av_log_default_callback(bla, level, msg, args);
 }
 
+class Decoder {
+	struct ffmpeg_decode decode;
+
+public:
+	inline Decoder() { memset(&decode, 0, sizeof(decode)); }
+	inline ~Decoder() { ffmpeg_decode_free(&decode); }
+
+	inline operator ffmpeg_decode *() { return &decode; }
+	inline ffmpeg_decode *operator->() { return &decode; }
+};
+
+class CriticalSection {
+	CRITICAL_SECTION mutex;
+
+public:
+	inline CriticalSection() { InitializeCriticalSection(&mutex); }
+	inline ~CriticalSection() { DeleteCriticalSection(&mutex); }
+
+	inline operator CRITICAL_SECTION *() { return &mutex; }
+};
+
+class CriticalScope {
+	CriticalSection &mutex;
+
+	CriticalScope() = delete;
+	CriticalScope &operator=(CriticalScope &cs) = delete;
+
+public:
+	inline CriticalScope(CriticalSection &mutex_) : mutex(mutex_)
+	{
+		EnterCriticalSection(mutex);
+	}
+
+	inline ~CriticalScope() { LeaveCriticalSection(mutex); }
+};
+
+enum class Action {
+	None,
+	Activate,
+	ActivateBlock,
+	Deactivate,
+	Shutdown,
+	ConfigVideo,
+	ConfigAudio,
+	ConfigCrossbar1,
+	ConfigCrossbar2,
+};
+
+static DWORD CALLBACK DShowThread(LPVOID ptr);
+
+struct DShowInput {
+	obs_source_t *source;
+	Device device;
+	bool deactivateWhenNotShowing = false;
+	bool deviceHasAudio = false;
+	bool deviceHasSeparateAudioFilter = false;
+	bool flip = false;
+	bool flipH = false;
+	bool active = false;
+
+	string lastDeviceId;
+	bool deviceActivated = false;
+	bool triggerDeviceFail = false;
+	CriticalSection deviceActivatedMutex;
+	float timeElapsed = 0.f;
+	gs_image_file_t img_ctx;
+
+	video_scaler_t *scaler2RGBA = nullptr;
+	struct video_scale_info conversion = { VIDEO_FORMAT_NONE, 0, 0, VIDEO_RANGE_DEFAULT, VIDEO_CS_DEFAULT };
+	uint8_t *m_cacheBuffer = nullptr;
+	uint32_t m_cacheBufferSize = 0;
+
+	Decoder audio_decoder;
+	Decoder video_decoder;
+
+	VideoConfig videoConfig;
+	AudioConfig audioConfig;
+
+	video_range_type range;
+	obs_source_frame2 frame;
+	obs_source_audio audio;
+
+	WinHandle semaphore;
+	WinHandle activated_event;
+	WinHandle thread;
+	CriticalSection mutex;
+	vector<Action> actions;
+
+	inline void QueueAction(Action action)
+	{
+		CriticalScope scope(mutex);
+		actions.push_back(action);
+		ReleaseSemaphore(semaphore, 1, nullptr);
+	}
+
+	inline void QueueActivate(obs_data_t *settings)
+	{
+		bool block =
+			obs_data_get_bool(settings, "synchronous_activate");
+		QueueAction(block ? Action::ActivateBlock : Action::Activate);
+		if (block) {
+			obs_data_erase(settings, "synchronous_activate");
+			WaitForSingleObject(activated_event, INFINITE);
+		}
+	}
+
+	inline DShowInput(obs_source_t *source_, obs_data_t *settings)
+		: source(source_), device(InitGraph::False)
+	{
+		memset(&audio, 0, sizeof(audio));
+		memset(&frame, 0, sizeof(frame));
+		memset(&img_ctx, 0, sizeof(struct gs_image_file));
+
+		av_log_set_level(AV_LOG_WARNING);
+		av_log_set_callback(ffmpeg_log);
+
+		semaphore = CreateSemaphore(nullptr, 0, 0x7FFFFFFF, nullptr);
+		if (!semaphore)
+			throw "Failed to create semaphore";
+
+		activated_event = CreateEvent(nullptr, false, false, nullptr);
+		if (!activated_event)
+			throw "Failed to create activated_event";
+
+		thread =
+			CreateThread(nullptr, 0, DShowThread, this, 0, nullptr);
+		if (!thread)
+			throw "Failed to create thread";
+
+		deactivateWhenNotShowing =
+			obs_data_get_bool(settings, DEACTIVATE_WNS);
+
+		if (obs_data_get_bool(settings, "active")) {
+			bool showing = obs_source_showing(source);
+			if (!deactivateWhenNotShowing || showing)
+				QueueActivate(settings);
+
+			active = true;
+		}
+	}
+
+	inline ~DShowInput()
+	{
+		obs_enter_graphics();
+		gs_image_file_free(&img_ctx);
+		obs_leave_graphics();
+
+		if (scaler2RGBA)
+			video_scaler_destroy(scaler2RGBA);
+
+		if (m_cacheBuffer)
+			free(m_cacheBuffer);
+
+		{
+			CriticalScope scope(mutex);
+			actions.resize(1);
+			actions[0] = Action::Shutdown;
+		}
+
+		ReleaseSemaphore(semaphore, 1, nullptr);
+
+		WaitForSingleObject(thread, INFINITE);
+	}
+
+	void OnEncodedVideoData(enum AVCodecID id, unsigned char *data,
+				size_t size, long long ts);
+	void OnEncodedAudioData(enum AVCodecID id, unsigned char *data,
+				size_t size, long long ts);
+
+	void OnVideoData(const VideoConfig &config, unsigned char *data,
+			 size_t size, long long startTime, long long endTime);
+	void OnAudioData(const AudioConfig &config, unsigned char *data,
+			 size_t size, long long startTime, long long endTime);
+	void OutputSourceFrame(obs_source_t *source,
+			       struct obs_source_frame2 *frame);
+
+	bool UpdateVideoConfig(obs_data_t *settings);
+	bool UpdateAudioConfig(obs_data_t *settings);
+	void SetActive(bool active);
+	inline enum video_colorspace GetColorSpace(obs_data_t *settings) const;
+	inline enum video_range_type GetColorRange(obs_data_t *settings) const;
+	inline bool Activate(obs_data_t *settings);
+	inline void Deactivate();
+
+	inline void SetupBuffering(obs_data_t *settings);
+
+	void DShowLoop();
+};
+
 static DWORD CALLBACK DShowThread(LPVOID ptr)
 {
 	DShowInput *dshowInput = (DShowInput *)ptr;
@@ -118,92 +324,6 @@ static inline void ProcessMessages()
 		TranslateMessage(&msg);
 		DispatchMessage(&msg);
 	}
-}
-
-void DShowInput::QueueAction(Action action)
-{
-	CriticalScope scope(mutex);
-	actions.push_back(action);
-	ReleaseSemaphore(semaphore, 1, nullptr);
-}
-
-void DShowInput::QueueActivate(obs_data_t *settings)
-{
-	bool block = obs_data_get_bool(settings, "synchronous_activate");
-	QueueAction(block ? Action::ActivateBlock : Action::Activate);
-	if (block) {
-		obs_data_erase(settings, "synchronous_activate");
-		WaitForSingleObject(activated_event, INFINITE);
-	}
-}
-
-DShowInput::DShowInput(obs_source_t *source_, obs_data_t *settings)
-	: source(source_), device(InitGraph::False)
-{
-	stThread = new BDThread(this);
-	stThread->setBeautifyEnabled(obs_data_get_bool(settings, "beautifyEnabled"));
-	stThread->waitStarted();
-
-	memset(&audio, 0, sizeof(audio));
-	memset(&frame, 0, sizeof(frame));
-
-	av_log_set_level(AV_LOG_WARNING);
-	av_log_set_callback(ffmpeg_log);
-
-	semaphore = CreateSemaphore(nullptr, 0, 0x7FFFFFFF, nullptr);
-	if (!semaphore)
-		throw "Failed to create semaphore";
-
-	activated_event = CreateEvent(nullptr, false, false, nullptr);
-	if (!activated_event)
-		throw "Failed to create activated_event";
-
-	thread = CreateThread(nullptr, 0, DShowThread, this, 0, nullptr);
-	if (!thread)
-		throw "Failed to create thread";
-
-	deactivateWhenNotShowing = obs_data_get_bool(settings, DEACTIVATE_WNS);
-	flipH = obs_data_get_bool(settings, "flipH");
-
-	if (obs_data_get_bool(settings, "active")) {
-		bool showing = obs_source_showing(source);
-		if (!deactivateWhenNotShowing || showing)
-			QueueActivate(settings);
-
-		active = true;
-	}
-}
-
-DShowInput::~DShowInput()
-{
-
-	blog(LOG_INFO, "DShowInput finish");
-
-	obs_enter_graphics();
-	gs_image_file_free(&img_ctx);
-	obs_leave_graphics();
-
-	{
-		CriticalScope scope(mutex);
-		actions.resize(1);
-		actions[0] = Action::Shutdown;
-	}
-
-	ReleaseSemaphore(semaphore, 1, nullptr);
-
-	WaitForSingleObject(thread, INFINITE);
-
-	if (stThread) {
-		stThread->quitThread();
-		delete stThread;
-		stThread = nullptr;
-	}
-}
-
-void DShowInput::updateInfo(const char *data)
-{
-	if (stThread)
-		stThread->updateInfo(data);
 }
 
 /* Always keep directshow in a single thread for a given device */
@@ -235,16 +355,18 @@ void DShowInput::DShowLoop()
 
 			obs_data_t *settings;
 			settings = obs_source_get_settings(source);
-			QString curDevice = obs_data_get_string(settings, VIDEO_DEVICE_ID);
-			if (lastDeviceId != curDevice) {
+			string curDevice = obs_data_get_string(settings, VIDEO_DEVICE_ID);
+			if (lastDeviceId != curDevice)
 				triggerDeviceFail = false;
-			}
+
 			lastDeviceId = curDevice;
 
 			{
 				CriticalScope scope(deviceActivatedMutex);
-				if (!Activate(settings)) {
-					if (!triggerDeviceFail && !curDevice.isEmpty()) {
+				if (!Activate(settings))
+				{
+					if (!triggerDeviceFail && curDevice.length() > 0)
+					{
 						obs_data_t *event = obs_data_create();
 						obs_data_set_string(event, "eventType", "cameraOpenStatus");
 						obs_data_set_int(event, "value", 0);
@@ -277,26 +399,29 @@ void DShowInput::DShowLoop()
 
 						obs_source_output_video(source, &frame);
 					}
-				} else {
+				}
+				else
+				{
 					deviceActivated = true;
 					obs_data_set_bool(settings, "deviceActivated", deviceActivated);
 				}
 			}
-
 			if (block)
 				SetEvent(activated_event);
 			obs_data_release(settings);
 			break;
 		}
 
-		case Action::Deactivate: {
+		case Action::Deactivate:
+		{
 			CriticalScope scope(deviceActivatedMutex);
 			deviceActivated = false;
 			obs_data_t *settings = obs_source_get_settings(source);
 			obs_data_set_bool(settings, "deviceActivated", deviceActivated);
 			obs_data_release(settings);
 			Deactivate();
-		} break;
+		}
+			break;
 
 		case Action::Shutdown:
 			device.ShutdownGraph();
@@ -355,7 +480,7 @@ static long long FrameRateInterval(const VideoInfo &cap,
 		       : min(desired_interval, cap.maxInterval);
 }
 
-video_format ConvertVideoFormat(VideoFormat format)
+static inline video_format ConvertVideoFormat(VideoFormat format)
 {
 	switch (format) {
 	case VideoFormat::ARGB:
@@ -378,8 +503,6 @@ video_format ConvertVideoFormat(VideoFormat format)
 		return VIDEO_FORMAT_UYVY;
 	case VideoFormat::HDYC:
 		return VIDEO_FORMAT_UYVY;
-	case VideoFormat::MJPEG:
-		return VIDEO_FORMAT_YUY2;
 	default:
 		return VIDEO_FORMAT_NONE;
 	}
@@ -424,20 +547,26 @@ static inline enum speaker_layout convert_speaker_layout(uint8_t channels)
 //#define LOG_ENCODED_VIDEO_TS 1
 //#define LOG_ENCODED_AUDIO_TS 1
 
+#define MAX_SW_RES_INT (1920 * 1080)
+
 void DShowInput::OnEncodedVideoData(enum AVCodecID id, unsigned char *data,
 				    size_t size, long long ts)
 {
 	if (!ffmpeg_decode_valid(video_decoder)) {
-		if (ffmpeg_decode_init(video_decoder, id) < 0) {
+		/* Only use MJPEG hardware decoding on resolutions higher
+		 * than 1920x1080.  The reason why is because we want to strike
+		 * a reasonable balance between hardware and CPU usage. */
+		bool useHW = videoConfig.format != VideoFormat::MJPEG ||
+			     (videoConfig.cx * videoConfig.cy) > MAX_SW_RES_INT;
+		if (ffmpeg_decode_init(video_decoder, id, useHW) < 0) {
 			blog(LOG_WARNING, "Could not initialize video decoder");
 			return;
 		}
 	}
 
 	bool got_output;
-	AVFrame *avFrame = NULL;
 	bool success = ffmpeg_decode_video(video_decoder, data, size, &ts,
-					   &frame, &avFrame, &got_output);
+					   range, &frame, &got_output);
 	if (!success) {
 		blog(LOG_WARNING, "Error decoding video");
 		return;
@@ -445,28 +574,19 @@ void DShowInput::OnEncodedVideoData(enum AVCodecID id, unsigned char *data,
 
 	if (got_output) {
 		frame.timestamp = (uint64_t)ts * 100;
-		frame.flip_h = flipH;
 		if (flip)
 			frame.flip = !frame.flip;
 #if LOG_ENCODED_VIDEO_TS
 		blog(LOG_DEBUG, "video ts: %llu", frame.timestamp);
 #endif
-		if (stThread && stThread->stInited())
-		{
-			stThread->addFrame(avFrame, frame.timestamp);
-		}
-		else {
-			QMutexLocker locker(&outputMutex);
-			obs_source_output_video2(source, &frame);
-		}
+		OutputSourceFrame(source, &frame);
 	}
 }
 
 static bool VideoDataSizeValid(int w, int h, size_t size, VideoFormat format)
 {
 	size_t expectSize = 0;
-	switch (format)
-	{
+	switch (format) {
 	case DShow::VideoFormat::ARGB:
 	case DShow::VideoFormat::XRGB:
 		expectSize = w * h * 4;
@@ -493,6 +613,55 @@ static bool VideoDataSizeValid(int w, int h, size_t size, VideoFormat format)
 	return expectSize != 0 && size == expectSize;
 }
 
+void DShowInput::OutputSourceFrame(obs_source_t *source, struct obs_source_frame2 *frame)
+{
+	auto filter = obs_source_filter_get_by_name(source, "YPPBeautyFilter");
+	if (filter) {
+		auto settings = obs_source_get_settings(filter);
+		bool needBeauty = obs_data_get_int(settings, "need_beauty") == 1;
+		obs_data_release(settings);
+		if (needBeauty) {
+			if (frame->format != VIDEO_FORMAT_RGBA) {
+				if (conversion.width != frame->width
+					|| conversion.height != frame->height
+					|| conversion.format != frame->format) {
+					conversion.width = frame->width;
+					conversion.height = frame->height;
+					conversion.format = frame->format;
+					conversion.colorspace = frame->color_matrix[2] > 1.5 ? VIDEO_CS_709 : VIDEO_CS_601;
+					conversion.range = frame->range;
+
+					if (scaler2RGBA)
+						video_scaler_destroy(scaler2RGBA);
+
+					video_scale_info dst = conversion;
+					dst.format = VIDEO_FORMAT_RGBA;
+					video_scaler_create(&scaler2RGBA, &dst, &conversion, VIDEO_SCALE_POINT);
+
+					auto ts = (frame->width + 10) * frame->height * 4;
+					if (!m_cacheBuffer) {
+						m_cacheBuffer = (uint8_t *)malloc(ts);
+						m_cacheBufferSize = ts;
+					} else if (m_cacheBufferSize < ts) {
+						m_cacheBuffer = (uint8_t *)realloc(m_cacheBuffer, ts);
+						m_cacheBufferSize = ts;
+					}
+				}
+
+				uint8_t *out[8] = {m_cacheBuffer};
+				uint32_t ls[8] = { frame->width * 4 };
+				video_scaler_scale(scaler2RGBA, out, ls, frame->data, frame->linesize);
+				frame->data[0] = m_cacheBuffer;
+				frame->linesize[0] = frame->width * 4;
+				frame->format = VIDEO_FORMAT_RGBA;
+			}
+		}
+	}
+
+	frame->flip_h = flipH;
+	obs_source_output_video2(source, frame);
+}
+
 void DShowInput::OnVideoData(const VideoConfig &config, unsigned char *data,
 			     size_t size, long long startTime,
 			     long long endTime)
@@ -502,113 +671,82 @@ void DShowInput::OnVideoData(const VideoConfig &config, unsigned char *data,
 		return;
 	}
 
-	if (!VideoDataSizeValid(videoConfig.cx, videoConfig.cy, size, videoConfig.format))
+	if (videoConfig.format == VideoFormat::MJPEG) {
+		OnEncodedVideoData(AV_CODEC_ID_MJPEG, data, size, startTime);
+		return;
+	}
+
+	if (!VideoDataSizeValid(videoConfig.cx, videoConfig.cy, size,
+				videoConfig.format))
 		return;
 
-	if (stThread && stThread->stInited())
-	{
-		video_format format = ConvertVideoFormat(videoConfig.format);
-		int f = obs_to_ffmpeg_video_format(format);
-		stThread->addFrame(data, size, startTime, videoConfig.cx, videoConfig.cy, f);
-	}
-	else
-		OutputFrame((videoConfig.format == VideoFormat::XRGB ||
-			     videoConfig.format == VideoFormat::ARGB),
-			    flipH, videoConfig.format, data, size, startTime,
-			    endTime);
-}
-
-void DShowInput::OutputFrame(bool f, bool fh, VideoFormat vf,
-			     unsigned char *data, size_t size,
-			     long long startTime, long long endTime)
-{
-	QMutexLocker locker(&outputMutex);
-	const int cx = videoConfig.cx;
-	const int cy = videoConfig.cy;
+	const int cx = config.cx;
+	const int cy = config.cy;
 
 	frame.timestamp = (uint64_t)startTime * 100;
-	frame.width = videoConfig.cx;
-	frame.height = videoConfig.cy;
-	frame.format = ConvertVideoFormat(vf);
-	frame.flip = f;
-	frame.flip_h = fh;
+	frame.width = config.cx;
+	frame.height = config.cy;
+	frame.format = ConvertVideoFormat(config.format);
+	frame.flip = (config.format == VideoFormat::XRGB ||
+		      config.format == VideoFormat::ARGB);
 
 	if (flip)
 		frame.flip = !frame.flip;
 
-	fillFrameDataInfo(vf, frame.data, frame.linesize, cx, cy, data);
+	if (videoConfig.format == VideoFormat::XRGB ||
+	    videoConfig.format == VideoFormat::ARGB) {
+		frame.data[0] = data;
+		frame.linesize[0] = cx * 4;
 
-	obs_source_output_video2(source, &frame);
+	} else if (videoConfig.format == VideoFormat::YVYU ||
+		   videoConfig.format == VideoFormat::YUY2 ||
+		   videoConfig.format == VideoFormat::HDYC ||
+		   videoConfig.format == VideoFormat::UYVY) {
+		frame.data[0] = data;
+		frame.linesize[0] = cx * 2;
+
+	} else if (videoConfig.format == VideoFormat::I420) {
+		frame.data[0] = data;
+		frame.data[1] = frame.data[0] + (cx * cy);
+		frame.data[2] = frame.data[1] + (cx * cy / 4);
+		frame.linesize[0] = cx;
+		frame.linesize[1] = cx / 2;
+		frame.linesize[2] = cx / 2;
+
+	} else if (videoConfig.format == VideoFormat::YV12) {
+		frame.data[0] = data;
+		frame.data[2] = frame.data[0] + (cx * cy);
+		frame.data[1] = frame.data[2] + (cx * cy / 4);
+		frame.linesize[0] = cx;
+		frame.linesize[1] = cx / 2;
+		frame.linesize[2] = cx / 2;
+
+	} else if (videoConfig.format == VideoFormat::NV12) {
+		frame.data[0] = data;
+		frame.data[1] = frame.data[0] + (cx * cy);
+		frame.linesize[0] = cx;
+		frame.linesize[1] = cx;
+
+	} else if (videoConfig.format == VideoFormat::Y800) {
+		frame.data[0] = data;
+		frame.linesize[0] = cx;
+
+	} else {
+		/* TODO: other formats */
+		return;
+	}
+	
+	OutputSourceFrame(source, &frame);
 
 	UNUSED_PARAMETER(endTime); /* it's the enndd tiimmes! */
 	UNUSED_PARAMETER(size);
-}
-
-void DShowInput::OutputFrame(unsigned char *data, size_t size,
-			     long long startTime, long long endTime, int w, int h)
-{
-	QMutexLocker locker(&outputMutex);
-	const int cx = w;
-	const int cy = h;
-
-	frame.timestamp = (uint64_t)startTime * 100;
-	frame.width = w;
-	frame.height = h;
-	frame.format = VIDEO_FORMAT_RGBA;
-	frame.flip = false;
-	frame.flip_h = false;
-
-	if (flip)
-		frame.flip = !frame.flip;
-	 
-	fillFrameDataInfo(VideoFormat::ARGB, frame.data, frame.linesize, cx, cy, data); // 实际这里是rgba的数据，但是rgba和argb的数据排布是一样的
-
-	obs_source_output_video2(source, &frame);
-
-	UNUSED_PARAMETER(endTime); /* it's the enndd tiimmes! */
-	UNUSED_PARAMETER(size);
-}
-
-void DShowInput::OutputFrame(AVFrame *avframe, long long startTime, bool flipH)
-{
-	QMutexLocker locker(&outputMutex);
-
-	auto new_format = convert_pixel_format(avframe->format);
-
-	frame.timestamp = (uint64_t)startTime * 100;
-	frame.width = avframe->width;
-	frame.height = avframe->height;
-	frame.flip = (videoConfig.format == VideoFormat::XRGB ||
-		      videoConfig.format == VideoFormat::ARGB);
-	frame.flip_h = flipH;
-
-
-	for (size_t i = 0; i < MAX_AV_PLANES; i++) {
-		frame.data[i] =avframe->data[i];
-		frame.linesize[i] = avframe->linesize[i];
-	}
-
-	if (new_format != frame.format) {
-		bool success;
-
-		frame.format = new_format;
-		frame.range = avframe->color_range == AVCOL_RANGE_JPEG
-				       ? VIDEO_RANGE_FULL
-				       : VIDEO_RANGE_DEFAULT;
-
-		success = video_format_get_parameters(
-			VIDEO_CS_601, frame.range, frame.color_matrix,
-			frame.color_range_min, frame.color_range_max);
-	}
-
-	obs_source_output_video2(source, &frame);
 }
 
 void DShowInput::OnEncodedAudioData(enum AVCodecID id, unsigned char *data,
 				    size_t size, long long ts)
 {
 	if (!ffmpeg_decode_valid(audio_decoder)) {
-		if (ffmpeg_decode_init(audio_decoder, id) < 0) {
+		if (ffmpeg_decode_init(audio_decoder, id, false) < 0) {
 			blog(LOG_WARNING, "Could not initialize audio decoder");
 			return;
 		}
@@ -834,11 +972,16 @@ static bool DetermineResolution(int &cx, int &cy, obs_data_t *settings,
 
 static long long GetOBSFPS();
 
-static inline bool IsEncoded(const VideoConfig &config)
+static inline bool IsDelayedDevice(const VideoConfig &config)
 {
-	return config.format >= VideoFormat::MJPEG ||
+	return config.format > VideoFormat::MJPEG ||
 	       wstrstri(config.name.c_str(), L"elgato") != NULL ||
 	       wstrstri(config.name.c_str(), L"stream engine") != NULL;
+}
+
+static inline bool IsDecoupled(const VideoConfig &config)
+{
+	return wstrstri(config.name.c_str(), L"GV-USB2") != NULL;
 }
 
 inline void DShowInput::SetupBuffering(obs_data_t *settings)
@@ -849,11 +992,12 @@ inline void DShowInput::SetupBuffering(obs_data_t *settings)
 	bufType = (BufferingType)obs_data_get_int(settings, BUFFERING_VAL);
 
 	if (bufType == BufferingType::Auto)
-		useBuffering = IsEncoded(videoConfig);
+		useBuffering = IsDelayedDevice(videoConfig);
 	else
 		useBuffering = bufType == BufferingType::On;
 
 	obs_source_set_async_unbuffered(source, !useBuffering);
+	obs_source_set_async_decoupled(source, IsDecoupled(videoConfig));
 }
 
 static DStr GetVideoFormatName(VideoFormat format);
@@ -863,7 +1007,7 @@ bool DShowInput::UpdateVideoConfig(obs_data_t *settings)
 	string video_device_id = obs_data_get_string(settings, VIDEO_DEVICE_ID);
 	deactivateWhenNotShowing = obs_data_get_bool(settings, DEACTIVATE_WNS);
 	flip = obs_data_get_bool(settings, FLIP_IMAGE);
-	flipH = obs_data_get_bool(settings, "flipH");
+	flipH = obs_data_get_bool(settings, FLIP_IMAGE_H);
 
 	DeviceId id;
 	if (!DecodeDeviceId(id, video_device_id.c_str())) {
@@ -905,9 +1049,6 @@ bool DShowInput::UpdateVideoConfig(obs_data_t *settings)
 		if (interval == FPS_MATCHING)
 			interval = GetOBSFPS();
 
-		// max 30fps
-		interval = (1/30) * 10000000;
-
 		format = (VideoFormat)obs_data_get_int(settings, VIDEO_FORMAT);
 
 		long long best_interval = numeric_limits<long long>::max();
@@ -943,26 +1084,12 @@ bool DShowInput::UpdateVideoConfig(obs_data_t *settings)
 					 placeholders::_3, placeholders::_4,
 					 placeholders::_5);
 
-	if (videoConfig.internalFormat != VideoFormat::MJPEG)
-		videoConfig.format = videoConfig.internalFormat;
+	videoConfig.format = videoConfig.internalFormat;
 
 	if (!device.SetVideoConfig(&videoConfig)) {
 		blog(LOG_WARNING, "%s: device.SetVideoConfig failed",
 		     obs_source_get_name(source));
 		return false;
-	}
-
-	if (videoConfig.internalFormat == VideoFormat::MJPEG) {
-		videoConfig.format = VideoFormat::XRGB;
-		videoConfig.useDefaultConfig = false;
-
-		if (!device.SetVideoConfig(&videoConfig)) {
-			blog(LOG_WARNING,
-			     "%s: device.SetVideoConfig (XRGB) "
-			     "failed",
-			     obs_source_get_name(source));
-			return false;
-		}
 	}
 
 	DStr formatName = GetVideoFormatName(videoConfig.internalFormat);
@@ -1094,8 +1221,11 @@ DShowInput::GetColorRange(obs_data_t *settings) const
 {
 	const char *range = obs_data_get_string(settings, COLOR_RANGE);
 
-	return astrcmpi(range, "full") == 0 ? VIDEO_RANGE_FULL
-					    : VIDEO_RANGE_PARTIAL;
+	if (astrcmpi(range, "full") == 0)
+		return VIDEO_RANGE_FULL;
+	if (astrcmpi(range, "partial") == 0)
+		return VIDEO_RANGE_PARTIAL;
+	return VIDEO_RANGE_DEFAULT;
 }
 
 inline bool DShowInput::Activate(obs_data_t *settings)
@@ -1118,13 +1248,14 @@ inline bool DShowInput::Activate(obs_data_t *settings)
 	if (!device.ConnectFilters())
 		return false;
 
-	enum video_colorspace cs = GetColorSpace(settings);
-	frame.range = GetColorRange(settings);
-
 	if (device.Start() != Result::Success)
 		return false;
 
-	bool success = video_format_get_parameters(cs, frame.range,
+	enum video_colorspace cs = GetColorSpace(settings);
+	range = GetColorRange(settings);
+	frame.range = range;
+
+	bool success = video_format_get_parameters(cs, range,
 						   frame.color_matrix,
 						   frame.color_range_min,
 						   frame.color_range_max);
@@ -1173,7 +1304,6 @@ static void DestroyDShowInput(void *data)
 static void UpdateDShowInput(void *data, obs_data_t *settings)
 {
 	DShowInput *input = reinterpret_cast<DShowInput *>(data);
-
 	if (input->active)
 		input->QueueActivate(settings);
 }
@@ -1185,7 +1315,7 @@ static void GetDShowDefaults(obs_data_t *settings)
 	obs_data_set_default_int(settings, VIDEO_FORMAT, (int)VideoFormat::Any);
 	obs_data_set_default_bool(settings, "active", true);
 	obs_data_set_default_string(settings, COLOR_SPACE, "default");
-	obs_data_set_default_string(settings, COLOR_RANGE, "partial");
+	obs_data_set_default_string(settings, COLOR_RANGE, "default");
 	obs_data_set_default_int(settings, AUDIO_OUTPUT_MODE,
 				 (int)AudioMode::Capture);
 }
@@ -1882,8 +2012,6 @@ static obs_properties_t *GetDShowProperties(void *obj)
 
 	obs_properties_add_bool(ppts, DEACTIVATE_WNS, TEXT_DWNS);
 
-	obs_properties_add_bool(ppts, "beautifyEnabled", "beautifyEnabled");
-
 	/* ------------------------------------- */
 	/* video settings */
 
@@ -1921,6 +2049,7 @@ static obs_properties_t *GetDShowProperties(void *obj)
 	p = obs_properties_add_list(ppts, COLOR_RANGE, TEXT_COLOR_RANGE,
 				    OBS_COMBO_TYPE_LIST,
 				    OBS_COMBO_FORMAT_STRING);
+	obs_property_list_add_string(p, TEXT_RANGE_DEFAULT, "default");
 	obs_property_list_add_string(p, TEXT_RANGE_PARTIAL, "partial");
 	obs_property_list_add_string(p, TEXT_RANGE_FULL, "full");
 
@@ -2026,14 +2155,6 @@ static void DShowInputTick(void *data, float seconds)
 	}
 }
 
-static void DShowInputCustomCommnad(void *data, obs_data_t *command)
-{
-	DShowInput *input = reinterpret_cast<DShowInput *>(data);
-	QString beautifyStr = obs_data_get_string(command, "beautifySetting");
-	input->stThread->updateBeautifySetting(beautifyStr);
-}
-
-
 void RegisterDShowSource()
 {
 	SetLogCallback(DShowModuleLogCallback, nullptr);
@@ -2052,6 +2173,5 @@ void RegisterDShowSource()
 	info.get_defaults = GetDShowDefaults;
 	info.get_properties = GetDShowProperties;
 	info.video_tick = DShowInputTick;
-	info.make_command = DShowInputCustomCommnad;
 	obs_register_source(&info);
 }
