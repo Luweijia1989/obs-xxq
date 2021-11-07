@@ -30,6 +30,14 @@ Item {
         {
             return "qrc:/qmlfiles/image/newvote/tips.png";
         }
+        else if(themeType === 5)
+        {
+            return "qrc:/qmlfiles/image/newvote/whale.png";
+        }
+        else if(themeType === 6)
+        {
+            return "qrc:/qmlfiles/image/newvote/pink.png";
+        }
     }
 	
 	function getOptionText(index, optionContent) {

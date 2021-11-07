@@ -7,31 +7,29 @@ Item {
     {
         if(themeType === 1)
         {
-			if(hasRankType === true)
-				return "qrc:/qmlfiles/image/newrank/showBackGround/orangeblack.png";
-			else
-				return "qrc:/qmlfiles/image/newrank/hideBackGround/orangeblack.png";
+
+			return "qrc:/qmlfiles/image/newrank/orangeblack.png";
+
         }
         else if(themeType === 2)
         {
-			if(hasRankType === true)
-				return "qrc:/qmlfiles/image/newrank/showBackGround/waterblue.png";
-			else
-				return "qrc:/qmlfiles/image/newrank/hideBackGround/waterblue.png";
+			return "qrc:/qmlfiles/image/newrank/waterblue.png";
         }
         else if(themeType === 3)
         {
-			if(hasRankType === true)
-				return "qrc:/qmlfiles/image/newrank/showBackGround/deepblue.png";
-			else
-				return "qrc:/qmlfiles/image/newrank/hideBackGround/deepblue.png";
+			return "qrc:/qmlfiles/image/newrank/deepblue.png";
 		}
         else if(themeType === 4)
         {
-			if(hasRankType === true)
-				return "qrc:/qmlfiles/image/newrank/showBackGround/tip.png";
-			else
-				return "qrc:/qmlfiles/image/newrank/hideBackGround/tip.png";
+			return "qrc:/qmlfiles/image/newrank/tip.png";
+		}
+        else if(themeType === 5)
+        {
+			return "qrc:/qmlfiles/image/newrank/bluewhale.png";
+		}
+        else if(themeType === 6)
+        {
+			return "qrc:/qmlfiles/image/newrank/pinkheart.png";
 		}
     }
 	
@@ -61,7 +59,7 @@ Item {
             opacity: rankProperties.transparence
             anchors.centerIn: parent
             source:backGroundPath(rankProperties.themetype,rankProperties.hasRankType)
-            fillMode: Image.Pad
+			fillMode: Image.PreserveAspectFit
         }
         ColumnLayout {
             anchors.fill: parent

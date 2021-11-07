@@ -15,19 +15,27 @@ Item {
         }
         else if(themeType === 2)
         {
-            return "qrc:/qmlfiles/image/timer/theme4.png";
+            return "qrc:/qmlfiles/image/timer/theme2.png";
         }
         else if(themeType === 3)
         {
-            return "qrc:/qmlfiles/image/timer/theme3.png";
+            return "qrc:/qmlfiles/image/newcom/tip.png";
         }
         else if(themeType === 4)
         {
-            return "qrc:/qmlfiles/image/timer/theme2.png";
+            return "qrc:/qmlfiles/image/newcom/switch.png";
         }
         else if(themeType === 5)
         {
-            return "qrc:/qmlfiles/image/timer/switch.png";
+            return "qrc:/qmlfiles/image/newcom/grayblue.png";
+        }
+		else if(themeType === 6)
+        {
+            return "qrc:/qmlfiles/image/timer/theme6.png";
+        }
+        else if(themeType === 7)
+        {
+            return "qrc:/qmlfiles/image/timer/theme7.png";
         }
     }
 
@@ -35,48 +43,37 @@ Item {
     {
         if(themeType === 1)
         {
-            return 512;
+            return 600;
         }
         else if(themeType === 2)
         {
-            return 521;
+            return 600;
         }
         else if(themeType === 3)
         {
-            return 494;
+            return 560;
         }
         else if(themeType === 4)
         {
-            return 488;
+            return 700;
         }
         else if(themeType === 5)
         {
-            return 518;
+            return 600;
+        }
+        else if(themeType === 6)
+        {
+            return 600;
+        }
+        else if(themeType === 7)
+        {
+            return 600;
         }
     }
 
     function backGroundHeight(themeType)
     {
-        if(themeType === 1)
-        {
-            return 158;
-        }
-        else if(themeType === 2)
-        {
-            return 157;
-        }
-        else if(themeType === 3)
-        {
-            return 183;
-        }
-        else if(themeType === 4)
-        {
-            return 303;
-        }
-        else if(themeType === 5)
-        {
-            return 144;
-        }
+		return 176;
     }
 
     function sprintf() {
@@ -90,98 +87,23 @@ Item {
 	
 	function itemPosX(themeType)
     {
-        if(themeType === 1)
+        if(themeType === 3)
         {
-            return 93;
-        }
-        else if(themeType === 2)
-        {
-            return 75;
-        }
-        else if(themeType === 3)
-        {
-            return 85;
+            return 30;
         }
         else if(themeType === 4)
         {
-            return 77;
+            return 100;
         }
-        else if(themeType === 5)
+        else
         {
-            return 95;
+            return 50;
         }
     }
 	
 	function itemPosY(themeType)
     {
-        if(themeType === 1)
-        {
-            return 38;
-        }
-        else if(themeType === 2)
-        {
-            return 37;
-        }
-        else if(themeType === 3)
-        {
-            return 60;
-        }
-        else if(themeType === 4)
-        {
-            return 159;
-        }
-        else if(themeType === 5)
-        {
-            return 31;
-        }
-    }
-	
-	function itemPosWidth(themeType)
-    {
-        if(themeType === 1)
-        {
-            return 355;
-        }
-        else if(themeType === 2)
-        {
-            return 340;
-        }
-        else if(themeType === 3)
-        {
-            return 342;
-        }
-        else if(themeType === 4)
-        {
-            return 343;
-        }
-        else if(themeType === 5)
-        {
-            return 327;
-        }
-    }
-	
-	function itemPosHeight(themeType)
-    {
-        if(themeType === 1)
-        {
-            return 80;
-        }
-        else if(themeType === 2)
-        {
-            return 80;
-        }
-        else if(themeType === 3)
-        {
-            return 80;
-        }
-        else if(themeType === 4)
-        {
-            return 80;
-        }
-        else if(themeType === 5)
-        {
-            return 80;
-        }
+        return 43;
     }
 
     Rectangle {
@@ -205,14 +127,14 @@ Item {
             anchors.leftMargin: itemPosX(newTimerProperties.themetype)
             anchors.top: parent.top
             anchors.topMargin:  itemPosY(newTimerProperties.themetype)
-            width:itemPosWidth(newTimerProperties.themetype)
-            height:itemPosHeight(newTimerProperties.themetype)
+            width:500
+            height:90
             Text {
                 id: text1
 				anchors.centerIn: parent
                 text: newTimerProperties.text
                 font.family: newTimerProperties.themefont
-                font.pixelSize:58
+                font.pixelSize:64
                 font.bold: newTimerProperties.themebold
                 font.italic: newTimerProperties.themeitalic
                 color: newTimerProperties.themefontcolor

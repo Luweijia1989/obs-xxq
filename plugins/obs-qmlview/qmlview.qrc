@@ -145,11 +145,13 @@
         <file>image/newvote/whale@2x.png</file>
         <file>image/timer/theme1.png</file>
         <file>image/timer/theme1@2x.png</file>
-        <file>image/timer/theme4.png</file>
-        <file>image/timer/theme4@2x.png</file>
+        <file>image/timer/theme2.png</file>
+        <file>image/timer/theme2@2x.png</file>
         <file>image/timer/theme6.png</file>
         <file>image/timer/theme6@2x.png</file>
         <file>image/timer/theme7.png</file>
         <file>image/timer/theme7@2x.png</file>
+        <file>image/fanstarget/grayBlue.png</file>
+        <file>image/fanstarget/grayBlue@2x.png</file>
     </qresource>
 </RCC>
