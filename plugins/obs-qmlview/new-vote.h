@@ -50,7 +50,7 @@ public:
 	DEFINE_PROPERTY(bool, themeItalic)
 	DEFINE_PROPERTY(QString, themeFontFamily)
 	DEFINE_PROPERTY(int, themeType)
-	DEFINE_PROPERTY(int, transparence)
+	DEFINE_PROPERTY(float, transparence)
 
 	DEFINE_PROPERTY(int, duration)
 	DEFINE_PROPERTY(bool, useDuration)

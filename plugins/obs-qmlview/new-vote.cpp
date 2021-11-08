@@ -167,7 +167,7 @@ static void new_vote_source_update(void *data, obs_data_t *settings)
 	s->setthemeBold(obs_data_get_bool(settings, "themebold"));
 	s->setthemeItalic(obs_data_get_bool(settings, "themeitalic"));
 	s->setthemeType(obs_data_get_int(settings, "themetype"));
-	s->settransparence(obs_data_get_int(settings, "transparence"));
+	s->settransparence(obs_data_get_int(settings, "transparence") / 100.0f);
 
 	s->setdownColor(obs_data_get_string(settings, "downfontcolor"));
 	s->setdownFontFamily(obs_data_get_string(settings, "downfont"));
