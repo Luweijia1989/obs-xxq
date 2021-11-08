@@ -89,7 +89,7 @@ private:
 
 	void initDecoder(uint8_t *data, size_t len, bool forceRecreate, bool forceSoftware);
 	void dropFrame(int64_t now_ms);
-	void dropAudioFrame(int64_t now_ms);
+	void dropAudioFrame(int64_t now_ms, size_t pkt_size);
 	void initSoftOutputFrame();
 	void updateSoftOutputFrame(AVFrame *frame);
 
@@ -97,7 +97,7 @@ private:
 	HANDLE m_handler;
 
 	std::thread m_audioLoopThread;
-	uint32_t m_audioSampleRate = 0;
+	media_audio_info m_audioInfo;
 	bool m_stop = false;
 
 	std::list<VideoFrame> m_videoFrames;

@@ -52,6 +52,7 @@ private:
     SrsCodecSample* sample;
     SrsRtmpJitter* jitter;
 
+    bool send_audio_header = false;
     IPCClient *ipc_client = nullptr;
     HANDLE_AACDECODER handle = nullptr;
     uint8_t *pcm_buffer = nullptr;

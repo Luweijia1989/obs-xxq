@@ -37,6 +37,7 @@ ScreenMirrorServer::ScreenMirrorServer(obs_source_t *source)
 	  m_audioTempBuffer((uint8_t *)bzalloc(ANDROID_AOA_AUDIO_PKT_SIZE +
 					       2 * sizeof(uint64_t)))
 {
+	memset(&m_audioInfo, 0, sizeof(media_audio_info));
 	initSoftOutputFrame();
 
 	dumpResourceImgs();
@@ -439,7 +440,7 @@ bool ScreenMirrorServer::handleMediaData()
 		memset(&info, 0, req_size);
 		circlebuf_pop_front(&m_avBuffer, &info, req_size);
 
-		m_audioSampleRate = info.samples_per_sec;
+		memcpy(&m_audioInfo, &info, sizeof(struct media_audio_info));
 	} else {
 		if (header_info.type == FFM_PACKET_AUDIO) {
 			outputAudio(req_size, header_info.pts,
@@ -486,24 +487,23 @@ bool ScreenMirrorServer::initPipe()
 	return true;
 }
 
-void ScreenMirrorServer::dropAudioFrame(int64_t now_ms)
+void ScreenMirrorServer::dropAudioFrame(int64_t now_ms, size_t pkt_size)
 {
-	size_t pktSize = AIRPLAY_AUDIO_PKT_SIZE;
-	auto two_pkt_size = 2 * (pktSize + sizeof(uint64_t));
+	auto two_pkt_size = 2 * (pkt_size + sizeof(uint64_t));
 	while (m_audioFrames.size >= two_pkt_size) {
 		circlebuf_peek_front(&m_audioFrames, m_audioTempBuffer,
-				     pktSize + 2 * sizeof(uint64_t));
+				     pkt_size + 2 * sizeof(uint64_t));
 		uint64_t p1 = 0;
 		uint64_t p2 = 0;
 		memcpy(&p1, m_audioTempBuffer, 4);
-		memcpy(&p2, m_audioTempBuffer + pktSize + sizeof(uint64_t), 4);
+		memcpy(&p2, m_audioTempBuffer + pkt_size + sizeof(uint64_t), 4);
 
 		auto p1ts = p1 + m_audioOffset + m_extraDelay;
 		auto p2ts = p2 + m_audioOffset + m_extraDelay;
 
 		if (p1ts < now_ms && p2ts < now_ms && now_ms - p2ts > 60) {
 			circlebuf_pop_front(&m_audioFrames, m_audioTempBuffer,
-					    pktSize + sizeof(uint64_t));
+					    pkt_size + sizeof(uint64_t));
 		} else
 			break;
 	}
@@ -582,7 +582,7 @@ void *ScreenMirrorServer::audio_tick_thread(void *data)
 	uint8_t *popBuffer = nullptr;
 
 	auto func = [=, &popBuffer](obs_source_t *source, circlebuf *frameBuf,
-				    size_t buffLen, uint32_t sampleRate) {
+				    size_t buffLen, media_audio_info *audioInfo) {
 		static size_t max_len = buffLen;
 		if (!popBuffer)
 			popBuffer = (uint8_t *)malloc(buffLen);
@@ -595,14 +595,14 @@ void *ScreenMirrorServer::audio_tick_thread(void *data)
 		circlebuf_pop_front(frameBuf, popBuffer, buffLen);
 
 		obs_source_audio audio;
-		audio.format = AUDIO_FORMAT_16BIT;
-		audio.samples_per_sec = sampleRate;
-		audio.speakers = SPEAKERS_STEREO;
-		audio.frames = buffLen / 4;
+		audio.format = audioInfo->format;
+		audio.samples_per_sec = audioInfo->samples_per_sec;
+		audio.speakers = audioInfo->speakers;
+		audio.frames = buffLen / (audioInfo->speakers * sizeof(short));
 		audio.timestamp = os_gettime_ns();
 		audio.data[0] = popBuffer;
 
-		if (sampleRate)
+		if (audioInfo->samples_per_sec)
 			obs_source_output_audio(source, &audio);
 	};
 
@@ -628,7 +628,8 @@ void *ScreenMirrorServer::audio_tick_thread(void *data)
 						s->m_audioOffset = now_ms - pts;
 				}
 
-				s->dropAudioFrame(now_ms);
+				auto audioPktSize = s->m_audioFrameType == IOS_AIRPLAY ? AIRPLAY_AUDIO_PKT_SIZE : ANDROID_AOA_AUDIO_PKT_SIZE;
+				s->dropAudioFrame(now_ms, audioPktSize);
 
 				uint64_t pts = 0;
 				circlebuf_peek_front(&s->m_audioFrames, &pts,
@@ -639,14 +640,11 @@ void *ScreenMirrorServer::audio_tick_thread(void *data)
 					circlebuf_pop_front(&s->m_audioFrames,
 							    &pts,
 							    sizeof(uint64_t));
-					func(s->m_source, &s->m_audioFrames,
-					     s->m_audioFrameType == IOS_AIRPLAY ? AIRPLAY_AUDIO_PKT_SIZE : ANDROID_AOA_AUDIO_PKT_SIZE,
-					     s->m_audioSampleRate);
+					func(s->m_source, &s->m_audioFrames,audioPktSize, &s->m_audioInfo);
 				}
 			} else {
 				size_t audioSize = s->m_audioFrames.size;
-				func(s->m_source, &s->m_audioFrames, audioSize,
-				     s->m_audioSampleRate);
+				func(s->m_source, &s->m_audioFrames, audioSize, &s->m_audioInfo);
 			}
 		}
 		pthread_mutex_unlock(&s->m_audioDataMutex);

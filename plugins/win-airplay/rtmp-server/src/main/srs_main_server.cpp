@@ -28,6 +28,7 @@ CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 #include <stdlib.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <thread>
 
 FILE _iob[] = { *stdin, *stdout, *stderr };
 
@@ -255,6 +256,25 @@ void check_macro_features()
 #endif
 }
 
+void stdin_read_thread()
+{
+	uint8_t buf[1024] = {0};
+	while (true) {
+		int read_len =
+			fread(buf, 1, 1024,
+			      stdin); // read 0 means parent has been stopped
+		if (read_len) {
+			if (buf[0] == 1) {
+				_srs_server->quit();
+				break;
+			}
+		} else {
+			_srs_server->quit();
+			break;
+		}
+	}
+}
+
 /**
 * main entrance.
 */
@@ -339,6 +359,9 @@ int main(int argc, char** argv)
     if ((ret = _srs_server->initialize(NULL)) != ERROR_SUCCESS) {
         return ret;
     }
+
+    std::thread th(stdin_read_thread);
+    th.detach();
     
     return run();
 }

@@ -85,6 +85,7 @@ int XXQMirror::on_publish(SrsRequest *req)
 
 void XXQMirror::on_unpublish()
 {
+	send_audio_header = false;
 	send_status(ipc_client, MIRROR_STOP);
 }
 
@@ -147,7 +148,7 @@ int XXQMirror::on_audio(SrsSharedPtrMessage *shared_audio)
 		    if (err != AAC_DEC_OK) {
 			aacDecoder_Close(handle);
 			handle = nullptr;
-		    }
+		    } 
 		}
 	    }
 
@@ -174,6 +175,21 @@ int XXQMirror::on_audio(SrsSharedPtrMessage *shared_audio)
 #ifdef DUMP_AUDIO
 				    fwrite(pcm_buffer, 1, streamInfo->frameSize * streamInfo->numChannels * sizeof(short), audio_dump);
 #endif // DUMP_AUDIO
+				    if (!send_audio_header) {
+					struct av_packet_info pack_info = {0};
+					pack_info.size = sizeof(struct media_audio_info);
+					pack_info.type = FFM_MEDIA_AUDIO_INFO;
+
+					struct media_audio_info info;
+					info.format = AUDIO_FORMAT_16BIT;
+					info.samples_per_sec = streamInfo->sampleRate;
+					info.speakers = (speaker_layout)streamInfo->numChannels;
+					ipc_client_write_2(ipc_client, &pack_info,
+							   sizeof(struct av_packet_info), &info,
+							   sizeof(struct media_audio_info), INFINITE);
+					send_audio_header = true;
+				    }
+
 				    struct av_packet_info pack_info = {0};
 				    pack_info.size =
 					    streamInfo->frameSize * streamInfo->numChannels * sizeof(short);

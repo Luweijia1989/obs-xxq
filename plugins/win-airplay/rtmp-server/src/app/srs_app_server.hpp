@@ -309,6 +309,7 @@ public:
     virtual int http_handle();
     virtual int ingest();
     virtual int cycle();
+    virtual void quit();
 // IConnectionManager
 public:
     /**
