@@ -216,7 +216,7 @@ bool BEFEffectGLContext::createGLESContext(int major) {
     {
         EGLint error = eglGetError();
         if (error == EGL_BAD_CONFIG)
-        { 
+        {
             // Handle error and recover
             LOGS("EGL_BAD_CONFIG");
         }
@@ -419,6 +419,7 @@ bool BEFEffectGLContext::releaseGLContext() {
     }
     eglDestroyContext(m_effectGLEnv->eglDisplay, m_effectGLEnv->eglContext);
     eglDestroySurface(m_effectGLEnv->eglDisplay, m_effectGLEnv->eglSurface);
+    eglTerminate(m_effectGLEnv->eglDisplay);
     m_effectGLEnv->eglContext = EGL_NO_CONTEXT;
     m_effectGLEnv->eglSurface = EGL_NO_SURFACE;
     m_effectGLEnv->eglDisplay = EGL_NO_DISPLAY;
