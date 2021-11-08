@@ -39,12 +39,20 @@ XXQMirror::XXQMirror()
 	sample = new SrsCodecSample();
 	jitter = new SrsRtmpJitter();
 
-	pcm_buffer = (uint8_t *)malloc(10240);
+	pcm_buffer = (uint8_t *)malloc(102400);
 	ipc_client_create(&ipc_client);
+
+#ifdef DUMP_AUDIO
+	audio_dump = fopen("E:\\audio.pcm", "wb");
+#endif // DUMP_AUDIO
+
 }
 
 XXQMirror::~XXQMirror()
 {
+#ifdef DUMP_AUDIO
+	fclose(audio_dump);
+#endif // DUMP_AUDIO
 	srs_freep(_req);
 	srs_freep(codec);
 	srs_freep(sample);
@@ -159,13 +167,16 @@ int XXQMirror::on_audio(SrsSharedPtrMessage *shared_audio)
 		UCHAR *input_buf[1] = { (UCHAR *)sample->sample_units[i].bytes };
 		AAC_DECODER_ERROR err = aacDecoder_Fill(handle, input_buf, &pkt_size, &valid_size);
 		if (err == AAC_DEC_OK) {
-		    err = aacDecoder_DecodeFrame(handle, (INT_PCM *)pcm_buffer, 10240 / sizeof(INT_PCM), 0);
+		    err = aacDecoder_DecodeFrame(handle, (INT_PCM *)pcm_buffer, 102400 / sizeof(INT_PCM), 0);
 		    if (err == AAC_DEC_OK) {
 			    CStreamInfo *streamInfo = aacDecoder_GetStreamInfo(handle);
 			    if (streamInfo != NULL) {
+#ifdef DUMP_AUDIO
+				    fwrite(pcm_buffer, 1, streamInfo->frameSize * streamInfo->numChannels * sizeof(short), audio_dump);
+#endif // DUMP_AUDIO
 				    struct av_packet_info pack_info = {0};
 				    pack_info.size =
-					    streamInfo->frameSize * 4;
+					    streamInfo->frameSize * streamInfo->numChannels * sizeof(short);
 				    pack_info.type = FFM_PACKET_AUDIO;
 				    pack_info.pts = audio->timestamp * 1000000;
 				    ipc_client_write_2(
