@@ -1,4 +1,4 @@
-﻿#include "AOADeviceManager.h"
+#include "AOADeviceManager.h"
 #include <QApplication>
 #include <QDebug>
 #include <QDateTime>
@@ -376,21 +376,29 @@ bool AOADeviceManager::handleMediaData()
 		bool is_pps = pts == ((int64_t)UINT64_C(0x8000000000000000));
 		if (is_pps) {
 			struct av_packet_info pack_info = {0};
-			pack_info.size = sizeof(struct media_info);
-			pack_info.type = FFM_MEDIA_INFO;
+			pack_info.size = sizeof(struct media_video_info);
+			pack_info.type = FFM_MEDIA_VIDEO_INFO;
 			pack_info.pts = 0;
 
-			struct media_info info;
-			info.pps_len = pktSize;
-			info.format = AUDIO_FORMAT_16BIT;
-			info.samples_per_sec = 48000;
-			info.speakers = SPEAKERS_STEREO;
-
-			memcpy(info.pps, m_cacheBuffer, pktSize);
-
+			struct media_video_info info;
+			info.video_extra_len = pktSize;
+			memcpy(info.video_extra, m_cacheBuffer, pktSize);
 			ipc_client_write_2(client, &pack_info,
 					   sizeof(struct av_packet_info), &info,
-					   sizeof(struct media_info), INFINITE);
+					   sizeof(struct media_video_info), INFINITE);
+
+			struct media_audio_info audio_info;
+			audio_info.format = AUDIO_FORMAT_16BIT;
+			audio_info.samples_per_sec = 48000;
+			audio_info.speakers = SPEAKERS_STEREO;
+
+			struct av_packet_info audio_pack_info = {0};
+			audio_pack_info.size = sizeof(struct media_audio_info);
+			audio_pack_info.type = FFM_MEDIA_AUDIO_INFO;
+			ipc_client_write_2(client, &audio_pack_info,
+					   sizeof(struct av_packet_info), &audio_info,
+					   sizeof(struct media_audio_info),
+					   INFINITE);
 		} else {
 			struct av_packet_info pack_info = {0};
 			pack_info.size = pktSize;

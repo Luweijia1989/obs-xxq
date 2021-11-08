@@ -66,7 +66,8 @@ struct usb_device_info {
 	ringbuf_t usb_data_buffer;
 	struct MessageProcessor mp;
 	bool first_ping_packet;
-	struct media_info m_info;
+	struct media_video_info m_info;
+	struct media_audio_info m_audioInfo;
 	bool has_video_received;
 	uint64_t audio_offset;
 	uint64_t last_audio_ts;
@@ -153,13 +154,11 @@ static void handle_sync_packet(unsigned char *buf, uint32_t length)
 		usbmuxd_log(LL_INFO, "AFMT");
 		struct SyncAfmtPacket afmtPacket = {0};
 		if (NewSyncAfmtPacketFromBytes(buf, length, &afmtPacket) == 0) {
-			app_device.m_info.samples_per_sec =
+			app_device.m_audioInfo.samples_per_sec =
 				(uint32_t)afmtPacket.AudioStreamInfo.SampleRate;
-			app_device.m_info.format = AUDIO_FORMAT_16BIT;
-			app_device.m_info.speakers =
+			app_device.m_audioInfo.format = AUDIO_FORMAT_16BIT;
+			app_device.m_audioInfo.speakers =
 				afmtPacket.AudioStreamInfo.ChannelsPerFrame;
-			app_device.m_info.bytes_per_frame =
-				afmtPacket.AudioStreamInfo.BytesPerFrame;
 		}
 
 		uint8_t *afmt;
@@ -590,15 +589,21 @@ void exit_app()
 void pipeConsume(struct CMSampleBuffer *buf, void *c)
 {
 	if (buf->HasFormatDescription) {
-		memcpy(app_device.m_info.pps, buf->FormatDescription.PPS,
+		memcpy(app_device.m_info.video_extra, buf->FormatDescription.PPS,
 		       buf->FormatDescription.PPS_len);
-		app_device.m_info.pps_len = buf->FormatDescription.PPS_len;
-		app_device.m_info.sps_len = buf->FormatDescription.SPS_len;
+		app_device.m_info.video_extra_len = buf->FormatDescription.PPS_len;
 		struct av_packet_info pack_info = {0};
-		pack_info.size = sizeof(struct media_info);
-		pack_info.type = FFM_MEDIA_INFO;
+		pack_info.size = sizeof(struct media_video_info);
+		pack_info.type = FFM_MEDIA_VIDEO_INFO;
 #ifndef STANDALONE
-		ipc_client_write_2(ipc_client, &pack_info, sizeof(struct av_packet_info), &app_device.m_info, sizeof(struct media_info), INFINITE);
+		ipc_client_write_2(ipc_client, &pack_info, sizeof(struct av_packet_info), &app_device.m_info, sizeof(struct media_video_info), INFINITE);
+#endif
+
+		struct av_packet_info audio_pack_info = {0};
+		audio_pack_info.size = sizeof(struct media_audio_info);
+		audio_pack_info.type = FFM_MEDIA_AUDIO_INFO;
+#ifndef STANDALONE
+		ipc_client_write_2(ipc_client, &audio_pack_info, sizeof(struct av_packet_info), &app_device.m_audioInfo, sizeof(struct media_audio_info), INFINITE);
 #endif
 	}
 

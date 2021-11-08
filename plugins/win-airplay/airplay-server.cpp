@@ -393,8 +393,8 @@ bool ScreenMirrorServer::handleMediaData()
 			circlebuf_free(&m_avBuffer);
 			return false;
 		}
-	} else if (header_info.type == FFM_MEDIA_INFO) {
-		if (req_size != sizeof(struct media_info)) {
+	} else if (header_info.type == FFM_MEDIA_VIDEO_INFO) {
+		if (req_size != sizeof(struct media_video_info)) {
 			circlebuf_free(&m_avBuffer);
 			return false;
 		}
@@ -415,27 +415,31 @@ bool ScreenMirrorServer::handleMediaData()
 		pthread_mutex_lock(&m_statusMutex);
 		handleMirrorStatus(status);
 		pthread_mutex_unlock(&m_statusMutex);
-	} else if (header_info.type == FFM_MEDIA_INFO) {
-		struct media_info info;
+	} else if (header_info.type == FFM_MEDIA_VIDEO_INFO) {
+		struct media_video_info info;
 		memset(&info, 0, req_size);
 		circlebuf_pop_front(&m_avBuffer, &info, req_size);
-		if (info.sps_len == 0 && info.pps_len == 0)
+		if (info.video_extra_len == 0)
 			return true;
 
-		m_audioSampleRate = info.samples_per_sec;
-
 		pthread_mutex_lock(&m_videoDataMutex);
-		auto cache = (uint8_t *)malloc(info.pps_len);
-		memcpy(cache, info.pps, info.pps_len);
+		auto cache = (uint8_t *)malloc(info.video_extra_len);
+		memcpy(cache, info.video_extra, info.video_extra_len);
 		m_videoInfoIndex++;
 		VideoInfo vi;
 		vi.data = cache;
-		vi.data_len = info.pps_len;
+		vi.data_len = info.video_extra_len;
 		m_videoInfos.insert(
 			std::make_pair(m_videoInfoIndex, std::move(vi)));
 		pthread_mutex_unlock(&m_videoDataMutex);
 
 		handleMirrorStatus(OBS_SOURCE_MIRROR_OUTPUT);
+	} else if (header_info.type == FFM_MEDIA_AUDIO_INFO) {
+		struct media_audio_info info;
+		memset(&info, 0, req_size);
+		circlebuf_pop_front(&m_avBuffer, &info, req_size);
+
+		m_audioSampleRate = info.samples_per_sec;
 	} else {
 		if (header_info.type == FFM_PACKET_AUDIO) {
 			outputAudio(req_size, header_info.pts,

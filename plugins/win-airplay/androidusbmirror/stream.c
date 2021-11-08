@@ -50,14 +50,13 @@ static bool stream_recv_packet(struct stream *stream)
 
 	if (is_pps) {
 		struct av_packet_info pack_info = {0};
-		pack_info.size = sizeof(struct media_info);
-		pack_info.type = FFM_MEDIA_INFO;
+		pack_info.size = sizeof(struct media_video_info);
+		pack_info.type = FFM_MEDIA_VIDEO_INFO;
 
-		struct media_info info = {0};
-		info.pps_len = len;
-		memcpy(info.pps, buffer, len);
-
-		ipc_client_write_2(stream->ipc_client, &pack_info, sizeof(struct av_packet_info), &info, sizeof(struct media_info), INFINITE);
+		struct media_video_info info = {0};
+		info.video_extra_len = len;
+		memcpy(info.video_extra, buffer, len);
+		ipc_client_write_2(stream->ipc_client, &pack_info, sizeof(struct av_packet_info), &info, sizeof(struct media_video_info), INFINITE);
 	} else {
 		struct av_packet_info pack_info = {0};
 		pack_info.size = len;

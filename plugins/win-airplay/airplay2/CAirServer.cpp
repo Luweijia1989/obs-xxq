@@ -58,14 +58,22 @@ void CAirServer::outputVideo(uint8_t *data, size_t data_len, uint64_t pts,
 	ipc_client_write_2(client, &pack_info, sizeof(struct av_packet_info), data, data_len, INFINITE);
 }
 
-void CAirServer::outputMediaInfo(media_info *info, const char *remoteName,
+void CAirServer::outputMediaInfo(media_video_info *info, const char *remoteName,
 				 const char *remoteDeviceId)
 {
 	struct av_packet_info pack_info = {0};
-	pack_info.size = sizeof(struct media_info);
-	pack_info.type = FFM_MEDIA_INFO;
+	pack_info.size = sizeof(struct media_video_info);
+	pack_info.type = FFM_MEDIA_VIDEO_INFO;
+	ipc_client_write_2(client, &pack_info, sizeof(struct av_packet_info), info, sizeof(struct media_video_info), INFINITE);
 
-	ipc_client_write_2(client, &pack_info, sizeof(struct av_packet_info), info, sizeof(struct media_info), INFINITE);
+	media_audio_info audio_info;
+	audio_info.samples_per_sec = 44100;
+	audio_info.format = AUDIO_FORMAT_16BIT;
+	audio_info.speakers = SPEAKERS_STEREO;
+	struct av_packet_info audio_pack_info = {0};
+	audio_pack_info.size = sizeof(struct media_audio_info);
+	audio_pack_info.type = FFM_MEDIA_AUDIO_INFO;
+	ipc_client_write_2(client, &audio_pack_info, sizeof(struct av_packet_info), &audio_info, sizeof(struct media_audio_info), INFINITE);
 }
 
 bool getHostName(char hostName[512])

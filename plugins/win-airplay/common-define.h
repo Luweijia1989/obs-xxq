@@ -7,7 +7,8 @@
 enum av_packet_type {
 	FFM_PACKET_VIDEO,
 	FFM_PACKET_AUDIO,
-	FFM_MEDIA_INFO,
+	FFM_MEDIA_VIDEO_INFO,
+	FFM_MEDIA_AUDIO_INFO,
 	FFM_MIRROR_STATUS,
 };
 
@@ -31,16 +32,15 @@ struct av_packet_info {
 	enum av_packet_type type;
 };
 
-struct media_info {
+struct media_audio_info {
 	enum speaker_layout speakers;
 	enum audio_format format;
 	uint32_t samples_per_sec;
-	size_t bytes_per_frame;
+};
 
-	uint8_t sps[256];
-	size_t sps_len;
-	uint8_t pps[256];
-	size_t pps_len;
+struct media_video_info {
+	uint8_t video_extra[256];
+	size_t video_extra_len;
 };
 
 static void send_status(struct IPCClient *c, int status)

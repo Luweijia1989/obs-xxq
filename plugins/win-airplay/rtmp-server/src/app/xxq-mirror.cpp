@@ -245,20 +245,16 @@ int XXQMirror::on_video(SrsSharedPtrMessage *shared_video, bool is_sps_pps)
 		copy_index += codec->pictureParameterSetLength;
 
 		struct av_packet_info pack_info = {0};
-		pack_info.size = sizeof(struct media_info);
-		pack_info.type = FFM_MEDIA_INFO;
+		pack_info.size = sizeof(struct media_video_info);
+		pack_info.type = FFM_MEDIA_VIDEO_INFO;
 
-		struct media_info info;
-		info.format = AUDIO_FORMAT_16BIT;
-		info.samples_per_sec = 48000;
-		info.speakers = SPEAKERS_STEREO;
-		info.bytes_per_frame = 16;
-		info.pps_len = copy_index;
-		memcpy(info.pps, sps_buf, copy_index);
+		struct media_video_info info;
+		info.video_extra_len = copy_index;
+		memcpy(info.video_extra, sps_buf, copy_index);
 
 		ipc_client_write_2(ipc_client, &pack_info,
 				   sizeof(struct av_packet_info), &info,
-				   sizeof(struct media_info), INFINITE);
+				   sizeof(struct media_video_info), INFINITE);
 
 		return ret;
 	}

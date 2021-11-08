@@ -73,7 +73,7 @@ void CAirServerCallback::outputVideo(uint8_t *data, size_t data_len,
 	}
 }
 
-void CAirServerCallback::outputMediaInfo(media_info *info,
+void CAirServerCallback::outputMediaInfo(media_video_info *info,
 					 const char *remoteName,
 					 const char *remoteDeviceId)
 {
