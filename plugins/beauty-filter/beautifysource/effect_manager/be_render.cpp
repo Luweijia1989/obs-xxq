@@ -362,35 +362,6 @@ void BERender::drawGaze(bef_ai_gaze_estimation_info* gazeInfo) {
     checkGLError();
 }
 
-void BERender::drawPetFace(bef_ai_pet_face_result* petFaceInfo, std::vector<QImage>& numberImg) {
-    glBindFramebuffer(GL_FRAMEBUFFER, m_frameBuffer);
-    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, m_currentTexture, 0);
-
-    GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
-    if (status != GL_FRAMEBUFFER_COMPLETE) {
-        printf("glCheckFramebufferStatus when draw pet face\n");
-    }
-
-    for (int i = 0; i < petFaceInfo->face_count; i++) {
-        bef_ai_pet_face_info info = petFaceInfo->p_faces[i];
-
-        // draw rect
-        bef_ai_rect* rect = &info.rect;
-        m_renderHelper->drawRect(rect, BE_COLOR_RED, BE_SKELETON_LINE_WIDTH);
-
-        // draw points
-        bef_ai_fpoint* points = info.points_array;
-        int count = info.type == BEF_CAT ? AI_CAT_POINT_NUM : AI_DOG_POINT_NUM;
-        m_renderHelper->drawPoints(points, count, BE_COLOR_RED, BE_FACE_KEYPOINT_SIZE);
-
-        bef_ai_fpoint pt = { rect->left, rect->top };
-        m_renderHelper->drawNumberTexture(pt, BE_COLOR_RED, numberImg[i].bits(), numberImg[i].width(), numberImg[i].height());
-    }
-
-    glBindFramebuffer(GL_FRAMEBUFFER, 0);
-    checkGLError();
-}
-
 void BERender::checkGLError(){
     int error = glGetError();
     if (error != GL_NO_ERROR)

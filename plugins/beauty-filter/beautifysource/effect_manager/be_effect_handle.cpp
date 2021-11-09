@@ -7,7 +7,7 @@
 #include "bef_effect_ai_version.h"
 #include "message/Receiver.h"
 #include <new>
-#include <QDebug>
+#include "util/base.h"
 
 bool bef_msg_delegate_manager_callback(void* observer, unsigned int msgId, int arg1, int arg2, const char* arg3);
 
@@ -15,7 +15,7 @@ static int logFuncForEffect(int logLevel, const char* msg)
 {
     if (msg != nullptr)
     {
-        qDebug() << msg;
+	blog(LOG_INFO, "%s", msg);
     }
     return 0;
 }

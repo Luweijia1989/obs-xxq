@@ -22,8 +22,6 @@
 #include <GL/gl.h>
 #endif
 
-#include <QImage>
-
 class BERender
 {
 public:
@@ -48,7 +46,6 @@ public:
     void drawPortrait(unsigned char *mask, int *maskSize);
     void drawHeadSeg(unsigned char* mask, float* affine, int* maskSize);
     void drawGaze(bef_ai_gaze_estimation_info *gazeInfo);
-    void drawPetFace(bef_ai_pet_face_result* petFaceInfo, std::vector<QImage>& numberImg);
 private:
     void checkGLError();
 private:

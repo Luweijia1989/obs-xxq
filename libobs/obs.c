@@ -2181,6 +2181,11 @@ void obs_load_sources_with_specific_iteminfo(obs_data_array_t *array,
 
 obs_data_t *obs_save_source(obs_source_t *source)
 {
+	const char *name = obs_source_get_name(source);
+	const char *id = obs_source_get_id(source);
+	if (strcmp(id, "beauty_filter") == 0)
+		return NULL;
+
 	obs_data_array_t *filters = obs_data_array_create();
 	obs_data_t *source_data = obs_data_create();
 	obs_data_t *settings = obs_source_get_settings(source);
@@ -2191,8 +2196,6 @@ obs_data_t *obs_save_source(obs_source_t *source)
 	uint32_t mixers = obs_source_get_audio_mixers(source);
 	int64_t sync = obs_source_get_sync_offset(source);
 	uint32_t flags = obs_source_get_flags(source);
-	const char *name = obs_source_get_name(source);
-	const char *id = obs_source_get_id(source);
 	bool enabled = obs_source_enabled(source);
 	bool muted = obs_source_muted(source);
 	bool push_to_mute = obs_source_push_to_mute_enabled(source);
@@ -3050,10 +3053,12 @@ void obs_rtc_output_begin()
 void obs_rtc_update_frame(int channel, char *data, uint32_t width,
 			  uint32_t height)
 {
+	struct obs_rtc_mix *rtc_mix = &obs->video.rtc_mix;
+	if (!os_atomic_load_bool(&rtc_mix->rtc_output_active))
+		return;
 	if (channel > NUM_RTC_CHANNEL)
 		return;
 	obs_enter_graphics();
-	struct obs_rtc_mix *rtc_mix = &obs->video.rtc_mix;
 	if (rtc_mix->rtc_textures[channel]) {
 		uint32_t w = gs_texture_get_width(rtc_mix->rtc_textures[channel]);
 		uint32_t h = gs_texture_get_height(rtc_mix->rtc_textures[channel]);
