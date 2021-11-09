@@ -10,6 +10,7 @@
 #include "ffmpeg-decode.h"
 #include "encode-dstr.hpp"
 #include <media-io/video-scaler.h>
+#include <media-io/video-frame.h>
 #include <graphics/image-file.h>
 
 #include <algorithm>
@@ -185,8 +186,8 @@ struct DShowInput {
 
 	video_scaler_t *scaler2RGBA = nullptr;
 	struct video_scale_info conversion = { VIDEO_FORMAT_NONE, 0, 0, VIDEO_RANGE_DEFAULT, VIDEO_CS_DEFAULT };
-	uint8_t *m_cacheBuffer = nullptr;
-	uint32_t m_cacheBufferSize = 0;
+	struct video_frame *m_outputCacheFrame = nullptr;
+	struct video_frame *m_inputCacheFrame = nullptr;
 
 	Decoder audio_decoder;
 	Decoder video_decoder;
@@ -263,12 +264,6 @@ struct DShowInput {
 		gs_image_file_free(&img_ctx);
 		obs_leave_graphics();
 
-		if (scaler2RGBA)
-			video_scaler_destroy(scaler2RGBA);
-
-		if (m_cacheBuffer)
-			free(m_cacheBuffer);
-
 		{
 			CriticalScope scope(mutex);
 			actions.resize(1);
@@ -278,6 +273,15 @@ struct DShowInput {
 		ReleaseSemaphore(semaphore, 1, nullptr);
 
 		WaitForSingleObject(thread, INFINITE);
+
+		if (scaler2RGBA)
+			video_scaler_destroy(scaler2RGBA);
+
+		if (m_outputCacheFrame)
+			video_frame_destroy(m_outputCacheFrame);
+
+		if (m_inputCacheFrame)
+			video_frame_destroy(m_inputCacheFrame);
 	}
 
 	void OnEncodedVideoData(enum AVCodecID id, unsigned char *data,
@@ -638,20 +642,20 @@ void DShowInput::OutputSourceFrame(obs_source_t *source, struct obs_source_frame
 					dst.format = VIDEO_FORMAT_RGBA;
 					video_scaler_create(&scaler2RGBA, &dst, &conversion, VIDEO_SCALE_POINT);
 
-					auto ts = (frame->width + 10) * frame->height * 4;
-					if (!m_cacheBuffer) {
-						m_cacheBuffer = (uint8_t *)malloc(ts);
-						m_cacheBufferSize = ts;
-					} else if (m_cacheBufferSize < ts) {
-						m_cacheBuffer = (uint8_t *)realloc(m_cacheBuffer, ts);
-						m_cacheBufferSize = ts;
-					}
+					if (m_outputCacheFrame)
+						video_frame_destroy(m_outputCacheFrame);
+
+					m_outputCacheFrame = video_frame_create(VIDEO_FORMAT_RGBA, frame->width, frame->height);
+
+					if (m_inputCacheFrame)
+						video_frame_destroy(m_inputCacheFrame);
+
+					m_inputCacheFrame = video_frame_create(frame->format, frame->width, frame->height);
 				}
 
-				uint8_t *out[8] = {m_cacheBuffer};
-				uint32_t ls[8] = { frame->width * 4 };
-				video_scaler_scale(scaler2RGBA, out, ls, frame->data, frame->linesize);
-				frame->data[0] = m_cacheBuffer;
+				video_frame_copy_source_frame(m_inputCacheFrame, frame, frame->format, frame->height);
+				video_scaler_scale(scaler2RGBA, m_outputCacheFrame->data, m_outputCacheFrame->linesize, m_inputCacheFrame->data, m_inputCacheFrame->linesize);
+				frame->data[0] = m_outputCacheFrame->data[0];
 				frame->linesize[0] = frame->width * 4;
 				frame->format = VIDEO_FORMAT_RGBA;
 			}

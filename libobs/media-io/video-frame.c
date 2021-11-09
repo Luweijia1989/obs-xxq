@@ -248,3 +248,83 @@ void video_frame_copy(struct video_frame *dst, const struct video_frame *src,
 		break;
 	}
 }
+
+void video_frame_copy_source_frame(struct video_frame *dst, struct obs_source_frame2 *src,
+			      enum video_format format, uint32_t cy)
+{
+	switch (format) {
+	case VIDEO_FORMAT_NONE:
+		return;
+
+	case VIDEO_FORMAT_I420:
+		memcpy(dst->data[0], src->data[0], src->linesize[0] * cy);
+		memcpy(dst->data[1], src->data[1], src->linesize[1] * cy / 2);
+		memcpy(dst->data[2], src->data[2], src->linesize[2] * cy / 2);
+		break;
+
+	case VIDEO_FORMAT_NV12:
+		memcpy(dst->data[0], src->data[0], src->linesize[0] * cy);
+		memcpy(dst->data[1], src->data[1], src->linesize[1] * cy / 2);
+		break;
+
+	case VIDEO_FORMAT_Y800:
+	case VIDEO_FORMAT_YVYU:
+	case VIDEO_FORMAT_YUY2:
+	case VIDEO_FORMAT_UYVY:
+	case VIDEO_FORMAT_RGBA:
+	case VIDEO_FORMAT_BGRA:
+	case VIDEO_FORMAT_BGRX:
+	case VIDEO_FORMAT_BGR3:
+	case VIDEO_FORMAT_AYUV:
+		memcpy(dst->data[0], src->data[0], src->linesize[0] * cy);
+		break;
+
+	case VIDEO_FORMAT_I444:
+	case VIDEO_FORMAT_I422:
+		memcpy(dst->data[0], src->data[0], src->linesize[0] * cy);
+		memcpy(dst->data[1], src->data[1], src->linesize[1] * cy);
+		memcpy(dst->data[2], src->data[2], src->linesize[2] * cy);
+		break;
+
+	case VIDEO_FORMAT_I40A:
+		memcpy(dst->data[0], src->data[0], src->linesize[0] * cy);
+		memcpy(dst->data[1], src->data[1], src->linesize[1] * cy / 2);
+		memcpy(dst->data[2], src->data[2], src->linesize[2] * cy / 2);
+		memcpy(dst->data[3], src->data[3], src->linesize[3] * cy);
+		break;
+
+	case VIDEO_FORMAT_I42A:
+	case VIDEO_FORMAT_YUVA:
+		memcpy(dst->data[0], src->data[0], src->linesize[0] * cy);
+		memcpy(dst->data[1], src->data[1], src->linesize[1] * cy);
+		memcpy(dst->data[2], src->data[2], src->linesize[2] * cy);
+		memcpy(dst->data[3], src->data[3], src->linesize[3] * cy);
+		break;
+	}
+}
+
+void video_frame_free(struct video_frame *frame)
+{
+	if (frame) {
+		bfree(frame->data[0]);
+		memset(frame, 0, sizeof(struct video_frame));
+	}
+}
+
+struct video_frame *video_frame_create(enum video_format format,
+					      uint32_t width, uint32_t height)
+{
+	struct video_frame *frame;
+
+	frame = (struct video_frame *)bzalloc(sizeof(struct video_frame));
+	video_frame_init(frame, format, width, height);
+	return frame;
+}
+
+void video_frame_destroy(struct video_frame *frame)
+{
+	if (frame) {
+		bfree(frame->data[0]);
+		bfree(frame);
+	}
+}
