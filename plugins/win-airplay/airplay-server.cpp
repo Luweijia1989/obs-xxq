@@ -601,6 +601,8 @@ void *ScreenMirrorServer::audio_tick_thread(void *data)
 				if (s->m_audioOffset == LLONG_MAX) {
 					if (s->m_audioFrameType == IOS_AIRPLAY)
 						s->m_audioOffset = now_ms - pts - 100; // 音频接收到的就有点慢，延迟减去100ms
+					else if (s->m_audioFrameType == ANDROID_WIRELESS)
+						s->m_audioOffset = now_ms - pts + 100; // 音频接收到的就有点慢，延迟减去100ms
 					else
 						s->m_audioOffset = now_ms - pts;
 				}
