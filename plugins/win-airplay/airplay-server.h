@@ -56,7 +56,7 @@ public:
 	ScreenMirrorServer(obs_source_t *source);
 	~ScreenMirrorServer();
 	void outputVideo(uint8_t *data, size_t data_len, int64_t pts);
-	void outputAudio(size_t data_len, uint64_t pts, int serial);
+	void outputAudio(uint8_t *data, size_t data_len, int64_t pts, int serial);
 	void doRenderer(gs_effect_t *effect);
 
 	void mirrorServerSetup();
@@ -89,7 +89,7 @@ private:
 
 	void initDecoder(uint8_t *data, size_t len, bool forceRecreate, bool forceSoftware);
 	void dropFrame(int64_t now_ms);
-	void dropAudioFrame(int64_t now_ms, size_t pkt_size);
+	void dropAudioFrame(int64_t now_ms);
 	void initSoftOutputFrame();
 	void updateSoftOutputFrame(AVFrame *frame);
 
@@ -101,9 +101,7 @@ private:
 	bool m_stop = false;
 
 	std::list<VideoFrame> m_videoFrames;
-	circlebuf m_audioFrames;
-	uint8_t *m_audioCacheBuffer = nullptr;
-	uint8_t *m_audioTempBuffer = nullptr;
+	std::list<AudioFrame> m_audioFrames;
 	pthread_mutex_t m_videoDataMutex;
 	pthread_mutex_t m_audioDataMutex;
 	pthread_mutex_t m_statusMutex;

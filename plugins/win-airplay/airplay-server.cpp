@@ -33,9 +33,7 @@ static uint32_t byteutils_get_int_be(unsigned char *b, int offset)
 
 ScreenMirrorServer::ScreenMirrorServer(obs_source_t *source)
 	: m_source(source),
-	  if2((gs_image_file2_t *)bzalloc(sizeof(gs_image_file2_t))),
-	  m_audioTempBuffer((uint8_t *)bzalloc(ANDROID_AOA_AUDIO_PKT_SIZE +
-					       2 * sizeof(uint64_t)))
+	  if2((gs_image_file2_t *)bzalloc(sizeof(gs_image_file2_t)))
 {
 	memset(&m_audioInfo, 0, sizeof(media_audio_info));
 	initSoftOutputFrame();
@@ -47,7 +45,6 @@ ScreenMirrorServer::ScreenMirrorServer(obs_source_t *source)
 	pthread_mutex_init(&m_statusMutex, nullptr);
 
 	circlebuf_init(&m_avBuffer);
-	circlebuf_init(&m_audioFrames);
 
 	saveStatusSettings();
 
@@ -76,13 +73,9 @@ ScreenMirrorServer::~ScreenMirrorServer()
 	bfree(if2);
 
 	circlebuf_free(&m_avBuffer);
-	circlebuf_free(&m_audioFrames);
 	pthread_mutex_destroy(&m_videoDataMutex);
 	pthread_mutex_destroy(&m_audioDataMutex);
 	pthread_mutex_destroy(&m_statusMutex);
-
-	if (m_audioCacheBuffer)
-		free(m_audioCacheBuffer);
 
 	if (m_handler != INVALID_HANDLE_VALUE)
 		CloseHandle(m_handler);
@@ -93,8 +86,6 @@ ScreenMirrorServer::~ScreenMirrorServer()
 		delete m_decoder;
 	if (m_renderer)
 		delete m_renderer;
-
-	bfree(m_audioTempBuffer);
 
 	if (pps_cache)
 		free(pps_cache);
@@ -444,14 +435,12 @@ bool ScreenMirrorServer::handleMediaData()
 
 		memcpy(&m_audioInfo, &info, sizeof(struct media_audio_info));
 	} else {
-		if (header_info.type == FFM_PACKET_AUDIO) {
-			outputAudio(req_size, header_info.pts,
-				    header_info.serial);
-		} else {
-			uint8_t *temp_buf = (uint8_t *)calloc(1, req_size);
-			circlebuf_pop_front(&m_avBuffer, temp_buf, req_size);
+		uint8_t *temp_buf = (uint8_t *)calloc(1, req_size);
+		circlebuf_pop_front(&m_avBuffer, temp_buf, req_size);
+		if (header_info.type == FFM_PACKET_AUDIO)
+			outputAudio(temp_buf, req_size, header_info.pts, header_info.serial);
+		else
 			outputVideo(temp_buf, req_size, header_info.pts);
-		}
 	}
 	return true;
 }
@@ -479,7 +468,12 @@ void ScreenMirrorServer::resetState()
 	pthread_mutex_lock(&m_audioDataMutex);
 	m_audioOffset = LLONG_MAX;
 	m_audioFrameType = m_backend;
-	circlebuf_free(&m_audioFrames);
+	for (auto iter = m_audioFrames.begin(); iter != m_audioFrames.end();
+	     iter++) {
+		AudioFrame &f = *iter;
+		free(f.data);
+	}
+	m_audioFrames.clear();
 	pthread_mutex_unlock(&m_audioDataMutex);
 }
 
@@ -557,23 +551,21 @@ void ScreenMirrorServer::updateSoftOutputFrame(AVFrame *frame)
 	obs_source_set_videoframe(m_source, &m_softOutputFrame);
 }
 
-void ScreenMirrorServer::dropAudioFrame(int64_t now_ms, size_t pkt_size)
+void ScreenMirrorServer::dropAudioFrame(int64_t now_ms)
 {
-	auto two_pkt_size = 2 * (pkt_size + sizeof(uint64_t));
-	while (m_audioFrames.size >= two_pkt_size) {
-		circlebuf_peek_front(&m_audioFrames, m_audioTempBuffer,
-				     pkt_size + 2 * sizeof(uint64_t));
-		uint64_t p1 = 0;
-		uint64_t p2 = 0;
-		memcpy(&p1, m_audioTempBuffer, 4);
-		memcpy(&p2, m_audioTempBuffer + pkt_size + sizeof(uint64_t), 4);
+	while (m_audioFrames.size() >= 2) {
+		auto iter = m_audioFrames.begin();
+		auto p1 = iter->pts;
+
+		auto next = ++iter;
+		auto p2 = next->pts;
 
 		auto p1ts = p1 + m_audioOffset + m_extraDelay;
 		auto p2ts = p2 + m_audioOffset + m_extraDelay;
 
 		if (p1ts < now_ms && p2ts < now_ms && now_ms - p2ts > 60) {
-			circlebuf_pop_front(&m_audioFrames, m_audioTempBuffer,
-					    pkt_size + sizeof(uint64_t));
+			free(m_audioFrames.front().data);
+			m_audioFrames.pop_front();
 		} else
 			break;
 	}
@@ -581,85 +573,56 @@ void ScreenMirrorServer::dropAudioFrame(int64_t now_ms, size_t pkt_size)
 
 void *ScreenMirrorServer::audio_tick_thread(void *data)
 {
-	uint8_t *popBuffer = nullptr;
-
-	auto func = [=, &popBuffer](obs_source_t *source, circlebuf *frameBuf,
-				    size_t buffLen, media_audio_info *audioInfo) {
-		static size_t max_len = buffLen;
-		if (!popBuffer)
-			popBuffer = (uint8_t *)malloc(buffLen);
-
-		if (max_len < buffLen) {
-			max_len = buffLen;
-			popBuffer = (uint8_t *)realloc(popBuffer, max_len);
-		}
-
-		circlebuf_pop_front(frameBuf, popBuffer, buffLen);
-
+	auto func = [](std::list<AudioFrame> *frames, obs_source_t *source, media_audio_info *audioInfo) {
+		if (frames->size() <= 0 || !audioInfo->samples_per_sec)
+			return;
+		AudioFrame &frame = frames->front();
 		obs_source_audio audio;
 		audio.format = audioInfo->format;
 		audio.samples_per_sec = audioInfo->samples_per_sec;
 		audio.speakers = audioInfo->speakers;
-		audio.frames = buffLen / (audioInfo->speakers * sizeof(short));
+		audio.frames = frame.data_len / (audioInfo->speakers * sizeof(short));
 		audio.timestamp = os_gettime_ns();
-		audio.data[0] = popBuffer;
+		audio.data[0] = frame.data;
+		obs_source_output_audio(source, &audio);
 
-		if (audioInfo->samples_per_sec)
-			obs_source_output_audio(source, &audio);
+		free(frame.data);
+		frames->pop_front();
 	};
 
 	ScreenMirrorServer *s = (ScreenMirrorServer *)data;
 	while (!s->m_stop) {
 		pthread_mutex_lock(&s->m_audioDataMutex);
-		if (s->m_audioFrames.size > 0) {
-			if (s->m_audioFrameType == IOS_AIRPLAY || s->m_audioFrameType == ANDROID_AOA) {
-				int64_t target_pts = 0;
-				int64_t now_ms =
-					(int64_t)os_gettime_ns() / 1000000;
+		if (s->m_audioFrames.size() > 0) {
+			int64_t pts = s->m_audioFrames.front().pts;
+			if (pts > 0) {
+				int64_t now_ms = (int64_t)os_gettime_ns() / 1000000;
 
 				if (s->m_audioOffset == LLONG_MAX) {
-					uint64_t pts = 0;
-					circlebuf_peek_front(&s->m_audioFrames,
-							     &pts,
-							     sizeof(uint64_t));
 					if (s->m_audioFrameType == IOS_AIRPLAY)
-						s->m_audioOffset =
-							now_ms - pts -
-							100; // 音频接收到的就有点慢，延迟减去100ms
+						s->m_audioOffset = now_ms - pts - 100; // 音频接收到的就有点慢，延迟减去100ms
 					else
 						s->m_audioOffset = now_ms - pts;
 				}
 
-				auto audioPktSize = s->m_audioFrameType == IOS_AIRPLAY ? AIRPLAY_AUDIO_PKT_SIZE : ANDROID_AOA_AUDIO_PKT_SIZE;
-				s->dropAudioFrame(now_ms, audioPktSize);
+				s->dropAudioFrame(now_ms);
 
-				uint64_t pts = 0;
-				circlebuf_peek_front(&s->m_audioFrames, &pts,
-						     sizeof(uint64_t));
-				target_pts = pts + s->m_audioOffset +
-					     s->m_extraDelay;
+				int64_t target_pts = s->m_audioFrames.front().pts + s->m_audioOffset + s->m_extraDelay;
 				if (target_pts <= now_ms) {
-					circlebuf_pop_front(&s->m_audioFrames,
-							    &pts,
-							    sizeof(uint64_t));
-					func(s->m_source, &s->m_audioFrames, audioPktSize, &s->m_audioInfo);
+					func(&s->m_audioFrames, s->m_source, &s->m_audioInfo);
 				}
 			} else {
-				size_t audioSize = s->m_audioFrames.size;
-				func(s->m_source, &s->m_audioFrames, audioSize, &s->m_audioInfo);
+				func(&s->m_audioFrames, s->m_source, &s->m_audioInfo);
 			}
 		}
 		pthread_mutex_unlock(&s->m_audioDataMutex);
 		os_sleep_ms(8);
 	}
 
-	if (popBuffer)
-		free(popBuffer);
-
 	return NULL;
 }
 
-void ScreenMirrorServer::outputAudio(size_t data_len, uint64_t pts, int serial)
+void ScreenMirrorServer::outputAudio(uint8_t *data, size_t data_len, int64_t pts, int serial)
 {
 	static bool bb = false;
 	if (!bb) {
@@ -667,23 +630,8 @@ void ScreenMirrorServer::outputAudio(size_t data_len, uint64_t pts, int serial)
 		bb = true;
 	}
 	pts = pts / 1000000;
-
-	static size_t max_len = data_len;
-	if (!m_audioCacheBuffer)
-		m_audioCacheBuffer = (uint8_t *)malloc(data_len);
-
-	if (max_len < data_len) {
-		max_len = data_len;
-		m_audioCacheBuffer =
-			(uint8_t *)realloc(m_audioCacheBuffer, max_len);
-	}
-
-	circlebuf_pop_front(&m_avBuffer, m_audioCacheBuffer, data_len);
-
 	pthread_mutex_lock(&m_audioDataMutex);
-	if (m_audioFrameType == IOS_AIRPLAY || m_audioFrameType == ANDROID_AOA)
-		circlebuf_push_back(&m_audioFrames, &pts, sizeof(uint64_t));
-	circlebuf_push_back(&m_audioFrames, m_audioCacheBuffer, data_len);
+	m_audioFrames.push_back({data, data_len, pts, serial});
 	pthread_mutex_unlock(&m_audioDataMutex);
 }
 
@@ -722,7 +670,7 @@ static void UpdateWinAirplaySource(void *obj, obs_data_t *settings)
 static void GetWinAirplayDefaultsOutput(obs_data_t *settings)
 {
 	obs_data_set_default_int(settings, "type",
-				 ScreenMirrorServer::ANDROID_WIRELESS);
+				 ScreenMirrorServer::ANDROID_AOA);
 	obs_data_set_default_int(settings, "status", MIRROR_STOP);
 }
 
