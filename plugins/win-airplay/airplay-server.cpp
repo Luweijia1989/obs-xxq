@@ -624,11 +624,6 @@ void *ScreenMirrorServer::audio_tick_thread(void *data)
 
 void ScreenMirrorServer::outputAudio(uint8_t *data, size_t data_len, int64_t pts, int serial)
 {
-	static bool bb = false;
-	if (!bb) {
-		blog(LOG_DEBUG, "====%lld", os_gettime_ns());
-		bb = true;
-	}
 	pts = pts / 1000000;
 	pthread_mutex_lock(&m_audioDataMutex);
 	m_audioFrames.push_back({data, data_len, pts, serial});
@@ -638,14 +633,8 @@ void ScreenMirrorServer::outputAudio(uint8_t *data, size_t data_len, int64_t pts
 void ScreenMirrorServer::outputVideo(uint8_t *data, size_t data_len,
 				     int64_t pts)
 {
-	static bool bb = false;
-	if (!bb) {
-		blog(LOG_DEBUG, "%lld", os_gettime_ns());
-		bb = true;
-	}
 	pthread_mutex_lock(&m_videoDataMutex);
-	m_videoFrames.push_back(
-		{m_videoInfoIndex, data, data_len, pts / 1000000});
+	m_videoFrames.push_back({m_videoInfoIndex, data, data_len, pts / 1000000});
 	pthread_mutex_unlock(&m_videoDataMutex);
 }
 
@@ -670,7 +659,7 @@ static void UpdateWinAirplaySource(void *obj, obs_data_t *settings)
 static void GetWinAirplayDefaultsOutput(obs_data_t *settings)
 {
 	obs_data_set_default_int(settings, "type",
-				 ScreenMirrorServer::ANDROID_AOA);
+				 ScreenMirrorServer::ANDROID_WIRELESS);
 	obs_data_set_default_int(settings, "status", MIRROR_STOP);
 }
 
@@ -772,7 +761,6 @@ void ScreenMirrorServer::doRenderer(gs_effect_t *effect)
 
 	pthread_mutex_lock(&m_videoDataMutex);
 	while (m_videoFrames.size() > 0) {
-
 		int64_t now_ms = (int64_t)os_gettime_ns() / 1000000;
 		int64_t target_pts = 0;
 
@@ -785,12 +773,9 @@ void ScreenMirrorServer::doRenderer(gs_effect_t *effect)
 
 		VideoFrame &framev = m_videoFrames.front();
 		target_pts = framev.pts + m_offset + m_extraDelay;
-		if (target_pts <= now_ms + 2 ||
-		    framev.pts ==
-			    0) { //+2 为了pts的误差，视频帧时间戳超过可播放时间2ms，也认为当前是可以播放的。
+		if (target_pts <= now_ms + 2 || framev.pts == 0) { //+2 为了pts的误差，视频帧时间戳超过可播放时间2ms，也认为当前是可以播放的。
 			if (framev.video_info_index != m_lastVideoInfoIndex) {
-				const VideoInfo &vi =
-					m_videoInfos[framev.video_info_index];
+				const VideoInfo &vi = m_videoInfos[framev.video_info_index];
 				if (!pps_cache) {
 					pps_cache = (uint8_t *)malloc(vi.data_len);
 					pps_cache_len = vi.data_len;
@@ -840,7 +825,6 @@ void ScreenMirrorServer::doRenderer(gs_effect_t *effect)
 			free(framev.data);
 			m_videoFrames.pop_front();
 		}
-		blog(LOG_DEBUG, "==========%ld", m_videoFrames.size());
 		break;
 	}
 	pthread_mutex_unlock(&m_videoDataMutex);
