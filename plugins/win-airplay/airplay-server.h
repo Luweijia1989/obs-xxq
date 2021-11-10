@@ -92,6 +92,7 @@ private:
 	void dropAudioFrame(int64_t now_ms);
 	void initSoftOutputFrame();
 	void updateSoftOutputFrame(AVFrame *frame);
+	bool canProcessMediaData();
 
 private:
 	HANDLE m_handler;
@@ -108,6 +109,11 @@ private:
 	int64_t m_offset = LLONG_MAX;
 	int64_t m_audioOffset = LLONG_MAX;
 	int64_t m_extraDelay = 0;
+	int64_t m_firstAudioRecvTime = LLONG_MAX;
+	int64_t m_firstVideoRecvTime = LLONG_MAX;
+	int64_t m_audioExtraOffset = LLONG_MAX;
+	int64_t m_videoExtraOffset = LLONG_MAX;
+	pthread_mutex_t m_ptsMutex;
 	float m_startTimeElapsed = 0.;
 
 	std::map<uint32_t, VideoInfo> m_videoInfos;

@@ -43,6 +43,7 @@ ScreenMirrorServer::ScreenMirrorServer(obs_source_t *source)
 	pthread_mutex_init(&m_videoDataMutex, nullptr);
 	pthread_mutex_init(&m_audioDataMutex, nullptr);
 	pthread_mutex_init(&m_statusMutex, nullptr);
+	pthread_mutex_init(&m_ptsMutex, nullptr);
 
 	circlebuf_init(&m_avBuffer);
 
@@ -76,6 +77,7 @@ ScreenMirrorServer::~ScreenMirrorServer()
 	pthread_mutex_destroy(&m_videoDataMutex);
 	pthread_mutex_destroy(&m_audioDataMutex);
 	pthread_mutex_destroy(&m_statusMutex);
+	pthread_mutex_destroy(&m_ptsMutex);
 
 	if (m_handler != INVALID_HANDLE_VALUE)
 		CloseHandle(m_handler);
@@ -475,6 +477,23 @@ void ScreenMirrorServer::resetState()
 	}
 	m_audioFrames.clear();
 	pthread_mutex_unlock(&m_audioDataMutex);
+
+	pthread_mutex_lock(&m_ptsMutex);
+	if (m_backend == ANDROID_WIRELESS)
+		m_audioExtraOffset = LLONG_MAX;
+	else if (m_backend == IOS_AIRPLAY)
+		m_audioExtraOffset = -100;
+	else
+		m_audioExtraOffset = 0;
+
+	m_firstAudioRecvTime = LLONG_MAX;
+	m_firstVideoRecvTime = LLONG_MAX;
+
+	if (m_backend == ANDROID_WIRELESS)
+		m_videoExtraOffset = LLONG_MAX;
+	else
+		m_videoExtraOffset = 0;
+	pthread_mutex_unlock(&m_ptsMutex);
 }
 
 bool ScreenMirrorServer::initPipe()
@@ -593,18 +612,13 @@ void *ScreenMirrorServer::audio_tick_thread(void *data)
 	ScreenMirrorServer *s = (ScreenMirrorServer *)data;
 	while (!s->m_stop) {
 		pthread_mutex_lock(&s->m_audioDataMutex);
-		if (s->m_audioFrames.size() > 0) {
+		if (s->canProcessMediaData() && s->m_audioFrames.size() > 0) {
 			int64_t pts = s->m_audioFrames.front().pts;
 			if (pts > 0) {
 				int64_t now_ms = (int64_t)os_gettime_ns() / 1000000;
 
 				if (s->m_audioOffset == LLONG_MAX) {
-					if (s->m_audioFrameType == IOS_AIRPLAY)
-						s->m_audioOffset = now_ms - pts - 100; // 音频接收到的就有点慢，延迟减去100ms
-					else if (s->m_audioFrameType == ANDROID_WIRELESS)
-						s->m_audioOffset = now_ms - pts + 200; // 音频接收到的就有点慢，延迟加上100ms
-					else
-						s->m_audioOffset = now_ms - pts;
+					s->m_audioOffset = now_ms - pts + s->m_audioExtraOffset; 
 				}
 
 				s->dropAudioFrame(now_ms);
@@ -626,6 +640,11 @@ void *ScreenMirrorServer::audio_tick_thread(void *data)
 
 void ScreenMirrorServer::outputAudio(uint8_t *data, size_t data_len, int64_t pts, int serial)
 {
+	pthread_mutex_lock(&m_ptsMutex);
+	if (m_firstAudioRecvTime == LLONG_MAX)
+		m_firstAudioRecvTime = os_gettime_ns() / 1000000;
+	pthread_mutex_unlock(&m_ptsMutex);
+
 	pts = pts / 1000000;
 	pthread_mutex_lock(&m_audioDataMutex);
 	m_audioFrames.push_back({data, data_len, pts, serial});
@@ -635,6 +654,11 @@ void ScreenMirrorServer::outputAudio(uint8_t *data, size_t data_len, int64_t pts
 void ScreenMirrorServer::outputVideo(uint8_t *data, size_t data_len,
 				     int64_t pts)
 {
+	pthread_mutex_lock(&m_ptsMutex);
+	if (m_firstVideoRecvTime == LLONG_MAX)
+		m_firstVideoRecvTime = os_gettime_ns() / 1000000;
+	pthread_mutex_unlock(&m_ptsMutex);
+
 	pthread_mutex_lock(&m_videoDataMutex);
 	m_videoFrames.push_back({m_videoInfoIndex, data, data_len, pts / 1000000});
 	pthread_mutex_unlock(&m_videoDataMutex);
@@ -749,6 +773,30 @@ void ScreenMirrorServer::dropFrame(int64_t now_ms)
 	}
 }
 
+bool ScreenMirrorServer::canProcessMediaData()
+{
+	if (m_backend != ANDROID_WIRELESS)
+		return true;
+
+	bool ret = false;
+	pthread_mutex_lock(&m_ptsMutex);
+	if (m_firstAudioRecvTime != LLONG_MAX && m_firstVideoRecvTime != LLONG_MAX) {
+		if (m_videoExtraOffset == LLONG_MAX && m_audioExtraOffset == LLONG_MAX) {
+			if (m_firstVideoRecvTime > m_firstAudioRecvTime) {
+				m_videoExtraOffset = m_firstVideoRecvTime - m_firstAudioRecvTime;
+				m_audioExtraOffset = 0;
+			} else {
+				m_videoExtraOffset = 0;
+				m_audioExtraOffset = m_firstAudioRecvTime - m_firstVideoRecvTime;
+			}
+		}
+		ret = true;
+	}
+	pthread_mutex_unlock(&m_ptsMutex);
+
+	return ret;
+}
+
 void ScreenMirrorServer::doRenderer(gs_effect_t *effect)
 {
 	if (mirror_status != OBS_SOURCE_MIRROR_OUTPUT && if2->image.texture) {
@@ -762,13 +810,13 @@ void ScreenMirrorServer::doRenderer(gs_effect_t *effect)
 	}
 
 	pthread_mutex_lock(&m_videoDataMutex);
-	while (m_videoFrames.size() > 0) {
+	while (canProcessMediaData() && m_videoFrames.size() > 0) {
 		int64_t now_ms = (int64_t)os_gettime_ns() / 1000000;
 		int64_t target_pts = 0;
 
 		if (m_offset == LLONG_MAX) {
 			VideoFrame &frame = m_videoFrames.front();
-			m_offset = now_ms - frame.pts;
+			m_offset = now_ms - frame.pts + m_videoExtraOffset;
 		}
 
 		dropFrame(now_ms);
