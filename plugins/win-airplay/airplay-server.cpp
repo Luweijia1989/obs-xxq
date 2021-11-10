@@ -31,7 +31,7 @@ static uint32_t byteutils_get_int_be(unsigned char *b, int offset)
 	return ntohl(byteutils_get_int(b, offset));
 }
 
-ScreenMirrorServer::ScreenMirrorServer(obs_source_t *source)
+ScreenMirrorServer::ScreenMirrorServer(obs_source_t *source, int type)
 	: m_source(source),
 	  if2((gs_image_file2_t *)bzalloc(sizeof(gs_image_file2_t)))
 {
@@ -56,15 +56,17 @@ ScreenMirrorServer::ScreenMirrorServer(obs_source_t *source)
 	m_audioLoopThread =
 		std::thread(ScreenMirrorServer::audio_tick_thread, this);
 	m_audioLoopThread.detach();
+
+	changeBackendType(type);
 }
 
 ScreenMirrorServer::~ScreenMirrorServer()
 {
+	mirrorServerDestroy();
+
 	m_stop = true;
 	if (m_audioLoopThread.joinable())
 		m_audioLoopThread.join();
-
-	mirrorServerDestroy();
 
 	obs_enter_graphics();
 	gs_image_file2_free(if2);
@@ -104,14 +106,11 @@ void ScreenMirrorServer::dumpResourceImgs()
 	m_resourceImgs.push_back(prefix + "pic_mirror_connecting.gif");
 
 	m_resourceImgs.push_back(prefix + "pic_android_cableprojection_1.png");
-	m_resourceImgs.push_back(
-		prefix + "pic_android_screencastfailed_cableprojection_1.png");
+	m_resourceImgs.push_back(prefix + "pic_android_screencastfailed_cableprojection_1.png");
 	m_resourceImgs.push_back(prefix + "pic_ios_cableprojection_1.png");
-	m_resourceImgs.push_back(
-		prefix + "pic_ios_screencastfailed_cableprojection_1.png");
+	m_resourceImgs.push_back(prefix + "pic_ios_screencastfailed_cableprojection_1.png");
 	m_resourceImgs.push_back(prefix + "pic_ios_wirelessprojection_1.png");
-	m_resourceImgs.push_back(
-		prefix + "pic_ios_screencastfailed_wirelessprojection_1.png");
+	m_resourceImgs.push_back(prefix + "pic_ios_screencastfailed_wirelessprojection_1.png");
 	m_resourceImgs.push_back(prefix + "pic_android_aoa_1.png");
 	m_resourceImgs.push_back(prefix + "pic_android_aoa_fail_1.png");
 
@@ -121,32 +120,21 @@ void ScreenMirrorServer::dumpResourceImgs()
 	for (auto iter = 0; iter < m_resourceImgs.size(); iter++) {
 		const string &img = m_resourceImgs.at(iter);
 		if (!PathFileExistsA(img.c_str())) {
-			HANDLE hFile = CreateFileA(img.c_str(), GENERIC_WRITE,
-						   FILE_SHARE_READ, NULL,
-						   CREATE_ALWAYS,
-						   FILE_ATTRIBUTE_NORMAL, NULL);
+			HANDLE hFile = CreateFileA(img.c_str(), GENERIC_WRITE, FILE_SHARE_READ, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
 			if (hFile != INVALID_HANDLE_VALUE) {
 				HRSRC res = NULL;
 				if (iter == 0) {
-					res = FindResource(
-						DllHandle,
-						MAKEINTRESOURCE(IDB_BITMAP1),
-						L"GIF");
+					res = FindResource(DllHandle, MAKEINTRESOURCE(IDB_BITMAP1), L"GIF");
 				} else {
-					res = FindResource(
-						DllHandle,
-						MAKEINTRESOURCE(ids[iter - 1]),
-						L"PNG");
+					res = FindResource(DllHandle, MAKEINTRESOURCE(ids[iter - 1]), L"PNG");
 				}
-				auto g = GetLastError();
-				HGLOBAL res_handle =
-					LoadResource(DllHandle, res);
+
+				HGLOBAL res_handle = LoadResource(DllHandle, res);
 				auto res_data = LockResource(res_handle);
 				auto res_size = SizeofResource(DllHandle, res);
 
 				DWORD byteWritten = 0;
-				WriteFile(hFile, res_data, res_size,
-					  &byteWritten, NULL);
+				WriteFile(hFile, res_data, res_size, &byteWritten, NULL);
 				CloseHandle(hFile);
 			}
 		}
@@ -698,8 +686,7 @@ static obs_properties_t *GetWinAirplayPropertiesOutput(void *data)
 void *ScreenMirrorServer::CreateWinAirplay(obs_data_t *settings,
 					   obs_source_t *source)
 {
-	ScreenMirrorServer *server = new ScreenMirrorServer(source);
-	server->changeBackendType(obs_data_get_int(settings, "type"));
+	ScreenMirrorServer *server = new ScreenMirrorServer(source, obs_data_get_int(settings, "type"));
 	return server;
 }
 

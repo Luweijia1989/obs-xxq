@@ -53,7 +53,7 @@ public:
 		ANDROID_WIRELESS,
 	};
 
-	ScreenMirrorServer(obs_source_t *source);
+	ScreenMirrorServer(obs_source_t *source, int type);
 	~ScreenMirrorServer();
 	void outputVideo(uint8_t *data, size_t data_len, int64_t pts);
 	void outputAudio(uint8_t *data, size_t data_len, int64_t pts, int serial);
