@@ -265,7 +265,7 @@ void ScreenMirrorServer::setBackendType(int type)
 	if (m_backend == IOS_AIRPLAY)
 		m_extraDelay = 500;
 	else if (m_backend == ANDROID_WIRELESS)
-		m_extraDelay = 0;
+		m_extraDelay = 100;
 	else if (m_backend == ANDROID_AOA)
 		m_extraDelay = 0;
 	else
@@ -602,7 +602,7 @@ void *ScreenMirrorServer::audio_tick_thread(void *data)
 					if (s->m_audioFrameType == IOS_AIRPLAY)
 						s->m_audioOffset = now_ms - pts - 100; // 音频接收到的就有点慢，延迟减去100ms
 					else if (s->m_audioFrameType == ANDROID_WIRELESS)
-						s->m_audioOffset = now_ms - pts + 100; // 音频接收到的就有点慢，延迟减去100ms
+						s->m_audioOffset = now_ms - pts + 200; // 音频接收到的就有点慢，延迟加上100ms
 					else
 						s->m_audioOffset = now_ms - pts;
 				}
