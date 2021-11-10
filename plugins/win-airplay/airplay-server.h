@@ -96,6 +96,7 @@ private:
 	void initSoftOutputFrame();
 	void updateSoftOutputFrame(AVFrame *frame);
 	bool canProcessMediaData();
+	void releaseRenderTexture();
 
 private:
 	std::thread m_audioLoopThread;

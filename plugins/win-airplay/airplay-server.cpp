@@ -70,8 +70,7 @@ ScreenMirrorServer::~ScreenMirrorServer()
 
 	obs_enter_graphics();
 	gs_image_file2_free(if2);
-	if (m_renderTexture)
-		gs_texture_destroy(m_renderTexture);
+	releaseRenderTexture();
 	obs_leave_graphics();
 	bfree(if2);
 
@@ -298,6 +297,14 @@ void ScreenMirrorServer::saveStatusSettings()
 	obs_data_set_int(setting, "status", mirror_status);
 }
 
+void ScreenMirrorServer::releaseRenderTexture()
+{
+	if (m_renderTexture) {
+		gs_texture_destroy(m_renderTexture);
+		m_renderTexture = nullptr;
+	}
+}
+
 void ScreenMirrorServer::initDecoder(uint8_t *data, size_t len, bool forceRecreate, bool forceSoftware)
 {
 	if (!forceRecreate && (m_decoder && !m_decoder->CheckSPSChanged(data, len)))
@@ -305,10 +312,7 @@ void ScreenMirrorServer::initDecoder(uint8_t *data, size_t len, bool forceRecrea
 	if (m_decoder)
 		delete m_decoder;
 
-	if (m_renderTexture) {
-		gs_texture_destroy(m_renderTexture);
-		m_renderTexture = nullptr;
-	}
+	releaseRenderTexture();
 
 	m_decoder = new AVDecoder;
 	m_decoder->Init(data, len, m_renderer->GetDevice(), forceSoftware);
@@ -490,6 +494,11 @@ void ScreenMirrorServer::resetState()
 	else
 		m_videoExtraOffset = 0;
 	pthread_mutex_unlock(&m_ptsMutex);
+
+	obs_enter_graphics();
+	releaseRenderTexture();
+	obs_leave_graphics();
+	updateSoftOutputFrame(nullptr);
 }
 
 bool ScreenMirrorServer::initPipe()
@@ -512,6 +521,10 @@ void ScreenMirrorServer::initSoftOutputFrame()
 
 void ScreenMirrorServer::updateSoftOutputFrame(AVFrame *frame)
 {
+	if (!frame) {
+		obs_source_set_videoframe(m_source, nullptr);
+		return;
+	}
 	auto ffmpeg_to_obs_video_format = [=](enum AVPixelFormat format) {
 		switch (format) {
 		case AV_PIX_FMT_YUV444P:
