@@ -115,7 +115,7 @@ void ScreenMirrorServer::dumpResourceImgs()
 	std::vector<int> ids = {IDB_PNG1, IDB_PNG2, IDB_PNG3, IDB_PNG4,
 				IDB_PNG5, IDB_PNG6, IDB_PNG7, IDB_PNG8};
 
-	for (auto iter = 0; iter < m_resourceImgs.size(); iter++) {
+	for (size_t iter = 0; iter < m_resourceImgs.size(); iter++) {
 		const string &img = m_resourceImgs.at(iter);
 		if (!PathFileExistsA(img.c_str())) {
 			HANDLE hFile = CreateFileA(img.c_str(), GENERIC_WRITE, FILE_SHARE_READ, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
@@ -671,11 +671,14 @@ MODULE_EXPORT const char *obs_module_description(void)
 
 static const char *GetWinAirplayName(void *type_data)
 {
+	(void)type_data;
 	return obs_module_text("WindowsAirplay");
 }
 
 static void UpdateWinAirplaySource(void *obj, obs_data_t *settings)
 {
+	(void)obj;
+	(void)settings;
 }
 
 static void GetWinAirplayDefaultsOutput(obs_data_t *settings)
@@ -706,9 +709,9 @@ static void DestroyWinAirplay(void *obj)
 	delete reinterpret_cast<ScreenMirrorServer *>(obj);
 }
 
-static void HideWinAirplay(void *data) {}
+static void HideWinAirplay(void *data) { (void)data; }
 
-static void ShowWinAirplay(void *data) {}
+static void ShowWinAirplay(void *data) { (void)data; }
 static void WinAirplayRender(void *data, gs_effect_t *effect)
 {
 	ScreenMirrorServer *s = (ScreenMirrorServer *)data;
@@ -783,14 +786,15 @@ bool ScreenMirrorServer::canProcessMediaData()
 
 void ScreenMirrorServer::doRenderer(gs_effect_t *effect)
 {
-	if (mirror_status != OBS_SOURCE_MIRROR_OUTPUT && if2->image.texture) {
-		m_width = gs_texture_get_width(if2->image.texture);
-		m_height = gs_texture_get_height(if2->image.texture);
-		gs_effect_set_texture(gs_effect_get_param_by_name(effect,
-								  "image"),
-				      if2->image.texture);
-		gs_draw_sprite(if2->image.texture, 0, m_width, m_height);
-
+	if (mirror_status != OBS_SOURCE_MIRROR_OUTPUT) {
+		if (if2->image.texture) {
+			m_width = gs_texture_get_width(if2->image.texture);
+			m_height = gs_texture_get_height(if2->image.texture);
+			gs_effect_set_texture(gs_effect_get_param_by_name(effect,
+									  "image"),
+					      if2->image.texture);
+			gs_draw_sprite(if2->image.texture, 0, m_width, m_height);
+		}
 		return;
 	}
 
@@ -922,6 +926,7 @@ void obs_module_unload(void) {}
 
 BOOL APIENTRY DllMain(HMODULE hModule, DWORD dwReason, LPVOID lpReserved)
 {
+	(void)lpReserved;
 	if (dwReason == DLL_PROCESS_ATTACH)
 		DllHandle = hModule;
 	return TRUE;

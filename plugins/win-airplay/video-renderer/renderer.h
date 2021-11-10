@@ -54,7 +54,7 @@ public:
 	Renderer() {};
 	virtual ~Renderer() {};
 
-	virtual bool Init(HWND hwnd) { return true; }
+	virtual bool Init(HWND hwnd) { (void)hwnd; return true; }
 	virtual bool Init() = 0;
 	virtual void Destroy() = 0;
 
@@ -62,7 +62,7 @@ public:
 
 	virtual void Render(PixelFrame* frame) = 0;
 
-	virtual void SetSharpen(float unsharp) {}
+	virtual void SetSharpen(float unsharp) { (void)unsharp; }
 
 };
 
