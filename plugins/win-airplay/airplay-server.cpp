@@ -432,11 +432,9 @@ bool ScreenMirrorServer::handleMediaData()
 
 		handleMirrorStatus(OBS_SOURCE_MIRROR_OUTPUT);
 	} else if (header_info.type == FFM_MEDIA_AUDIO_INFO) {
-		struct media_audio_info info;
-		memset(&info, 0, req_size);
-		circlebuf_pop_front(&m_avBuffer, &info, req_size);
-
-		memcpy(&m_audioInfo, &info, sizeof(struct media_audio_info));
+		pthread_mutex_lock(&m_audioDataMutex);
+		circlebuf_pop_front(&m_avBuffer, &m_audioInfo, req_size);
+		pthread_mutex_unlock(&m_audioDataMutex);
 	} else {
 		uint8_t *temp_buf = (uint8_t *)calloc(1, req_size);
 		circlebuf_pop_front(&m_avBuffer, temp_buf, req_size);
@@ -476,6 +474,7 @@ void ScreenMirrorServer::resetState()
 		free(f.data);
 	}
 	m_audioFrames.clear();
+	memset(&m_audioInfo, 0, sizeof(media_audio_info));
 	pthread_mutex_unlock(&m_audioDataMutex);
 
 	pthread_mutex_lock(&m_ptsMutex);
@@ -602,7 +601,10 @@ void ScreenMirrorServer::dropAudioFrame(int64_t now_ms)
 void *ScreenMirrorServer::audio_tick_thread(void *data)
 {
 	auto func = [](std::list<AudioFrame> *frames, obs_source_t *source, media_audio_info *audioInfo) {
-		if (frames->size() <= 0 || !audioInfo->samples_per_sec)
+		if (frames->size() <= 0
+		    || !audioInfo->samples_per_sec
+		    || audioInfo->format == AUDIO_FORMAT_UNKNOWN
+		    || audioInfo->speakers == SPEAKERS_UNKNOWN)
 			return;
 		AudioFrame &frame = frames->front();
 		obs_source_audio audio;
@@ -697,7 +699,7 @@ static void UpdateWinAirplaySource(void *obj, obs_data_t *settings)
 static void GetWinAirplayDefaultsOutput(obs_data_t *settings)
 {
 	obs_data_set_default_int(settings, "type",
-				 ScreenMirrorServer::ANDROID_AOA);
+				 ScreenMirrorServer::ANDROID_WIRELESS);
 	obs_data_set_default_int(settings, "status", MIRROR_STOP);
 }
 
