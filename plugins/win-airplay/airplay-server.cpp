@@ -79,9 +79,6 @@ ScreenMirrorServer::~ScreenMirrorServer()
 	pthread_mutex_destroy(&m_statusMutex);
 	pthread_mutex_destroy(&m_ptsMutex);
 
-	if (m_handler != INVALID_HANDLE_VALUE)
-		CloseHandle(m_handler);
-
 	av_frame_free(&m_decodedFrame);
 
 	if (m_decoder)
@@ -701,18 +698,7 @@ static obs_properties_t *GetWinAirplayPropertiesOutput(void *data)
 void *ScreenMirrorServer::CreateWinAirplay(obs_data_t *settings,
 					   obs_source_t *source)
 {
-	auto handler = CreateEvent(NULL, FALSE, FALSE, INSTANCE_LOCK);
-	auto lastError = GetLastError();
-	if (handler == NULL)
-		return nullptr;
-
-	if (lastError == ERROR_ALREADY_EXISTS) {
-		CloseHandle(handler);
-		return nullptr;
-	}
-
 	ScreenMirrorServer *server = new ScreenMirrorServer(source);
-	server->m_handler = handler;
 	server->changeBackendType(obs_data_get_int(settings, "type"));
 	return server;
 }

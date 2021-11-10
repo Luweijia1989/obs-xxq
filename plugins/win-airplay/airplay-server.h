@@ -95,8 +95,6 @@ private:
 	bool canProcessMediaData();
 
 private:
-	HANDLE m_handler;
-
 	std::thread m_audioLoopThread;
 	media_audio_info m_audioInfo;
 	bool m_stop = false;
