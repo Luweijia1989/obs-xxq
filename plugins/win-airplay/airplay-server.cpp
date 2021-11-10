@@ -4,6 +4,7 @@
 #include <cstdio>
 #include <util/dstr.h>
 #include <Shlwapi.h>
+#include <QTimer>
 
 using namespace std;
 
@@ -12,29 +13,27 @@ using namespace std;
 #define ANDROID_USB_EXE "android-usb-mirror.exe"
 #define ANDROID_AOA_EXE "android-aoa-server.exe"
 #define ANDROID_WIRELESS_EXE "rtmp-server.exe"
-#define INSTANCE_LOCK L"AIRPLAY-ONE-INSTANCE"
 
-#define AIRPLAY_AUDIO_PKT_SIZE 1920
-#define ANDROID_AOA_AUDIO_PKT_SIZE 1920
-
-uint8_t start_code[4] = {00, 00, 00, 01};
-
-HMODULE DllHandle;
-
-static uint32_t byteutils_get_int(unsigned char *b, int offset)
-{
-	return *((uint32_t *)(b + offset));
-}
-
-static uint32_t byteutils_get_int_be(unsigned char *b, int offset)
-{
-	return ntohl(byteutils_get_int(b, offset));
-}
+static HMODULE DllHandle;
 
 ScreenMirrorServer::ScreenMirrorServer(obs_source_t *source, int type)
 	: m_source(source),
 	  if2((gs_image_file2_t *)bzalloc(sizeof(gs_image_file2_t)))
 {
+	m_timerHelperObject = new QObject;
+	m_helperTimer = new QTimer(m_timerHelperObject);
+	m_helperTimer->setSingleShot(true);
+	QObject::connect(m_helperTimer, &QTimer::timeout, m_timerHelperObject, [=](){
+		handleMirrorStatus(OBS_SOURCE_MIRROR_DEVICE_LOST);
+	});
+	m_tickTimer = new QTimer(m_timerHelperObject);
+	m_tickTimer->setInterval(33);
+	m_tickTimer->setSingleShot(false);
+	QObject::connect(m_tickTimer, &QTimer::timeout, m_timerHelperObject, [this](){
+		tickImage();
+	});
+	m_tickTimer->start();
+
 	memset(&m_audioInfo, 0, sizeof(media_audio_info));
 	initSoftOutputFrame();
 
@@ -42,7 +41,6 @@ ScreenMirrorServer::ScreenMirrorServer(obs_source_t *source, int type)
 
 	pthread_mutex_init(&m_videoDataMutex, nullptr);
 	pthread_mutex_init(&m_audioDataMutex, nullptr);
-	pthread_mutex_init(&m_statusMutex, nullptr);
 	pthread_mutex_init(&m_ptsMutex, nullptr);
 
 	circlebuf_init(&m_avBuffer);
@@ -64,6 +62,8 @@ ScreenMirrorServer::~ScreenMirrorServer()
 {
 	mirrorServerDestroy();
 
+	delete m_timerHelperObject;
+
 	m_stop = true;
 	if (m_audioLoopThread.joinable())
 		m_audioLoopThread.join();
@@ -78,7 +78,6 @@ ScreenMirrorServer::~ScreenMirrorServer()
 	circlebuf_free(&m_avBuffer);
 	pthread_mutex_destroy(&m_videoDataMutex);
 	pthread_mutex_destroy(&m_audioDataMutex);
-	pthread_mutex_destroy(&m_statusMutex);
 	pthread_mutex_destroy(&m_ptsMutex);
 
 	av_frame_free(&m_decodedFrame);
@@ -90,7 +89,6 @@ ScreenMirrorServer::~ScreenMirrorServer()
 
 	if (pps_cache)
 		free(pps_cache);
-
 #ifdef DUMPFILE
 	fclose(m_auioFile);
 	fclose(m_videoFile);
@@ -186,27 +184,6 @@ void ScreenMirrorServer::mirrorServerDestroy()
 	circlebuf_free(&m_avBuffer);
 }
 
-void ScreenMirrorServer::updateStatusImage()
-{
-	if (mirror_status == OBS_SOURCE_MIRROR_OUTPUT)
-		return;
-	std::string path;
-	switch (mirror_status) {
-	case OBS_SOURCE_MIRROR_START:
-		path = m_resourceImgs[0].c_str();
-		break;
-	case OBS_SOURCE_MIRROR_STOP:
-		path = m_backendStopImagePath;
-		break;
-	case OBS_SOURCE_MIRROR_DEVICE_LOST: // 连接失败，检测超时
-		path = m_backendLostImagePath;
-	default:
-		break;
-	}
-
-	loadImage(path);
-}
-
 void ScreenMirrorServer::setBackendType(int type)
 {
 	m_backend = (MirrorBackEnd)type;
@@ -278,8 +255,24 @@ void ScreenMirrorServer::changeBackendType(int type)
 	mirrorServerSetup();
 }
 
-void ScreenMirrorServer::loadImage(std::string path)
+void ScreenMirrorServer::updateStatusImage()
 {
+	if (mirror_status == OBS_SOURCE_MIRROR_OUTPUT)
+		return;
+	std::string path;
+	switch (mirror_status) {
+	case OBS_SOURCE_MIRROR_START:
+		path = m_resourceImgs[0].c_str();
+		break;
+	case OBS_SOURCE_MIRROR_STOP:
+		path = m_backendStopImagePath;
+		break;
+	case OBS_SOURCE_MIRROR_DEVICE_LOST: // 连接失败，检测超时
+		path = m_backendLostImagePath;
+	default:
+		break;
+	}
+
 	obs_enter_graphics();
 	gs_image_file2_free(if2);
 	obs_leave_graphics();
@@ -290,6 +283,12 @@ void ScreenMirrorServer::loadImage(std::string path)
 		gs_image_file2_init_texture(if2);
 		obs_leave_graphics();
 	}
+
+	obs_data_t *event = obs_data_create();
+	obs_data_set_string(event, "eventType", "MirrorStatus");
+	obs_data_set_int(event, "value", mirror_status);
+	obs_source_signal_event(m_source, event);
+	obs_data_release(event);
 }
 
 void ScreenMirrorServer::saveStatusSettings()
@@ -322,36 +321,52 @@ void ScreenMirrorServer::initDecoder(uint8_t *data, size_t len, bool forceRecrea
 	}
 }
 
-void ScreenMirrorServer::handleMirrorStatus(int status)
+void ScreenMirrorServer::tickImage()
 {
-	auto status_func = [=]() {
-		updateStatusImage();
+	if (mirror_status != OBS_SOURCE_MIRROR_OUTPUT) {
+		uint64_t frame_time = obs_get_video_frame_time();
+		if (last_time && if2->image.is_animated_gif) {
+			uint64_t elapsed = frame_time - last_time;
+			bool updated = gs_image_file2_tick(if2, elapsed);
 
-		obs_data_t *event = obs_data_create();
-		obs_data_set_string(event, "eventType", "MirrorStatus");
-		obs_data_set_int(event, "value", mirror_status);
-		obs_source_signal_event(m_source, event);
-		obs_data_release(event);
-	};
+			if (updated) {
+				obs_enter_graphics();
+				gs_image_file2_update_texture(if2);
+				obs_leave_graphics();
+			}
+		}
+		last_time = frame_time;
+	}
+}
 
+void ScreenMirrorServer::handleMirrorStatusInternal(int status)
+{
 	if (status == mirror_status) {
 		if (status == OBS_SOURCE_MIRROR_STOP) {
 			if (m_lastStopType != m_backend) {
 				m_lastStopType = m_backend;
-				status_func();
+				updateStatusImage();
 			}
 		}
 	} else {
 		mirror_status = (obs_source_mirror_status)status;
 		saveStatusSettings();
-		status_func();
+		updateStatusImage();
 
 		if (mirror_status == OBS_SOURCE_MIRROR_STOP) {
 			resetState();
 		} else if (mirror_status == OBS_SOURCE_MIRROR_START) {
-			m_startTimeElapsed = 0;
-		}
+			m_helperTimer->start(30000);
+		} else if (mirror_status == OBS_SOURCE_MIRROR_OUTPUT)
+			m_helperTimer->stop();
 	}
+}
+
+void ScreenMirrorServer::handleMirrorStatus(int status)
+{
+	QMetaObject::invokeMethod(m_timerHelperObject, [status, this](){
+		handleMirrorStatusInternal(status);
+	});
 }
 
 bool ScreenMirrorServer::handleMediaData()
@@ -392,10 +407,7 @@ bool ScreenMirrorServer::handleMediaData()
 	if (header_info.type == FFM_MIRROR_STATUS) {
 		int status = -1;
 		circlebuf_pop_front(&m_avBuffer, &status, sizeof(int));
-
-		pthread_mutex_lock(&m_statusMutex);
 		handleMirrorStatus(status);
-		pthread_mutex_unlock(&m_statusMutex);
 	} else if (header_info.type == FFM_MEDIA_VIDEO_INFO) {
 		struct media_video_info info;
 		memset(&info, 0, req_size);
@@ -454,7 +466,6 @@ void ScreenMirrorServer::resetState()
 
 	pthread_mutex_lock(&m_audioDataMutex);
 	m_audioOffset = LLONG_MAX;
-	m_audioFrameType = m_backend;
 	for (auto iter = m_audioFrames.begin(); iter != m_audioFrames.end();
 	     iter++) {
 		AudioFrame &f = *iter;
@@ -670,7 +681,7 @@ static void UpdateWinAirplaySource(void *obj, obs_data_t *settings)
 static void GetWinAirplayDefaultsOutput(obs_data_t *settings)
 {
 	obs_data_set_default_int(settings, "type",
-				 ScreenMirrorServer::ANDROID_WIRELESS);
+				 ScreenMirrorServer::ANDROID_AOA);
 	obs_data_set_default_int(settings, "status", MIRROR_STOP);
 }
 
@@ -748,13 +759,11 @@ void ScreenMirrorServer::dropFrame(int64_t now_ms)
 
 bool ScreenMirrorServer::canProcessMediaData()
 {
-	if (m_backend != ANDROID_WIRELESS)
-		return true;
-
 	bool ret = false;
 	pthread_mutex_lock(&m_ptsMutex);
-	if (m_firstAudioRecvTime != LLONG_MAX && m_firstVideoRecvTime != LLONG_MAX) {
-		if (m_videoExtraOffset == LLONG_MAX && m_audioExtraOffset == LLONG_MAX) {
+	bool timeOffsetInited = (m_videoExtraOffset != LLONG_MAX || m_audioExtraOffset != LLONG_MAX);
+	if (!timeOffsetInited) {
+		if (m_firstAudioRecvTime != LLONG_MAX && m_firstVideoRecvTime != LLONG_MAX) {
 			if (m_firstVideoRecvTime > m_firstAudioRecvTime) {
 				m_videoExtraOffset = m_firstVideoRecvTime - m_firstAudioRecvTime;
 				m_audioExtraOffset = 0;
@@ -762,9 +771,11 @@ bool ScreenMirrorServer::canProcessMediaData()
 				m_videoExtraOffset = 0;
 				m_audioExtraOffset = m_firstAudioRecvTime - m_firstVideoRecvTime;
 			}
+			ret = true;
 		}
-		ret = true;
 	}
+	else
+		ret = true;
 	pthread_mutex_unlock(&m_ptsMutex);
 
 	return ret;
@@ -779,6 +790,7 @@ void ScreenMirrorServer::doRenderer(gs_effect_t *effect)
 								  "image"),
 				      if2->image.texture);
 		gs_draw_sprite(if2->image.texture, 0, m_width, m_height);
+
 		return;
 	}
 
@@ -827,19 +839,14 @@ void ScreenMirrorServer::doRenderer(gs_effect_t *effect)
 					ret = m_decoder->Recv(m_decodedFrame);
 					if (ret >= 0) {
 						m_width = m_decodedFrame->width;
-						m_height =
-							m_decodedFrame->height;
+						m_height = m_decodedFrame->height;
 						if (m_decoder->IsHWDecode()) {
-							m_renderer->RenderFrame(
-								m_decodedFrame);
+							m_renderer->RenderFrame(m_decodedFrame);
 							if (!m_renderTexture) {
-								m_renderTexture = gs_texture_open_shared(
-									(uint32_t)m_renderer
-										->GetTextureSharedHandle());
+								m_renderTexture = gs_texture_open_shared((uint32_t)m_renderer->GetTextureSharedHandle());
 							}
 						} else {
-							updateSoftOutputFrame(
-								m_decodedFrame);
+							updateSoftOutputFrame(m_decodedFrame);
 						}
 					}
 				}
@@ -855,47 +862,13 @@ void ScreenMirrorServer::doRenderer(gs_effect_t *effect)
 	if (m_decoder) {
 		if (m_decoder->IsHWDecode()) {
 			if (m_renderTexture) {
-				gs_effect_set_texture(
-					gs_effect_get_param_by_name(effect,
-								    "image"),
-					m_renderTexture);
-				gs_draw_sprite(
-					m_renderTexture, 0,
-					gs_texture_get_width(m_renderTexture),
-					gs_texture_get_height(m_renderTexture));
+				gs_effect_set_texture(gs_effect_get_param_by_name(effect, "image"), m_renderTexture);
+				gs_draw_sprite(m_renderTexture, 0, gs_texture_get_width(m_renderTexture), gs_texture_get_height(m_renderTexture));
 			}
 		} else
 			obs_source_draw_videoframe(m_source);
 	}
-}
 
-void ScreenMirrorServer::WinAirplayVideoTick(void *data, float seconds)
-{
-	ScreenMirrorServer *s = (ScreenMirrorServer *)data;
-
-	pthread_mutex_lock(&s->m_statusMutex);
-	if (s->mirror_status == OBS_SOURCE_MIRROR_START) {
-		s->m_startTimeElapsed += seconds;
-		if (s->m_startTimeElapsed > 30.0) {
-			s->handleMirrorStatus(OBS_SOURCE_MIRROR_DEVICE_LOST);
-		}
-	}
-
-	if (s->mirror_status != OBS_SOURCE_MIRROR_OUTPUT) {
-		uint64_t frame_time = obs_get_video_frame_time();
-		if (s->last_time && s->if2->image.is_animated_gif) {
-			uint64_t elapsed = frame_time - s->last_time;
-			bool updated = gs_image_file2_tick(s->if2, elapsed);
-
-			if (updated) {
-				obs_enter_graphics();
-				gs_image_file2_update_texture(s->if2);
-				obs_leave_graphics();
-			}
-		}
-		s->last_time = frame_time;
-	}
-	pthread_mutex_unlock(&s->m_statusMutex);
 }
 
 static void WinAirplayCustomCommand(void *data, obs_data_t *cmd)
@@ -939,7 +912,6 @@ bool obs_module_load(void)
 	info.video_render = WinAirplayRender;
 	info.get_width = WinAirplayWidth;
 	info.get_height = WinAirplayHeight;
-	info.video_tick = ScreenMirrorServer::WinAirplayVideoTick;
 	info.make_command = WinAirplayCustomCommand;
 	obs_register_source(&info);
 

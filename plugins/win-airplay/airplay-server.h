@@ -15,6 +15,7 @@
 #include <util/threading.h>
 #include <util/platform.h>
 #include <graphics/image-file.h>
+#include <QObject>
 
 #include "dxva2_decoder.h"
 #include "dxva2_renderer.h"
@@ -42,6 +43,7 @@ struct VideoInfo {
 	size_t data_len;
 };
 
+class QTimer;
 class ScreenMirrorServer {
 public:
 	enum MirrorBackEnd {
@@ -82,9 +84,10 @@ private:
 	void resetState();
 	bool initPipe();
 	void handleMirrorStatus(int status);
+	void handleMirrorStatusInternal(int status);
 	bool handleMediaData();
 	void updateStatusImage();
-	void loadImage(std::string path);
+	void tickImage();
 	void saveStatusSettings();
 
 	void initDecoder(uint8_t *data, size_t len, bool forceRecreate, bool forceSoftware);
@@ -103,7 +106,6 @@ private:
 	std::list<AudioFrame> m_audioFrames;
 	pthread_mutex_t m_videoDataMutex;
 	pthread_mutex_t m_audioDataMutex;
-	pthread_mutex_t m_statusMutex;
 	int64_t m_offset = LLONG_MAX;
 	int64_t m_audioOffset = LLONG_MAX;
 	int64_t m_extraDelay = 0;
@@ -112,7 +114,6 @@ private:
 	int64_t m_audioExtraOffset = LLONG_MAX;
 	int64_t m_videoExtraOffset = LLONG_MAX;
 	pthread_mutex_t m_ptsMutex;
-	float m_startTimeElapsed = 0.;
 
 	std::map<uint32_t, VideoInfo> m_videoInfos;
 	uint32_t m_videoInfoIndex = 0;
@@ -123,7 +124,6 @@ private:
 	circlebuf m_avBuffer;
 	MirrorBackEnd m_backend = None;
 	MirrorBackEnd m_lastStopType = None;
-	MirrorBackEnd m_audioFrameType = None;
 	std::string m_backendProcessName;
 	std::string m_backendStopImagePath;
 	std::string m_backendLostImagePath;
@@ -138,4 +138,8 @@ private:
 
 	uint8_t *pps_cache = nullptr;
 	size_t pps_cache_len;
+
+	QObject *m_timerHelperObject = nullptr;
+	QTimer *m_helperTimer = nullptr;
+	QTimer *m_tickTimer = nullptr;
 };
