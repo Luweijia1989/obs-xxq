@@ -1,4 +1,4 @@
-﻿#ifndef AOADEVICEMANAGER_H
+#ifndef AOADEVICEMANAGER_H
 #define AOADEVICEMANAGER_H
 
 #include <QObject>
@@ -52,6 +52,13 @@ typedef struct t_accessory_droid {
 	uint16_t c_pid;
 } accessory_droid;
 
+struct ANDROID_DEVICE_INFO
+{
+	int vid;
+	int pid;
+	QString devicePath;
+};
+
 class AOADeviceManager : public QObject {
 	Q_OBJECT
 public:
@@ -59,8 +66,8 @@ public:
 	~AOADeviceManager();
 
 	int connectDevice(libusb_device *device);
-	int isDroidInAcc(libusb_device *dev);
-	void switchDroidToAcc(libusb_device *dev, int force);
+	int isDroidInAcc(int vid, int pid);
+	void switchDroidToAcc(int vid, int pid, int force);
 	int setupDroid(libusb_device *usbDevice, accessory_droid *device);
 	int shutdownUSBDroid(accessory_droid *device);
 	int startUSBPipe();
@@ -86,12 +93,9 @@ public:
 private:
 	int initUSB();
 	void clearUSB();
-	int isAndroidDevice(libusb_device *device,
-			    struct libusb_device_descriptor &desc);
-	bool isAndroidADBDevice(struct libusb_device_descriptor &desc);
+	bool isAndroidADBDevice(int vid, int pid);
 	bool handleMediaData();
 	bool adbDeviceExist();
-	QString targetUsbDevicePath(int vid, int pid);
 
 signals:
 	void installProgress(int step, int value);
@@ -119,6 +123,7 @@ private:
 	bool m_exitStart = false;
 	unsigned char *buffer = nullptr;
 	DriverHelper *m_driverHelper = nullptr;
+	ANDROID_DEVICE_INFO m_androidDeviceInfo = { 0 };
 
 	QMutex m_waitMutex;
 	QWaitCondition m_waitCondition;

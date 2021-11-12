@@ -1,4 +1,4 @@
-﻿#include "DriverHelper.h"
+#include "DriverHelper.h"
 #include "msapi_utf8.h"
 #include <QStandardPaths>
 #include <QDir>
@@ -109,7 +109,7 @@ DriverHelper::DriverHelper(QObject *parent) : QObject(parent)
 	pd_options.driver_type = WDI_LIBUSBK;
 }
 
-bool DriverHelper::checkInstall(int vid, int pid, QString targetDevicePath, void (*func)(libusb_context **, libusb_device ***, int), libusb_context **c, libusb_device ***d, int ct)
+bool DriverHelper::checkInstall(int vid, int pid, QString targetDevicePath)
 {
 	int ret = false;
 
@@ -158,7 +158,6 @@ bool DriverHelper::checkInstall(int vid, int pid, QString targetDevicePath, void
 		inInstall = true;
 		emit installProgress(!isAOADevice(targetDev->vid, targetDev->pid) ? 0 : 1, 0);
 
-		func(c, d, ct);
 		install(targetDev);
 	}
 
