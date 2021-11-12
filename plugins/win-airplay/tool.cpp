@@ -1,15 +1,12 @@
-﻿#include "tool.h"
-#include <QImage>
-#include <QPainter>
+#include "tool.h"
 #include <QFile>
 #include <QStandardPaths>
-#include <QDateTime>
 #include "qrcode/QrToPng.h"
 
 #include <QHostAddress>
 #include <QNetworkInterface>
 #include <QNetworkAddressEntry>
-QStringList streamUrlImages()
+QString streamUrlImage()
 {
 	QStringList ips;
 	for (const QNetworkInterface &address : QNetworkInterface::allInterfaces()) {
@@ -31,31 +28,19 @@ QStringList streamUrlImages()
 			}
 		}
 	}
-	QStringList ret;
-
-	auto time = QDateTime::currentMSecsSinceEpoch();
+	QString str;
 	for (int i=0; i<ips.size(); i++)
 	{
-		QString pngPath = QStandardPaths::writableLocation(QStandardPaths::TempLocation) + "/xxq-stream-qrcode.png";
-		auto url = QString("rtmp://%1/xxq-live/%2").arg(ips[i]).arg(time);
-		auto exampleQrPng1 = QrToPng(pngPath.toStdString(), 600, 3, url.toStdString(), true, qrcodegen::QrCode::Ecc::MEDIUM);
-		exampleQrPng1.writeToPNG();
-
-		QImage image(600, 800, QImage::Format_RGBA8888);
-		image.fill(Qt::transparent);
-		QPainter p(&image);
-		p.drawImage(QRect(0, 0, 600, 600), QImage(pngPath));
-		QFont f;
-		f.setPixelSize(32);
-		QPen pen;
-		pen.setColor(Qt::white);
-		p.setFont(f);
-		p.setPen(pen);
-		p.drawText(QRect(0, 600, 600, 200), Qt::AlignCenter, u8"打开鱼耳主播助手APP，扫一扫完成投屏");
-		QString savePath = QStandardPaths::writableLocation(QStandardPaths::TempLocation) + QString("/xxq-stream-url%1.png").arg(i);
-		image.save(savePath);
-		ret.append(savePath);
+		str.append(ips.at(i));
+		if (i != ips.size() - 1)
+			str.append("#");
 	}
 
-	return ret;
+	if (str.isEmpty())
+		return "";
+	
+	QString pngPath = QStandardPaths::writableLocation(QStandardPaths::TempLocation) + "/xxq-stream-qrcode.png";
+	auto exampleQrPng1 = QrToPng(pngPath.toStdString(), 200, 3, str.toStdString(), true, qrcodegen::QrCode::Ecc::MEDIUM);
+	exampleQrPng1.writeToPNG();
+	return pngPath;
 }

@@ -16,6 +16,7 @@
 #include <util/platform.h>
 #include <graphics/image-file.h>
 #include <QObject>
+#include <QMap>
 
 #include "dxva2_decoder.h"
 #include "dxva2_renderer.h"
@@ -68,7 +69,6 @@ public:
 	void changeBackendType(int type);
 
 	static void pipeCallback(void *param, uint8_t *data, size_t size);
-	static void WinAirplayVideoTick(void *data, float seconds);
 	static void *CreateWinAirplay(obs_data_t *settings, obs_source_t *source);
 	static void *audio_tick_thread(void *data);
 	int m_width = 0;
@@ -76,7 +76,6 @@ public:
 	obs_source_t *m_source = nullptr;
 	obs_source_mirror_status mirror_status = OBS_SOURCE_MIRROR_STOP;
 	gs_image_file2_t *if2 = nullptr;
-	uint64_t last_time = 0;
 	gs_texture_t *m_renderTexture = nullptr;
 
 private:
@@ -87,7 +86,6 @@ private:
 	void handleMirrorStatusInternal(int status);
 	bool handleMediaData();
 	void updateStatusImage();
-	void tickImage();
 	void saveStatusSettings();
 
 	void initDecoder(uint8_t *data, size_t len, bool forceRecreate, bool forceSoftware);
@@ -125,11 +123,10 @@ private:
 	circlebuf m_avBuffer;
 	MirrorBackEnd m_backend = None;
 	MirrorBackEnd m_lastStopType = None;
-	std::string m_backendProcessName;
-	std::string m_backendStopImagePath;
-	std::string m_backendLostImagePath;
-
-	std::vector<std::string> m_resourceImgs;
+	QString m_backendProcessName;
+	QString m_backendStopImagePath;
+	QString m_backendLostImagePath;
+	QString m_backendConnectingImagePath;
 
 	DXVA2Renderer *m_renderer = nullptr;
 	AVDecoder *m_decoder = nullptr;
@@ -142,5 +139,4 @@ private:
 
 	QObject *m_timerHelperObject = nullptr;
 	QTimer *m_helperTimer = nullptr;
-	QTimer *m_tickTimer = nullptr;
 };

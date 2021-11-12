@@ -5,6 +5,11 @@
 #include <util/dstr.h>
 #include <Shlwapi.h>
 #include <QTimer>
+#include <QStandardPaths>
+#include <QFile>
+#include <QImage>
+#include <QImageWriter>
+#include <QPainter>
 
 using namespace std;
 
@@ -13,6 +18,14 @@ using namespace std;
 #define ANDROID_USB_EXE "android-usb-mirror.exe"
 #define ANDROID_AOA_EXE "android-aoa-server.exe"
 #define ANDROID_WIRELESS_EXE "rtmp-server.exe"
+
+static QMap<ScreenMirrorServer::MirrorBackEnd, QString> g_resource_map = {
+	{ScreenMirrorServer::IOS_AIRPLAY, "iOSwuxian"},
+	{ScreenMirrorServer::IOS_USB_CABLE, "iOSyouxian"},
+	{ScreenMirrorServer::ANDROID_AOA, "AndroidAOA"},
+	{ScreenMirrorServer::ANDROID_WIRELESS, "Androidwuxian"},
+	{ScreenMirrorServer::ANDROID_USB_CABLE, "AndroidADB"}
+};
 
 static HMODULE DllHandle;
 
@@ -26,13 +39,6 @@ ScreenMirrorServer::ScreenMirrorServer(obs_source_t *source, int type)
 	QObject::connect(m_helperTimer, &QTimer::timeout, m_timerHelperObject, [=](){
 		handleMirrorStatus(OBS_SOURCE_MIRROR_DEVICE_LOST);
 	});
-	m_tickTimer = new QTimer(m_timerHelperObject);
-	m_tickTimer->setInterval(33);
-	m_tickTimer->setSingleShot(false);
-	QObject::connect(m_tickTimer, &QTimer::timeout, m_timerHelperObject, [this](){
-		tickImage();
-	});
-	m_tickTimer->start();
 
 	memset(&m_audioInfo, 0, sizeof(media_audio_info));
 	initSoftOutputFrame();
@@ -96,45 +102,21 @@ ScreenMirrorServer::~ScreenMirrorServer()
 
 void ScreenMirrorServer::dumpResourceImgs()
 {
-	string prefix;
-	prefix.resize(MAX_PATH);
-	DWORD len = GetTempPathA(MAX_PATH, (char *)prefix.data());
-	prefix.resize(len);
-	m_resourceImgs.push_back(prefix + "pic_mirror_connecting.gif");
+	auto checkWrite = [](QString path){
+		QString tempPath = QStandardPaths::writableLocation(QStandardPaths::TempLocation);
+		auto p = QString("%1/%2").arg(tempPath).arg(path);
+		if (QFile::exists(p))
+			return;
 
-	m_resourceImgs.push_back(prefix + "pic_android_cableprojection_1.png");
-	m_resourceImgs.push_back(prefix + "pic_android_screencastfailed_cableprojection_1.png");
-	m_resourceImgs.push_back(prefix + "pic_ios_cableprojection_1.png");
-	m_resourceImgs.push_back(prefix + "pic_ios_screencastfailed_cableprojection_1.png");
-	m_resourceImgs.push_back(prefix + "pic_ios_wirelessprojection_1.png");
-	m_resourceImgs.push_back(prefix + "pic_ios_screencastfailed_wirelessprojection_1.png");
-	m_resourceImgs.push_back(prefix + "pic_android_aoa_1.png");
-	m_resourceImgs.push_back(prefix + "pic_android_aoa_fail_1.png");
+		auto src = QString(":/%1").arg(path);
+		QFile::copy(src, p);
+	};
 
-	std::vector<int> ids = {IDB_PNG1, IDB_PNG2, IDB_PNG3, IDB_PNG4,
-				IDB_PNG5, IDB_PNG6, IDB_PNG7, IDB_PNG8};
-
-	for (size_t iter = 0; iter < m_resourceImgs.size(); iter++) {
-		const string &img = m_resourceImgs.at(iter);
-		if (!PathFileExistsA(img.c_str())) {
-			HANDLE hFile = CreateFileA(img.c_str(), GENERIC_WRITE, FILE_SHARE_READ, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
-			if (hFile != INVALID_HANDLE_VALUE) {
-				HRSRC res = NULL;
-				if (iter == 0) {
-					res = FindResource(DllHandle, MAKEINTRESOURCE(IDB_BITMAP1), L"GIF");
-				} else {
-					res = FindResource(DllHandle, MAKEINTRESOURCE(ids[iter - 1]), L"PNG");
-				}
-
-				HGLOBAL res_handle = LoadResource(DllHandle, res);
-				auto res_data = LockResource(res_handle);
-				auto res_size = SizeofResource(DllHandle, res);
-
-				DWORD byteWritten = 0;
-				WriteFile(hFile, res_data, res_size, &byteWritten, NULL);
-				CloseHandle(hFile);
-			}
-		}
+	for (auto iter = g_resource_map.begin(); iter != g_resource_map.end(); iter++) {
+		auto str = iter.value();
+		checkWrite(str + ".png");
+		checkWrite(str + "zhong.png");
+		checkWrite(str + "shibai.png");
 	}
 }
 
@@ -157,11 +139,11 @@ void ScreenMirrorServer::mirrorServerSetup()
 	if (process)
 		return;
 
-	os_kill_process(m_backendProcessName.c_str());
+	os_kill_process(m_backendProcessName.toStdString().c_str());
 	ipc_server_create(&m_ipcServer, ScreenMirrorServer::pipeCallback, this);
 
 	struct dstr cmd;
-	dstr_init_move_array(&cmd, os_get_executable_path_ptr(m_backendProcessName.c_str()));
+	dstr_init_move_array(&cmd, os_get_executable_path_ptr(m_backendProcessName.toStdString().c_str()));
 	dstr_insert_ch(&cmd, 0, '\"');
 	dstr_cat(&cmd, "\" \"");
 	process = os_process_pipe_create(cmd.array, "w");
@@ -193,36 +175,45 @@ void ScreenMirrorServer::setBackendType(int type)
 		break;
 	case ScreenMirrorServer::IOS_USB_CABLE:
 		m_backendProcessName = DRIVER_EXE;
-		m_backendLostImagePath = m_resourceImgs[4];
-		m_backendStopImagePath = m_resourceImgs[3];
 		break;
 	case ScreenMirrorServer::IOS_AIRPLAY:
 		m_backendProcessName = AIRPLAY_EXE;
-		m_backendLostImagePath = m_resourceImgs[6];
-		m_backendStopImagePath = m_resourceImgs[5];
 		break;
 	case ScreenMirrorServer::ANDROID_USB_CABLE:
 		m_backendProcessName = ANDROID_USB_EXE;
-		m_backendLostImagePath = m_resourceImgs[2];
-		m_backendStopImagePath = m_resourceImgs[1];
 		break;
 	case ScreenMirrorServer::ANDROID_AOA:
 		m_backendProcessName = ANDROID_AOA_EXE;
-		m_backendLostImagePath = m_resourceImgs[8];
-		m_backendStopImagePath = m_resourceImgs[7];
 		break;
 	case ScreenMirrorServer::ANDROID_WIRELESS:
-	{
 		m_backendProcessName = ANDROID_WIRELESS_EXE;
-		auto list = streamUrlImages();
-		if (!list.isEmpty()) {
-			auto s = list.first().toStdString();
-			m_backendStopImagePath = s;
-		}
-	}
 		break;
 	default:
 		break;
+	}
+	
+	auto prefix = g_resource_map.value(m_backend);
+	QString tempPath = QStandardPaths::writableLocation(QStandardPaths::TempLocation);
+	m_backendStopImagePath = QString("%1/%2.png").arg(tempPath).arg(prefix);
+	m_backendLostImagePath = QString("%1/%2shibai.png").arg(tempPath).arg(prefix);
+	m_backendConnectingImagePath = QString("%1/%2zhong.png").arg(tempPath).arg(prefix);
+	if (m_backend == ANDROID_WIRELESS) {
+		auto qrcode = streamUrlImage();
+		if (!qrcode.isEmpty()) {
+			auto writeQRCodeImage = [=](QString srcFile, QString dstFile){
+				QImage image(srcFile);
+				image = image.convertToFormat(QImage::Format_RGBA8888);
+				QPainter p(&image);
+				p.drawImage(QRect(365, 704, 200, 200), QImage(qrcode));
+				QImageWriter writer(dstFile);
+				writer.write(image);
+				return dstFile;
+			};
+
+			m_backendStopImagePath = writeQRCodeImage(m_backendStopImagePath, QString("%1/%2_bak.png").arg(tempPath).arg(prefix));
+			m_backendLostImagePath = writeQRCodeImage(m_backendLostImagePath, QString("%1/%2shibai_bak.png").arg(tempPath).arg(prefix));
+			m_backendConnectingImagePath = writeQRCodeImage(m_backendConnectingImagePath, QString("%1/%2zhong_bak.png").arg(tempPath).arg(prefix));
+		}
 	}
 
 	if (m_backend == IOS_AIRPLAY)
@@ -258,10 +249,10 @@ void ScreenMirrorServer::updateStatusImage()
 {
 	if (mirror_status == OBS_SOURCE_MIRROR_OUTPUT)
 		return;
-	std::string path;
+	QString path;
 	switch (mirror_status) {
 	case OBS_SOURCE_MIRROR_START:
-		path = m_resourceImgs[0].c_str();
+		path = m_backendConnectingImagePath;
 		break;
 	case OBS_SOURCE_MIRROR_STOP:
 		path = m_backendStopImagePath;
@@ -277,7 +268,7 @@ void ScreenMirrorServer::updateStatusImage()
 	obs_leave_graphics();
 
 	if (path.length() > 0) {
-		gs_image_file2_init(if2, path.c_str());
+		gs_image_file2_init(if2, path.toStdString().c_str());
 		obs_enter_graphics();
 		gs_image_file2_init_texture(if2);
 		obs_leave_graphics();
@@ -322,24 +313,6 @@ void ScreenMirrorServer::initDecoder(uint8_t *data, size_t len, bool forceRecrea
 		blog(LOG_INFO, "mirror decoder init complete, use hardware: %s",
 		     m_decoder->IsHWDecode() ? "true" : "false");
 		loged = true;
-	}
-}
-
-void ScreenMirrorServer::tickImage()
-{
-	if (mirror_status != OBS_SOURCE_MIRROR_OUTPUT) {
-		uint64_t frame_time = obs_get_video_frame_time();
-		if (last_time && if2->image.is_animated_gif) {
-			uint64_t elapsed = frame_time - last_time;
-			bool updated = gs_image_file2_tick(if2, elapsed);
-
-			if (updated) {
-				obs_enter_graphics();
-				gs_image_file2_update_texture(if2);
-				obs_leave_graphics();
-			}
-		}
-		last_time = frame_time;
 	}
 }
 
