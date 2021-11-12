@@ -729,19 +729,13 @@ bool AOADeviceManager::adbDeviceExist()
 		return ret;
 	}
 
-	SP_DEVINFO_DATA devData;
-	devData.cbSize = sizeof(SP_DEVINFO_DATA);
 	for (int i = 0; ; i++)
         {
-		SetupDiEnumDeviceInfo(deviceInfo, i, &devData);
-		if (GetLastError() == ERROR_NO_MORE_ITEMS) break;
-
 		// Get interface data for next interface and attempt to init it
 		SP_DEVICE_INTERFACE_DATA interfaceData;
 		interfaceData.cbSize = sizeof(SP_DEVICE_INTERFACE_DATA);
-		if (!SetupDiEnumDeviceInterfaces(deviceInfo, NULL, &hGuid, i, &interfaceData)) {
+		if (!SetupDiEnumDeviceInterfaces(deviceInfo, NULL, &hGuid, i, &interfaceData)) 
 			break;
-		}
 
 		// Determine required size for interface detail data
 		ULONG requiredLength = 0;
