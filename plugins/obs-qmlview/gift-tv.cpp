@@ -1,4 +1,4 @@
-﻿#include "gift-tv.h"
+#include "gift-tv.h"
 #include "renderer.h"
 #include <QJsonDocument>
 #include <QDebug>
@@ -151,9 +151,12 @@ void GiftTV::loadGiftArray(QStringList array)
 			QJsonDocument::fromJson(item.toUtf8(), &error);
 		if (error.error == QJsonParseError::NoError) {
 			QJsonObject giftInfo = document.object();
-			if (m_triggerCondition == 1 &&
+			if (giftInfo["giftType"].toInt() == 0 && m_triggerCondition == 1 &&
 			    giftInfo["giftPrice"].toInt() <
 				    m_triggerConditionValue) {
+
+				qDebug() << u8"价格不匹配，过滤礼物:" << giftInfo;
+
 				continue;
 			}
 
@@ -162,8 +165,10 @@ void GiftTV::loadGiftArray(QStringList array)
 					.toMSecsSinceEpoch() -
 				giftInfo["timeStamp"].toVariant().toLongLong();
 			if (m_mode == 0 && m_disappear < 2 &&
-			    time >= dis[m_disappear])
+				time >= dis[m_disappear]) {
+				qDebug() << u8"时间不匹配，过滤礼物:" << giftInfo << u8"当前本地时间:" << time;
 				continue;
+			}
 
 			m_giftInfoMap.insert(giftInfo["hitBatchId"].toString(),
 					     giftInfo);
@@ -343,11 +348,6 @@ void GiftTV::removeGrid()
 		m_grid[tempRow][tempCol + 1] = QJsonObject();
 	}
 
-	//释放查找出的总价值最低的礼物对应的栅格位置
-	qDebug() << "free grid, row:" << tempRow << "col:" << tempCol
-		 << "min gift type" << minGift["giftType"].toInt()
-		 << minGift["hitBatchId"].toString();
-
 	notifyQMLDeleteGift(minGift);
 
 	gridPrintf();
@@ -461,6 +461,7 @@ void GiftTV::stopTimer()
 
 void GiftTV::gridPrintf()
 {
+	return;
 	qDebug() << "Grid" << m_grid.size() << m_grid.at(0).size();
 	int rows = m_grid.size();
 	int cols = m_grid.at(0).size();
@@ -526,7 +527,7 @@ void GiftTV::startPreview(QString isPreview)
 		return;
 
 	m_isPreview = isPreview;
-
+	qInfo() << "gifttv startPreview";
 	int rows = m_grid.size();
 	int cols = m_grid.at(0).size();
 
@@ -695,6 +696,8 @@ static void gifttv_source_update(void *data, obs_data_t *settings)
 	s->baseUpdate(settings);
 	s->refurshGrid(row, col);
 
+	qInfo() << "gifttv update mode" << mode << "disappear" << disappear;
+
 	QStringList giftArray;
 	obs_data_array_t *array = obs_data_get_array(settings, "giftArray");
 	int count = obs_data_array_count(array);
@@ -721,28 +724,35 @@ static void gifttv_source_update(void *data, obs_data_t *settings)
 
 static void gifttv_source_save(void *data, obs_data_t *settings)
 {
-	if (!data)
+	qInfo() << "gifttv save start";
+	if (!data) {
+		qInfo() << "gifttv save failed.";
 		return;
+	}
 	GiftTV *s = (GiftTV *)data;
 
 	obs_data_erase(settings, "gift");
 
 	QJsonArray array = s->getGiftListByMap();
 
+	qInfo() << "gifttv mode" << s->mode() << "disappear" << s->disappear() << "size" << array.size();
+
 	obs_data_array *ret = obs_data_array_create();
 	if (array.size() && s->mode() == 0 && s->disappear() < 2) {
 		for (int i = 0; i < array.size(); i++) {
 			auto obj = array.at(i).toObject();
 			obs_data_t *item = obs_data_create();
-			obs_data_set_string(item, "value",
-					    QJsonDocument(obj).toJson(
-						    QJsonDocument::Compact));
+			QByteArray ss = QJsonDocument(obj).toJson(QJsonDocument::Compact);
+			qInfo() << "gifttv item:" << ss;
+			obs_data_set_string(item, "value", ss);
 			obs_data_array_push_back(ret, item);
 			obs_data_release(item);
 		}
 	}
 	obs_data_set_array(settings, "giftArray", ret);
 	obs_data_array_release(ret);
+
+	qInfo() << "gifttv save end";
 }
 
 static void *gifttv_source_create(obs_data_t *settings, obs_source_t *source)
