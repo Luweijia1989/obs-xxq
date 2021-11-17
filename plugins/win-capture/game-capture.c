@@ -1907,7 +1907,7 @@ static void game_capture_render(void *data, gs_effect_t *effect)
 	struct game_capture *gc = data;
 	if (!gc->texture || !gc->active)
 	{
-		if (gc->img_ctx.image.loaded)
+		if (gc->img_ctx.image.loaded && gc->config.tips)
 		{
 			effect = obs_get_base_effect(OBS_EFFECT_DEFAULT);
 			while (gs_effect_loop(effect, "Draw")) {
