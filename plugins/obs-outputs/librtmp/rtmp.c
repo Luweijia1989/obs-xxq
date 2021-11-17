@@ -3968,7 +3968,6 @@ RTMP_ReadPacket(RTMP *r, RTMPPacket *packet)
     }
     else
     {
-        r->m_vecChannelsIn[packet->m_nChannel]->m_body = NULL;
         packet->m_body = NULL;	/* so it won't be erased on free */
     }
 
