@@ -36,6 +36,7 @@
 #define SETTING_FORCE_SCALING    "force_scaling"
 #define SETTING_SCALE_RES        "scale_res"
 #define SETTING_CURSOR           "capture_cursor"
+#define SETTING_TIPS             "guide_tips"
 #define SETTING_TRANSPARENCY     "allow_transparency"
 #define SETTING_LIMIT_FRAMERATE  "limit_framerate"
 #define SETTING_CAPTURE_OVERLAYS "capture_overlays"
@@ -67,6 +68,7 @@
 #define TEXT_MATCH_CLASS         obs_module_text("WindowCapture.Priority.Class")
 #define TEXT_MATCH_EXE           obs_module_text("WindowCapture.Priority.Exe")
 #define TEXT_CAPTURE_CURSOR      obs_module_text("CaptureCursor")
+#define TEXT_CAPTURE_TIPS        obs_module_text("CaptureGuide")
 #define TEXT_LIMIT_FRAMERATE     obs_module_text("GameCapture.LimitFramerate")
 #define TEXT_CAPTURE_OVERLAYS    obs_module_text("GameCapture.CaptureOverlays")
 #define TEXT_ANTI_CHEAT_HOOK     obs_module_text("GameCapture.AntiCheatHook")
@@ -110,6 +112,7 @@ struct game_capture_config {
 	uint32_t scale_cx;
 	uint32_t scale_cy;
 	bool cursor;
+	bool tips;
 	bool force_shmem;
 	bool force_scaling;
 	bool allow_transparency;
@@ -445,6 +448,7 @@ static inline void get_config(struct game_capture_config *cfg,
 		settings, SETTING_WINDOW_PRIORITY);
 	cfg->force_shmem = obs_data_get_bool(settings, SETTING_COMPATIBILITY);
 	cfg->cursor = obs_data_get_bool(settings, SETTING_CURSOR);
+	cfg->tips = obs_data_get_bool(settings, SETTING_TIPS);
 	cfg->allow_transparency =
 		obs_data_get_bool(settings, SETTING_TRANSPARENCY);
 	cfg->force_scaling = obs_data_get_bool(settings, SETTING_FORCE_SCALING);
@@ -1969,6 +1973,7 @@ static void game_capture_defaults(obs_data_t *settings)
 	obs_data_set_default_bool(settings, SETTING_COMPATIBILITY, false);
 	obs_data_set_default_bool(settings, SETTING_FORCE_SCALING, false);
 	obs_data_set_default_bool(settings, SETTING_CURSOR, true);
+	obs_data_set_default_bool(settings, SETTING_TIPS, true);
 	obs_data_set_default_bool(settings, SETTING_TRANSPARENCY, false);
 	obs_data_set_default_string(settings, SETTING_SCALE_RES, "0x0");
 	obs_data_set_default_bool(settings, SETTING_LIMIT_FRAMERATE, false);
@@ -2183,6 +2188,7 @@ static obs_properties_t *game_capture_properties(void *data)
 				TEXT_LIMIT_FRAMERATE);
 
 	obs_properties_add_bool(ppts, SETTING_CURSOR, TEXT_CAPTURE_CURSOR);
+	obs_properties_add_bool(ppts, SETTING_TIPS, TEXT_CAPTURE_CURSOR);
 
 	obs_properties_add_bool(ppts, SETTING_ANTI_CHEAT_HOOK,
 				TEXT_ANTI_CHEAT_HOOK);
