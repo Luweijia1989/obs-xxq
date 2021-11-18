@@ -645,12 +645,12 @@ void DShowInput::OutputSourceFrame(obs_source_t *source, struct obs_source_frame
 					if (m_outputCacheFrame)
 						video_frame_destroy(m_outputCacheFrame);
 
-					m_outputCacheFrame = video_frame_create(VIDEO_FORMAT_RGBA, frame->width + 64, frame->height);
+					m_outputCacheFrame = video_frame_create(VIDEO_FORMAT_RGBA, frame->width + 256, frame->height);
 
 					if (m_inputCacheFrame)
 						video_frame_destroy(m_inputCacheFrame);
 
-					m_inputCacheFrame = video_frame_create(frame->format, frame->width + 64, frame->height);
+					m_inputCacheFrame = video_frame_create(frame->format, frame->width + 256, frame->height);
 				}
 
 				video_frame_copy_source_frame(m_inputCacheFrame, frame, frame->format, frame->height);
