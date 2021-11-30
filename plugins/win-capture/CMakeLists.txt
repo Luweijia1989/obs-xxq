@@ -1,4 +1,4 @@
-project(win-capture)
+﻿project(win-capture)
 
 if(MSVC)
 	set(win-capture_PLATFORM_DEPS
@@ -14,8 +14,7 @@ set(win-capture_HEADERS
 	cursor-capture.h
 	graphics-hook-info.h
 	window-helpers.h
-	dc-capture.h
-	image-generator.h)
+	dc-capture.h)
 
 set(win-capture_SOURCES
 	dc-capture.c
@@ -31,8 +30,7 @@ set(win-capture_SOURCES
 	game-capture-file-init.c
 	duplicator-monitor-capture.c
 	plugin-main.c
-	nt-stuff.c
-	image-generator.cpp)
+	nt-stuff.c)
 
 add_library(win-capture MODULE
 	${win-capture_SOURCES}
