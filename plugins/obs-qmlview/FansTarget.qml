@@ -417,16 +417,6 @@ Item {
 			horizontalAlignment: Text.AlignLeft
 			verticalAlignment: Text.AlignTop
 		}
-
-		Image {
-            id: processIcon
-            opacity: fansTargetProperties.transparence
-            x:processPosX()+caculateProcessValue(fansTargetProperties.realfans,fansTargetProperties.totalfans)*processWidth(fansTargetProperties.themetype)/100 -30
-            y:processPosY()-11
-            source: "qrc:/qmlfiles/image/fanstarget/processIcon.png"
-            fillMode: Image.Pad
-			visible:fansTargetProperties.themetype=== 5&&caculateProcessValue(fansTargetProperties.realfans,fansTargetProperties.totalfans)!==0
-        }
     }
 }
 
