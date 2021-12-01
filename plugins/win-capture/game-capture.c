@@ -968,19 +968,10 @@ static inline bool inject_hook(struct game_capture *gc)
 	char *hook_path;
 
 	if (gc->process_is_64bit) {
-		if (gc->config.only_lyric) {
-			hook_dll = "lyric-graphics-hook64.dll";
-		}
-		else {
-			hook_dll = "graphics-hook64.dll";
-		}
+		hook_dll = "graphics-hook64.dll";
 		inject_path = obs_module_file("inject-helper64.exe");
 	} else {
-		if (gc->config.only_lyric) {
-			hook_dll = "lyric-graphics-hook32.dll";
-		} else {
-			hook_dll = "graphics-hook32.dll";
-		}
+		hook_dll = "graphics-hook32.dll";
 		inject_path = obs_module_file("inject-helper32.exe");
 	}
 

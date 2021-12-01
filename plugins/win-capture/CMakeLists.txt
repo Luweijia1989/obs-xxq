@@ -1,4 +1,4 @@
-﻿project(win-capture)
+project(win-capture)
 
 if(MSVC)
 	set(win-capture_PLATFORM_DEPS
@@ -50,5 +50,3 @@ install_obs_plugin_with_data(win-capture data)
 add_subdirectory(graphics-hook)
 add_subdirectory(get-graphics-offsets)
 add_subdirectory(inject-helper)
-add_subdirectory(lyric-hook)
-add_subdirectory(lyric-graphics-hook)
