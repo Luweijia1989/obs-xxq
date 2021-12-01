@@ -462,7 +462,7 @@ Item {
 		from:backGroundHeight(newProperties.themetype)
         to:0
         property: "y"
-        duration: 300
+        duration: 450
         easing.type: Easing.InOutQuad
     }
 	
@@ -472,7 +472,7 @@ Item {
 		from:0
         to:-1*backGroundHeight(newProperties.themetype)
         property: "y"
-        duration: 300
+        duration: 450
         easing.type: Easing.InOutQuad
         onStopped:{
 			if(nameList.length === 0)

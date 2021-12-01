@@ -104,8 +104,8 @@ static void fanstarget_source_destroy(void *data)
 static void fanstarget_source_defaults(obs_data_t *settings)
 {
 	QmlSourceBase::baseDefault(settings);
-	obs_data_set_default_int(settings, "width", 250);
-	obs_data_set_default_int(settings, "height", 80);
+	obs_data_set_default_int(settings, "width", 600);
+	obs_data_set_default_int(settings, "height", 176);
 	FansTarget::default(settings);
 }
 
