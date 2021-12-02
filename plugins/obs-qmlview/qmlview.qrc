@@ -91,75 +91,67 @@
         <file>image/boke1@2x.png</file>
         <file>image/boke3.png</file>
         <file>image/boke3@2x.png</file>
-        <file>image/fanstarget/background_fans1.png</file>
-        <file>image/fanstarget/background_fans1@2x.png</file>
-        <file>image/fanstarget/background_fans2.png</file>
-        <file>image/fanstarget/background_fans2@2x.png</file>
-        <file>image/listfirst/background_zhoubang1.png</file>
-        <file>image/listfirst/background_zhoubang1@2x.png</file>
-        <file>image/listfirst/background_zhoubang2.png</file>
-        <file>image/listfirst/background_zhoubang2@2x.png</file>
-        <file>image/newfollow/background_guanzhu1.png</file>
-        <file>image/newfollow/background_guanzhu1@2x.png</file>
-        <file>image/newfollow/background_guanzhu2.png</file>
-        <file>image/newfollow/background_guanzhu2@2x.png</file>
-        <file>image/newreward/background_gift1.png</file>
-        <file>image/newreward/background_gift1@2x.png</file>
-        <file>image/newreward/background_gift2.png</file>
-        <file>image/newreward/background_gift2@2x.png</file>
-        <file>image/timer/switch.png</file>
-        <file>image/timer/switch@2x.png</file>
-        <file>image/timer/theme1.png</file>
-        <file>image/timer/theme1@2x.png</file>
-        <file>image/timer/theme2.png</file>
-        <file>image/timer/theme2@2x.png</file>
-        <file>image/timer/theme3.png</file>
-        <file>image/timer/theme3@2x.png</file>
-        <file>image/timer/theme4.png</file>
-        <file>image/timer/theme4@2x.png</file>
         <file>NewTimer.qml</file>
-        <file>image/newtheme/deepblue.png</file>
-        <file>image/newtheme/deepblue@2x.png</file>
-        <file>image/newtheme/switch.png</file>
-        <file>image/newtheme/switch@2x.png</file>
-        <file>image/newtheme/tip.png</file>
-        <file>image/newtheme/tip@2x.png</file>
-        <file>image/fanstarget/deepblue.png</file>
-        <file>image/fanstarget/deepblue@2x.png</file>
-        <file>image/fanstarget/processIcon.png</file>
-        <file>image/fanstarget/processIcon@2x.png</file>
-        <file>image/fanstarget/switch.png</file>
-        <file>image/fanstarget/switch@2x.png</file>
-        <file>image/fanstarget/tip.png</file>
-        <file>image/fanstarget/tip@2x.png</file>
         <file>NewCommon.qml</file>
         <file>image/empty.png</file>
         <file>image/empty@2x.png</file>
         <file>NewRank.qml</file>
-        <file>image/newrank/showBackGround/deepblue.png</file>
-        <file>image/newrank/showBackGround/deepblue@2x.png</file>
-        <file>image/newrank/showBackGround/orangeblack.png</file>
-        <file>image/newrank/showBackGround/orangeblack@2x.png</file>
-        <file>image/newrank/showBackGround/tip.png</file>
-        <file>image/newrank/showBackGround/tip@2x.png</file>
-        <file>image/newrank/showBackGround/waterblue.png</file>
-        <file>image/newrank/showBackGround/waterblue@2x.png</file>
-        <file>image/newrank/hideBackGround/deepblue.png</file>
-        <file>image/newrank/hideBackGround/deepblue@2x.png</file>
-        <file>image/newrank/hideBackGround/orangeblack.png</file>
-        <file>image/newrank/hideBackGround/orangeblack@2x.png</file>
-        <file>image/newrank/hideBackGround/tip.png</file>
-        <file>image/newrank/hideBackGround/tip@2x.png</file>
-        <file>image/newrank/hideBackGround/waterblue.png</file>
-        <file>image/newrank/hideBackGround/waterblue@2x.png</file>
         <file>NewVote.qml</file>
-        <file>image/newvote/tips@2x.png</file>
+        <file>image/newcom/bluewhale.png</file>
+        <file>image/newcom/bluewhale@2x.png</file>
+        <file>image/newcom/grayblue.png</file>
+        <file>image/newcom/grayblue@2x.png</file>
+        <file>image/newcom/orangeblack.png</file>
+        <file>image/newcom/orangeblack@2x.png</file>
+        <file>image/newcom/pinkHeart.png</file>
+        <file>image/newcom/pinkHeart@2x.png</file>
+        <file>image/newcom/switch.png</file>
+        <file>image/newcom/switch@2x.png</file>
+        <file>image/newcom/tip.png</file>
+        <file>image/newcom/tip@2x.png</file>
+        <file>image/newcom/waterblue.png</file>
+        <file>image/newcom/waterblue@2x.png</file>
+        <file>image/newrank/bluewhale.png</file>
+        <file>image/newrank/bluewhale@2x.png</file>
+        <file>image/newrank/grayblue.png</file>
+        <file>image/newrank/grayblue@2x.png</file>
+        <file>image/newrank/orangeblack.png</file>
+        <file>image/newrank/orangeblack@2x.png</file>
+        <file>image/newrank/pinkheart.png</file>
+        <file>image/newrank/pinkheart@2x.png</file>
+        <file>image/newrank/tip.png</file>
+        <file>image/newrank/tip@2x.png</file>
+        <file>image/newrank/waterblue.png</file>
+        <file>image/newrank/waterblue@2x.png</file>
+        <file>image/fanstarget/background_fans1.png</file>
+        <file>image/fanstarget/background_fans1@2x.png</file>
+        <file>image/fanstarget/background_fans2.png</file>
+        <file>image/fanstarget/background_fans2@2x.png</file>
+        <file>image/fanstarget/background_fans6.png</file>
+        <file>image/fanstarget/background_fans6@2x.png</file>
+        <file>image/fanstarget/background_fans7.png</file>
+        <file>image/fanstarget/background_fans7@2x.png</file>
         <file>image/newvote/black.png</file>
         <file>image/newvote/black@2x.png</file>
         <file>image/newvote/blue.png</file>
         <file>image/newvote/blue@2x.png</file>
         <file>image/newvote/grey.png</file>
         <file>image/newvote/grey@2x.png</file>
+        <file>image/newvote/pink.png</file>
+        <file>image/newvote/pink@2x.png</file>
         <file>image/newvote/tips.png</file>
+        <file>image/newvote/tips@2x.png</file>
+        <file>image/newvote/whale.png</file>
+        <file>image/newvote/whale@2x.png</file>
+        <file>image/timer/theme1.png</file>
+        <file>image/timer/theme1@2x.png</file>
+        <file>image/timer/theme2.png</file>
+        <file>image/timer/theme2@2x.png</file>
+        <file>image/timer/theme6.png</file>
+        <file>image/timer/theme6@2x.png</file>
+        <file>image/timer/theme7.png</file>
+        <file>image/timer/theme7@2x.png</file>
+        <file>image/fanstarget/grayBlue.png</file>
+        <file>image/fanstarget/grayBlue@2x.png</file>
     </qresource>
 </RCC>
