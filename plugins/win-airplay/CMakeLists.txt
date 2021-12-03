@@ -24,7 +24,6 @@ set(win-airplay_SOURCES
 	qrcode/QrToPng.cpp
 	qrcode/TinyPngOut.cpp
 	tool.cpp
-	Resource.rc
 )
 			 
 set(win-airplay_HEADERS
@@ -50,6 +49,11 @@ set(win-airplay_HEADERS
 	tool.h
 )
 
+set(airplay_QRC
+	img/resource.qrc)
+
+qt5_add_resources(airplay_QRC_SOURCES ${airplay_QRC})
+
 add_subdirectory(${PROJECT_SOURCE_DIR}/airplay2)
 add_subdirectory(${PROJECT_SOURCE_DIR}/iosusbmirror)
 add_subdirectory(${PROJECT_SOURCE_DIR}/drivertool)
@@ -59,7 +63,8 @@ add_subdirectory(${PROJECT_SOURCE_DIR}/rtmp-server)
 
 add_library(win-airplay MODULE
 	${win-airplay_SOURCES}
-	${win-airplay_HEADERS})
+	${win-airplay_HEADERS}
+	${airplay_QRC_SOURCES})
 target_link_libraries(win-airplay
 	Ws2_32
 	libobs

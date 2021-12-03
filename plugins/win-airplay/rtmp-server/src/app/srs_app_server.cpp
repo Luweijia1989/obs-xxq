@@ -900,6 +900,11 @@ int SrsServer::cycle()
     return ret;
 }
 
+void SrsServer::quit()
+{
+    signal_gracefully_quit = true;
+}
+
 void SrsServer::remove(SrsConnection* conn)
 {
     std::vector<SrsConnection*>::iterator it = std::find(conns.begin(), conns.end(), conn);

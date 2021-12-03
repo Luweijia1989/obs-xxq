@@ -1,5 +1,5 @@
 #pragma once
 
-#include <QStringList>
+#include <QString>
 
-QStringList streamUrlImages();
+QString streamUrlImage();

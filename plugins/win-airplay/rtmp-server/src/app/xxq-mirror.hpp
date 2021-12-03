@@ -39,6 +39,9 @@ class SrsTsContext;
 * SrsHls provides interface with SrsSource.
 * TODO: FIXME: add utest for hls.
 */
+
+//#define DUMP_AUDIO
+
 class XXQMirror
 {
 private:
@@ -49,11 +52,14 @@ private:
     SrsCodecSample* sample;
     SrsRtmpJitter* jitter;
 
+    bool send_audio_header = false;
     IPCClient *ipc_client = nullptr;
     HANDLE_AACDECODER handle = nullptr;
     uint8_t *pcm_buffer = nullptr;
     uint8_t *video_buffer = nullptr;
     size_t video_buffer_len = 0;
+
+    FILE *audio_dump = nullptr;
 public:
     XXQMirror();
     virtual ~XXQMirror();

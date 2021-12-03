@@ -39,12 +39,20 @@ XXQMirror::XXQMirror()
 	sample = new SrsCodecSample();
 	jitter = new SrsRtmpJitter();
 
-	pcm_buffer = (uint8_t *)malloc(10240);
+	pcm_buffer = (uint8_t *)malloc(102400);
 	ipc_client_create(&ipc_client);
+
+#ifdef DUMP_AUDIO
+	audio_dump = fopen("E:\\audio.pcm", "wb");
+#endif // DUMP_AUDIO
+
 }
 
 XXQMirror::~XXQMirror()
 {
+#ifdef DUMP_AUDIO
+	fclose(audio_dump);
+#endif // DUMP_AUDIO
 	srs_freep(_req);
 	srs_freep(codec);
 	srs_freep(sample);
@@ -77,6 +85,7 @@ int XXQMirror::on_publish(SrsRequest *req)
 
 void XXQMirror::on_unpublish()
 {
+	send_audio_header = false;
 	send_status(ipc_client, MIRROR_STOP);
 }
 
@@ -139,7 +148,7 @@ int XXQMirror::on_audio(SrsSharedPtrMessage *shared_audio)
 		    if (err != AAC_DEC_OK) {
 			aacDecoder_Close(handle);
 			handle = nullptr;
-		    }
+		    } 
 		}
 	    }
 
@@ -159,13 +168,31 @@ int XXQMirror::on_audio(SrsSharedPtrMessage *shared_audio)
 		UCHAR *input_buf[1] = { (UCHAR *)sample->sample_units[i].bytes };
 		AAC_DECODER_ERROR err = aacDecoder_Fill(handle, input_buf, &pkt_size, &valid_size);
 		if (err == AAC_DEC_OK) {
-		    err = aacDecoder_DecodeFrame(handle, (INT_PCM *)pcm_buffer, 10240 / sizeof(INT_PCM), 0);
+		    err = aacDecoder_DecodeFrame(handle, (INT_PCM *)pcm_buffer, 102400 / sizeof(INT_PCM), 0);
 		    if (err == AAC_DEC_OK) {
 			    CStreamInfo *streamInfo = aacDecoder_GetStreamInfo(handle);
 			    if (streamInfo != NULL) {
+#ifdef DUMP_AUDIO
+				    fwrite(pcm_buffer, 1, streamInfo->frameSize * streamInfo->numChannels * sizeof(short), audio_dump);
+#endif // DUMP_AUDIO
+				    if (!send_audio_header) {
+					struct av_packet_info pack_info = {0};
+					pack_info.size = sizeof(struct media_audio_info);
+					pack_info.type = FFM_MEDIA_AUDIO_INFO;
+
+					struct media_audio_info info;
+					info.format = AUDIO_FORMAT_16BIT;
+					info.samples_per_sec = streamInfo->sampleRate;
+					info.speakers = (speaker_layout)streamInfo->numChannels;
+					ipc_client_write_2(ipc_client, &pack_info,
+							   sizeof(struct av_packet_info), &info,
+							   sizeof(struct media_audio_info), INFINITE);
+					send_audio_header = true;
+				    }
+
 				    struct av_packet_info pack_info = {0};
 				    pack_info.size =
-					    streamInfo->frameSize * 4;
+					    streamInfo->frameSize * streamInfo->numChannels * sizeof(short);
 				    pack_info.type = FFM_PACKET_AUDIO;
 				    pack_info.pts = audio->timestamp * 1000000;
 				    ipc_client_write_2(
@@ -234,20 +261,16 @@ int XXQMirror::on_video(SrsSharedPtrMessage *shared_video, bool is_sps_pps)
 		copy_index += codec->pictureParameterSetLength;
 
 		struct av_packet_info pack_info = {0};
-		pack_info.size = sizeof(struct media_info);
-		pack_info.type = FFM_MEDIA_INFO;
+		pack_info.size = sizeof(struct media_video_info);
+		pack_info.type = FFM_MEDIA_VIDEO_INFO;
 
-		struct media_info info;
-		info.format = AUDIO_FORMAT_16BIT;
-		info.samples_per_sec = 48000;
-		info.speakers = SPEAKERS_STEREO;
-		info.bytes_per_frame = 16;
-		info.pps_len = copy_index;
-		memcpy(info.pps, sps_buf, copy_index);
+		struct media_video_info info;
+		info.video_extra_len = copy_index;
+		memcpy(info.video_extra, sps_buf, copy_index);
 
 		ipc_client_write_2(ipc_client, &pack_info,
 				   sizeof(struct av_packet_info), &info,
-				   sizeof(struct media_info), INFINITE);
+				   sizeof(struct media_video_info), INFINITE);
 
 		return ret;
 	}

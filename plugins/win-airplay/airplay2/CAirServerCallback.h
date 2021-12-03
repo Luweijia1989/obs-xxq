@@ -23,7 +23,7 @@ public:
 	virtual void outputVideo(uint8_t *data, size_t data_len, uint64_t pts,
 				 const char *remoteName,
 				 const char *remoteDeviceId);
-	virtual void outputMediaInfo(media_info *info, const char *remoteName,
+	virtual void outputMediaInfo(media_video_info *info, const char *remoteName,
 				     const char *remoteDeviceId);
 
 	virtual void videoPlay(char *url, double volume, double startPos);
