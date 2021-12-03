@@ -13,6 +13,7 @@
 #include <QProcess>
 #include <QRegularExpression>
 #include <QMessageBox>
+#include <QApplication>
 
 using namespace std;
 
@@ -270,7 +271,7 @@ void ScreenMirrorServer::changeBackendType(int type)
 		auto pid = findProcessListeningToPort(1935);
 		if (pid != 0) {
 			blog(LOG_INFO, "rtmp port used, cannot listen to it");
-			QMessageBox *msgBox = new QMessageBox(nullptr);
+			QMessageBox *msgBox = new QMessageBox(QApplication::activeModalWidget());
 			msgBox->setWindowFlag(Qt::WindowStaysOnTopHint);
 			msgBox->setIcon(QMessageBox::Information);
 			msgBox->setText(u8"无线投屏服务启动失败\n请关闭其他投屏服务软件后重启助手");

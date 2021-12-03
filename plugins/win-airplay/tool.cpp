@@ -21,12 +21,14 @@ QString streamUrlImage()
 			&& address.type() != QNetworkInterface::Unknown) {
 			QList<QNetworkAddressEntry> cc =
 				address.addressEntries();
-			for (auto iter = cc.begin(); iter != cc.end(); iter++)
-			{
+			for (auto iter = cc.begin(); iter != cc.end(); iter++) {
 				QNetworkAddressEntry &entry = *iter;
 				QHostAddress ad = entry.ip();
-				if (ad.protocol() == QAbstractSocket::IPv4Protocol)
-					arr.append(ad.toString());
+				if (ad.protocol() == QAbstractSocket::IPv4Protocol) {
+					auto ipstr = ad.toString();
+					if(ipstr.startsWith("192") || ipstr.startsWith("172") || ipstr.startsWith("10"))
+						arr.append(ad.toString());
+				}
 			}
 		}
 	}
