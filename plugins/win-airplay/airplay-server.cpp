@@ -230,7 +230,7 @@ void ScreenMirrorServer::setBackendType(int type)
 				QImage image(srcFile);
 				image = image.convertToFormat(QImage::Format_RGBA8888);
 				QPainter p(&image);
-				p.drawImage(QRect(365, 704, 200, 200), QImage(qrcode));
+				p.drawImage(QRect(174, 223, 260, 260), QImage(qrcode));
 				QImageWriter writer(dstFile);
 				writer.write(image);
 				return dstFile;
