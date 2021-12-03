@@ -10,6 +10,9 @@
 #include <QImage>
 #include <QImageWriter>
 #include <QPainter>
+#include <QProcess>
+#include <QRegularExpression>
+#include <QMessageBox>
 
 using namespace std;
 
@@ -27,7 +30,29 @@ static QMap<ScreenMirrorServer::MirrorBackEnd, QString> g_resource_map = {
 	{ScreenMirrorServer::ANDROID_USB_CABLE, "AndroidADB"}
 };
 
-static HMODULE DllHandle;
+uint findProcessListeningToPort(uint port)
+{
+	QString netstatOutput;
+	{
+		QProcess process;
+		process.start("netstat -ano -p tcp");
+		process.waitForFinished();
+		netstatOutput = process.readAllStandardOutput();
+	}
+	QRegularExpression processFinder;
+	{
+		const auto pattern =
+			QStringLiteral(R"(TCP[^:]+:%1.+LISTENING\s+(\d+))")
+				.arg(port);
+		processFinder.setPattern(pattern);
+	}
+	const auto processInfo = processFinder.match(netstatOutput);
+	if (processInfo.hasMatch()) {
+		const auto processId = processInfo.captured(1).toUInt();
+		return processId;
+	}
+	return 0;
+}
 
 ScreenMirrorServer::ScreenMirrorServer(obs_source_t *source, int type)
 	: m_source(source),
@@ -219,7 +244,7 @@ void ScreenMirrorServer::setBackendType(int type)
 	if (m_backend == IOS_AIRPLAY)
 		m_extraDelay = 500;
 	else if (m_backend == ANDROID_WIRELESS)
-		m_extraDelay = 100;
+		m_extraDelay = 300;
 	else if (m_backend == ANDROID_AOA)
 		m_extraDelay = 0;
 	else
@@ -239,6 +264,23 @@ void ScreenMirrorServer::changeBackendType(int type)
 {
 	if (type == m_backend)
 		return;
+
+	if (type == ANDROID_WIRELESS) {
+		os_kill_process(ANDROID_WIRELESS_EXE);
+		auto pid = findProcessListeningToPort(1935);
+		if (pid != 0) {
+			blog(LOG_INFO, "rtmp port used, cannot listen to it");
+			QMessageBox *msgBox = new QMessageBox(nullptr);
+			msgBox->setWindowFlag(Qt::WindowStaysOnTopHint);
+			msgBox->setIcon(QMessageBox::Information);
+			msgBox->setText(u8"无线投屏服务启动失败\n请关闭其他投屏服务软件后重启助手");
+			msgBox->addButton(u8"确定", QMessageBox::RejectRole);
+			msgBox->setAttribute(Qt::WA_DeleteOnClose); // delete pointer after close
+			msgBox->setModal(false);
+			msgBox->show();
+			return;
+		}
+	}
 
 	mirrorServerDestroy();
 	setBackendType((int)type);
@@ -906,11 +948,3 @@ bool obs_module_load(void)
 }
 
 void obs_module_unload(void) {}
-
-BOOL APIENTRY DllMain(HMODULE hModule, DWORD dwReason, LPVOID lpReserved)
-{
-	(void)lpReserved;
-	if (dwReason == DLL_PROCESS_ATTACH)
-		DllHandle = hModule;
-	return TRUE;
-}

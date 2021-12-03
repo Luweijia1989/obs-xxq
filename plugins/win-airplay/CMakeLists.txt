@@ -3,6 +3,7 @@ project(win-airplay)
 set(CMAKE_INCLUDE_CURRENT_DIR TRUE)
 
 find_package(Qt5Gui REQUIRED)
+find_package(Qt5Widgets REQUIRED)
 find_package(Qt5Network REQUIRED)
 find_package(FFmpeg REQUIRED
 	COMPONENTS avcodec avfilter avdevice avutil swscale avformat swresample)
@@ -75,6 +76,7 @@ target_link_libraries(win-airplay
 	D3d9
 	Qt5::Gui
 	Qt5::Network
+	Qt5::Widgets
 	${FFMPEG_LIBRARIES})
 
 install_obs_plugin(win-airplay) 
