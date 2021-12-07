@@ -3,6 +3,7 @@ project(win-airplay)
 set(CMAKE_INCLUDE_CURRENT_DIR TRUE)
 
 find_package(Qt5Gui REQUIRED)
+find_package(Qt5Widgets REQUIRED)
 find_package(Qt5Network REQUIRED)
 find_package(FFmpeg REQUIRED
 	COMPONENTS avcodec avfilter avdevice avutil swscale avformat swresample)
@@ -24,7 +25,6 @@ set(win-airplay_SOURCES
 	qrcode/QrToPng.cpp
 	qrcode/TinyPngOut.cpp
 	tool.cpp
-	Resource.rc
 )
 			 
 set(win-airplay_HEADERS
@@ -50,6 +50,11 @@ set(win-airplay_HEADERS
 	tool.h
 )
 
+set(airplay_QRC
+	img/resource.qrc)
+
+qt5_add_resources(airplay_QRC_SOURCES ${airplay_QRC})
+
 add_subdirectory(${PROJECT_SOURCE_DIR}/airplay2)
 add_subdirectory(${PROJECT_SOURCE_DIR}/iosusbmirror)
 add_subdirectory(${PROJECT_SOURCE_DIR}/drivertool)
@@ -59,7 +64,8 @@ add_subdirectory(${PROJECT_SOURCE_DIR}/rtmp-server)
 
 add_library(win-airplay MODULE
 	${win-airplay_SOURCES}
-	${win-airplay_HEADERS})
+	${win-airplay_HEADERS}
+	${airplay_QRC_SOURCES})
 target_link_libraries(win-airplay
 	Ws2_32
 	libobs
@@ -70,6 +76,7 @@ target_link_libraries(win-airplay
 	D3d9
 	Qt5::Gui
 	Qt5::Network
+	Qt5::Widgets
 	${FFMPEG_LIBRARIES})
 
 install_obs_plugin(win-airplay) 

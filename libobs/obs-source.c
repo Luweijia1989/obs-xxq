@@ -4853,6 +4853,7 @@ void obs_source_set_videoframe(obs_source_t *source,
 			       const struct obs_source_frame2 *frame)
 {
 	if (!frame) {
+		source->async_active = false;
 		return;
 	}
 
@@ -4885,11 +4886,12 @@ void obs_source_set_videoframe(obs_source_t *source,
 	update_async_textures(source, &new_frame, source->async_textures,
 			      source->async_texrender);
 	gs_leave_context();
+	source->async_active = true;
 }
 
 void obs_source_draw_videoframe(obs_source_t *source)
 {
-	if (source->async_texrender &&
+	if (source->async_active && source->async_texrender &&
 	    gs_texrender_get_texture(source->async_texrender))
 		obs_source_draw_async_texture(source);
 }

@@ -16,7 +16,7 @@ public:
 			 const char *remoteName, const char *remoteDeviceId);
 	void outputVideo(uint8_t *data, size_t data_len, uint64_t pts,
 			 const char *remoteName, const char *remoteDeviceId);
-	void outputMediaInfo(media_info *info, const char *remoteName,
+	void outputMediaInfo(media_video_info *info, const char *remoteName,
 			     const char *remoteDeviceId);
 
 public:

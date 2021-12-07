@@ -1,0 +1,19 @@
+<RCC>
+    <qresource prefix="/">
+        <file>AndroidADB.png</file>
+        <file>AndroidADBshibai.png</file>
+        <file>AndroidADBzhong.png</file>
+        <file>AndroidAOA.png</file>
+        <file>AndroidAOAshibai.png</file>
+        <file>AndroidAOAzhong.png</file>
+        <file>Androidwuxian.png</file>
+        <file>Androidwuxianshibai.png</file>
+        <file>Androidwuxianzhong.png</file>
+        <file>iOSwuxian.png</file>
+        <file>iOSwuxianshibai.png</file>
+        <file>iOSwuxianzhong.png</file>
+        <file>iOSyouxian.png</file>
+        <file>iOSyouxianshibai.png</file>
+        <file>iOSyouxianzhong.png</file>
+    </qresource>
+</RCC>

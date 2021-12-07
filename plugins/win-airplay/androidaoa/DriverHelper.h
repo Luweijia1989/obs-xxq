@@ -1,4 +1,4 @@
-﻿#ifndef DRIVERHELPER_H
+#ifndef DRIVERHELPER_H
 #define DRIVERHELPER_H
 
 #include <QObject>
@@ -12,7 +12,7 @@ class DriverHelper : public QObject
     Q_OBJECT
 public:
     explicit DriverHelper(QObject *parent = nullptr);
-    bool checkInstall(int vid, int pid, QString targetDevicePath, void (*func)(libusb_context **, libusb_device ***, int), libusb_context **c, libusb_device ***d, int ct);
+    bool checkInstall(int vid, int pid, QString targetDevicePath);
 
 private:
     void install(wdi_device_info *dev);

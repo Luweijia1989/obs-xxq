@@ -24,5 +24,5 @@ protected:
 	long m_nRef;
 	IAirServerCallback *m_pCallback;
 	bool m_videoSent = false;
-	media_info m_mediaInfo;
+	media_video_info m_mediaInfo;
 };
