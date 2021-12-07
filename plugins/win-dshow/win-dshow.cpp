@@ -379,10 +379,11 @@ void DShowInput::DShowLoop()
 			int state = 0; // 0：正常， 1：不存在或连接失败 2：被占用 3:设备为空
 			PropertiesData data;
 			Device::EnumVideoDevices(data.devices);
-			if (data.devices.size() == 0)
+			bool has = obs_data_has_user_value(settings, "video_device_id");
+			string deviceId = obs_data_get_string(settings, "video_device_id");
+			if (data.devices.size() == 0 && deviceId.size() == 0)
 				state = 3;
 			else {
-				bool has = obs_data_has_user_value(settings, "video_device_id");
 				if (has) {
 					VideoDevice dev;
 					if (!data.GetDevice(dev, obs_data_get_string(settings, "video_device_id")))
