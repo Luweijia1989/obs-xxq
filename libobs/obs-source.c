@@ -3265,9 +3265,26 @@ static bool ready_async_frame(obs_source_t *source, uint64_t sys_time)
 	return frame != NULL;
 }
 
-static inline struct obs_source_frame *
-get_closest_frame_internal(obs_source_t *source, uint64_t sys_time)
+static inline struct obs_source_frame *get_closest_frame(obs_source_t *source,
+							 uint64_t sys_time)
 {
+	if (!source->async_frames.num)
+		return NULL;
+
+	if (source->async_video_keep_last_frame) {
+		struct obs_source_frame *frame = source->async_frames.array[0];
+		if (source->async_frames.num == 1)
+			return frame;
+		else {
+			if (frame->has_shown) {
+				da_erase(source->async_frames, 0);
+				remove_async_frame(source, frame);
+				frame->has_shown = false;
+				return get_closest_frame(source, sys_time);
+			}
+		}
+	}
+
 	if (!source->last_frame_ts || ready_async_frame(source, sys_time)) {
 		struct obs_source_frame *frame = source->async_frames.array[0];
 		da_erase(source->async_frames, 0);
@@ -3279,31 +3296,6 @@ get_closest_frame_internal(obs_source_t *source, uint64_t sys_time)
 	}
 
 	return NULL;
-}
-
-static inline struct obs_source_frame *get_closest_frame(obs_source_t *source,
-							 uint64_t sys_time)
-{
-	if (!source->async_frames.num)
-		return NULL;
-
-	if (source->async_video_keep_last_frame) {
-		struct obs_source_frame *frame = source->async_frames.array[0];
-		if (source->async_frames.num == 1)
-		{
-			return get_closest_frame_internal(source, sys_time);
-		}
-		else {
-			if (frame->has_shown) {
-				da_erase(source->async_frames, 0);
-				remove_async_frame(source, frame);
-				frame->has_shown = false;
-				return get_closest_frame(source, sys_time);
-			}
-		}
-	}
-
-	return get_closest_frame_internal(source, sys_time);
 }
 
 /*
