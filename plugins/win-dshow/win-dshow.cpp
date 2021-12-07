@@ -391,8 +391,10 @@ void DShowInput::DShowLoop()
 					else {
 						if (!Activate(settings))
 							state = 2;
-						else 
+						else {
 							state = 0;
+							obs_source_set_async_last_frame_enable(source, false);
+						}
 					}
 				}
 				else
