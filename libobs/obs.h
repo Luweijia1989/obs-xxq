@@ -1208,6 +1208,9 @@ EXPORT void obs_source_draw(gs_texture_t *image, int x, int y, uint32_t cx,
  * function!  Use obs_source_output_video2 instead if partial range support is
  * desired for non-YUV video formats.
  */
+
+EXPORT void obs_source_set_async_last_frame_enable(obs_source_t *source, bool enable);
+
 EXPORT void obs_source_output_video(obs_source_t *source,
 				    const struct obs_source_frame *frame);
 EXPORT void obs_source_output_video2(obs_source_t *source,

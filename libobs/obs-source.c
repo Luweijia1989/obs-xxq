@@ -892,6 +892,8 @@ void obs_source_update(obs_source_t *source, obs_data_t *settings)
 	if (settings)
 		obs_data_apply(source->context.settings, settings);
 
+	source->async_video_keep_last_frame = obs_data_get_bool(settings, "keep_last_frame");
+
 	if (source->info.output_flags & OBS_SOURCE_VIDEO) {
 		source->defer_update = true;
 	} else if (source->context.data && source->info.update) {
@@ -2783,6 +2785,12 @@ obs_source_output_video_internal(obs_source_t *source,
 			source->async_active = true;
 		}
 	}
+	pthread_mutex_unlock(&source->async_mutex);
+}
+
+void obs_source_set_async_last_frame_enable(obs_source_t *source, bool enable) {
+	pthread_mutex_lock(&source->async_mutex);
+	source->async_video_keep_last_frame = enable;
 	pthread_mutex_unlock(&source->async_mutex);
 }
 

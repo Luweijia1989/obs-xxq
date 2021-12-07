@@ -177,6 +177,8 @@ struct DShowInput {
 	bool flipH = false;
 	bool active = false;
 
+	int state = 0; // 0：正常， 1：不存在或连接失败 2：被占用 3:设备为空
+
 	gs_image_file_t img_ctx;
 
 	video_scaler_t *scaler2RGBA = nullptr;
@@ -353,32 +355,57 @@ void DShowInput::DShowLoop()
 			bool block = action == Action::ActivateBlock;
 
 			obs_data_t *settings = obs_source_get_settings(source);
+			bool has = obs_data_has_user_value(settings, "video_device_id");
 			if (!Activate(settings))
 			{
-				if (!img_ctx.loaded)
+				if (!has)
 				{
-					auto file_path = obs_data_get_string(settings, "file_path");
-					if (strlen(file_path))
-					{
-						gs_image_file_init(&img_ctx, file_path);
+					//
+				}
+				else {
+					if (!img_ctx.loaded) {
+						auto file_path =
+							obs_data_get_string(
+								settings,
+								"file_path");
+						if (strlen(file_path)) {
+							bool guide =
+								obs_data_get_bool(
+									settings,
+									"guide");
+							char path[1024] = {0};
+							sprintf(path,
+								"%s_%s%d.png",
+								file_path,
+								guide ? "gui_"
+								      : "",
+								state);
+							gs_image_file_init(
+								&img_ctx, path);
+						}
+					}
+
+					if (img_ctx.loaded) {
+						obs_source_frame frame = {};
+						frame.data[0] =
+							img_ctx.texture_data;
+						frame.linesize[0] =
+							img_ctx.cx * 4;
+						frame.format =
+							VIDEO_FORMAT_BGRA;
+						frame.width = img_ctx.cx;
+						frame.height = img_ctx.cy;
+						frame.timestamp = 0;
+						frame.prev_frame = true;
+
+						obs_source_output_video(source,
+									&frame);
 					}
 				}
-
-				if (img_ctx.loaded)
-				{
-					obs_source_frame frame = {};
-					frame.data[0] = img_ctx.texture_data;
-					frame.linesize[0] = img_ctx.cx * 4;
-					frame.format = VIDEO_FORMAT_BGRA;
-					frame.width = img_ctx.cx;
-					frame.height = img_ctx.cy;
-					frame.timestamp = 0;
-					frame.prev_frame = true;
-
-					obs_source_output_video(source, &frame);
-				}
+			} else {
+				obs_source_set_async_last_frame_enable(source, false);
 			}
-			
+
 			if (block)
 				SetEvent(activated_event);
 			obs_data_release(settings);
@@ -1197,12 +1224,23 @@ DShowInput::GetColorRange(obs_data_t *settings) const
 
 inline bool DShowInput::Activate(obs_data_t *settings)
 {
-	if (!device.ResetGraph())
+	if (!device.ResetGraph()) {
+		state = 1;
 		return false;
+	}
 
 	if (!UpdateVideoConfig(settings)) {
 		blog(LOG_WARNING, "%s: Video configuration failed",
 		     obs_source_get_name(source));
+		state = 1;
+		PropertiesData data;
+		Device::EnumVideoDevices(data.devices);
+		string deviceId = obs_data_get_string(settings, "video_device_id");
+		if (data.devices.size() == 0 && deviceId.size() == 0) {
+			blog(LOG_WARNING, "%s: data.GetDevice is empty.",
+			     obs_source_get_name(source));
+			state = 3;
+		}
 		return false;
 	}
 
@@ -1212,11 +1250,15 @@ inline bool DShowInput::Activate(obs_data_t *settings)
 		     "audio",
 		     obs_source_get_name(source));
 
-	if (!device.ConnectFilters())
+	if (!device.ConnectFilters()) {
+		state = 1;
 		return false;
+	}
 
-	if (device.Start() != Result::Success)
+	if (device.Start() != Result::Success) {
+		state = 2;
 		return false;
+	}
 
 	enum video_colorspace cs = GetColorSpace(settings);
 	range = GetColorRange(settings);
