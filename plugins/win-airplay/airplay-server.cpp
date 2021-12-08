@@ -496,8 +496,8 @@ void ScreenMirrorServer::resetState()
 	else
 		m_audioExtraOffset = 0;
 
-	m_firstAudioRecvTime = LLONG_MAX;
-	m_firstVideoRecvTime = LLONG_MAX;
+	m_firstAudioPTS = LLONG_MAX;
+	m_firstVideoPTS = LLONG_MAX;
 
 	if (m_backend == ANDROID_WIRELESS)
 		m_videoExtraOffset = LLONG_MAX;
@@ -663,8 +663,8 @@ void *ScreenMirrorServer::audio_tick_thread(void *data)
 void ScreenMirrorServer::outputAudio(uint8_t *data, size_t data_len, int64_t pts, int serial)
 {
 	pthread_mutex_lock(&m_ptsMutex);
-	if (m_firstAudioRecvTime == LLONG_MAX)
-		m_firstAudioRecvTime = os_gettime_ns() / 1000000;
+	if (m_firstAudioPTS == LLONG_MAX)
+		m_firstAudioPTS = pts / 1000000;
 	pthread_mutex_unlock(&m_ptsMutex);
 
 	pts = pts / 1000000;
@@ -677,8 +677,8 @@ void ScreenMirrorServer::outputVideo(uint8_t *data, size_t data_len,
 				     int64_t pts)
 {
 	pthread_mutex_lock(&m_ptsMutex);
-	if (m_firstVideoRecvTime == LLONG_MAX)
-		m_firstVideoRecvTime = os_gettime_ns() / 1000000;
+	if (m_firstVideoPTS == LLONG_MAX)
+		m_firstVideoPTS = pts / 1000000;
 	pthread_mutex_unlock(&m_ptsMutex);
 
 	pthread_mutex_lock(&m_videoDataMutex);
@@ -792,13 +792,13 @@ bool ScreenMirrorServer::canProcessMediaData()
 	pthread_mutex_lock(&m_ptsMutex);
 	bool timeOffsetInited = (m_videoExtraOffset != LLONG_MAX || m_audioExtraOffset != LLONG_MAX);
 	if (!timeOffsetInited) {
-		if (m_firstAudioRecvTime != LLONG_MAX && m_firstVideoRecvTime != LLONG_MAX) {
-			if (m_firstVideoRecvTime > m_firstAudioRecvTime) {
-				m_videoExtraOffset = m_firstVideoRecvTime - m_firstAudioRecvTime;
+		if (m_firstAudioPTS != LLONG_MAX && m_firstVideoPTS != LLONG_MAX) {
+			if (m_firstVideoPTS > m_firstAudioPTS) {
+				m_videoExtraOffset = m_firstVideoPTS - m_firstAudioPTS;
 				m_audioExtraOffset = 0;
 			} else {
 				m_videoExtraOffset = 0;
-				m_audioExtraOffset = m_firstAudioRecvTime - m_firstVideoRecvTime;
+				m_audioExtraOffset = m_firstAudioPTS - m_firstVideoPTS;
 			}
 			ret = true;
 		}
