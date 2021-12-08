@@ -108,8 +108,8 @@ private:
 	int64_t m_offset = LLONG_MAX;
 	int64_t m_audioOffset = LLONG_MAX;
 	int64_t m_extraDelay = 0;
-	int64_t m_firstAudioRecvTime = LLONG_MAX;
-	int64_t m_firstVideoRecvTime = LLONG_MAX;
+	int64_t m_firstAudioPTS = LLONG_MAX;
+	int64_t m_firstVideoPTS = LLONG_MAX;
 	int64_t m_audioExtraOffset = LLONG_MAX;
 	int64_t m_videoExtraOffset = LLONG_MAX;
 	pthread_mutex_t m_ptsMutex;
