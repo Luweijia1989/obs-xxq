@@ -15,5 +15,8 @@
         <file>iOSyouxian.png</file>
         <file>iOSyouxianshibai.png</file>
         <file>iOSyouxianzhong.png</file>
+        <file>iOSsaoma.png</file>
+        <file>iOSsaomashibai.png</file>
+        <file>iOSsaomazhong.png</file>
     </qresource>
 </RCC>
