@@ -49,11 +49,12 @@ class ScreenMirrorServer {
 public:
 	enum MirrorBackEnd {
 		None = -1,
-		IOS_USB_CABLE,
-		IOS_AIRPLAY,
-		ANDROID_USB_CABLE,
-		ANDROID_AOA,
-		ANDROID_WIRELESS,
+		IOS_USB_CABLE = 0,
+		IOS_AIRPLAY = 1,
+		ANDROID_USB_CABLE = 2,
+		ANDROID_AOA = 3,
+		ANDROID_WIRELESS = 4,
+		IOS_WIRELESS = 5
 	};
 
 	ScreenMirrorServer(obs_source_t *source, int type);

@@ -28,7 +28,8 @@ static QMap<ScreenMirrorServer::MirrorBackEnd, QString> g_resource_map = {
 	{ScreenMirrorServer::IOS_USB_CABLE, "iOSyouxian"},
 	{ScreenMirrorServer::ANDROID_AOA, "AndroidAOA"},
 	{ScreenMirrorServer::ANDROID_WIRELESS, "Androidwuxian"},
-	{ScreenMirrorServer::ANDROID_USB_CABLE, "AndroidADB"}
+	{ScreenMirrorServer::ANDROID_USB_CABLE, "AndroidADB"},
+	{ScreenMirrorServer::IOS_WIRELESS, "iOSsaoma"}
 };
 
 uint findProcessListeningToPort(uint port)
@@ -212,6 +213,7 @@ void ScreenMirrorServer::setBackendType(int type)
 		m_backendProcessName = ANDROID_AOA_EXE;
 		break;
 	case ScreenMirrorServer::ANDROID_WIRELESS:
+	case ScreenMirrorServer::IOS_WIRELESS:
 		m_backendProcessName = ANDROID_WIRELESS_EXE;
 		break;
 	default:
@@ -223,7 +225,7 @@ void ScreenMirrorServer::setBackendType(int type)
 	m_backendStopImagePath = QString("%1/%2.png").arg(tempPath).arg(prefix);
 	m_backendLostImagePath = QString("%1/%2shibai.png").arg(tempPath).arg(prefix);
 	m_backendConnectingImagePath = QString("%1/%2zhong.png").arg(tempPath).arg(prefix);
-	if (m_backend == ANDROID_WIRELESS) {
+	if (m_backend == ANDROID_WIRELESS || m_backend == IOS_WIRELESS) {
 		auto qrcode = streamUrlImage();
 		if (!qrcode.isEmpty()) {
 			auto writeQRCodeImage = [=](QString srcFile, QString dstFile){
@@ -244,7 +246,7 @@ void ScreenMirrorServer::setBackendType(int type)
 
 	if (m_backend == IOS_AIRPLAY)
 		m_extraDelay = 500;
-	else if (m_backend == ANDROID_WIRELESS)
+	else if (m_backend == ANDROID_WIRELESS || m_backend == IOS_WIRELESS)
 		m_extraDelay = 300;
 	else if (m_backend == ANDROID_AOA)
 		m_extraDelay = 0;
@@ -253,7 +255,9 @@ void ScreenMirrorServer::setBackendType(int type)
 
 	obs_source_set_monitoring_type(
 		m_source,
-		m_backend == ANDROID_AOA || m_backend == ANDROID_WIRELESS
+		(m_backend == ANDROID_AOA
+			|| m_backend == ANDROID_WIRELESS
+			|| m_backend == IOS_WIRELESS)
 			? OBS_MONITORING_TYPE_NONE
 			: OBS_MONITORING_TYPE_MONITOR_ONLY);
 
@@ -266,7 +270,7 @@ void ScreenMirrorServer::changeBackendType(int type)
 	if (type == m_backend)
 		return;
 
-	if (type == ANDROID_WIRELESS) {
+	if (type == ANDROID_WIRELESS || type == IOS_WIRELESS) {
 		os_kill_process(ANDROID_WIRELESS_EXE);
 		auto pid = findProcessListeningToPort(1935);
 		if (pid != 0) {
@@ -489,7 +493,7 @@ void ScreenMirrorServer::resetState()
 	pthread_mutex_unlock(&m_audioDataMutex);
 
 	pthread_mutex_lock(&m_ptsMutex);
-	if (m_backend == ANDROID_WIRELESS)
+	if (m_backend == ANDROID_WIRELESS || m_backend == IOS_WIRELESS)
 		m_audioExtraOffset = LLONG_MAX;
 	else if (m_backend == IOS_AIRPLAY)
 		m_audioExtraOffset = -100;
@@ -499,7 +503,7 @@ void ScreenMirrorServer::resetState()
 	m_firstAudioPTS = LLONG_MAX;
 	m_firstVideoPTS = LLONG_MAX;
 
-	if (m_backend == ANDROID_WIRELESS)
+	if (m_backend == ANDROID_WIRELESS || m_backend == IOS_WIRELESS)
 		m_videoExtraOffset = LLONG_MAX;
 	else
 		m_videoExtraOffset = 0;
