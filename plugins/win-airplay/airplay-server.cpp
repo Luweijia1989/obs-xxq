@@ -246,8 +246,10 @@ void ScreenMirrorServer::setBackendType(int type)
 
 	if (m_backend == IOS_AIRPLAY)
 		m_extraDelay = 500;
-	else if (m_backend == ANDROID_WIRELESS || m_backend == IOS_WIRELESS)
+	else if (m_backend == ANDROID_WIRELESS)
 		m_extraDelay = 300;
+	else if (m_backend == IOS_WIRELESS)
+		m_extraDelay = 400;
 	else if (m_backend == ANDROID_AOA)
 		m_extraDelay = 0;
 	else
@@ -798,11 +800,11 @@ bool ScreenMirrorServer::canProcessMediaData()
 	if (!timeOffsetInited) {
 		if (m_firstAudioPTS != LLONG_MAX && m_firstVideoPTS != LLONG_MAX) {
 			if (m_firstVideoPTS > m_firstAudioPTS) {
-				m_videoExtraOffset = m_firstVideoPTS - m_firstAudioPTS;
-				m_audioExtraOffset = 0;
-			} else {
 				m_videoExtraOffset = 0;
 				m_audioExtraOffset = m_firstAudioPTS - m_firstVideoPTS;
+			} else {
+				m_videoExtraOffset = m_firstVideoPTS - m_firstAudioPTS;
+				m_audioExtraOffset = 0;
 			}
 			ret = true;
 		}
