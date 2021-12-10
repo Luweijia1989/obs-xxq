@@ -296,6 +296,12 @@ void ScreenMirrorServer::changeBackendType(int type)
 
 void ScreenMirrorServer::updateStatusImage()
 {
+	obs_data_t *event = obs_data_create();
+	obs_data_set_string(event, "eventType", "MirrorStatus");
+	obs_data_set_int(event, "value", mirror_status);
+	obs_source_signal_event(m_source, event);
+	obs_data_release(event);
+
 	if (mirror_status == OBS_SOURCE_MIRROR_OUTPUT)
 		return;
 	QString path;
@@ -322,12 +328,6 @@ void ScreenMirrorServer::updateStatusImage()
 		gs_image_file2_init_texture(if2);
 		obs_leave_graphics();
 	}
-
-	obs_data_t *event = obs_data_create();
-	obs_data_set_string(event, "eventType", "MirrorStatus");
-	obs_data_set_int(event, "value", mirror_status);
-	obs_source_signal_event(m_source, event);
-	obs_data_release(event);
 }
 
 void ScreenMirrorServer::saveStatusSettings()
