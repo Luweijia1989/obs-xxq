@@ -1,4 +1,4 @@
-project(driver-tool)
+project(ios-qtvusb-mirror)
 
 file(GLOB_RECURSE drivertool_SRC ${PROJECT_SOURCE_DIR} *.c *.cpp)
 file(GLOB_RECURSE drivertool_HEADER ${PROJECT_SOURCE_DIR} *.h *.hpp)
@@ -17,18 +17,18 @@ set(drivertool_extra_SOURCES
 set(drivertool_extra_HEADERS
 	../ipc.h
 )
-
-add_executable(driver-tool
+ 
+add_executable(ios-qtvusb-mirror
 	${drivertool_SRC}
 	${drivertool_HEADER}
 	${drivertool_extra_SOURCES}
 	${drivertool_extra_HEADERS})
 
-target_link_libraries(driver-tool
+target_link_libraries(ios-qtvusb-mirror
 	libobs
 	Qt5::Widgets
 	debug ${PROJECT_SOURCE_DIR}/libwdi/lib/libwdid.lib
 	optimized ${PROJECT_SOURCE_DIR}/libwdi/lib/libwdi.lib
 	Setupapi)
 
-install_obs_core(driver-tool)
+install_obs_core(ios-qtvusb-mirror)
