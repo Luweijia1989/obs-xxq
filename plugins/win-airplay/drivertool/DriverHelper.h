@@ -18,7 +18,7 @@ private:
     void install(wdi_device_info *dev);
 
 signals:
-    void installProgress(int step, int value);
+    void installProgress(int value);
     void installError(QString msg);
 
 private:

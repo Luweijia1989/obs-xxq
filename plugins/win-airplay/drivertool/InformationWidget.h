@@ -1,4 +1,4 @@
-﻿#ifndef INFORMATIONWIDGET_H
+#ifndef INFORMATIONWIDGET_H
 #define INFORMATIONWIDGET_H
 
 #include <QWidget>
@@ -16,7 +16,7 @@ public:
 signals:
 
 public slots:
-    void onInstallStatus(int step, int value);
+    void onInstallStatus(int value);
     void onInstallError(QString msg);
     void onInfoPrompt(const QString &msg);
     void onDeviceLost();

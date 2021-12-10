@@ -1,4 +1,4 @@
-#include "AOADeviceManager.h"
+#include "AppleDeviceManager.h"
 #include "InformationWidget.h"
 #include <QApplication>
 #include "DriverHelper.h"
@@ -43,7 +43,7 @@ int main(int argc, char *argv[]){
     QObject::connect(&manager, &AppleDeviceManager::infoPrompt, &widget, &InformationWidget::onInfoPrompt);
     QObject::connect(&manager, &AppleDeviceManager::deviceLost, &widget, &InformationWidget::onDeviceLost);
 
-    QMetaObject::invokeMethod(&manager, "updateUsbInventory", Qt::QueuedConnection, Q_ARG(bool, true), Q_ARG(bool, true));
+    QMetaObject::invokeMethod(&manager, "updateUsbInventory", Qt::QueuedConnection, Q_ARG(bool, true));
 
 
     HelerWidget w(&manager);

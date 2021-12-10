@@ -92,12 +92,12 @@ DriverHelper::DriverHelper(QObject *parent) : QObject(parent)
 	if (!d.exists())
 		d.mkdir(temp_dir);
 
-	wdi_is_driver_supported(WDI_LIBUSBK, &file_info);
+	wdi_is_driver_supported(WDI_LIBUSB0, &file_info);
 
 	target_driver_version = file_info.dwFileVersionMS;
 	target_driver_version <<= 32;
 	target_driver_version += file_info.dwFileVersionLS;
-	pd_options.driver_type = WDI_LIBUSBK;
+	pd_options.driver_type = WDI_LIBUSB0;
 }
 
 bool DriverHelper::checkInstall(int vid, int pid, QString targetDevicePath)
@@ -124,8 +124,6 @@ bool DriverHelper::checkInstall(int vid, int pid, QString targetDevicePath)
 		auto iter = targetDevs.begin();
 		for (; iter != targetDevs.end(); iter++) {
 			auto dev = *iter;
-			if (isAOADevice(dev->vid, dev->pid) && dev->is_composite)
-				continue;
 			QString path(dev->device_id);
 			if (!path.isEmpty() && targetDevicePath.contains(path, Qt::CaseInsensitive)) {
 				targetDev = dev;
@@ -138,16 +136,12 @@ bool DriverHelper::checkInstall(int vid, int pid, QString targetDevicePath)
 	}
 
 	QString driverName(targetDev->driver);
-	if (!driverName.startsWith("libusbK"))
+	if (!driverName.startsWith("libusb0"))
 		ret = true;
-	else {
-		if(isAOADevice(targetDev->vid, targetDev->pid))
-			emit installProgress(1, 3);
-	}
 
 	if (ret) {
 		inInstall = true;
-		emit installProgress(!isAOADevice(targetDev->vid, targetDev->pid) ? 0 : 1, 0);
+		emit installProgress(0);
 
 		install(targetDev);
 	}
@@ -184,25 +178,23 @@ bool deleteDir(const QString &path)
 
 void DriverHelper::install(wdi_device_info *dev)
 {
-	int res = -1;
 Retry:
 	QString dir = QString("%1\\%2").arg(temp_dir).arg(dev->pid);
 	deleteDir(dir);
-	int step = !isAOADevice(dev->vid, dev->pid) ? 0 : 1;
 	bool success = false;
 	char *inf_name = to_valid_filename(dev->desc, ".inf");
 	if (inf_name != NULL) {
 		qDebug() << "use info name: " << inf_name;
-		emit installProgress(step, 1);
+		emit installProgress(1);
 		int res = wdi_prepare_driver(dev, dir.toStdString().c_str(),
 					     inf_name, &pd_options);
-		emit installProgress(step, 2);
+		emit installProgress(2);
 		if (res == WDI_SUCCESS) {
 			qDebug() << "Successfully extracted driver files.";
 			res = wdi_install_driver(dev, dir.toStdString().c_str(),
 						 inf_name, &id_options);
 			if (res == WDI_SUCCESS) {
-				emit installProgress(step, 3);
+				emit installProgress(3);
 				qDebug() << "Successfully install the driver";
 				success = true;
 			} else {

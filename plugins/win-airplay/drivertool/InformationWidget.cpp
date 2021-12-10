@@ -1,4 +1,4 @@
-﻿#include "InformationWidget.h"
+#include "InformationWidget.h"
 #include <QProgressBar>
 #include <QVBoxLayout>
 #include <QMessageBox>
@@ -29,27 +29,25 @@ InformationWidget::InformationWidget(QWidget *parent) : QWidget(parent)
 	m_tipTimer->setSingleShot(true);
 }
 
-void InformationWidget::onInstallStatus(int step, int value)
+void InformationWidget::onInstallStatus(int value)
 {
 	bool show = true;
 	if (m_progressBar) {
 		int v = 0;
 		switch (value) {
 		case 0: //开始安装驱动
-			if (step == 0)
-				m_tipLabel->setText(u8"正在安装驱动");
-			v = step == 0 ? 0 : 50;
+			m_tipLabel->setText(u8"正在安装驱动");
+			v = 0;
 			break;
 		case 1: //安装一阶段
-			v = step == 0 ? 10 : 60;
+			v = 40;
 			break;
 		case 2: //安装二阶段，释放驱动
-			v = step == 0 ? 25 : 75;
+			v = 75;
 			break;
 		case 3: //安装三阶段，成功
-			if (step == 1)
-				show = false;
-			v = step == 0 ? 50 : 100;
+			v = 100;
+			show = false;
 			break;
 		}
 

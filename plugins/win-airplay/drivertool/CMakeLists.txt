@@ -1,13 +1,23 @@
 project(ios-qtvusb-mirror)
 
-file(GLOB_RECURSE drivertool_SRC ${PROJECT_SOURCE_DIR} *.c *.cpp)
-file(GLOB_RECURSE drivertool_HEADER ${PROJECT_SOURCE_DIR} *.h *.hpp)
-
 find_package(Qt5Widgets REQUIRED)
 set(CMAKE_AUTOMOC TRUE)
 
 include_directories(
 	${PROJECT_SOURCE_DIR}/libwdi/include
+)
+
+set(drivertool_SRC
+	AppleDeviceManager.cpp
+	DriverHelper.cpp
+	InformationWidget.cpp
+	main.cpp
+)
+			 
+set(drivertool_HEADER
+	AppleDeviceManager.h
+	DriverHelper.h
+	InformationWidget.h
 )
 
 set(drivertool_extra_SOURCES
