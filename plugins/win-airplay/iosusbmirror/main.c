@@ -638,7 +638,7 @@ void pipeConsume(struct CMSampleBuffer *buf, void *c)
 	    !app_device.has_video_received)
 		return;
 
-	pack_info.pts = pack_info.pts * 1000000;
+	//pack_info.pts = pack_info.pts * 1000000;
 #ifndef STANDALONE
 	ipc_client_write_2(ipc_client, &pack_info, sizeof(struct av_packet_info), buf->SampleData, buf->SampleData_len, INFINITE);
 #endif
