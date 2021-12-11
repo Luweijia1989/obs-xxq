@@ -4,19 +4,14 @@
 
 #include "QrToPng.h"
 
-QrToPng::QrToPng(std::string fileName, int imgSize, int minModulePixelSize, std::string text,
-                 bool overwriteExistingFile, qrcodegen::QrCode::Ecc ecc) :
-        _fileName(std::move(fileName)), _size(imgSize), _minModulePixelSize(minModulePixelSize), _text(std::move(text)),
-        _overwriteExistingFile(overwriteExistingFile), _ecc(ecc) {
+QrToPng::QrToPng(QString fileName, int imgSize, int minModulePixelSize, std::string text, qrcodegen::QrCode::Ecc ecc) :
+        _fileName(fileName), _size(imgSize), _minModulePixelSize(minModulePixelSize), _text(std::move(text)),
+        _ecc(ecc) {
 }
 
 bool QrToPng::writeToPNG() {
     /* text is required */
     if (_text.empty())
-        return false;
-
-
-    if (!_overwriteExistingFile && fs::exists(_fileName))
         return false;
 
     auto _qr = qrcodegen::QrCode::encodeText("", _ecc);
@@ -30,23 +25,19 @@ bool QrToPng::writeToPNG() {
         return false;
     }
 
-    if (_overwriteExistingFile && fs::exists(_fileName))
-        if (!fs::copy_file(_fileName, _fileName + ".tmp", fs::copy_options::overwrite_existing))
-            return false;
-
     auto result = _writeToPNG(_qr);
-
-    if (result)
-        fs::remove(_fileName + ".tmp");
 
     return result;
 
 }
 
 bool QrToPng::_writeToPNG(const qrcodegen::QrCode &qrData) const {
-    std::ofstream out(_fileName.c_str(), std::ios::binary);
+    QFile out(_fileName);
+    if (!out.open(QFile::ReadWrite | QFile::Truncate))
+	    return false;
+    
     int pngWH = _imgSizeWithBorder(qrData);
-    TinyPngOut pngout(pngWH, pngWH, out);
+    TinyPngOut pngout(pngWH, pngWH, &out);
 
     auto qrSize = qrData.getSize();
     auto qrSizeWithBorder = qrData.getSize() + 2;
@@ -111,7 +102,7 @@ bool QrToPng::_writeToPNG(const qrcodegen::QrCode &qrData) const {
     pngout.write(tmpData.data(), static_cast<size_t>(tmpData.size() / 3));
     tmpData.clear();
 
-    return fs::exists(_fileName);
+    return true;
 }
 
 

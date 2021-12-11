@@ -23,7 +23,7 @@
 
 #include <cstddef>
 #include <cstdint>
-#include <ostream>
+#include <QFile>
 
 
 /* 
@@ -39,7 +39,7 @@ class TinyPngOut final {
 	private: std::uint32_t lineSize;  // Measured in bytes, equal to (width * 3 + 1)
 	
 	// Running state
-	private: std::ostream &output;
+	private: QFile *output;
 	private: std::uint32_t positionX;      // Next byte index in current line
 	private: std::uint32_t positionY;      // Line index of next byte
 	private: std::uint32_t uncompRemain;   // Number of uncompressed bytes remaining
@@ -56,7 +56,7 @@ class TinyPngOut final {
 	 * TinyPngOut will leave the output stream still open once it finishes writing the PNG file data.
 	 * Throws an exception if the dimensions exceed certain limits (e.g. w * h > 700 million).
 	 */
-	public: explicit TinyPngOut(std::uint32_t w, std::uint32_t h, std::ostream &out);
+	public: explicit TinyPngOut(std::uint32_t w, std::uint32_t h, QFile *out);
 	
 	
 	/* 
@@ -86,7 +86,7 @@ class TinyPngOut final {
 	
 	private: template <std::size_t N>
 	void write(const std::uint8_t (&data)[N]) {
-		output.write(reinterpret_cast<const char*>(data), sizeof(data));
+		output->write(reinterpret_cast<const char*>(data), sizeof(data));
 	}
 	
 	

@@ -32,7 +32,7 @@ using std::uint64_t;
 using std::size_t;
 
 
-TinyPngOut::TinyPngOut(uint32_t w, uint32_t h, std::ostream &out) :
+TinyPngOut::TinyPngOut(uint32_t w, uint32_t h, QFile *out) :
 		// Set most of the fields
 		width(w),
 		height(h),
@@ -140,7 +140,7 @@ void TinyPngOut::write(const uint8_t pixels[], size_t count) {
 			if (static_cast<std::make_unsigned<std::streamsize>::type>(std::numeric_limits<std::streamsize>::max()) < std::numeric_limits<decltype(n)>::max())
 				n = std::min(n, static_cast<decltype(n)>(std::numeric_limits<std::streamsize>::max()));
 			assert(n > 0);
-			output.write(reinterpret_cast<const char*>(pixels), static_cast<std::streamsize>(n));
+			output->write(reinterpret_cast<const char*>(pixels), static_cast<std::streamsize>(n));
 			
 			// Update checksums
 			crc32(pixels, n);
