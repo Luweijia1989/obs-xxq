@@ -634,19 +634,22 @@ void pipeConsume(struct CMSampleBuffer *buf, void *c)
 	#endif
 	} else {
 		ringbuf_memcpy_into(app_device.audio_data_buffer, buf->SampleData, buf->SampleData_len);
-		size_t byte_remain =
-			ringbuf_bytes_used(app_device.audio_data_buffer);
-		if (byte_remain >= 4096) {
-			ringbuf_memcpy_from(app_device.audio_pop_buffer, app_device.audio_data_buffer, 4096);
+		while (true) {
+			size_t byte_remain =
+				ringbuf_bytes_used(app_device.audio_data_buffer);
+			if (byte_remain >= 4096) {
+				ringbuf_memcpy_from(app_device.audio_pop_buffer, app_device.audio_data_buffer, 4096);
 
-			struct av_packet_info pack_info = {0};
-			pack_info.size = 4096;
-			pack_info.type = type;
-			pack_info.pts = 0;
+				struct av_packet_info pack_info = {0};
+				pack_info.size = 4096;
+				pack_info.type = type;
+				pack_info.pts = 0;
 
-		#ifndef STANDALONE
-			ipc_client_write_2(ipc_client, &pack_info, sizeof(struct av_packet_info), app_device.audio_pop_buffer, 4096, INFINITE);
-		#endif
+			#ifndef STANDALONE
+				ipc_client_write_2(ipc_client, &pack_info, sizeof(struct av_packet_info), app_device.audio_pop_buffer, 4096, INFINITE);
+			#endif
+			} else
+				break;
 		}
 	}
 }
