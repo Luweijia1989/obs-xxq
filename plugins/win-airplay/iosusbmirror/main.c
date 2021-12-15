@@ -69,8 +69,9 @@ struct usb_device_info {
 	struct media_video_info m_info;
 	struct media_audio_info m_audioInfo;
 	bool has_video_received;
-	uint64_t audio_offset;
-	uint64_t last_audio_ts;
+
+	ringbuf_t audio_data_buffer;
+	char audio_pop_buffer[4096];
 
 	HANDLE stop_signal;
 };
@@ -525,6 +526,7 @@ void reset_app_device()
 
 	free(app_device.mp.needMessage);
 	ringbuf_free(&app_device.usb_data_buffer);
+	ringbuf_free(&app_device.audio_data_buffer);
 	memset(&app_device, 0, sizeof(struct usb_device_info));
 	in_progress = false;
 }
@@ -610,38 +612,46 @@ void pipeConsume(struct CMSampleBuffer *buf, void *c)
 	if (buf->SampleData_len <= 0)
 		return;
 
-	struct av_packet_info pack_info = {0};
-	pack_info.size = buf->SampleData_len;
-	pack_info.type = buf->MediaType == MediaTypeSound ? FFM_PACKET_AUDIO
-							  : FFM_PACKET_VIDEO;
+	enum av_packet_type type = buf->MediaType == MediaTypeSound ? FFM_PACKET_AUDIO : FFM_PACKET_VIDEO;
+	if (type == FFM_PACKET_AUDIO && !app_device.has_video_received)
+		return;
+	
 	if (buf->OutputPresentationTimestamp.CMTimeValue > 17446044073700192000)
 		buf->OutputPresentationTimestamp.CMTimeValue = 0;
-	pack_info.pts = 0;
-	if (pack_info.type == FFM_PACKET_AUDIO) {
-		app_device.last_audio_ts =
-			buf->OutputPresentationTimestamp.CMTimeValue * 1000.0 /
-			buf->OutputPresentationTimestamp.CMTimeScale;
-		/*pack_info.pts =
-			app_device.last_audio_ts - app_device.audio_offset;*/
-	} else {
-		/*pack_info.pts = buf->OutputPresentationTimestamp.CMTimeValue *
-				1000.0 /
-				buf->OutputPresentationTimestamp.CMTimeScale;*/
+
+	if (type == FFM_PACKET_VIDEO) {
 		if (!app_device.has_video_received) {
-			app_device.audio_offset =
-				app_device.last_audio_ts - pack_info.pts;
 			app_device.has_video_received = true;
 		}
+
+		struct av_packet_info pack_info = {0};
+		pack_info.size = buf->SampleData_len;
+		pack_info.type = type;
+		pack_info.pts = 0;
+
+	#ifndef STANDALONE
+		ipc_client_write_2(ipc_client, &pack_info, sizeof(struct av_packet_info), buf->SampleData, buf->SampleData_len, INFINITE);
+	#endif
+	} else {
+		ringbuf_memcpy_into(app_device.audio_data_buffer, buf->SampleData, buf->SampleData_len);
+		while (true) {
+			size_t byte_remain =
+				ringbuf_bytes_used(app_device.audio_data_buffer);
+			if (byte_remain >= 4096) {
+				ringbuf_memcpy_from(app_device.audio_pop_buffer, app_device.audio_data_buffer, 4096);
+
+				struct av_packet_info pack_info = {0};
+				pack_info.size = 4096;
+				pack_info.type = type;
+				pack_info.pts = 0;
+
+			#ifndef STANDALONE
+				ipc_client_write_2(ipc_client, &pack_info, sizeof(struct av_packet_info), app_device.audio_pop_buffer, 4096, INFINITE);
+			#endif
+			} else
+				break;
+		}
 	}
-
-	if (pack_info.type == FFM_PACKET_AUDIO &&
-	    !app_device.has_video_received)
-		return;
-
-	pack_info.pts = pack_info.pts * 1000000;
-#ifndef STANDALONE
-	ipc_client_write_2(ipc_client, &pack_info, sizeof(struct av_packet_info), buf->SampleData, buf->SampleData_len, INFINITE);
-#endif
 }
 
 struct Consumer PipeWriter()
@@ -674,6 +684,8 @@ int usb_device_discover()
 			app_device.device = device;
 			app_device.device_handle = handle;
 			app_device.usb_data_buffer =
+				ringbuf_new(1024 * 1024 * 2);
+			app_device.audio_data_buffer =
 				ringbuf_new(1024 * 1024 * 2);
 			app_device.mp.consumer = PipeWriter();
 			res = 1;
