@@ -102,6 +102,7 @@ protected:
 				auto info = (DEV_BROADCAST_DEVICEINTERFACE *)winMsg->lParam;
 
 				if (info->dbcc_devicetype == DBT_DEVTYP_DEVICEINTERFACE) {
+					qDebug() << "FFFFFFFFFFFFF";
 					QString devicePath = QString::fromWCharArray(info->dbcc_name);
 					qDebug() << "new device: " << devicePath;
 

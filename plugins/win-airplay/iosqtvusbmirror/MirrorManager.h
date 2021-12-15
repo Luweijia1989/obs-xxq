@@ -1,5 +1,6 @@
 #pragma once
 
+#include <stdint.h>
 extern "C"
 {
 #include "qt_configuration.h"
@@ -11,8 +12,13 @@ public:
 	MirrorManager();
 	~MirrorManager();
 
+	int startMirrorTask(int vid, int pid);
+
+private:
 	int checkAndChangeMode(int vid, int pid);
 
 private:
-	struct usb_dev_handle *openUsbDevice(int vid, int pid, struct usb_device **device);
+	uint8_t m_interface, ep_in, ep_out;
+	uint8_t m_interface_fa, ep_in_fa, ep_out_fa;
+	struct usb_dev_handle *m_deviceHandle = nullptr;
 };

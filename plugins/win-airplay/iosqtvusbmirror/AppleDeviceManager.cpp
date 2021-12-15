@@ -8,6 +8,7 @@
 #include <winusb.h>
 #include <Setupapi.h>
 #include <Devpkey.h>
+#include <QElapsedTimer>
 #include "MirrorManager.h"
 
 #define APPLE_VID 0x05AC
@@ -46,13 +47,10 @@ void AppleDeviceManager::deferUpdateUsbInventory(bool isAdd)
 
 int AppleDeviceManager::checkAndInstallDriver() 
 {
-	int switchAOACount = 0;
-	bool sendSwitchCommand = false;
-
 Retry:
 	auto path = m_appleDeviceInfo.devicePath;
 	if (path.length() < 4)
-		return -2;
+		return -1;
 
 	path = path.mid(4);
 	path = path.left(path.lastIndexOf('#'));
@@ -67,17 +65,7 @@ Retry:
 		goto Retry;
 	}
 
-	int ret = m_mirrorManager->checkAndChangeMode(m_appleDeviceInfo.vid, m_appleDeviceInfo.pid);
-	if (ret == 0) {
-		qDebug() << "checkAndChangeMode wait device reconnect";
-		m_waitMutex.lock();
-		m_waitCondition.wait(&m_waitMutex, 2500);
-		m_waitMutex.unlock();
-		qDebug() << "checkAndChangeMode wait device reconnect finish";
-		goto Retry;
-	}
-
-	return ret;
+	return 0;
 }
 
 bool isAppleDevice(int vid, int pid)
@@ -188,14 +176,10 @@ void AppleDeviceManager::updateUsbInventory(bool isDeviceAdd)
 		bool exist = enumDeviceAndCheck();
 		if (exist) {
 			int ret = checkAndInstallDriver();
-			if (ret == 1)
-				startTask();
-			else if (ret == -1)
-				emit infoPrompt(u8"打开苹果设备失败。请重启电脑后再试");
-			else if (ret == -2)
+			if (ret != 0)
 				emit infoPrompt(u8"无效的设备路径，请插拔设备后再试");
 			else
-				qDebug() << "checkAndInstallDriver return : " << ret;
+				startTask();
 		}
 
 		if (exist)
@@ -212,4 +196,6 @@ void AppleDeviceManager::updateUsbInventory(bool isDeviceAdd)
 void AppleDeviceManager::startTask()
 {
 	qDebug() << "start usb stask";
+
+	m_mirrorManager->startMirrorTask(m_appleDeviceInfo.vid, m_appleDeviceInfo.pid);
 }
