@@ -1,4 +1,6 @@
 #include "MirrorManager.h"
+#include "tcp.h"
+#include "endianness.h"
 #include <QDebug>
 #include <QElapsedTimer>
 
@@ -27,6 +29,93 @@ void MirrorManager::readUSBData(void *data)
 			manager->onDeviceData((unsigned char *)buffer, readLen);
 	}
 	free(buffer);
+}
+
+void MirrorManager::resetDevice()
+{
+
+}
+
+void MirrorManager::onDeviceVersionInput(VersionHeader *vh)
+{
+	if(m_devState != MuxDevState::MUXDEV_INIT) {
+		return;
+	}
+	vh->major = ntohl(vh->major);
+	vh->minor = ntohl(vh->minor);
+	if(vh->major != 2 && vh->major != 1) {
+		qDebug("Device has unknown version %d.%d", vh->major, vh->minor);
+		return;
+	}
+	m_devVersion = vh->major;
+
+	if (m_devVersion >= 2) {
+		sendPacket(MuxProtocol::MUX_PROTO_SETUP, NULL, "\x07", 1);
+	}
+
+	qDebug("Connected to v%d.%d device on location 0x%x with serial number %s", m_devVersion, vh->minor, m_device->bus->location, m_serial);
+	m_devState = MuxDevState::MUXDEV_ACTIVE;
+
+	m_connTxAck = 0;
+	m_connTxSeq = 0;
+	m_connState = MuxConnState::CONN_CONNECTING;
+	sendTcp(TH_SYN, NULL, 0);
+}
+
+void MirrorManager::onDeviceConnectionInput(unsigned char *payload, uint32_t payload_length)
+{
+	if (m_currentConnectionState == QueryType) {
+
+	}
+}
+
+void MirrorManager::onDeviceTcpInput(struct tcphdr *th, unsigned char *payload, uint32_t payload_length)
+{
+	uint16_t sport = ntohs(th->th_dport);
+	uint16_t dport = ntohs(th->th_sport);
+
+	if(th->th_flags & TH_RST) {
+		char *buf = (char *)malloc(payload_length+1);
+		memcpy(buf, payload, payload_length);
+		if(payload_length && (buf[payload_length-1] == '\n'))
+			buf[payload_length-1] = 0;
+		buf[payload_length] = 0;
+		qDebug("RST reason: %s", buf);
+		free(buf);
+	}
+
+	if(m_connState == MuxConnState::CONN_CONNECTING) {
+		if(th->th_flags != (TH_SYN|TH_ACK)) {
+			if(th->th_flags & TH_RST)
+				m_connState = MuxConnState::CONN_REFUSED;
+			qDebug("Connection refused (%d->%d)", sport, dport);
+			resetDevice(); //this also sends the notification to the client
+		} else {
+			m_connTxSeq++;
+			m_connTxAck++;
+			if(sendTcp(TH_ACK, NULL, 0) < 0) {
+				qDebug("Error sending TCP ACK to device (%d->%d)", sport, dport);
+				resetDevice();
+				return;
+			}
+			m_connState = MuxConnState::CONN_CONNECTED;
+
+			startActualPair();
+		}
+	} else if(m_connState == MuxConnState::CONN_CONNECTED) {
+		m_connTxAck += payload_length;
+		if(th->th_flags != TH_ACK) {
+			qDebug("Connection reset by device %d (%d->%d)", sport, dport);
+			if(th->th_flags & TH_RST)
+				m_connState = MuxConnState::CONN_DYING;
+			resetDevice();
+		} else {
+			onDeviceConnectionInput(payload, payload_length);
+
+			// Device likes it best when we are prompty ACKing data
+			sendTcpAck();
+		}
+	}
 }
 
 void MirrorManager::onDeviceData(unsigned char *buffer, int length)
@@ -70,55 +159,105 @@ void MirrorManager::onDeviceData(unsigned char *buffer, int length)
 	}
 
 	MuxHeader *mhdr = (MuxHeader *)buffer;
-	int mux_header_size = 8;
+	int mux_header_size = ((m_devVersion < 2) ? 8 : sizeof(MuxHeader));
 	if (ntohl(mhdr->length) != length) {
 		qDebug("Incoming packet size mismatch (expected %d, got %d)", ntohl(mhdr->length), length);
 		return;
 	}
 
-	/*struct tcphdr *th;
+	struct tcphdr *th;
 	unsigned char *payload;
 	uint32_t payload_length;
 
+	if (m_devVersion >= 2) {
+		m_rxSeq = ntohs(mhdr->rx_seq);
+	}
 
-	switch (ntohl(mhdr->protocol)) {
-	case MUX_PROTO_VERSION:
+	MuxProtocol protoc = (MuxProtocol)ntohl(mhdr->protocol);
+	switch (protoc) {
+	case MuxProtocol::MUX_PROTO_VERSION:
 		if (length <
-		    (mux_header_size + sizeof(struct version_header))) {
-			usbmuxd_log(LL_ERROR,
-				    "Incoming version packet is too small (%d)",
-				    length);
+		    (mux_header_size + sizeof(VersionHeader))) {
+			qDebug("Incoming version packet is too small (%d)", length);
 			return;
 		}
-		device_version_input(
-			dev, (struct version_header *)((char *)mhdr +
-						       mux_header_size));
+		onDeviceVersionInput((VersionHeader *)((char *)mhdr + mux_header_size));
 		break;
-	case MUX_PROTO_CONTROL:
+	case MuxProtocol::MUX_PROTO_CONTROL:
 		payload = (unsigned char *)(mhdr + 1);
 		payload_length = length - mux_header_size;
-		device_control_input(dev, payload, payload_length);
+		//device_control_input(dev, payload, payload_length);
 		break;
-	case MUX_PROTO_TCP:
+	case MuxProtocol::MUX_PROTO_TCP:
 		if (length < (mux_header_size + sizeof(struct tcphdr))) {
-			usbmuxd_log(LL_ERROR,
-				    "Incoming TCP packet is too small (%d)",
-				    length);
+			qDebug("Incoming TCP packet is too small (%d)", length);
 			return;
 		}
 		th = (struct tcphdr *)((char *)mhdr + mux_header_size);
 		payload = (unsigned char *)(th + 1);
-		payload_length =
-			length - sizeof(struct tcphdr) - mux_header_size;
-		device_tcp_input(dev, th, payload, payload_length);
+		payload_length = length - sizeof(struct tcphdr) - mux_header_size;
+		onDeviceTcpInput(th, payload, payload_length);
 		break;
 	default:
-		usbmuxd_log(
-			LL_ERROR,
-			"Incoming packet for device %d has unknown protocol 0x%x)",
-			dev->id, ntohl(mhdr->protocol));
+		qDebug("Incoming packet has unknown protocol 0x%x)", ntohl(mhdr->protocol));
 		break;
-	}*/
+	}
+}
+
+bool MirrorManager::sendPlist(plist_t plist, bool isBinary)
+{
+	char *content = NULL;
+	uint32_t total = 0;
+	uint32_t length = 0;
+	uint32_t nlen = 0;
+
+	if (!plist) {
+		return false;
+	}
+
+	if (isBinary) {
+		plist_to_bin(plist, &content, &length);
+	} else {
+		plist_to_xml(plist, &content, &length);
+	}
+
+	if (!content || length == 0) {
+		return false;
+	}
+
+	nlen = htobe32(length);
+	qDebug("sending %d bytes", length);
+
+	total = length + sizeof(nlen);
+	char *sendBuffer = (char *)malloc(total);
+	memcpy(sendBuffer, &nlen, sizeof(nlen));
+	memcpy(sendBuffer + sizeof(nlen), content, length);
+
+	sendTcp(TH_ACK, (const unsigned char *)sendBuffer, total);
+
+	free(content);
+	free(sendBuffer);
+
+	m_connTxSeq += total;
+
+	return true;
+}
+
+static void plist_dict_add_label(plist_t plist, const char *label)
+{
+	if (plist && label) {
+		if (plist_get_node_type(plist) == PLIST_DICT)
+			plist_dict_set_item(plist, "Label", plist_new_string(label));
+	}
+}
+
+void MirrorManager::startActualPair()
+{
+	m_currentConnectionState = QueryType;
+	plist_t dict = plist_new_dict();
+	plist_dict_add_label(dict, "usbmuxd");
+	plist_dict_set_item(dict, "Request", plist_new_string("QueryType"));
+	sendPlist(dict, false);
 }
 
 static struct usb_device *findAppleDevice(int vid, int pid)
@@ -178,8 +317,8 @@ int MirrorManager::checkAndChangeMode(int vid, int pid)
 					m_qtConfigIndex = qtConfigIndex;
 					m_deviceHandle = usb_open(dev);
 					m_device = dev;
-					memset(serial, 0, sizeof(serial));
-					usb_get_string_simple(m_deviceHandle, m_device->descriptor.iSerialNumber, serial, sizeof(serial));
+					memset(m_serial, 0, sizeof(m_serial));
+					usb_get_string_simple(m_deviceHandle, m_device->descriptor.iSerialNumber, m_serial, sizeof(m_serial));
 					ret = 0;
 				}
 				break;
@@ -255,11 +394,16 @@ int MirrorManager::startPair()
 	m_usbReadTh = std::thread(readUSBData, this);
 	m_usbReadTh.detach();
 
+	m_currentConnectionState = None;
+	m_devVersion = 0;
+	m_devState = MuxDevState::MUXDEV_INIT;
 	VersionHeader vh;
 	vh.major = htonl(2);
 	vh.minor = htonl(0);
 	vh.padding = 0;
 	sendPacket(MuxProtocol::MUX_PROTO_VERSION, &vh, NULL, 0);
+
+	m_pairBlockEvent.exec();
 
 	return 0;
 }
@@ -289,6 +433,32 @@ int MirrorManager::startMirrorTask(int vid, int pid)
 	return ret;
 }
 
+int MirrorManager::sendTcpAck()
+{
+	if (sendTcp(TH_ACK, NULL, 0) < 0) {
+		qDebug("Error sending TCP ACK");
+		resetDevice();
+		return -1;
+	}
+
+	return 0;
+}
+
+int MirrorManager::sendTcp(uint8_t flags, const unsigned char *data, int length)
+{
+	struct tcphdr th;
+	memset(&th, 0, sizeof(th));
+	th.th_sport = htons(233);
+	th.th_dport = htons(0xf27e);
+	th.th_seq = htonl(m_connTxSeq);
+	th.th_ack = htonl(m_connTxAck);
+	th.th_flags = flags;
+	th.th_off = sizeof(th) / 4;
+	th.th_win = htons(131072 >> 8);
+
+	return sendPacket(MuxProtocol::MUX_PROTO_TCP, &th, data, length);
+}
+
 int MirrorManager::sendPacket(MuxProtocol proto, void *header, const void *data, int length)
 {
 	char *buffer;
@@ -302,11 +472,14 @@ int MirrorManager::sendPacket(MuxProtocol proto, void *header, const void *data,
 		case MuxProtocol::MUX_PROTO_SETUP:
 			hdrlen = 0;
 			break;
+		case MuxProtocol::MUX_PROTO_TCP:
+			hdrlen = sizeof(struct tcphdr);
+			break;
 		default:
 			qDebug() << "Invalid protocol %d for outgoing packet";
 			return -1;
 	}
-	int mux_header_size = 8;
+	int mux_header_size = ((m_devVersion < 2) ? 8 : sizeof(MuxHeader));
 
 	int total = mux_header_size + hdrlen + length;
 	
@@ -319,6 +492,16 @@ int MirrorManager::sendPacket(MuxProtocol proto, void *header, const void *data,
 	MuxHeader *mhdr = (MuxHeader *)buffer;
 	mhdr->protocol = htonl((u_long)proto);
 	mhdr->length = htonl(total);
+	if (m_devVersion >= 2) {
+		mhdr->magic = htonl(0xfeedface);
+		if (proto == MuxProtocol::MUX_PROTO_SETUP) {
+			m_txSeq = 0;
+			m_rxSeq = 0xFFFF;
+		}
+		mhdr->tx_seq = htons(m_txSeq);
+		mhdr->rx_seq = htons(m_rxSeq);
+		m_txSeq++;
+	}	
 
 	memcpy(buffer + mux_header_size, header, hdrlen);
 	if(data && length)

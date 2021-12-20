@@ -2,6 +2,9 @@
 
 #include <stdint.h>
 #include <thread>
+#include <QEventLoop>
+#include "plist/plist.h"
+
 extern "C"
 {
 #include "qt_configuration.h"
@@ -14,7 +17,8 @@ extern "C"
 enum class MuxProtocol {
 	MUX_PROTO_VERSION = 0,
 	MUX_PROTO_CONTROL = 1,
-	MUX_PROTO_SETUP = 2
+	MUX_PROTO_SETUP = 2,
+	MUX_PROTO_TCP = IPPROTO_TCP
 };
 
 struct VersionHeader {
@@ -31,9 +35,30 @@ struct MuxHeader {
 	uint16_t rx_seq;
 };
 
+enum class MuxDevState {
+	MUXDEV_INIT,   // sent version packet
+	MUXDEV_ACTIVE, // received version packet, active
+	MUXDEV_DEAD    // dead
+};
+
+enum class MuxConnState {
+	CONN_CONNECTING, // SYN
+	CONN_CONNECTED,  // SYN/SYNACK/ACK -> active
+	CONN_REFUSED,    // RST received during SYN
+	CONN_DYING,      // RST received
+	CONN_DEAD // being freed; used to prevent infinite recursion between client<->device freeing
+};
+
+
 class MirrorManager
 {
 public:
+	enum ConnectionStage
+	{
+		None,
+		QueryType,
+	};
+
 	MirrorManager();
 	~MirrorManager();
 
@@ -47,19 +72,39 @@ private:
 	int startPair();
 
 private:
+	int sendTcpAck();
+	int sendTcp(uint8_t flags, const unsigned char *data, int length);
 	int sendPacket(MuxProtocol proto, void *header, const void *data, int length);
+	bool sendPlist(plist_t plist, bool isBinary);
 	void onDeviceData(unsigned char *buffer, int length);
+	void onDeviceVersionInput(VersionHeader *vh);
+	void onDeviceTcpInput(struct tcphdr *th, unsigned char *payload, uint32_t payload_length);
+	void onDeviceConnectionInput(unsigned char *payload, uint32_t payload_length);
+	void resetDevice();
+	void startActualPair();
 
 private:
 	unsigned char *m_pktbuf = nullptr;
 	uint32_t m_pktlen;
 
 	bool m_stop = false;
-	char serial[256] = { 0 };
+	char m_serial[256] = { 0 };
 	int m_qtConfigIndex = -1;
 	uint8_t m_interface, ep_in, ep_out;
 	uint8_t m_interface_fa, ep_in_fa, ep_out_fa;
 	struct usb_dev_handle *m_deviceHandle = nullptr;
 	struct usb_device *m_device = nullptr;
 	std::thread m_usbReadTh;
+
+	bool m_pairFinished = false;
+	ConnectionStage m_currentConnectionState = None;
+	uint16_t m_rxSeq;
+	uint16_t m_txSeq;
+	u_long m_connTxSeq;
+	u_long m_connTxAck;
+	int m_devVersion;
+	MuxDevState m_devState;
+	MuxConnState m_connState;
+	QEventLoop m_pairBlockEvent;
+	QEventLoop m_pairStepBlockEvent;
 };
