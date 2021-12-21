@@ -31,9 +31,9 @@ void MirrorManager::readUSBData(void *data)
 	free(buffer);
 }
 
-void MirrorManager::resetDevice()
+void MirrorManager::resetDevice(QString msg)
 {
-
+	m_errorMsg = msg;
 }
 
 void MirrorManager::onDeviceVersionInput(VersionHeader *vh)
@@ -61,11 +61,40 @@ void MirrorManager::onDeviceVersionInput(VersionHeader *vh)
 	m_connState = MuxConnState::CONN_CONNECTING;
 	sendTcp(TH_SYN, NULL, 0);
 }
-
+//m_connTxAck 这个值和原版的投屏进程还不太一样，设置的时机不一样。这里我设置的早了。明天得看下这个值设置的早了会不会有什么问题
 void MirrorManager::onDeviceConnectionInput(unsigned char *payload, uint32_t payload_length)
 {
 	if (m_currentConnectionState == QueryType) {
+		m_usbDataCache.append((const char *)payload, payload_length);
+		if (m_usbDataCache.size() > 4) {
+			uint32_t reqSize = 0;
+			memcpy(&reqSize, m_usbDataCache.data(), sizeof(reqSize));
+			reqSize = be32toh(reqSize);
+			if (m_usbDataCache.size() >= reqSize + sizeof(reqSize)) {
+				plist_t dict = plist_new_dict();
+				bool success = receivePlist((unsigned char *)m_usbDataCache.data(), m_usbDataCache.size(), &dict);
+				if (success) {
+					plist_t type_node = plist_dict_get_item(dict, "Type");
+					if (type_node && (plist_get_node_type(type_node) == PLIST_STRING)) {
+						char* typestr = NULL;
+						plist_get_string_val(type_node, &typestr);
+						qDebug("success with type %s", typestr);
 
+						if (strcmp(typestr, "com.apple.mobile.lockdown") != 0) {
+							int cc = 0;
+							cc++; 
+						}
+					} else {
+						qDebug("hmm. QueryType response does not contain a type?!");
+						resetDevice(u8"QueryType响应中未包含Type字段。");
+					}
+				} else
+					resetDevice(u8"QueryType响应数据解析异常。");
+				plist_free(dict);
+
+				m_usbDataCache.clear();
+			}
+		}
 	}
 }
 
@@ -89,13 +118,13 @@ void MirrorManager::onDeviceTcpInput(struct tcphdr *th, unsigned char *payload, 
 			if(th->th_flags & TH_RST)
 				m_connState = MuxConnState::CONN_REFUSED;
 			qDebug("Connection refused (%d->%d)", sport, dport);
-			resetDevice(); //this also sends the notification to the client
+			resetDevice(u8"设备拒绝连接。"); //this also sends the notification to the client
 		} else {
 			m_connTxSeq++;
 			m_connTxAck++;
 			if(sendTcp(TH_ACK, NULL, 0) < 0) {
 				qDebug("Error sending TCP ACK to device (%d->%d)", sport, dport);
-				resetDevice();
+				resetDevice(u8"发送响应指令失败，请重新连接。");
 				return;
 			}
 			m_connState = MuxConnState::CONN_CONNECTED;
@@ -108,7 +137,7 @@ void MirrorManager::onDeviceTcpInput(struct tcphdr *th, unsigned char *payload, 
 			qDebug("Connection reset by device %d (%d->%d)", sport, dport);
 			if(th->th_flags & TH_RST)
 				m_connState = MuxConnState::CONN_DYING;
-			resetDevice();
+			resetDevice(u8"设备重置了连接，请断开设备、重启后再试。");
 		} else {
 			onDeviceConnectionInput(payload, payload_length);
 
@@ -243,6 +272,36 @@ bool MirrorManager::sendPlist(plist_t plist, bool isBinary)
 	return true;
 }
 
+bool MirrorManager::receivePlist(unsigned char *payload, uint32_t payload_length, plist_t *plist)
+{
+	if (!plist)
+		return false;
+
+	*plist = NULL;
+	uint32_t pktlen = 0;
+	memcpy(&pktlen, payload, sizeof(pktlen));
+	pktlen = be32toh(pktlen);
+	if (pktlen + 4 > payload_length)
+		return false;
+
+	unsigned char *content = payload + sizeof(pktlen);
+
+	if ((pktlen > 8) && !memcmp(content, "bplist00", 8)) {
+		plist_from_bin((const char *)content, pktlen, plist);
+	} else if ((pktlen > 5) && !memcmp(content, "<?xml", 5)) {
+		/* iOS 4.3+ hack: plist data might contain invalid characters, thus we convert those to spaces */
+		for (uint32_t bytes = 0; bytes < pktlen-1; bytes++) {
+			if ((content[bytes] >= 0) && (content[bytes] < 0x20) && (content[bytes] != 0x09) && (content[bytes] != 0x0a) && (content[bytes] != 0x0d))
+				content[bytes] = 0x20;
+		}
+		plist_from_xml((const char *)content, pktlen, plist);
+	} else {
+		qDebug("WARNING: received unexpected non-plist content");
+	}
+	
+	return *plist != NULL;
+}
+
 static void plist_dict_add_label(plist_t plist, const char *label)
 {
 	if (plist && label) {
@@ -280,12 +339,14 @@ static struct usb_device *findAppleDevice(int vid, int pid)
 }
 
 #include <QThread>
-int MirrorManager::checkAndChangeMode(int vid, int pid)
+bool MirrorManager::checkAndChangeMode(int vid, int pid)
 {
 	int ret = -1;
 	struct usb_device *device = findAppleDevice(vid, pid);
-	if (!device)
-		return ret;
+	if (!device) {
+		m_errorMsg = u8"iOS设备未找到";
+		return false;
+	}	
 
 	int muxConfigIndex = -1;
 	int qtConfigIndex = -1;
@@ -305,36 +366,38 @@ int MirrorManager::checkAndChangeMode(int vid, int pid)
 			if (!dev) {
 				QThread::msleep(10);
 				if(loopCount > 300) {
-					ret = -4;
+					m_errorMsg = u8"切换投屏模式过程中设备丢失连接，请确保设备与电脑有良好的连接。";
 					break;
 				}
 				continue;
 			} else {
 				findConfigurations(&dev->descriptor, dev, &muxConfigIndex, &qtConfigIndex);
 				if (qtConfigIndex == -1)
-					ret = -2;
+					m_errorMsg = u8"进入投屏模式失败，请断开连接，重启手机后再试。";
 				else {
 					m_qtConfigIndex = qtConfigIndex;
 					m_deviceHandle = usb_open(dev);
 					m_device = dev;
 					memset(m_serial, 0, sizeof(m_serial));
 					usb_get_string_simple(m_deviceHandle, m_device->descriptor.iSerialNumber, m_serial, sizeof(m_serial));
-					ret = 0;
+					ret = true;
 				}
 				break;
 			}
 		}
 		qDebug() << "Apple device reconnect cost time " << t.elapsed() << ", loop count: " << loopCount;
 	} else
-		ret = -3;
+		m_errorMsg = u8"设备异常，请重新插拔手机后再试。";
 
 	return ret;
 }
 
-int MirrorManager::setupUSBInfo()
+bool MirrorManager::setupUSBInfo()
 {
-	if(!m_device || !m_deviceHandle)
-		return -1;
+	if(!m_device || !m_deviceHandle) {
+		m_errorMsg = u8"iOS设备异常，请插拔后再试";
+		return false;
+	}
 
 	char config = -1;
 	int res = usb_control_msg(m_deviceHandle, USB_RECIP_DEVICE | USB_ENDPOINT_IN, USB_REQ_GET_CONFIGURATION, 0, 0, &config, 1, 500);
@@ -386,10 +449,10 @@ int MirrorManager::setupUSBInfo()
 
 	res = usb_claim_interface(m_deviceHandle, m_interface);
 	res = usb_claim_interface(m_deviceHandle, m_interface_fa);
-	return 0;
+	return true;
 }
 
-int MirrorManager::startPair()
+bool MirrorManager::startPair()
 {
 	m_usbReadTh = std::thread(readUSBData, this);
 	m_usbReadTh.detach();
@@ -405,39 +468,24 @@ int MirrorManager::startPair()
 
 	m_pairBlockEvent.exec();
 
-	return 0;
+	return true;
 }
 
 //-1=>没找到设备
 //-2=>发送切换指令后，设备触发了重启，但是重启后还是没有启用新USB功能，提示用户重启手机
 //-3=>设备已经在启用了投屏能力，提示用户插拔手机
 //-4=>发送切换指令后，3s内未能重新找到设备，提示用户保持手机与电脑的连接
-int MirrorManager::startMirrorTask(int vid, int pid) 
+bool MirrorManager::startMirrorTask(int vid, int pid) 
 {
 	m_pktlen = 0;
-	int ret = -1;
-	do {
-		ret = checkAndChangeMode(vid, pid);
-		if (ret != 0)
-			break;
-
-		ret = setupUSBInfo();
-		if (ret != 0)
-			break;
-
-		ret = startPair();
-		if (ret != 0)
-			break;
-	} while (false);
-
-	return ret;
+	return checkAndChangeMode(vid, pid) && setupUSBInfo() && startPair();
 }
 
 int MirrorManager::sendTcpAck()
 {
 	if (sendTcp(TH_ACK, NULL, 0) < 0) {
 		qDebug("Error sending TCP ACK");
-		resetDevice();
+		resetDevice(u8"发送响应指令失败，请重新连接。");
 		return -1;
 	}
 

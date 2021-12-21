@@ -62,28 +62,30 @@ public:
 	MirrorManager();
 	~MirrorManager();
 
-	int startMirrorTask(int vid, int pid);
+	bool startMirrorTask(int vid, int pid);
 
 	static void readUSBData(void *data);
 
 private:
-	int checkAndChangeMode(int vid, int pid);
-	int setupUSBInfo();
-	int startPair();
+	bool checkAndChangeMode(int vid, int pid);
+	bool setupUSBInfo();
+	bool startPair();
 
 private:
 	int sendTcpAck();
 	int sendTcp(uint8_t flags, const unsigned char *data, int length);
 	int sendPacket(MuxProtocol proto, void *header, const void *data, int length);
 	bool sendPlist(plist_t plist, bool isBinary);
+	bool receivePlist(unsigned char *payload, uint32_t payload_length, plist_t *plist);
 	void onDeviceData(unsigned char *buffer, int length);
 	void onDeviceVersionInput(VersionHeader *vh);
 	void onDeviceTcpInput(struct tcphdr *th, unsigned char *payload, uint32_t payload_length);
 	void onDeviceConnectionInput(unsigned char *payload, uint32_t payload_length);
-	void resetDevice();
+	void resetDevice(QString msg);
 	void startActualPair();
 
 private:
+	QString m_errorMsg;
 	unsigned char *m_pktbuf = nullptr;
 	uint32_t m_pktlen;
 
@@ -98,6 +100,7 @@ private:
 
 	bool m_pairFinished = false;
 	ConnectionStage m_currentConnectionState = None;
+	QByteArray m_usbDataCache;
 	uint16_t m_rxSeq;
 	uint16_t m_txSeq;
 	u_long m_connTxSeq;
