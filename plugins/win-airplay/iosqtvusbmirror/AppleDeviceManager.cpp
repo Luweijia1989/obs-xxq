@@ -23,6 +23,7 @@ GUID USB_DEVICE_GUID = {0xA5DCBF10,
 AppleDeviceManager::AppleDeviceManager()
 {
 	m_mirrorManager = new MirrorManager;
+	m_mirrorManager->setParent(this);
 	m_driverHelper = new DriverHelper(this);
 	connect(m_driverHelper, &DriverHelper::installProgress, this,
 		&AppleDeviceManager::installProgress);
@@ -32,7 +33,7 @@ AppleDeviceManager::AppleDeviceManager()
 
 AppleDeviceManager::~AppleDeviceManager()
 {
-	delete m_mirrorManager;
+	
 }
 
 void AppleDeviceManager::deferUpdateUsbInventory(bool isAdd)

@@ -4,15 +4,22 @@
 #include <QDebug>
 #include <QElapsedTimer>
 
+extern "C"
+{
+#include "conf.h"
+}
+
 MirrorManager::MirrorManager()
 {
 	usb_init();
 	m_pktbuf = (unsigned char *)malloc(DEV_MRU);
+	circlebuf_init(&m_usbDataCache);
 }
 
 MirrorManager::~MirrorManager()
 {
 	free(m_pktbuf);
+	circlebuf_free(&m_usbDataCache);
 }
 
 void MirrorManager::readUSBData(void *data)
@@ -61,41 +68,639 @@ void MirrorManager::onDeviceVersionInput(VersionHeader *vh)
 	m_connState = MuxConnState::CONN_CONNECTING;
 	sendTcp(TH_SYN, NULL, 0);
 }
+
+static bool lockdownCheckResult(plist_t dict, const char *query_match)
+{
+	bool ret = false;
+	plist_t query_node = plist_dict_get_item(dict, "Request");
+	if (!query_node) {
+		return ret;
+	}
+
+	if (plist_get_node_type(query_node) != PLIST_STRING) {
+		return ret;
+	} else {
+		char *query_value = NULL;
+
+		plist_get_string_val(query_node, &query_value);
+		if (!query_value) {
+			return ret;
+		}
+
+		if (query_match && (strcmp(query_value, query_match) != 0)) {
+			free(query_value);
+			return ret;
+		}
+
+		free(query_value);
+	}
+
+	plist_t result_node = plist_dict_get_item(dict, "Result");
+	if (!result_node) {
+		/* iOS 5: the 'Result' key is not present anymore.
+		   But we need to check for the 'Error' key. */
+		plist_t err_node = plist_dict_get_item(dict, "Error");
+		if (err_node) {
+			if (plist_get_node_type(err_node) == PLIST_STRING) {
+				char *err_value = NULL;
+
+				plist_get_string_val(err_node, &err_value);
+				if (err_value) {
+					qDebug("ERROR: %s", err_value);
+					free(err_value);
+				} else {
+					qDebug("ERROR: unknown error occurred");
+				}
+			}
+			return ret;
+		}
+
+		ret = true;
+
+		return ret;
+	}
+
+	plist_type result_type = plist_get_node_type(result_node);
+	if (result_type == PLIST_STRING) {
+		char *result_value = NULL;
+
+		plist_get_string_val(result_node, &result_value);
+		if (result_value) {
+			if (!strcmp(result_value, "Success")) {
+				ret = true;
+			} else if (!strcmp(result_value, "Failure")) {
+				
+			} else {
+				qDebug("ERROR: unknown result value '%s'", result_value);
+			}
+		}
+
+		if (result_value)
+			free(result_value);
+	}
+
+	return ret;
+}
+
+static void plist_dict_add_label(plist_t plist, const char *label)
+{
+	if (plist && label) {
+		if (plist_get_node_type(plist) == PLIST_DICT)
+			plist_dict_set_item(plist, "Label", plist_new_string(label));
+	}
+}
+
+bool MirrorManager::receivePlist(plist_t *ret, const char *key)
+{
+	uint32_t pktlen = 0;
+	if (!readDataWithSize(&pktlen, sizeof(pktlen))) {
+		qDebug() << "read QueryType length failed";
+		return false;
+	}
+
+	pktlen = be32toh(pktlen);
+	char *buf = (char *)malloc(pktlen);
+	if (!readDataWithSize(buf, pktlen)) {
+		qDebug() << "read QueryType data failed";
+		free(buf);
+		return false;
+	}
+
+	*ret = NULL;
+	bool success = receivePlistInternal(buf, pktlen, ret);
+	free(buf);
+	if (!success) {
+		resetDevice(QString(u8"%1 响应数据解析异常。").arg(key));
+		return false;
+	}
+
+	return true;
+}
+
+bool MirrorManager::lockdownGetValue(const char *domain, const char *key, plist_t *value)
+{
+	bool ret = false;
+	plist_t dict = plist_new_dict();
+	plist_dict_add_label(dict, "usbmuxd");
+	if (domain) {
+		plist_dict_set_item(dict, "Domain", plist_new_string(domain));
+	}
+	if (key) {
+		plist_dict_set_item(dict, "Key", plist_new_string(key));
+	}
+	plist_dict_set_item(dict, "Request", plist_new_string("GetValue"));
+	sendPlist(dict, false);
+	plist_free(dict);
+
+	if (!receivePlist(&dict, key)) {
+		return ret;
+	}
+
+	if (lockdownCheckResult(dict, "GetValue")) {
+		plist_t value_node = plist_dict_get_item(dict, "Value");
+		if (value_node) {
+			qDebug("has a value");
+			*value = plist_copy(value_node);
+			ret = true;
+		} else
+			resetDevice(QString(u8"GetValue 返回中没有 %1").arg(key));
+
+	} else {
+		resetDevice(u8"GetValue 返回校验失败。");
+	}
+
+	plist_free(dict);
+	return ret;
+}
+
+bool MirrorManager::lockdownSetValue(const char *domain, const char *key, plist_t value)
+{
+	bool ret = false;
+	plist_t dict = plist_new_dict();
+	plist_dict_add_label(dict, "usbmuxd");
+	if (domain) {
+		plist_dict_set_item(dict,"Domain", plist_new_string(domain));
+	}
+	if (key) {
+		plist_dict_set_item(dict,"Key", plist_new_string(key));
+	}
+	plist_dict_set_item(dict,"Request", plist_new_string("SetValue"));
+	plist_dict_set_item(dict,"Value", value);
+	sendPlist(dict, false);
+	plist_free(dict);
+
+	if (!receivePlist(&dict, key)) {
+		return ret;
+	}
+
+	if (lockdownCheckResult(dict, "SetValue"))
+		ret = true;
+	else 
+		resetDevice(u8"GetValue 返回校验失败。");
+
+	free(dict);
+	return ret;
+}
+
+static plist_t lockdownd_pair_record_to_plist(MirrorManager::PairRecord *pair_record)
+{
+	if (!pair_record)
+		return NULL;
+
+	/* setup request plist */
+	plist_t dict = plist_new_dict();
+	plist_dict_set_item(dict, "DeviceCertificate", plist_new_data(pair_record->device_certificate, strlen(pair_record->device_certificate)));
+	plist_dict_set_item(dict, "HostCertificate", plist_new_data(pair_record->host_certificate, strlen(pair_record->host_certificate)));
+	plist_dict_set_item(dict, "HostID", plist_new_string(pair_record->host_id));
+	plist_dict_set_item(dict, "RootCertificate", plist_new_data(pair_record->root_certificate, strlen(pair_record->root_certificate)));
+	plist_dict_set_item(dict, "SystemBUID", plist_new_string(pair_record->system_buid));
+
+	return dict;
+}
+
+bool MirrorManager::lockdownPair(PairRecord *record)
+{
+	plist_t options = plist_new_dict();
+	plist_dict_set_item(options, "ExtendedPairingErrors", plist_new_bool(1));
+
+	bool ret = lockdownDoPair(record, "Pair", options, NULL);
+
+	plist_free(options);
+
+	return ret;
+}
+
+bool MirrorManager::lockdownGetDevicePublicKeyAsKeyData(char **data, uint64_t *size)
+{
+	bool ret = false;
+	plist_t value = NULL;
+	char *value_value = NULL;
+
+	ret = lockdownGetValue(NULL, "DevicePublicKey", &value);
+	if (!ret) {
+		return ret;
+	}
+	plist_get_data_val(value, data, size);
+
+	plist_free(value);
+	value = NULL;
+
+	return ret;
+}
+
+bool MirrorManager::lockdownPairRecordgenerate(plist_t *pair_record)
+{
+	bool ret = false;
+
+	char* host_id = NULL;
+	char* system_buid = NULL;
+
+	/* retrieve device public key */
+	char *data = NULL;
+	uint64_t size = 0;
+	ret = lockdownGetDevicePublicKeyAsKeyData(&data, &size);
+//	if (ret != LOCKDOWN_E_SUCCESS) {
+//		debug_info("device refused to send public key.");
+//		goto leave;
+//	}
+//	debug_info("device public key follows:\n%.*s", public_key.size, public_key.data);
+//
+//	*pair_record = plist_new_dict();
+//
+//	/* generate keys and certificates into pair record */
+//	userpref_error_t uret = USERPREF_E_SUCCESS;
+//	uret = pair_record_generate_keys_and_certs(*pair_record, public_key);
+//	switch(uret) {
+//		case USERPREF_E_INVALID_ARG:
+//			ret = LOCKDOWN_E_INVALID_ARG;
+//			break;
+//		case USERPREF_E_INVALID_CONF:
+//			ret = LOCKDOWN_E_INVALID_CONF;
+//			break;
+//		case USERPREF_E_SSL_ERROR:
+//			ret = LOCKDOWN_E_SSL_ERROR;
+//		default:
+//			break;
+//	}
+//
+//	/* set SystemBUID */
+//	userpref_read_system_buid(&system_buid);
+//	if (system_buid) {
+//		plist_dict_set_item(*pair_record, USERPREF_SYSTEM_BUID_KEY, plist_new_string(system_buid));
+//	}
+//
+//	/* set HostID */
+//	host_id = generate_uuid();
+//	pair_record_set_host_id(*pair_record, host_id);
+//
+//leave:
+//	if (host_id)
+//		free(host_id);
+//	if (system_buid)
+//		free(system_buid);
+//	if (public_key.data)
+//		free(public_key.data);
+//
+	return ret;
+}
+
+bool MirrorManager::lockdownDoPair(PairRecord *pair_record, const char *verb, plist_t options, plist_t *result)
+{
+	//plist_t dict = NULL;
+	//plist_t pair_record_plist = NULL;
+	//plist_t wifi_node = NULL;
+	//int pairing_mode = 0; /* 0 = libimobiledevice, 1 = external */
+
+	//if (pair_record && pair_record->system_buid && pair_record->host_id) {
+	//	/* valid pair_record passed? */
+	//	if (!pair_record->device_certificate || !pair_record->host_certificate || !pair_record->root_certificate) {
+	//		return false;
+	//	}
+
+	//	/* use passed pair_record */
+	//	pair_record_plist = lockdownd_pair_record_to_plist(pair_record);
+
+	//	pairing_mode = 1;
+	//} else {
+	//	/* generate a new pair record if pairing */
+	//	if (!strcmp("Pair", verb)) {
+	//		ret = pair_record_generate(client, &pair_record_plist);
+
+	//		if (ret != LOCKDOWN_E_SUCCESS) {
+	//			if (pair_record_plist)
+	//				plist_free(pair_record_plist);
+	//			return ret;
+	//		}
+
+	//		/* get wifi mac now, if we get it later we fail on iOS 7 which causes a reconnect */
+	//		lockdownd_get_value(client, NULL, "WiFiAddress", &wifi_node);
+	//	} else {
+	//		/* use existing pair record */
+	//		userpref_read_pair_record(client->udid, &pair_record_plist);
+	//		if (!pair_record_plist) {
+	//			return LOCKDOWN_E_INVALID_HOST_ID;
+	//		}
+	//	}
+	//}
+
+	//plist_t request_pair_record = plist_copy(pair_record_plist);
+
+	///* remove stuff that is private */
+	//plist_dict_remove_item(request_pair_record, USERPREF_ROOT_PRIVATE_KEY_KEY);
+	//plist_dict_remove_item(request_pair_record, USERPREF_HOST_PRIVATE_KEY_KEY);
+
+	///* setup pair request plist */
+	//dict = plist_new_dict();
+	//plist_dict_add_label(dict, client->label);
+	//plist_dict_set_item(dict, "PairRecord", request_pair_record);
+	//plist_dict_set_item(dict, "Request", plist_new_string(verb));
+	//plist_dict_set_item(dict, "ProtocolVersion", plist_new_string(LOCKDOWN_PROTOCOL_VERSION));
+
+	//if (options) {
+	//	plist_dict_set_item(dict, "PairingOptions", plist_copy(options));
+	//}
+
+	///* send to device */
+	//ret = lockdownd_send(client, dict);
+	//plist_free(dict);
+	//dict = NULL;
+
+	//if (ret != LOCKDOWN_E_SUCCESS) {
+	//	plist_free(pair_record_plist);
+	//	if (wifi_node)
+	//		plist_free(wifi_node);
+	//	return ret;
+	//}
+
+	///* Now get device's answer */
+	//ret = lockdownd_receive(client, &dict);
+
+	//if (ret != LOCKDOWN_E_SUCCESS) {
+	//	plist_free(pair_record_plist);
+	//	if (wifi_node)
+	//		plist_free(wifi_node);
+	//	return ret;
+	//}
+
+	//if (strcmp(verb, "Unpair") == 0) {
+	//	/* workaround for Unpair giving back ValidatePair,
+	//	 * seems to be a bug in the device's fw */
+	//	if (lockdown_check_result(dict, NULL) != LOCKDOWN_E_SUCCESS) {
+	//		ret = LOCKDOWN_E_PAIRING_FAILED;
+	//	}
+	//} else {
+	//	if (lockdown_check_result(dict, verb) != LOCKDOWN_E_SUCCESS) {
+	//		ret = LOCKDOWN_E_PAIRING_FAILED;
+	//	}
+	//}
+
+	///* if pairing succeeded */
+	//if (ret == LOCKDOWN_E_SUCCESS) {
+	//	debug_info("%s success", verb);
+	//	if (!pairing_mode) {
+	//		debug_info("internal pairing mode");
+	//		if (!strcmp("Unpair", verb)) {
+	//			/* remove public key from config */
+	//			userpref_delete_pair_record(client->udid);
+	//		} else {
+	//			if (!strcmp("Pair", verb)) {
+	//				/* add returned escrow bag if available */
+	//				plist_t extra_node = plist_dict_get_item(dict, USERPREF_ESCROW_BAG_KEY);
+	//				if (extra_node && plist_get_node_type(extra_node) == PLIST_DATA) {
+	//					debug_info("Saving EscrowBag from response in pair record");
+	//					plist_dict_set_item(pair_record_plist, USERPREF_ESCROW_BAG_KEY, plist_copy(extra_node));
+	//				}
+
+	//				/* save previously retrieved wifi mac address in pair record */
+	//				if (wifi_node) {
+	//					debug_info("Saving WiFiAddress from device in pair record");
+	//					plist_dict_set_item(pair_record_plist, USERPREF_WIFI_MAC_ADDRESS_KEY, plist_copy(wifi_node));
+	//					plist_free(wifi_node);
+	//					wifi_node = NULL;
+	//				}
+
+	//				userpref_save_pair_record(client->udid, client->mux_id, pair_record_plist);
+	//			}
+	//		}
+	//	} else {
+	//		debug_info("external pairing mode");
+	//	}
+	//} else {
+	//	debug_info("%s failure", verb);
+	//	plist_t error_node = NULL;
+	//	/* verify error condition */
+	//	error_node = plist_dict_get_item(dict, "Error");
+	//	if (error_node) {
+	//		char *value = NULL;
+	//		plist_get_string_val(error_node, &value);
+	//		if (value) {
+	//			/* the first pairing fails if the device is password protected */
+	//			ret = lockdownd_strtoerr(value);
+	//			free(value);
+	//		}
+	//	}
+	//}
+
+	//if (pair_record_plist) {
+	//	plist_free(pair_record_plist);
+	//	pair_record_plist = NULL;
+	//}
+
+	//if (wifi_node) {
+	//	plist_free(wifi_node);
+	//	wifi_node = NULL;
+	//}
+
+	//if (result) {
+	//	*result = dict;
+	//} else {
+	//	plist_free(dict);
+	//	dict = NULL;
+	//}
+
+	//return ret;
+}
+
+void MirrorManager::setUntrustedHostBuid()
+{
+	char* system_buid = NULL;
+	config_get_system_buid(&system_buid);
+	qDebug("%s: Setting UntrustedHostBUID to %s", __func__, system_buid);
+	lockdownSetValue(NULL, "UntrustedHostBUID", plist_new_string(system_buid));
+	free(system_buid);
+}
+
+void MirrorManager::handleVersionValue(plist_t value)
+{
+	if (value && plist_get_node_type(value) == PLIST_STRING) {
+		char *versionStr = NULL;
+		plist_get_string_val(value, &versionStr);
+		int versionMajor = strtol(versionStr, NULL, 10);
+		if (versionMajor < 7)
+			resetDevice(u8"iOS版本太低，投屏所需最低版本为iOS7。");
+		else {
+			qDebug("%s: Found ProductVersion %s device %s", __func__, versionStr, m_serial);
+			setUntrustedHostBuid();
+
+			if (!m_devicePaired) {
+				if (lockdownPair(NULL)) {
+
+				} else {
+
+				}
+			}
+		}
+
+		free(versionStr);
+	} else
+		resetDevice(u8"ProductionVersion 获取version字符串失败。");
+
+	plist_free(value);
+}
+
+void MirrorManager::startActualPair()
+{
+	plist_t dict = plist_new_dict();
+	plist_dict_add_label(dict, "usbmuxd");
+	plist_dict_set_item(dict, "Request", plist_new_string("QueryType"));
+	sendPlist(dict, false);
+	plist_free(dict);
+
+	if (receivePlist(&dict, "QueryType")) {
+		plist_t type_node = plist_dict_get_item(dict, "Type");
+			if (type_node && (plist_get_node_type(type_node) == PLIST_STRING)) {
+				char* typestr = NULL;
+				plist_get_string_val(type_node, &typestr);
+				qDebug("success with type %s", typestr);
+
+				if (strcmp(typestr, "com.apple.mobile.lockdown") != 0) {
+					int cc = 0;
+					cc++; 
+				} else {
+					char *host_id = NULL;
+					if (config_has_device_record(m_serial)) {
+						config_device_record_get_host_id(m_serial, &host_id);
+						//lerr = lockdownd_start_session(lockdown, host_id, NULL, NULL);
+						//if (host_id)
+						//	free(host_id);
+						//if (lerr == LOCKDOWN_E_SUCCESS) {
+						//	usbmuxd_log(LL_INFO, "%s: StartSession success for device %s", __func__, _dev->udid);
+						//	usbmuxd_log(LL_INFO, "%s: Finished preflight on device %s", __func__, _dev->udid);
+						//	client_device_add(info);
+						//	goto leave;
+						//}
+
+						//usbmuxd_log(LL_INFO, "%s: StartSession failed on device %s, lockdown error %d", __func__, _dev->udid, lerr);
+					} else {
+								
+					}
+					free(host_id);
+
+					plist_t value = NULL;
+					if (lockdownGetValue(NULL, "ProductVersion", &value))
+						handleVersionValue(value);
+				}
+				free(typestr);
+			} else {
+				qDebug("hmm. QueryType response does not contain a type?!");
+				resetDevice(u8"QueryType响应中未包含Type字段。");
+			}
+	}
+	
+	plist_free(dict);
+}
+
 //m_connTxAck 这个值和原版的投屏进程还不太一样，设置的时机不一样。这里我设置的早了。明天得看下这个值设置的早了会不会有什么问题
 void MirrorManager::onDeviceConnectionInput(unsigned char *payload, uint32_t payload_length)
 {
-	if (m_currentConnectionState == QueryType) {
-		m_usbDataCache.append((const char *)payload, payload_length);
-		if (m_usbDataCache.size() > 4) {
-			uint32_t reqSize = 0;
-			memcpy(&reqSize, m_usbDataCache.data(), sizeof(reqSize));
-			reqSize = be32toh(reqSize);
-			if (m_usbDataCache.size() >= reqSize + sizeof(reqSize)) {
-				plist_t dict = plist_new_dict();
-				bool success = receivePlist((unsigned char *)m_usbDataCache.data(), m_usbDataCache.size(), &dict);
-				if (success) {
-					plist_t type_node = plist_dict_get_item(dict, "Type");
-					if (type_node && (plist_get_node_type(type_node) == PLIST_STRING)) {
-						char* typestr = NULL;
-						plist_get_string_val(type_node, &typestr);
-						qDebug("success with type %s", typestr);
+	//if (m_currentConnectionState == QueryType
+	//	|| m_currentConnectionState == ProductionVersion
+	//	|| m_currentConnectionState == SetUntrustedHostBUID) {
+	//	m_usbDataCache.append((const char *)payload, payload_length);
+	//	if (m_usbDataCache.size() <= 4)
+	//		return;
 
-						if (strcmp(typestr, "com.apple.mobile.lockdown") != 0) {
-							int cc = 0;
-							cc++; 
-						}
-					} else {
-						qDebug("hmm. QueryType response does not contain a type?!");
-						resetDevice(u8"QueryType响应中未包含Type字段。");
-					}
-				} else
-					resetDevice(u8"QueryType响应数据解析异常。");
-				plist_free(dict);
+	//	uint32_t reqSize = 0;
+	//	memcpy(&reqSize, m_usbDataCache.data(), sizeof(reqSize));
+	//	reqSize = be32toh(reqSize);
+	//	if (m_usbDataCache.size() < reqSize + sizeof(reqSize))
+	//		return;
 
-				m_usbDataCache.clear();
-			}
-		}
-	}
+	//	plist_t dict = plist_new_dict();
+	//	bool success = receivePlist((unsigned char *)m_usbDataCache.data(), m_usbDataCache.size(), &dict);
+	//	m_usbDataCache.clear();
+	//	if (!success) {
+	//		QString msg;
+	//		switch (m_currentConnectionState)
+	//		{
+	//		case MirrorManager::QueryType:
+	//			msg = u8"QueryType响应数据解析异常。";
+	//			break;
+	//		case MirrorManager::ProductionVersion:
+	//			msg = u8"ProductionVersion响应数据解析异常。";
+	//			break;
+	//		default:
+	//			break;
+	//		}
+	//		resetDevice(msg);
+	//		plist_free(dict);
+	//		return;
+	//	}
+
+	//	if (m_currentConnectionState == QueryType) {
+	//		plist_t type_node = plist_dict_get_item(dict, "Type");
+	//		if (type_node && (plist_get_node_type(type_node) == PLIST_STRING)) {
+	//			char* typestr = NULL;
+	//			plist_get_string_val(type_node, &typestr);
+	//			qDebug("success with type %s", typestr);
+
+	//			if (strcmp(typestr, "com.apple.mobile.lockdown") != 0) {
+	//				int cc = 0;
+	//				cc++; 
+	//			} else {
+	//				char *host_id = NULL;
+	//				if (config_has_device_record(m_serial)) {
+	//					config_device_record_get_host_id(m_serial, &host_id);
+	//					//lerr = lockdownd_start_session(lockdown, host_id, NULL, NULL);
+	//					//if (host_id)
+	//					//	free(host_id);
+	//					//if (lerr == LOCKDOWN_E_SUCCESS) {
+	//					//	usbmuxd_log(LL_INFO, "%s: StartSession success for device %s", __func__, _dev->udid);
+	//					//	usbmuxd_log(LL_INFO, "%s: Finished preflight on device %s", __func__, _dev->udid);
+	//					//	client_device_add(info);
+	//					//	goto leave;
+	//					//}
+
+	//					//usbmuxd_log(LL_INFO, "%s: StartSession failed on device %s, lockdown error %d", __func__, _dev->udid, lerr);
+	//				} else {
+	//							
+	//				}
+	//				free(host_id);
+	//				lockdownGetValue(NULL, "ProductVersion", ProductionVersion);
+	//			}
+	//			free(typestr);
+	//		} else {
+	//			qDebug("hmm. QueryType response does not contain a type?!");
+	//			resetDevice(u8"QueryType响应中未包含Type字段。");
+	//		}
+	//	} else if (m_currentConnectionState == ProductionVersion) {
+	//		if (lockdownCheckResult(dict, "GetValue")) {
+	//			qDebug() << "success get production version";
+	//			plist_t value_node = plist_dict_get_item(dict, "Value");
+	//			if (value_node && plist_get_node_type(value_node) == PLIST_STRING) {
+	//				char *versionStr = NULL;
+	//				plist_get_string_val(value_node, &versionStr);
+	//				int versionMajor = strtol(versionStr, NULL, 10);
+	//				if (versionMajor < 7)
+	//					resetDevice(u8"iOS版本太低，投屏所需最低版本为iOS7。");
+	//				else {
+	//					qDebug("%s: Found ProductVersion %s device %s", __func__, versionStr, m_serial);
+
+	//					char* system_buid = NULL;
+	//					config_get_system_buid(&system_buid);
+	//					qDebug("%s: Setting UntrustedHostBUID to %s", __func__, system_buid);
+	//					lockdownSetValue(NULL, "UntrustedHostBUID", plist_new_string(system_buid), SetUntrustedHostBUID);
+	//					free(system_buid);
+	//				}
+
+	//				free(versionStr);
+	//			} else
+	//				resetDevice(u8"ProductionVersion 获取version字符串失败。");
+	//		} else
+	//			resetDevice(u8"ProductionVersion GetValue check不通过。");
+	//	} else if (m_currentConnectionState == SetUntrustedHostBUID) {
+	//		if (lockdownCheckResult(dict, "SetValue")) {
+	//			if (!m_devicePaired) {
+	//				plist_t options = plist_new_dict();
+	//				plist_dict_set_item(options, "ExtendedPairingErrors", plist_new_bool(1));
+	//				//lockdownd_error_t ret = lockdownd_do_pair(client, pair_record, "Pair", options, NULL);
+	//				plist_free(options);
+	//			}
+	//		} else
+	//			resetDevice(u8"SetUntrustedHostBUID SetValue check不通过。");
+	//	}
+	//	plist_free(dict);
+	//}
 }
 
 void MirrorManager::onDeviceTcpInput(struct tcphdr *th, unsigned char *payload, uint32_t payload_length)
@@ -129,7 +734,7 @@ void MirrorManager::onDeviceTcpInput(struct tcphdr *th, unsigned char *payload, 
 			}
 			m_connState = MuxConnState::CONN_CONNECTED;
 
-			startActualPair();
+			QMetaObject::invokeMethod(this, "startActualPair");
 		}
 	} else if(m_connState == MuxConnState::CONN_CONNECTED) {
 		m_connTxAck += payload_length;
@@ -139,12 +744,34 @@ void MirrorManager::onDeviceTcpInput(struct tcphdr *th, unsigned char *payload, 
 				m_connState = MuxConnState::CONN_DYING;
 			resetDevice(u8"设备重置了连接，请断开设备、重启后再试。");
 		} else {
-			onDeviceConnectionInput(payload, payload_length);
+			m_usbDataLock.lock();
+			circlebuf_push_back(&m_usbDataCache, payload, payload_length);
+			m_usbDataWaitCondition.wakeOne();
+			m_usbDataLock.unlock();
 
 			// Device likes it best when we are prompty ACKing data
 			sendTcpAck();
 		}
 	}
+}
+
+bool MirrorManager::readDataWithSize(void *dst, size_t size, int timeout)
+{
+	bool ret = false;
+	QMutexLocker locker(&m_usbDataLock);
+	if (m_usbDataCache.size >= size) {
+		circlebuf_pop_front(&m_usbDataCache, dst, size);
+		ret = true;
+	} else {
+		ret = m_usbDataWaitCondition.wait(&m_usbDataLock, timeout);
+		if (ret)
+			circlebuf_pop_front(&m_usbDataCache, dst, size);
+	}
+
+	if (!ret)
+		resetDevice(u8"读取usb数据超时。");
+
+	return ret;
 }
 
 void MirrorManager::onDeviceData(unsigned char *buffer, int length)
@@ -205,8 +832,7 @@ void MirrorManager::onDeviceData(unsigned char *buffer, int length)
 	MuxProtocol protoc = (MuxProtocol)ntohl(mhdr->protocol);
 	switch (protoc) {
 	case MuxProtocol::MUX_PROTO_VERSION:
-		if (length <
-		    (mux_header_size + sizeof(VersionHeader))) {
+		if (length < (mux_header_size + sizeof(VersionHeader))) {
 			qDebug("Incoming version packet is too small (%d)", length);
 			return;
 		}
@@ -272,51 +898,27 @@ bool MirrorManager::sendPlist(plist_t plist, bool isBinary)
 	return true;
 }
 
-bool MirrorManager::receivePlist(unsigned char *payload, uint32_t payload_length, plist_t *plist)
+bool MirrorManager::receivePlistInternal(char *content, uint32_t pktlen, plist_t *plist)
 {
 	if (!plist)
 		return false;
 
 	*plist = NULL;
-	uint32_t pktlen = 0;
-	memcpy(&pktlen, payload, sizeof(pktlen));
-	pktlen = be32toh(pktlen);
-	if (pktlen + 4 > payload_length)
-		return false;
-
-	unsigned char *content = payload + sizeof(pktlen);
 
 	if ((pktlen > 8) && !memcmp(content, "bplist00", 8)) {
-		plist_from_bin((const char *)content, pktlen, plist);
+		plist_from_bin(content, pktlen, plist);
 	} else if ((pktlen > 5) && !memcmp(content, "<?xml", 5)) {
 		/* iOS 4.3+ hack: plist data might contain invalid characters, thus we convert those to spaces */
 		for (uint32_t bytes = 0; bytes < pktlen-1; bytes++) {
 			if ((content[bytes] >= 0) && (content[bytes] < 0x20) && (content[bytes] != 0x09) && (content[bytes] != 0x0a) && (content[bytes] != 0x0d))
 				content[bytes] = 0x20;
 		}
-		plist_from_xml((const char *)content, pktlen, plist);
+		plist_from_xml(content, pktlen, plist);
 	} else {
 		qDebug("WARNING: received unexpected non-plist content");
 	}
 	
 	return *plist != NULL;
-}
-
-static void plist_dict_add_label(plist_t plist, const char *label)
-{
-	if (plist && label) {
-		if (plist_get_node_type(plist) == PLIST_DICT)
-			plist_dict_set_item(plist, "Label", plist_new_string(label));
-	}
-}
-
-void MirrorManager::startActualPair()
-{
-	m_currentConnectionState = QueryType;
-	plist_t dict = plist_new_dict();
-	plist_dict_add_label(dict, "usbmuxd");
-	plist_dict_set_item(dict, "Request", plist_new_string("QueryType"));
-	sendPlist(dict, false);
 }
 
 static struct usb_device *findAppleDevice(int vid, int pid)
@@ -457,7 +1059,7 @@ bool MirrorManager::startPair()
 	m_usbReadTh = std::thread(readUSBData, this);
 	m_usbReadTh.detach();
 
-	m_currentConnectionState = None;
+	m_devicePaired = false;
 	m_devVersion = 0;
 	m_devState = MuxDevState::MUXDEV_INIT;
 	VersionHeader vh;
@@ -555,7 +1157,9 @@ int MirrorManager::sendPacket(MuxProtocol proto, void *header, const void *data,
 	if(data && length)
 		memcpy(buffer + mux_header_size + hdrlen, data, length);
 
+	m_usbSendLock.lock();
 	res = usb_bulk_write(m_deviceHandle, ep_out, buffer, total, 1000);
+	m_usbSendLock.unlock();
 	free(buffer);
 	if(res < 0) {
 		qDebug("usb_send failed while sending packet (len %d) to device", total);
