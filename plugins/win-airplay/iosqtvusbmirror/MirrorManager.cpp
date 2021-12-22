@@ -40,6 +40,20 @@ void MirrorManager::resetDevice(QString msg)
 	m_errorMsg = msg;
 }
 
+void MirrorManager::startConnect(uint16_t sport, uint16_t dport)
+{
+	ConnectionInfo *info = (ConnectionInfo *)malloc(sizeof(ConnectionInfo));
+	info->connTxAck = 0;
+	info->connTxSeq = 0;
+	info->connState = MuxConnState::CONN_CONNECTING;
+	info->srcPort = sport;
+	info->dstPort = dport;
+
+	m_connections.append(info);
+
+	sendTcp(info, TH_SYN, NULL, 0);
+}
+
 void MirrorManager::onDeviceVersionInput(VersionHeader *vh)
 {
 	if(m_devState != MuxDevState::MUXDEV_INIT) {
@@ -60,10 +74,7 @@ void MirrorManager::onDeviceVersionInput(VersionHeader *vh)
 	qDebug("Connected to v%d.%d device on location 0x%x with serial number %s", m_devVersion, vh->minor, m_device->bus->location, m_serial);
 	m_devState = MuxDevState::MUXDEV_ACTIVE;
 
-	m_connTxAck = 0;
-	m_connTxSeq = 0;
-	m_connState = MuxConnState::CONN_CONNECTING;
-	sendTcp(TH_SYN, NULL, 0);
+	startConnect(0x233, 0xf27e);
 }
 
 static bool lockdownCheckResult(plist_t dict, const char *query_match)
@@ -496,6 +507,125 @@ void MirrorManager::setUntrustedHostBuid()
 	free(system_buid);
 }
 
+bool MirrorManager::lockdownBuildStartServiceRequest(const char *identifier, int send_escrow_bag, plist_t *request)
+{
+	plist_t dict = plist_new_dict();
+
+	/* create the basic request params */
+	plist_dict_add_label(dict, "usbmuxd");
+	plist_dict_set_item(dict, "Request", plist_new_string("StartService"));
+	plist_dict_set_item(dict, "Service", plist_new_string(identifier));
+
+	/* if needed - get the escrow bag for the device and send it with the request */
+	if (send_escrow_bag) {
+		/* get the pairing record */
+		plist_t pair_record = NULL;
+		userpref_read_pair_record(m_serial, &pair_record);
+		if (!pair_record) {
+			qDebug("ERROR: failed to read pair record for device: %s", m_serial);
+			plist_free(dict);
+			resetDevice(u8"从配对记录中读取信息失败。");
+			return false;
+		}
+
+		/* try to read the escrow bag from the record */
+		plist_t escrow_bag = plist_dict_get_item(pair_record, USERPREF_ESCROW_BAG_KEY);
+		if (!escrow_bag || (PLIST_DATA != plist_get_node_type(escrow_bag))) {
+			qDebug("ERROR: Failed to retrieve the escrow bag from the device's record");
+			plist_free(dict);
+			plist_free(pair_record);
+			resetDevice(u8"ERROR: Failed to retrieve the escrow bag from the device's record 从配对记录中读取信息失败。");
+			return false;
+		}
+
+		qDebug("Adding escrow bag to StartService for %s", identifier);
+		plist_dict_set_item(dict, USERPREF_ESCROW_BAG_KEY, plist_copy(escrow_bag));
+		plist_free(pair_record);
+	}
+
+	*request = dict;
+	return true;
+}
+
+bool MirrorManager::lockdownStartService(const char *identifier, LockdownServiceDescriptor **service)
+{
+	return lockdownDoStartService(identifier, 0, service);
+}
+
+bool MirrorManager::lockdownDoStartService(const char *identifier, int send_escrow_bag, LockdownServiceDescriptor **service)
+{
+	if (!identifier || !service) {
+		resetDevice(u8"lockdownDoStartService 参数有误。");
+		return false;
+	}
+
+	if (*service) {
+		// reset fields if service descriptor is reused
+		(*service)->port = 0;
+		(*service)->ssl_enabled = 0;
+	}
+
+	plist_t dict = NULL;
+	uint16_t port_loc = 0;
+
+	/* create StartService request */
+	bool ret = lockdownBuildStartServiceRequest(identifier, send_escrow_bag, &dict);
+	if (!ret)
+		return ret;
+
+	/* send to device */
+	sendPlist(dict, 0);
+	plist_free(dict);
+	dict = NULL;
+
+	ret = receivePlist(&dict, "lockdownDoStartService");
+
+	if (!ret)
+		return ret;
+
+	ret = lockdownCheckResult(dict, "StartService");
+	if (ret) {
+		if (*service == NULL)
+			*service = (LockdownServiceDescriptor *)malloc(sizeof(struct LockdownServiceDescriptor));
+		(*service)->port = 0;
+		(*service)->ssl_enabled = 0;
+
+		/* read service port number */
+		plist_t node = plist_dict_get_item(dict, "Port");
+		if (node && (plist_get_node_type(node) == PLIST_UINT)) {
+			uint64_t port_value = 0;
+			plist_get_uint_val(node, &port_value);
+
+			if (port_value)
+				port_loc = port_value;
+			
+			if (port_loc) 
+				(*service)->port = port_loc;
+		}
+
+		/* check if the service requires SSL */
+		node = plist_dict_get_item(dict, "EnableServiceSSL");
+		if (node && (plist_get_node_type(node) == PLIST_BOOLEAN)) {
+			uint8_t b = 0;
+			plist_get_bool_val(node, &b);
+			(*service)->ssl_enabled = b;
+		}
+	} else {
+		plist_t error_node = plist_dict_get_item(dict, "Error");
+		if (error_node && PLIST_STRING == plist_get_node_type(error_node)) {
+			char *error = NULL;
+			plist_get_string_val(error_node, &error);
+			free(error);
+		}
+		resetDevice(u8"StartService返回检查失败。");
+	}
+
+	plist_free(dict);
+	dict = NULL;
+
+	return ret;
+}
+
 void MirrorManager::handleVersionValue(plist_t value)
 {
 	if (value && plist_get_node_type(value) == PLIST_STRING) {
@@ -512,7 +642,13 @@ void MirrorManager::handleVersionValue(plist_t value)
 				if (lockdownPair(NULL)) {
 					//干成功的事儿
 				} else {
-
+					LockdownServiceDescriptor *service = NULL;
+					bool ret = lockdownStartService("com.apple.mobile.insecure_notification_proxy", &service);
+					if (ret) {
+						startConnect(0x234, service->port);
+						free(service);
+						service = NULL;
+					}
 				}
 			}
 		}
@@ -578,122 +714,29 @@ void MirrorManager::startActualPair()
 }
 
 //m_connTxAck 这个值和原版的投屏进程还不太一样，设置的时机不一样。这里我设置的早了。明天得看下这个值设置的早了会不会有什么问题
-void MirrorManager::onDeviceConnectionInput(unsigned char *payload, uint32_t payload_length)
-{
-	//if (m_currentConnectionState == QueryType
-	//	|| m_currentConnectionState == ProductionVersion
-	//	|| m_currentConnectionState == SetUntrustedHostBUID) {
-	//	m_usbDataCache.append((const char *)payload, payload_length);
-	//	if (m_usbDataCache.size() <= 4)
-	//		return;
-
-	//	uint32_t reqSize = 0;
-	//	memcpy(&reqSize, m_usbDataCache.data(), sizeof(reqSize));
-	//	reqSize = be32toh(reqSize);
-	//	if (m_usbDataCache.size() < reqSize + sizeof(reqSize))
-	//		return;
-
-	//	plist_t dict = plist_new_dict();
-	//	bool success = receivePlist((unsigned char *)m_usbDataCache.data(), m_usbDataCache.size(), &dict);
-	//	m_usbDataCache.clear();
-	//	if (!success) {
-	//		QString msg;
-	//		switch (m_currentConnectionState)
-	//		{
-	//		case MirrorManager::QueryType:
-	//			msg = u8"QueryType响应数据解析异常。";
-	//			break;
-	//		case MirrorManager::ProductionVersion:
-	//			msg = u8"ProductionVersion响应数据解析异常。";
-	//			break;
-	//		default:
-	//			break;
-	//		}
-	//		resetDevice(msg);
-	//		plist_free(dict);
-	//		return;
-	//	}
-
-	//	if (m_currentConnectionState == QueryType) {
-	//		plist_t type_node = plist_dict_get_item(dict, "Type");
-	//		if (type_node && (plist_get_node_type(type_node) == PLIST_STRING)) {
-	//			char* typestr = NULL;
-	//			plist_get_string_val(type_node, &typestr);
-	//			qDebug("success with type %s", typestr);
-
-	//			if (strcmp(typestr, "com.apple.mobile.lockdown") != 0) {
-	//				int cc = 0;
-	//				cc++; 
-	//			} else {
-	//				char *host_id = NULL;
-	//				if (config_has_device_record(m_serial)) {
-	//					config_device_record_get_host_id(m_serial, &host_id);
-	//					//lerr = lockdownd_start_session(lockdown, host_id, NULL, NULL);
-	//					//if (host_id)
-	//					//	free(host_id);
-	//					//if (lerr == LOCKDOWN_E_SUCCESS) {
-	//					//	usbmuxd_log(LL_INFO, "%s: StartSession success for device %s", __func__, _dev->udid);
-	//					//	usbmuxd_log(LL_INFO, "%s: Finished preflight on device %s", __func__, _dev->udid);
-	//					//	client_device_add(info);
-	//					//	goto leave;
-	//					//}
-
-	//					//usbmuxd_log(LL_INFO, "%s: StartSession failed on device %s, lockdown error %d", __func__, _dev->udid, lerr);
-	//				} else {
-	//							
-	//				}
-	//				free(host_id);
-	//				lockdownGetValue(NULL, "ProductVersion", ProductionVersion);
-	//			}
-	//			free(typestr);
-	//		} else {
-	//			qDebug("hmm. QueryType response does not contain a type?!");
-	//			resetDevice(u8"QueryType响应中未包含Type字段。");
-	//		}
-	//	} else if (m_currentConnectionState == ProductionVersion) {
-	//		if (lockdownCheckResult(dict, "GetValue")) {
-	//			qDebug() << "success get production version";
-	//			plist_t value_node = plist_dict_get_item(dict, "Value");
-	//			if (value_node && plist_get_node_type(value_node) == PLIST_STRING) {
-	//				char *versionStr = NULL;
-	//				plist_get_string_val(value_node, &versionStr);
-	//				int versionMajor = strtol(versionStr, NULL, 10);
-	//				if (versionMajor < 7)
-	//					resetDevice(u8"iOS版本太低，投屏所需最低版本为iOS7。");
-	//				else {
-	//					qDebug("%s: Found ProductVersion %s device %s", __func__, versionStr, m_serial);
-
-	//					char* system_buid = NULL;
-	//					config_get_system_buid(&system_buid);
-	//					qDebug("%s: Setting UntrustedHostBUID to %s", __func__, system_buid);
-	//					lockdownSetValue(NULL, "UntrustedHostBUID", plist_new_string(system_buid), SetUntrustedHostBUID);
-	//					free(system_buid);
-	//				}
-
-	//				free(versionStr);
-	//			} else
-	//				resetDevice(u8"ProductionVersion 获取version字符串失败。");
-	//		} else
-	//			resetDevice(u8"ProductionVersion GetValue check不通过。");
-	//	} else if (m_currentConnectionState == SetUntrustedHostBUID) {
-	//		if (lockdownCheckResult(dict, "SetValue")) {
-	//			if (!m_devicePaired) {
-	//				plist_t options = plist_new_dict();
-	//				plist_dict_set_item(options, "ExtendedPairingErrors", plist_new_bool(1));
-	//				//lockdownd_error_t ret = lockdownd_do_pair(client, pair_record, "Pair", options, NULL);
-	//				plist_free(options);
-	//			}
-	//		} else
-	//			resetDevice(u8"SetUntrustedHostBUID SetValue check不通过。");
-	//	}
-	//	plist_free(dict);
-	//}
-}
 
 void MirrorManager::onDeviceTcpInput(struct tcphdr *th, unsigned char *payload, uint32_t payload_length)
 {
 	uint16_t sport = ntohs(th->th_dport);
 	uint16_t dport = ntohs(th->th_sport);
+
+	ConnectionInfo *conn = NULL;
+	for (auto iter = m_connections.begin(); iter != m_connections.end(); iter++) {
+		ConnectionInfo *i = *iter;
+		if(i->srcPort == sport && i->dstPort == dport) {
+			conn = i;
+			break;
+		}
+	}
+
+	if(!conn) {
+		if(!(th->th_flags & TH_RST)) {
+			qDebug("No connection for device incoming packet %d->%d", dport, sport);
+			if(sendAnonRst(sport, dport, ntohl(th->th_seq)) < 0)
+				qDebug("Error sending TCP RST to device (%d->%d)", sport, dport);
+		}
+		return;
+	}
 
 	if(th->th_flags & TH_RST) {
 		char *buf = (char *)malloc(payload_length+1);
@@ -705,30 +748,30 @@ void MirrorManager::onDeviceTcpInput(struct tcphdr *th, unsigned char *payload, 
 		free(buf);
 	}
 
-	if(m_connState == MuxConnState::CONN_CONNECTING) {
+	if(conn->connState == MuxConnState::CONN_CONNECTING) {
 		if(th->th_flags != (TH_SYN|TH_ACK)) {
 			if(th->th_flags & TH_RST)
-				m_connState = MuxConnState::CONN_REFUSED;
+				conn->connState = MuxConnState::CONN_REFUSED;
 			qDebug("Connection refused (%d->%d)", sport, dport);
 			resetDevice(u8"设备拒绝连接。"); //this also sends the notification to the client
 		} else {
-			m_connTxSeq++;
-			m_connTxAck++;
-			if(sendTcp(TH_ACK, NULL, 0) < 0) {
+			conn->connTxSeq++;
+			conn->connTxAck++;
+			if(sendTcp(conn, TH_ACK, NULL, 0) < 0) {
 				qDebug("Error sending TCP ACK to device (%d->%d)", sport, dport);
 				resetDevice(u8"发送响应指令失败，请重新连接。");
 				return;
 			}
-			m_connState = MuxConnState::CONN_CONNECTED;
+			conn->connState = MuxConnState::CONN_CONNECTED;
 
 			QMetaObject::invokeMethod(this, "startActualPair");
 		}
-	} else if(m_connState == MuxConnState::CONN_CONNECTED) {
-		m_connTxAck += payload_length;
+	} else if(conn->connState == MuxConnState::CONN_CONNECTED) {
+		conn->connTxAck += payload_length;
 		if(th->th_flags != TH_ACK) {
 			qDebug("Connection reset by device %d (%d->%d)", sport, dport);
 			if(th->th_flags & TH_RST)
-				m_connState = MuxConnState::CONN_DYING;
+				conn->connState = MuxConnState::CONN_DYING;
 			resetDevice(u8"设备重置了连接，请断开设备、重启后再试。");
 		} else {
 			m_usbDataLock.lock();
@@ -737,7 +780,7 @@ void MirrorManager::onDeviceTcpInput(struct tcphdr *th, unsigned char *payload, 
 			m_usbDataLock.unlock();
 
 			// Device likes it best when we are prompty ACKing data
-			sendTcpAck();
+			sendTcpAck(conn);
 		}
 	}
 }
@@ -885,6 +928,22 @@ bool MirrorManager::sendPlist(plist_t plist, bool isBinary)
 	m_connTxSeq += total;
 
 	return true;
+}
+
+int MirrorManager::sendAnonRst(uint16_t sport, uint16_t dport, uint32_t ack)
+{
+	struct tcphdr th;
+	memset(&th, 0, sizeof(th));
+	th.th_sport = htons(sport);
+	th.th_dport = htons(dport);
+	th.th_ack = htonl(ack);
+	th.th_flags = TH_RST;
+	th.th_off = sizeof(th) / 4;
+
+	qDebug("[OUT] sport=%d dport=%d flags=0x%x", sport, dport, th.th_flags);
+
+	int res = sendPacket(MuxProtocol::MUX_PROTO_TCP, &th, NULL, 0);
+	return res;
 }
 
 bool MirrorManager::receivePlistInternal(char *content, uint32_t pktlen, plist_t *plist)
@@ -1072,9 +1131,9 @@ bool MirrorManager::startMirrorTask(int vid, int pid)
 	return checkAndChangeMode(vid, pid) && setupUSBInfo() && startPair();
 }
 
-int MirrorManager::sendTcpAck()
+int MirrorManager::sendTcpAck(ConnectionInfo *info)
 {
-	if (sendTcp(TH_ACK, NULL, 0) < 0) {
+	if (sendTcp(info, TH_ACK, NULL, 0) < 0) {
 		qDebug("Error sending TCP ACK");
 		resetDevice(u8"发送响应指令失败，请重新连接。");
 		return -1;
@@ -1083,14 +1142,14 @@ int MirrorManager::sendTcpAck()
 	return 0;
 }
 
-int MirrorManager::sendTcp(uint8_t flags, const unsigned char *data, int length)
+int MirrorManager::sendTcp(ConnectionInfo *info, uint8_t flags, const unsigned char *data, int length)
 {
 	struct tcphdr th;
 	memset(&th, 0, sizeof(th));
-	th.th_sport = htons(233);
-	th.th_dport = htons(0xf27e);
-	th.th_seq = htonl(m_connTxSeq);
-	th.th_ack = htonl(m_connTxAck);
+	th.th_sport = htons(info->srcPort);
+	th.th_dport = htons(info->dstPort);
+	th.th_seq = htonl(info->connTxSeq);
+	th.th_ack = htonl(info->connTxAck);
 	th.th_flags = flags;
 	th.th_off = sizeof(th) / 4;
 	th.th_win = htons(131072 >> 8);

@@ -62,13 +62,25 @@ class MirrorManager : public QObject
 	Q_OBJECT
 public:
 
-	struct PairRecord
-	{
+	struct PairRecord {
 		char *device_certificate;
 		char *host_certificate;
 		char *root_certificate;
 		char *host_id;
 		char *system_buid;
+	};
+
+	struct LockdownServiceDescriptor {
+		uint16_t port;
+		uint8_t ssl_enabled;
+	};
+
+	struct ConnectionInfo {
+		u_long connTxSeq;
+		u_long connTxAck;
+		uint16_t srcPort;
+		uint16_t dstPort;
+		MuxConnState connState;
 	};
 
 	MirrorManager();
@@ -84,31 +96,35 @@ private:
 	bool startPair();
 
 private:
-	int sendTcpAck();
-	int sendTcp(uint8_t flags, const unsigned char *data, int length);
+	void startConnect(uint16_t sport, uint16_t dport);
+	int sendTcpAck(ConnectionInfo *info);
+	int sendTcp(ConnectionInfo *info, uint8_t flags, const unsigned char *data, int length);
 	int sendPacket(MuxProtocol proto, void *header, const void *data, int length);
 	bool sendPlist(plist_t plist, bool isBinary);
+	int sendAnonRst(uint16_t sport, uint16_t dport, uint32_t ack);
 	bool receivePlistInternal(char *payload, uint32_t payload_length, plist_t *plist);
 	void onDeviceData(unsigned char *buffer, int length);
 	void onDeviceVersionInput(VersionHeader *vh);
 	void onDeviceTcpInput(struct tcphdr *th, unsigned char *payload, uint32_t payload_length);
-	void onDeviceConnectionInput(unsigned char *payload, uint32_t payload_length);
 	void resetDevice(QString msg);
 	bool readDataWithSize(void *dst, size_t size, int timeout = 100);
 
 	void setUntrustedHostBuid();
 	bool receivePlist(plist_t *ret, const char *key);
 	void handleVersionValue(plist_t value);
-
+	
+	bool lockdownGetValue(const char *domain, const char *key, plist_t *value);
+	bool lockdownSetValue(const char *domain, const char *key, plist_t value);
 	bool lockdownPair(PairRecord *record);
 	bool lockdownDoPair(PairRecord *pair_record, const char *verb, plist_t options, plist_t *result);
 	bool lockdownPairRecordgenerate(plist_t *pair_record);
 	bool lockdownGetDevicePublicKeyAsKeyData(key_data_t *public_key);
+
+	bool lockdownStartService(const char *identifier, LockdownServiceDescriptor **service);
+	bool lockdownDoStartService(const char *identifier, int send_escrow_bag, LockdownServiceDescriptor **service);
+	bool lockdownBuildStartServiceRequest(const char *identifier, int send_escrow_bag, plist_t *request);
 public slots:
 	void startActualPair();
-	bool lockdownGetValue(const char *domain, const char *key, plist_t *value);
-	bool lockdownSetValue(const char *domain, const char *key, plist_t value);
-	//bool lockdownd_do_pair(PairRecord *pair_record, const char *verb, plist_t options, plist_t *result);
 
 private:
 	QString m_errorMsg;
@@ -132,14 +148,12 @@ private:
 	QMutex m_usbDataLock;
 	QWaitCondition m_usbDataWaitCondition;
 
+	QList<ConnectionInfo *> m_connections;
 	uint32_t m_reqReadSize;
 	uint16_t m_rxSeq;
 	uint16_t m_txSeq;
-	u_long m_connTxSeq;
-	u_long m_connTxAck;
 	int m_devVersion;
 	MuxDevState m_devState;
-	MuxConnState m_connState;
 	QEventLoop m_pairBlockEvent;
 	QEventLoop m_pairStepBlockEvent;
 };
