@@ -3,6 +3,7 @@
 #include "endianness.h"
 #include <QDebug>
 #include <QElapsedTimer>
+#include <QTimer>
 
 #define LOCKDOWN_PROTOCOL_VERSION "2"
 
@@ -10,13 +11,12 @@ MirrorManager::MirrorManager()
 {
 	usb_init();
 	m_pktbuf = (unsigned char *)malloc(DEV_MRU);
-	circlebuf_init(&m_usbDataCache);
 }
 
 MirrorManager::~MirrorManager()
 {
 	free(m_pktbuf);
-	circlebuf_free(&m_usbDataCache);
+	//circlebuf_free(&m_usbDataCache);
 }
 
 void MirrorManager::readUSBData(void *data)
@@ -35,6 +35,12 @@ void MirrorManager::readUSBData(void *data)
 	free(buffer);
 }
 
+void MirrorManager::pairDeviceLost()
+{
+	for (auto iter = m_connections.begin(); iter != m_connections.end(); iter++) {
+	}
+}
+
 void MirrorManager::resetDevice(QString msg)
 {
 	m_errorMsg = msg;
@@ -42,12 +48,13 @@ void MirrorManager::resetDevice(QString msg)
 
 void MirrorManager::startConnect(uint16_t sport, uint16_t dport)
 {
-	ConnectionInfo *info = (ConnectionInfo *)malloc(sizeof(ConnectionInfo));
+	ConnectionInfo *info = new ConnectionInfo;
 	info->connTxAck = 0;
 	info->connTxSeq = 0;
 	info->connState = MuxConnState::CONN_CONNECTING;
 	info->srcPort = sport;
 	info->dstPort = dport;
+	circlebuf_init(&info->m_usbDataCache);
 
 	m_connections.append(info);
 
@@ -158,17 +165,17 @@ static void plist_dict_add_label(plist_t plist, const char *label)
 	}
 }
 
-bool MirrorManager::receivePlist(plist_t *ret, const char *key)
+bool MirrorManager::receivePlist(ConnectionInfo *conn, plist_t *ret, const char *key, bool allowTimeout)
 {
 	uint32_t pktlen = 0;
-	if (!readDataWithSize(&pktlen, sizeof(pktlen))) {
+	if (!readDataWithSize(conn, &pktlen, sizeof(pktlen), allowTimeout)) {
 		qDebug() << "read QueryType length failed";
 		return false;
 	}
 
 	pktlen = be32toh(pktlen);
 	char *buf = (char *)malloc(pktlen);
-	if (!readDataWithSize(buf, pktlen)) {
+	if (!readDataWithSize(conn, buf, pktlen, allowTimeout)) {
 		qDebug() << "read QueryType data failed";
 		free(buf);
 		return false;
@@ -185,7 +192,7 @@ bool MirrorManager::receivePlist(plist_t *ret, const char *key)
 	return true;
 }
 
-bool MirrorManager::lockdownGetValue(const char *domain, const char *key, plist_t *value)
+bool MirrorManager::lockdownGetValue(ConnectionInfo *conn, const char *domain, const char *key, plist_t *value)
 {
 	bool ret = false;
 	plist_t dict = plist_new_dict();
@@ -197,10 +204,10 @@ bool MirrorManager::lockdownGetValue(const char *domain, const char *key, plist_
 		plist_dict_set_item(dict, "Key", plist_new_string(key));
 	}
 	plist_dict_set_item(dict, "Request", plist_new_string("GetValue"));
-	sendPlist(dict, false);
+	sendPlist(conn, dict, false);
 	plist_free(dict);
 
-	if (!receivePlist(&dict, key)) {
+	if (!receivePlist(conn, &dict, key)) {
 		return ret;
 	}
 
@@ -221,7 +228,7 @@ bool MirrorManager::lockdownGetValue(const char *domain, const char *key, plist_
 	return ret;
 }
 
-bool MirrorManager::lockdownSetValue(const char *domain, const char *key, plist_t value)
+bool MirrorManager::lockdownSetValue(ConnectionInfo *conn, const char *domain, const char *key, plist_t value)
 {
 	bool ret = false;
 	plist_t dict = plist_new_dict();
@@ -234,10 +241,10 @@ bool MirrorManager::lockdownSetValue(const char *domain, const char *key, plist_
 	}
 	plist_dict_set_item(dict,"Request", plist_new_string("SetValue"));
 	plist_dict_set_item(dict,"Value", value);
-	sendPlist(dict, false);
+	sendPlist(conn, dict, false);
 	plist_free(dict);
 
-	if (!receivePlist(&dict, key)) {
+	if (!receivePlist(conn, &dict, key)) {
 		return ret;
 	}
 
@@ -266,26 +273,26 @@ static plist_t lockdowndPairRecordToPlist(MirrorManager::PairRecord *pair_record
 	return dict;
 }
 
-bool MirrorManager::lockdownPair(PairRecord *record)
+bool MirrorManager::lockdownPair(ConnectionInfo *conn, PairRecord *record)
 {
 	plist_t options = plist_new_dict();
 	plist_dict_set_item(options, "ExtendedPairingErrors", plist_new_bool(1));
 
-	bool ret = lockdownDoPair(record, "Pair", options, NULL);
+	bool ret = lockdownDoPair(conn, record, "Pair", options, NULL);
 
 	plist_free(options);
 
 	return ret;
 }
 
-bool MirrorManager::lockdownGetDevicePublicKeyAsKeyData(key_data_t *public_key)
+bool MirrorManager::lockdownGetDevicePublicKeyAsKeyData(ConnectionInfo *conn, key_data_t *public_key)
 {
 	bool ret = false;
 	plist_t value = NULL;
 	char *value_value = NULL;
 	uint64_t size = 0;
 
-	ret = lockdownGetValue(NULL, "DevicePublicKey", &value);
+	ret = lockdownGetValue(conn, NULL, "DevicePublicKey", &value);
 	if (!ret) {
 		return ret;
 	}
@@ -299,7 +306,7 @@ bool MirrorManager::lockdownGetDevicePublicKeyAsKeyData(key_data_t *public_key)
 	return ret;
 }
 
-bool MirrorManager::lockdownPairRecordgenerate(plist_t *pair_record)
+bool MirrorManager::lockdownPairRecordgenerate(ConnectionInfo *conn, plist_t *pair_record)
 {
 	bool ret = false;
 
@@ -308,10 +315,10 @@ bool MirrorManager::lockdownPairRecordgenerate(plist_t *pair_record)
 	char* system_buid = NULL;
 
 	/* retrieve device public key */
-	ret = lockdownGetDevicePublicKeyAsKeyData(&public_key);
+	ret = lockdownGetDevicePublicKeyAsKeyData(conn, &public_key);
 	if (!ret) {
 		qDebug("device refused to send public key.");
-		//goto leave;
+		goto leave;
 	}
 	qDebug("device public key follows:\n%.*s", public_key.size, public_key.data);
 
@@ -344,7 +351,7 @@ leave:
 }
 
 //这里的配对失败大概率是因为PairingDialogResponsePending,表示用户还没点这个信任的确定按钮
-bool MirrorManager::lockdownDoPair(PairRecord *pair_record, const char *verb, plist_t options, plist_t *result)
+bool MirrorManager::lockdownDoPair(ConnectionInfo *conn, PairRecord *pair_record, const char *verb, plist_t options, plist_t *result)
 {
 	plist_t dict = NULL;
 	plist_t pair_record_plist = NULL;
@@ -365,7 +372,7 @@ bool MirrorManager::lockdownDoPair(PairRecord *pair_record, const char *verb, pl
 	} else {
 		/* generate a new pair record if pairing */
 		if (!strcmp("Pair", verb)) {
-			bool ret = lockdownPairRecordgenerate(&pair_record_plist);
+			bool ret = lockdownPairRecordgenerate(conn, &pair_record_plist);
 
 			if (!ret) {
 				if (pair_record_plist)
@@ -376,7 +383,7 @@ bool MirrorManager::lockdownDoPair(PairRecord *pair_record, const char *verb, pl
 			}
 
 			/* get wifi mac now, if we get it later we fail on iOS 7 which causes a reconnect */
-			lockdownGetValue(NULL, "WiFiAddress", &wifi_node);
+			lockdownGetValue(conn, NULL, "WiFiAddress", &wifi_node);
 		} else {
 			/* use existing pair record */
 			userpref_read_pair_record(m_serial, &pair_record_plist);
@@ -405,12 +412,12 @@ bool MirrorManager::lockdownDoPair(PairRecord *pair_record, const char *verb, pl
 	}
 
 	/* send to device */
-	sendPlist(dict, false);
+	sendPlist(conn, dict, false);
 	plist_free(dict);
 	dict = NULL;
 
 	/* Now get device's answer */
-	bool ret = receivePlist(&dict, "LockDownPair");
+	bool ret = receivePlist(conn, &dict, "LockDownPair");
 
 	if (!ret) {
 		plist_free(pair_record_plist);
@@ -498,12 +505,12 @@ bool MirrorManager::lockdownDoPair(PairRecord *pair_record, const char *verb, pl
 	return ret;
 }
 
-void MirrorManager::setUntrustedHostBuid()
+void MirrorManager::setUntrustedHostBuid(ConnectionInfo *conn)
 {
 	char* system_buid = NULL;
 	config_get_system_buid(&system_buid);
 	qDebug("%s: Setting UntrustedHostBUID to %s", __func__, system_buid);
-	lockdownSetValue(NULL, "UntrustedHostBUID", plist_new_string(system_buid));
+	lockdownSetValue(conn, NULL, "UntrustedHostBUID", plist_new_string(system_buid));
 	free(system_buid);
 }
 
@@ -547,12 +554,12 @@ bool MirrorManager::lockdownBuildStartServiceRequest(const char *identifier, int
 	return true;
 }
 
-bool MirrorManager::lockdownStartService(const char *identifier, LockdownServiceDescriptor **service)
+bool MirrorManager::lockdownStartService(ConnectionInfo *conn, const char *identifier, LockdownServiceDescriptor **service)
 {
-	return lockdownDoStartService(identifier, 0, service);
+	return lockdownDoStartService(conn, identifier, 0, service);
 }
 
-bool MirrorManager::lockdownDoStartService(const char *identifier, int send_escrow_bag, LockdownServiceDescriptor **service)
+bool MirrorManager::lockdownDoStartService(ConnectionInfo *conn, const char *identifier, int send_escrow_bag, LockdownServiceDescriptor **service)
 {
 	if (!identifier || !service) {
 		resetDevice(u8"lockdownDoStartService 参数有误。");
@@ -574,11 +581,11 @@ bool MirrorManager::lockdownDoStartService(const char *identifier, int send_escr
 		return ret;
 
 	/* send to device */
-	sendPlist(dict, 0);
+	sendPlist(conn, dict, false);
 	plist_free(dict);
 	dict = NULL;
 
-	ret = receivePlist(&dict, "lockdownDoStartService");
+	ret = receivePlist(conn, &dict, "lockdownDoStartService");
 
 	if (!ret)
 		return ret;
@@ -626,7 +633,7 @@ bool MirrorManager::lockdownDoStartService(const char *identifier, int send_escr
 	return ret;
 }
 
-void MirrorManager::handleVersionValue(plist_t value)
+void MirrorManager::handleVersionValue(ConnectionInfo *conn, plist_t value)
 {
 	if (value && plist_get_node_type(value) == PLIST_STRING) {
 		char *versionStr = NULL;
@@ -636,14 +643,14 @@ void MirrorManager::handleVersionValue(plist_t value)
 			resetDevice(u8"iOS版本太低，投屏所需最低版本为iOS7。");
 		else {
 			qDebug("%s: Found ProductVersion %s device %s", __func__, versionStr, m_serial);
-			setUntrustedHostBuid();
+			setUntrustedHostBuid(conn);
 
 			if (!m_devicePaired) {
-				if (lockdownPair(NULL)) {
+				if (lockdownPair(conn, NULL)) {
 					//干成功的事儿
 				} else {
 					LockdownServiceDescriptor *service = NULL;
-					bool ret = lockdownStartService("com.apple.mobile.insecure_notification_proxy", &service);
+					bool ret = lockdownStartService(conn, "com.apple.mobile.insecure_notification_proxy", &service);
 					if (ret) {
 						startConnect(0x234, service->port);
 						free(service);
@@ -660,15 +667,17 @@ void MirrorManager::handleVersionValue(plist_t value)
 	plist_free(value);
 }
 
-void MirrorManager::startActualPair()
+void MirrorManager::startActualPair(void *conn)
 {
+	ConnectionInfo *c = (ConnectionInfo *)conn;
+
 	plist_t dict = plist_new_dict();
 	plist_dict_add_label(dict, "usbmuxd");
 	plist_dict_set_item(dict, "Request", plist_new_string("QueryType"));
-	sendPlist(dict, false);
+	sendPlist(c, dict, false);
 	plist_free(dict);
 
-	if (!receivePlist(&dict, "QueryType"))
+	if (!receivePlist(c, &dict, "QueryType"))
 		return;
 
 	plist_t type_node = plist_dict_get_item(dict, "Type");
@@ -701,8 +710,8 @@ void MirrorManager::startActualPair()
 			free(host_id);
 
 			plist_t value = NULL;
-			if (lockdownGetValue(NULL, "ProductVersion", &value))
-				handleVersionValue(value);
+			if (lockdownGetValue(c, NULL, "ProductVersion", &value))
+				handleVersionValue(c, value);
 		}
 		free(typestr);
 	} else {
@@ -711,6 +720,83 @@ void MirrorManager::startActualPair()
 	}
 
 	plist_free(dict);
+}
+
+void MirrorManager::startObserve(void *conn)
+{
+	ConnectionInfo *c = (ConnectionInfo *)conn;
+
+	const char* spec[] = {
+			"com.apple.mobile.lockdown.request_pair",
+			"com.apple.mobile.lockdown.request_host_buid",
+			NULL
+		};
+
+	auto func = [c, this](const char *notification){
+		plist_t dict = plist_new_dict();
+		plist_dict_set_item(dict,"Command", plist_new_string("ObserveNotification"));
+		plist_dict_set_item(dict,"Name", plist_new_string(notification));
+		sendPlist(c, dict, false);
+		plist_free(dict);
+	};
+
+	int i = 0;
+	while (spec[i]) {
+		func(spec[i]);
+		i++;
+	}
+
+	QTimer *timer = new QTimer(this);
+	connect(timer, &QTimer::timeout, this, [c, this](){
+		plist_t dict = NULL;
+
+		bool success = receivePlist(c, &dict, "GetNotification", true); //data->plist 可能失败吗？这里假设失败的原因就是超时
+		if (!success || !dict)
+			return;
+
+		int res = 0;
+		char *cmd_value = NULL;
+		char *notification = NULL;
+		plist_t cmd_value_node = plist_dict_get_item(dict, "Command");
+
+		if (plist_get_node_type(cmd_value_node) == PLIST_STRING) {
+			plist_get_string_val(cmd_value_node, &cmd_value);
+		}
+
+		if (cmd_value && !strcmp(cmd_value, "RelayNotification")) {
+			char *name_value = NULL;
+			plist_t name_value_node = plist_dict_get_item(dict, "Name");
+
+			if (plist_get_node_type(name_value_node) == PLIST_STRING) {
+				plist_get_string_val(name_value_node, &name_value);
+			}
+
+			res = -2;
+			if (name_value_node && name_value) {
+				notification = name_value;
+				qDebug("got notification %s", __func__, name_value);
+				res = 0;
+			}
+		} else if (cmd_value && !strcmp(cmd_value, "ProxyDeath")) {
+			qDebug("NotificationProxy died!");
+			res = -1;
+		} else if (cmd_value) {
+			qDebug("unknown NotificationProxy command '%s' received!", cmd_value);
+			res = -1;
+		} else {
+			res = -2;
+		}
+		if (cmd_value) {
+			free(cmd_value);
+		}
+		if (notification) {
+			free(notification);
+		}
+		plist_free(dict);
+		dict = NULL;
+
+	});
+	timer->start(200);
 }
 
 //m_connTxAck 这个值和原版的投屏进程还不太一样，设置的时机不一样。这里我设置的早了。明天得看下这个值设置的早了会不会有什么问题
@@ -764,7 +850,10 @@ void MirrorManager::onDeviceTcpInput(struct tcphdr *th, unsigned char *payload, 
 			}
 			conn->connState = MuxConnState::CONN_CONNECTED;
 
-			QMetaObject::invokeMethod(this, "startActualPair");
+			if (conn->dstPort == 0xf27e)
+				QMetaObject::invokeMethod(this, "startActualPair", Q_ARG(void*, conn));
+			else
+				QMetaObject::invokeMethod(this, "startObserve", Q_ARG(void*, conn));
 		}
 	} else if(conn->connState == MuxConnState::CONN_CONNECTED) {
 		conn->connTxAck += payload_length;
@@ -774,10 +863,10 @@ void MirrorManager::onDeviceTcpInput(struct tcphdr *th, unsigned char *payload, 
 				conn->connState = MuxConnState::CONN_DYING;
 			resetDevice(u8"设备重置了连接，请断开设备、重启后再试。");
 		} else {
-			m_usbDataLock.lock();
-			circlebuf_push_back(&m_usbDataCache, payload, payload_length);
-			m_usbDataWaitCondition.wakeOne();
-			m_usbDataLock.unlock();
+			conn->m_usbDataLock.lock();
+			circlebuf_push_back(&conn->m_usbDataCache, payload, payload_length);
+			conn->m_usbDataWaitCondition.wakeOne();
+			conn->m_usbDataLock.unlock();
 
 			// Device likes it best when we are prompty ACKing data
 			sendTcpAck(conn);
@@ -785,22 +874,23 @@ void MirrorManager::onDeviceTcpInput(struct tcphdr *th, unsigned char *payload, 
 	}
 }
 
-bool MirrorManager::readDataWithSize(void *dst, size_t size, int timeout)
+bool MirrorManager::readDataWithSize(ConnectionInfo *conn, void *dst, size_t size, bool allowTimeout, int timeout)
 {
 	bool ret = false;
-	QMutexLocker locker(&m_usbDataLock);
-	while (m_usbDataCache.size < size) {
-		ret = m_usbDataWaitCondition.wait(&m_usbDataLock, timeout);
+	QMutexLocker locker(&conn->m_usbDataLock);
+	while (conn->m_usbDataCache.size < size) {
+		ret = conn->m_usbDataWaitCondition.wait(&conn->m_usbDataLock, timeout);
 		if (!ret)
 			break;
 	}
 
-	if (m_usbDataCache.size >= size) {
-		circlebuf_pop_front(&m_usbDataCache, dst, size);
+	if (conn->m_usbDataCache.size >= size) {
+		circlebuf_pop_front(&conn->m_usbDataCache, dst, size);
 		ret = true;
 	} else {
 		ret = false;
-		resetDevice(u8"读取usb数据超时。");
+		if (!allowTimeout)
+			resetDevice(u8"读取usb数据超时。");
 	}
 
 	return ret;
@@ -891,7 +981,7 @@ void MirrorManager::onDeviceData(unsigned char *buffer, int length)
 	}
 }
 
-bool MirrorManager::sendPlist(plist_t plist, bool isBinary)
+bool MirrorManager::sendPlist(ConnectionInfo *conn, plist_t plist, bool isBinary)
 {
 	char *content = NULL;
 	uint32_t total = 0;
@@ -920,12 +1010,12 @@ bool MirrorManager::sendPlist(plist_t plist, bool isBinary)
 	memcpy(sendBuffer, &nlen, sizeof(nlen));
 	memcpy(sendBuffer + sizeof(nlen), content, length);
 
-	sendTcp(TH_ACK, (const unsigned char *)sendBuffer, total);
+	sendTcp(conn, TH_ACK, (const unsigned char *)sendBuffer, total);
 
 	free(content);
 	free(sendBuffer);
 
-	m_connTxSeq += total;
+	conn->connTxSeq += total;
 
 	return true;
 }
@@ -1131,9 +1221,9 @@ bool MirrorManager::startMirrorTask(int vid, int pid)
 	return checkAndChangeMode(vid, pid) && setupUSBInfo() && startPair();
 }
 
-int MirrorManager::sendTcpAck(ConnectionInfo *info)
+int MirrorManager::sendTcpAck(ConnectionInfo *conn)
 {
-	if (sendTcp(info, TH_ACK, NULL, 0) < 0) {
+	if (sendTcp(conn, TH_ACK, NULL, 0) < 0) {
 		qDebug("Error sending TCP ACK");
 		resetDevice(u8"发送响应指令失败，请重新连接。");
 		return -1;
@@ -1142,14 +1232,14 @@ int MirrorManager::sendTcpAck(ConnectionInfo *info)
 	return 0;
 }
 
-int MirrorManager::sendTcp(ConnectionInfo *info, uint8_t flags, const unsigned char *data, int length)
+int MirrorManager::sendTcp(ConnectionInfo *conn, uint8_t flags, const unsigned char *data, int length)
 {
 	struct tcphdr th;
 	memset(&th, 0, sizeof(th));
-	th.th_sport = htons(info->srcPort);
-	th.th_dport = htons(info->dstPort);
-	th.th_seq = htonl(info->connTxSeq);
-	th.th_ack = htonl(info->connTxAck);
+	th.th_sport = htons(conn->srcPort);
+	th.th_dport = htons(conn->dstPort);
+	th.th_seq = htonl(conn->connTxSeq);
+	th.th_ack = htonl(conn->connTxAck);
 	th.th_flags = flags;
 	th.th_off = sizeof(th) / 4;
 	th.th_win = htons(131072 >> 8);
