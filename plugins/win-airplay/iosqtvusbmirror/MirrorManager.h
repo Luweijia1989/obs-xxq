@@ -12,6 +12,8 @@
 extern "C"
 {
 #include "qt_configuration.h"
+#include "conf.h"
+#include "userpref.h"
 }
 
 #define DEV_MRU 65536
@@ -100,7 +102,7 @@ private:
 	bool lockdownPair(PairRecord *record);
 	bool lockdownDoPair(PairRecord *pair_record, const char *verb, plist_t options, plist_t *result);
 	bool lockdownPairRecordgenerate(plist_t *pair_record);
-	bool lockdownGetDevicePublicKeyAsKeyData(char **data, uint64_t *size);
+	bool lockdownGetDevicePublicKeyAsKeyData(key_data_t *public_key);
 public slots:
 	void startActualPair();
 	bool lockdownGetValue(const char *domain, const char *key, plist_t *value);

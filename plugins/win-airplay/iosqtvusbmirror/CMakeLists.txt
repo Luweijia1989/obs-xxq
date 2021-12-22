@@ -6,8 +6,9 @@ set(CMAKE_AUTOMOC TRUE)
 include_directories(${PROJECT_SOURCE_DIR}/libwdi/include)
 include_directories(${PROJECT_SOURCE_DIR}/mirror/third-party/include)
 include_directories(${PROJECT_SOURCE_DIR}/mirror)
+include_directories(${PROJECT_SOURCE_DIR}/openssl/include)
 
-add_definitions( -D_USE_32BIT_TIME_T -DHAVE_LIBIMOBILEDEVICE )
+add_definitions( -D_USE_32BIT_TIME_T -DHAVE_LIBIMOBILEDEVICE -DHAVE_OPENSSL)
 
 file(GLOB_RECURSE iosusbmirror_SRC ${PROJECT_SOURCE_DIR}/mirror *.c)
 file(GLOB_RECURSE iosusbmirror_HEADER ${PROJECT_SOURCE_DIR}/mirror *.h)
@@ -19,7 +20,7 @@ set(ios-qtvusb-mirror_SRC
 	InformationWidget.cpp
 	main.cpp
 )
-	 		 
+	  		 
 set(ios-qtvusb-mirror_HEADER
 	AppleDeviceManager.h
 	MirrorManager.h
@@ -54,7 +55,10 @@ target_link_libraries(ios-qtvusb-mirror
 	optimized ${PROJECT_SOURCE_DIR}/mirror/third-party/lib/relwithdebinfo/plist.lib
 	optimized ${PROJECT_SOURCE_DIR}/mirror/third-party/lib/relwithdebinfo/libimobiledevice.lib
 	optimized ${PROJECT_SOURCE_DIR}/mirror/third-party/lib/relwithdebinfo/libusb0.lib
+	${PROJECT_SOURCE_DIR}/openssl/lib/libcrypto.lib
+	${PROJECT_SOURCE_DIR}/openssl/lib/libssl.lib
 	Setupapi
+	Crypt32
 	Ws2_32
 	w32-pthreads)
 

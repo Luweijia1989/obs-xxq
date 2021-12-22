@@ -4,11 +4,6 @@
 #include <QDebug>
 #include <QElapsedTimer>
 
-extern "C"
-{
-#include "conf.h"
-}
-
 MirrorManager::MirrorManager()
 {
 	usb_init();
@@ -238,7 +233,7 @@ bool MirrorManager::lockdownSetValue(const char *domain, const char *key, plist_
 	else 
 		resetDevice(u8"GetValue 返回校验失败。");
 
-	free(dict);
+	plist_free(dict);
 	return ret;
 }
 
@@ -270,17 +265,20 @@ bool MirrorManager::lockdownPair(PairRecord *record)
 	return ret;
 }
 
-bool MirrorManager::lockdownGetDevicePublicKeyAsKeyData(char **data, uint64_t *size)
+bool MirrorManager::lockdownGetDevicePublicKeyAsKeyData(key_data_t *public_key)
 {
 	bool ret = false;
 	plist_t value = NULL;
 	char *value_value = NULL;
+	uint64_t size = 0;
 
 	ret = lockdownGetValue(NULL, "DevicePublicKey", &value);
 	if (!ret) {
 		return ret;
 	}
-	plist_get_data_val(value, data, size);
+	plist_get_data_val(value, &value_value, &size);
+	public_key->data = (unsigned char *)value_value;
+	public_key->size = size;
 
 	plist_free(value);
 	value = NULL;
@@ -292,60 +290,49 @@ bool MirrorManager::lockdownPairRecordgenerate(plist_t *pair_record)
 {
 	bool ret = false;
 
+	key_data_t public_key = { NULL, 0 };
 	char* host_id = NULL;
 	char* system_buid = NULL;
 
 	/* retrieve device public key */
-	char *data = NULL;
-	uint64_t size = 0;
-	ret = lockdownGetDevicePublicKeyAsKeyData(&data, &size);
-//	if (ret != LOCKDOWN_E_SUCCESS) {
-//		debug_info("device refused to send public key.");
-//		goto leave;
-//	}
-//	debug_info("device public key follows:\n%.*s", public_key.size, public_key.data);
-//
-//	*pair_record = plist_new_dict();
-//
-//	/* generate keys and certificates into pair record */
-//	userpref_error_t uret = USERPREF_E_SUCCESS;
-//	uret = pair_record_generate_keys_and_certs(*pair_record, public_key);
-//	switch(uret) {
-//		case USERPREF_E_INVALID_ARG:
-//			ret = LOCKDOWN_E_INVALID_ARG;
-//			break;
-//		case USERPREF_E_INVALID_CONF:
-//			ret = LOCKDOWN_E_INVALID_CONF;
-//			break;
-//		case USERPREF_E_SSL_ERROR:
-//			ret = LOCKDOWN_E_SSL_ERROR;
-//		default:
-//			break;
-//	}
-//
-//	/* set SystemBUID */
-//	userpref_read_system_buid(&system_buid);
-//	if (system_buid) {
-//		plist_dict_set_item(*pair_record, USERPREF_SYSTEM_BUID_KEY, plist_new_string(system_buid));
-//	}
-//
-//	/* set HostID */
-//	host_id = generate_uuid();
-//	pair_record_set_host_id(*pair_record, host_id);
-//
-//leave:
-//	if (host_id)
-//		free(host_id);
-//	if (system_buid)
-//		free(system_buid);
-//	if (public_key.data)
-//		free(public_key.data);
-//
+	ret = lockdownGetDevicePublicKeyAsKeyData(&public_key);
+	if (!ret) {
+		qDebug("device refused to send public key.");
+		//goto leave;
+	}
+	qDebug("device public key follows:\n%.*s", public_key.size, public_key.data);
+
+	*pair_record = plist_new_dict();
+
+	/* generate keys and certificates into pair record */
+	userpref_error_t uret = USERPREF_E_SUCCESS;
+	uret = pair_record_generate_keys_and_certs(*pair_record, public_key);
+	ret = uret == 1;
+
+	/* set SystemBUID */
+	userpref_read_system_buid(&system_buid);
+	if (system_buid) {
+		plist_dict_set_item(*pair_record, USERPREF_SYSTEM_BUID_KEY, plist_new_string(system_buid));
+	}
+
+	/* set HostID */
+	host_id = generate_uuid();
+	pair_record_set_host_id(*pair_record, host_id);
+
+leave:
+	if (host_id)
+		free(host_id);
+	if (system_buid)
+		free(system_buid);
+	if (public_key.data)
+		free(public_key.data);
+
 	return ret;
 }
 
 bool MirrorManager::lockdownDoPair(PairRecord *pair_record, const char *verb, plist_t options, plist_t *result)
 {
+	return true;
 	//plist_t dict = NULL;
 	//plist_t pair_record_plist = NULL;
 	//plist_t wifi_node = NULL;
@@ -546,47 +533,48 @@ void MirrorManager::startActualPair()
 	sendPlist(dict, false);
 	plist_free(dict);
 
-	if (receivePlist(&dict, "QueryType")) {
-		plist_t type_node = plist_dict_get_item(dict, "Type");
-			if (type_node && (plist_get_node_type(type_node) == PLIST_STRING)) {
-				char* typestr = NULL;
-				plist_get_string_val(type_node, &typestr);
-				qDebug("success with type %s", typestr);
+	if (!receivePlist(&dict, "QueryType"))
+		return;
 
-				if (strcmp(typestr, "com.apple.mobile.lockdown") != 0) {
-					int cc = 0;
-					cc++; 
-				} else {
-					char *host_id = NULL;
-					if (config_has_device_record(m_serial)) {
-						config_device_record_get_host_id(m_serial, &host_id);
-						//lerr = lockdownd_start_session(lockdown, host_id, NULL, NULL);
-						//if (host_id)
-						//	free(host_id);
-						//if (lerr == LOCKDOWN_E_SUCCESS) {
-						//	usbmuxd_log(LL_INFO, "%s: StartSession success for device %s", __func__, _dev->udid);
-						//	usbmuxd_log(LL_INFO, "%s: Finished preflight on device %s", __func__, _dev->udid);
-						//	client_device_add(info);
-						//	goto leave;
-						//}
+	plist_t type_node = plist_dict_get_item(dict, "Type");
+	if (type_node && (plist_get_node_type(type_node) == PLIST_STRING)) {
+		char* typestr = NULL;
+		plist_get_string_val(type_node, &typestr);
+		qDebug("success with type %s", typestr);
 
-						//usbmuxd_log(LL_INFO, "%s: StartSession failed on device %s, lockdown error %d", __func__, _dev->udid, lerr);
-					} else {
-								
-					}
-					free(host_id);
+		if (strcmp(typestr, "com.apple.mobile.lockdown") != 0) {
+			int cc = 0;
+			cc++; 
+		} else {
+			char *host_id = NULL;
+			if (config_has_device_record(m_serial)) {
+				config_device_record_get_host_id(m_serial, &host_id);
+				//lerr = lockdownd_start_session(lockdown, host_id, NULL, NULL);
+				//if (host_id)
+				//	free(host_id);
+				//if (lerr == LOCKDOWN_E_SUCCESS) {
+				//	usbmuxd_log(LL_INFO, "%s: StartSession success for device %s", __func__, _dev->udid);
+				//	usbmuxd_log(LL_INFO, "%s: Finished preflight on device %s", __func__, _dev->udid);
+				//	client_device_add(info);
+				//	goto leave;
+				//}
 
-					plist_t value = NULL;
-					if (lockdownGetValue(NULL, "ProductVersion", &value))
-						handleVersionValue(value);
-				}
-				free(typestr);
+				//usbmuxd_log(LL_INFO, "%s: StartSession failed on device %s, lockdown error %d", __func__, _dev->udid, lerr);
 			} else {
-				qDebug("hmm. QueryType response does not contain a type?!");
-				resetDevice(u8"QueryType响应中未包含Type字段。");
+								
 			}
+			free(host_id);
+
+			plist_t value = NULL;
+			if (lockdownGetValue(NULL, "ProductVersion", &value))
+				handleVersionValue(value);
+		}
+		free(typestr);
+	} else {
+		qDebug("hmm. QueryType response does not contain a type?!");
+		resetDevice(u8"QueryType响应中未包含Type字段。");
 	}
-	
+
 	plist_free(dict);
 }
 
@@ -759,17 +747,19 @@ bool MirrorManager::readDataWithSize(void *dst, size_t size, int timeout)
 {
 	bool ret = false;
 	QMutexLocker locker(&m_usbDataLock);
+	while (m_usbDataCache.size < size) {
+		ret = m_usbDataWaitCondition.wait(&m_usbDataLock, timeout);
+		if (!ret)
+			break;
+	}
+
 	if (m_usbDataCache.size >= size) {
 		circlebuf_pop_front(&m_usbDataCache, dst, size);
 		ret = true;
 	} else {
-		ret = m_usbDataWaitCondition.wait(&m_usbDataLock, timeout);
-		if (ret)
-			circlebuf_pop_front(&m_usbDataCache, dst, size);
-	}
-
-	if (!ret)
+		ret = false;
 		resetDevice(u8"读取usb数据超时。");
+	}
 
 	return ret;
 }
