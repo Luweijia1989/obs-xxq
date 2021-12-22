@@ -20,7 +20,7 @@ set(ios-qtvusb-mirror_SRC
 	InformationWidget.cpp
 	main.cpp
 )
-	  		 
+
 set(ios-qtvusb-mirror_HEADER
 	AppleDeviceManager.h
 	MirrorManager.h
@@ -50,10 +50,8 @@ target_link_libraries(ios-qtvusb-mirror
 	debug ${PROJECT_SOURCE_DIR}/libwdi/lib/libwdid.lib
 	optimized ${PROJECT_SOURCE_DIR}/libwdi/lib/libwdi.lib
 	debug ${PROJECT_SOURCE_DIR}/mirror/third-party/lib/debug/plist.lib
-	debug ${PROJECT_SOURCE_DIR}/mirror/third-party/lib/debug/libimobiledevice.lib
 	debug ${PROJECT_SOURCE_DIR}/mirror/third-party/lib/debug/libusb0.lib
 	optimized ${PROJECT_SOURCE_DIR}/mirror/third-party/lib/relwithdebinfo/plist.lib
-	optimized ${PROJECT_SOURCE_DIR}/mirror/third-party/lib/relwithdebinfo/libimobiledevice.lib
 	optimized ${PROJECT_SOURCE_DIR}/mirror/third-party/lib/relwithdebinfo/libusb0.lib
 	${PROJECT_SOURCE_DIR}/openssl/lib/libcrypto.lib
 	${PROJECT_SOURCE_DIR}/openssl/lib/libssl.lib
@@ -87,10 +85,5 @@ add_custom_command(TARGET ios-qtvusb-mirror POST_BUILD
 		VERBATIM)
 endfunction()
  
-install_dependency("getopt") 
-install_dependency("libimobiledevice")
 install_dependency("libusb0")
-install_dependency("libusbmuxd") 
 install_dependency("plist") 
-install_dependency("libcrypto-1_1") 
-install_dependency("libssl-1_1") 

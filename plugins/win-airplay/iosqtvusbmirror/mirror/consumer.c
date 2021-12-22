@@ -9,11 +9,11 @@ struct Consumer AVFileWriter(char *h264_path, char *wav_path)
 	afwc->wavFile = fopen(wav_path, "wb");
 	uint8_t s[4] = { 00, 00, 00, 01 };
 	memcpy(afwc->start_code, s, 4);
-	struct Consumer file_write = {
-		.consume = avfileConsume,
-		.stop = avfileStop,
-		.consumer_ctx = afwc
-	};
+	struct Consumer file_write;
+	file_write.consume = avfileConsume;
+	file_write.stop = avfileStop;
+	file_write.consumer_ctx = afwc;
+	
 	return file_write;
 }
 

@@ -17,12 +17,7 @@
  * Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301  USA
  */
 
-#ifdef HAVE_CONFIG_H
-#include <config.h>
-#endif
-
 #ifdef _MSC_VER
-#include "config_msc.h"
 #include <Windows.h>
 #endif
 
@@ -108,6 +103,13 @@ static char *config_utf16_to_utf8(wchar_t *unistr, long len, long *items_read, l
 	return outbuf;
 }
 #endif
+
+char *dirname(char const *file)
+{
+	char *dir[256];
+	_splitpath(file, 0, dir, 0, 0);
+	return dir;
+}
 
 const char *config_get_config_dir()
 {

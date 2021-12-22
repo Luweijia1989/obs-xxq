@@ -3,6 +3,7 @@
 #include <stdint.h>
 #include "list.h"
 #include "parse_header.h"
+#include "nsnumber.h"
 
 #define	AsynPacketMagic   0x6173796E
 #define	FEED              0x66656564 //These contain CMSampleBufs which contain raw h264 Nalus
@@ -18,12 +19,12 @@
 #define	HPD0              0x68706430
 #define	HPA0              0x68706130
 
-static const int bool_type = 0;
-static const int nsnumber_type = 1;
-static const int string_type = 2;
-static const int byte_type = 3;
-static const int string_keydict_type = 4;
-static const int format_descriptor_type = 5;
+static const unsigned int bool_type = 0;
+static const unsigned int nsnumber_type = 1;
+static const unsigned int string_type = 2;
+static const unsigned int byte_type = 3;
+static const unsigned int string_keydict_type = 4;
+static const unsigned int format_descriptor_type = 5;
 
 #pragma pack(1)
 struct StringKeyEntry

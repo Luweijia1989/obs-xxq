@@ -14,6 +14,7 @@ extern "C"
 #include "qt_configuration.h"
 #include "conf.h"
 #include "userpref.h"
+#include "utils.h"
 }
 
 #define DEV_MRU 65536

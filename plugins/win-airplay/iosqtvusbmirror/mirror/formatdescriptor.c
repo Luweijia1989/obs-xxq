@@ -132,6 +132,8 @@ int parseCodec(uint8_t *data, size_t data_len, uint32_t *out_codec, uint8_t **ne
 
 int extractPPS(list_t *extensions, uint8_t *pps, size_t *pps_len, uint8_t *sps, size_t *sps_len)
 {
+	(void)sps;
+
 	if (!extensions)
 		return -1;
 

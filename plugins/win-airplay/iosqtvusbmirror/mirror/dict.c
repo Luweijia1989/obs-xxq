@@ -45,31 +45,31 @@ int ParseLengthAndMagic(uint8_t *bytes, size_t bytes_len,
 
 void PutStringKeyBool(struct StringKeyEntry *entry, const char *key, int value)
 {
-	PutStringKeyBool2(entry, key, strlen(key), value);
+	PutStringKeyBool2(entry, (uint8_t *)key, strlen(key), value);
 }
 
 void PutStringKeyNSNumber(struct StringKeyEntry *entry, const char *key,
 			  struct NSNumber *value)
 {
-	PutStringKeyNSNumber2(entry, key, strlen(key), value);
+	PutStringKeyNSNumber2(entry, (uint8_t *)key, strlen(key), value);
 }
 
 void PutStringKeyString(struct StringKeyEntry *entry, const char *key,
 			const char *value)
 {
-	PutStringKeyString2(entry, key, strlen(key), value, strlen(value));
+	PutStringKeyString2(entry, (uint8_t *)key, strlen(key), (uint8_t *)value, strlen(value));
 }
 
 void PutStringKeyBytes(struct StringKeyEntry *entry, const char *key,
 		       uint8_t *bytes, size_t bytes_len)
 {
-	PutStringKeyBytes2(entry, key, strlen(key), bytes, bytes_len);
+	PutStringKeyBytes2(entry, (uint8_t *)key, strlen(key), bytes, bytes_len);
 }
 
 void PutStringKeyStringKeyDict(struct StringKeyEntry *entry, const char *key,
 			       list_t *list)
 {
-	PutStringKeyStringKeyDict2(entry, key, strlen(key), list);
+	PutStringKeyStringKeyDict2(entry, (uint8_t *)key, strlen(key), list);
 }
 
 void PutStringKeyBool2(struct StringKeyEntry *entry, uint8_t *key,

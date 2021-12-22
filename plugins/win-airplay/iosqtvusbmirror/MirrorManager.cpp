@@ -4,6 +4,8 @@
 #include <QDebug>
 #include <QElapsedTimer>
 
+#define LOCKDOWN_PROTOCOL_VERSION "2"
+
 MirrorManager::MirrorManager()
 {
 	usb_init();
@@ -237,7 +239,7 @@ bool MirrorManager::lockdownSetValue(const char *domain, const char *key, plist_
 	return ret;
 }
 
-static plist_t lockdownd_pair_record_to_plist(MirrorManager::PairRecord *pair_record)
+static plist_t lockdowndPairRecordToPlist(MirrorManager::PairRecord *pair_record)
 {
 	if (!pair_record)
 		return NULL;
@@ -307,7 +309,7 @@ bool MirrorManager::lockdownPairRecordgenerate(plist_t *pair_record)
 	/* generate keys and certificates into pair record */
 	userpref_error_t uret = USERPREF_E_SUCCESS;
 	uret = pair_record_generate_keys_and_certs(*pair_record, public_key);
-	ret = uret == 1;
+	ret = uret == USERPREF_E_SUCCESS;
 
 	/* set SystemBUID */
 	userpref_read_system_buid(&system_buid);
@@ -330,162 +332,159 @@ leave:
 	return ret;
 }
 
+//这里的配对失败大概率是因为PairingDialogResponsePending,表示用户还没点这个信任的确定按钮
 bool MirrorManager::lockdownDoPair(PairRecord *pair_record, const char *verb, plist_t options, plist_t *result)
 {
-	return true;
-	//plist_t dict = NULL;
-	//plist_t pair_record_plist = NULL;
-	//plist_t wifi_node = NULL;
-	//int pairing_mode = 0; /* 0 = libimobiledevice, 1 = external */
+	plist_t dict = NULL;
+	plist_t pair_record_plist = NULL;
+	plist_t wifi_node = NULL;
+	int pairing_mode = 0; /* 0 = libimobiledevice, 1 = external */
 
-	//if (pair_record && pair_record->system_buid && pair_record->host_id) {
-	//	/* valid pair_record passed? */
-	//	if (!pair_record->device_certificate || !pair_record->host_certificate || !pair_record->root_certificate) {
-	//		return false;
-	//	}
+	if (pair_record && pair_record->system_buid && pair_record->host_id) {
+		/* valid pair_record passed? */
+		if (!pair_record->device_certificate || !pair_record->host_certificate || !pair_record->root_certificate) {
+			resetDevice(u8"传递的配对信息缺少必要信息。");
+			return false;
+		}
 
-	//	/* use passed pair_record */
-	//	pair_record_plist = lockdownd_pair_record_to_plist(pair_record);
+		/* use passed pair_record */
+		pair_record_plist = lockdowndPairRecordToPlist(pair_record);
 
-	//	pairing_mode = 1;
-	//} else {
-	//	/* generate a new pair record if pairing */
-	//	if (!strcmp("Pair", verb)) {
-	//		ret = pair_record_generate(client, &pair_record_plist);
+		pairing_mode = 1;
+	} else {
+		/* generate a new pair record if pairing */
+		if (!strcmp("Pair", verb)) {
+			bool ret = lockdownPairRecordgenerate(&pair_record_plist);
 
-	//		if (ret != LOCKDOWN_E_SUCCESS) {
-	//			if (pair_record_plist)
-	//				plist_free(pair_record_plist);
-	//			return ret;
-	//		}
+			if (!ret) {
+				if (pair_record_plist)
+					plist_free(pair_record_plist);
 
-	//		/* get wifi mac now, if we get it later we fail on iOS 7 which causes a reconnect */
-	//		lockdownd_get_value(client, NULL, "WiFiAddress", &wifi_node);
-	//	} else {
-	//		/* use existing pair record */
-	//		userpref_read_pair_record(client->udid, &pair_record_plist);
-	//		if (!pair_record_plist) {
-	//			return LOCKDOWN_E_INVALID_HOST_ID;
-	//		}
-	//	}
-	//}
+				resetDevice(u8"生成配对信息有误。");
+				return ret;
+			}
 
-	//plist_t request_pair_record = plist_copy(pair_record_plist);
+			/* get wifi mac now, if we get it later we fail on iOS 7 which causes a reconnect */
+			lockdownGetValue(NULL, "WiFiAddress", &wifi_node);
+		} else {
+			/* use existing pair record */
+			userpref_read_pair_record(m_serial, &pair_record_plist);
+			if (!pair_record_plist) {
+				resetDevice(u8"读取保存的host id有误。");
+				return false;
+			}
+		}
+	}
 
-	///* remove stuff that is private */
-	//plist_dict_remove_item(request_pair_record, USERPREF_ROOT_PRIVATE_KEY_KEY);
-	//plist_dict_remove_item(request_pair_record, USERPREF_HOST_PRIVATE_KEY_KEY);
+	plist_t request_pair_record = plist_copy(pair_record_plist);
 
-	///* setup pair request plist */
-	//dict = plist_new_dict();
-	//plist_dict_add_label(dict, client->label);
-	//plist_dict_set_item(dict, "PairRecord", request_pair_record);
-	//plist_dict_set_item(dict, "Request", plist_new_string(verb));
-	//plist_dict_set_item(dict, "ProtocolVersion", plist_new_string(LOCKDOWN_PROTOCOL_VERSION));
+	/* remove stuff that is private */
+	plist_dict_remove_item(request_pair_record, USERPREF_ROOT_PRIVATE_KEY_KEY);
+	plist_dict_remove_item(request_pair_record, USERPREF_HOST_PRIVATE_KEY_KEY);
 
-	//if (options) {
-	//	plist_dict_set_item(dict, "PairingOptions", plist_copy(options));
-	//}
+	/* setup pair request plist */
+	dict = plist_new_dict();
+	plist_dict_add_label(dict, "usbmuxd");
+	plist_dict_set_item(dict, "PairRecord", request_pair_record);
+	plist_dict_set_item(dict, "Request", plist_new_string(verb));
+	plist_dict_set_item(dict, "ProtocolVersion", plist_new_string(LOCKDOWN_PROTOCOL_VERSION));
 
-	///* send to device */
-	//ret = lockdownd_send(client, dict);
-	//plist_free(dict);
-	//dict = NULL;
+	if (options) {
+		plist_dict_set_item(dict, "PairingOptions", plist_copy(options));
+	}
 
-	//if (ret != LOCKDOWN_E_SUCCESS) {
-	//	plist_free(pair_record_plist);
-	//	if (wifi_node)
-	//		plist_free(wifi_node);
-	//	return ret;
-	//}
+	/* send to device */
+	sendPlist(dict, false);
+	plist_free(dict);
+	dict = NULL;
 
-	///* Now get device's answer */
-	//ret = lockdownd_receive(client, &dict);
+	/* Now get device's answer */
+	bool ret = receivePlist(&dict, "LockDownPair");
 
-	//if (ret != LOCKDOWN_E_SUCCESS) {
-	//	plist_free(pair_record_plist);
-	//	if (wifi_node)
-	//		plist_free(wifi_node);
-	//	return ret;
-	//}
+	if (!ret) {
+		plist_free(pair_record_plist);
+		if (wifi_node)
+			plist_free(wifi_node);
+		return ret;
+	}
 
-	//if (strcmp(verb, "Unpair") == 0) {
-	//	/* workaround for Unpair giving back ValidatePair,
-	//	 * seems to be a bug in the device's fw */
-	//	if (lockdown_check_result(dict, NULL) != LOCKDOWN_E_SUCCESS) {
-	//		ret = LOCKDOWN_E_PAIRING_FAILED;
-	//	}
-	//} else {
-	//	if (lockdown_check_result(dict, verb) != LOCKDOWN_E_SUCCESS) {
-	//		ret = LOCKDOWN_E_PAIRING_FAILED;
-	//	}
-	//}
+	if (strcmp(verb, "Unpair") == 0) {
+		/* workaround for Unpair giving back ValidatePair,
+		 * seems to be a bug in the device's fw */
+		if (!lockdownCheckResult(dict, NULL)) {
+			ret = false;
+		}
+	} else {
+		if (!lockdownCheckResult(dict, verb)) {
+			ret = false;
+		}
+	}
 
-	///* if pairing succeeded */
-	//if (ret == LOCKDOWN_E_SUCCESS) {
-	//	debug_info("%s success", verb);
-	//	if (!pairing_mode) {
-	//		debug_info("internal pairing mode");
-	//		if (!strcmp("Unpair", verb)) {
-	//			/* remove public key from config */
-	//			userpref_delete_pair_record(client->udid);
-	//		} else {
-	//			if (!strcmp("Pair", verb)) {
-	//				/* add returned escrow bag if available */
-	//				plist_t extra_node = plist_dict_get_item(dict, USERPREF_ESCROW_BAG_KEY);
-	//				if (extra_node && plist_get_node_type(extra_node) == PLIST_DATA) {
-	//					debug_info("Saving EscrowBag from response in pair record");
-	//					plist_dict_set_item(pair_record_plist, USERPREF_ESCROW_BAG_KEY, plist_copy(extra_node));
-	//				}
+	/* if pairing succeeded */
+	if (ret) {
+		qDebug("%s success", verb);
+		if (!pairing_mode) {
+			qDebug("internal pairing mode");
+			if (!strcmp("Unpair", verb)) {
+				/* remove public key from config */
+				userpref_delete_pair_record(m_serial);
+			} else {
+				if (!strcmp("Pair", verb)) {
+					/* add returned escrow bag if available */
+					plist_t extra_node = plist_dict_get_item(dict, USERPREF_ESCROW_BAG_KEY);
+					if (extra_node && plist_get_node_type(extra_node) == PLIST_DATA) {
+						qDebug("Saving EscrowBag from response in pair record");
+						plist_dict_set_item(pair_record_plist, USERPREF_ESCROW_BAG_KEY, plist_copy(extra_node));
+					}
 
-	//				/* save previously retrieved wifi mac address in pair record */
-	//				if (wifi_node) {
-	//					debug_info("Saving WiFiAddress from device in pair record");
-	//					plist_dict_set_item(pair_record_plist, USERPREF_WIFI_MAC_ADDRESS_KEY, plist_copy(wifi_node));
-	//					plist_free(wifi_node);
-	//					wifi_node = NULL;
-	//				}
+					/* save previously retrieved wifi mac address in pair record */
+					if (wifi_node) {
+						qDebug("Saving WiFiAddress from device in pair record");
+						plist_dict_set_item(pair_record_plist, USERPREF_WIFI_MAC_ADDRESS_KEY, plist_copy(wifi_node));
+						plist_free(wifi_node);
+						wifi_node = NULL;
+					}
 
-	//				userpref_save_pair_record(client->udid, client->mux_id, pair_record_plist);
-	//			}
-	//		}
-	//	} else {
-	//		debug_info("external pairing mode");
-	//	}
-	//} else {
-	//	debug_info("%s failure", verb);
-	//	plist_t error_node = NULL;
-	//	/* verify error condition */
-	//	error_node = plist_dict_get_item(dict, "Error");
-	//	if (error_node) {
-	//		char *value = NULL;
-	//		plist_get_string_val(error_node, &value);
-	//		if (value) {
-	//			/* the first pairing fails if the device is password protected */
-	//			ret = lockdownd_strtoerr(value);
-	//			free(value);
-	//		}
-	//	}
-	//}
+					userpref_save_pair_record(m_serial, pair_record_plist);
+				}
+			}
+		} else {
+			qDebug("external pairing mode");
+		}
+	} else {
+		qDebug("%s failure", verb);
+		plist_t error_node = NULL;
+		/* verify error condition */
+		error_node = plist_dict_get_item(dict, "Error");
+		if (error_node) {
+			char *value = NULL;
+			plist_get_string_val(error_node, &value);
+			if (value) {
+				/* the first pairing fails if the device is password protected */
+				ret = false;
+				free(value);
+			}
+		}
+	}
 
-	//if (pair_record_plist) {
-	//	plist_free(pair_record_plist);
-	//	pair_record_plist = NULL;
-	//}
+	if (pair_record_plist) {
+		plist_free(pair_record_plist);
+		pair_record_plist = NULL;
+	}
 
-	//if (wifi_node) {
-	//	plist_free(wifi_node);
-	//	wifi_node = NULL;
-	//}
+	if (wifi_node) {
+		plist_free(wifi_node);
+		wifi_node = NULL;
+	}
 
-	//if (result) {
-	//	*result = dict;
-	//} else {
-	//	plist_free(dict);
-	//	dict = NULL;
-	//}
+	if (result) {
+		*result = dict;
+	} else {
+		plist_free(dict);
+		dict = NULL;
+	}
 
-	//return ret;
+	return ret;
 }
 
 void MirrorManager::setUntrustedHostBuid()
@@ -511,7 +510,7 @@ void MirrorManager::handleVersionValue(plist_t value)
 
 			if (!m_devicePaired) {
 				if (lockdownPair(NULL)) {
-
+					//干成功的事儿
 				} else {
 
 				}

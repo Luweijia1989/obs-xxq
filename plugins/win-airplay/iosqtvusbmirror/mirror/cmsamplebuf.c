@@ -196,7 +196,7 @@ list_t * parseStia(uint8_t **data, size_t data_len)
 	data_p += 8;
 	list_t *res = list_new();
 	bool has_error = false;
-	for (int i = 0; i < numEntries; i++)
+	for (size_t i = 0; i < numEntries; i++)
 	{
 		int index = i * cmSampleTimingInfoLength;
 		struct CMTime duration;
@@ -254,7 +254,7 @@ size_t * parseSampleSizeArray(uint8_t **data, size_t data_len)
 
 	size_t *res = calloc(1, sizeof(size_t)*numEntries);
 	uint8_t *data_p = *data + 8;
-	for (int i = 0; i < numEntries; i++)
+	for (size_t i = 0; i < numEntries; i++)
 	{
 		int index = 4 * i;
 		res[i] = byteutils_get_int(data_p, index + i * 4);

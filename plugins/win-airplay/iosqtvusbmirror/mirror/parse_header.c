@@ -170,6 +170,8 @@ void SyncCvrpPacketNewReply(struct SyncCvrpPacket *svp, CFTypeID clockRef, uint8
 
 int NewSyncOgPacketFromBytes(uint8_t *data, size_t data_len, struct SyncOgPacket *packet)
 {
+	(void)data_len;
+
 	uint8_t *remainingBytes = NULL;
 	CFTypeID clockRef;
 	uint64_t correlationID;
@@ -197,6 +199,8 @@ void SyncOgPacketNewReply(struct SyncOgPacket *svp, uint8_t **out, size_t *out_l
 
 int NewSyncSkewPacketFromBytes(uint8_t *data, size_t data_len, struct SyncSkewPacket *packet)
 {
+	(void)data_len;
+
 	uint8_t *remainingBytes = NULL;
 	CFTypeID clockRef;
 	uint64_t correlationID;
@@ -222,6 +226,8 @@ void SyncSkewPacketNewReply(struct SyncSkewPacket *svp, double skew, uint8_t **o
 
 int NewSyncClokPacketFromBytes(uint8_t *data, size_t data_len, struct SyncClokPacket *packet)
 {
+	(void)data_len;
+
 	uint8_t *next_data_pointer = NULL;
 	CFTypeID clockRef;
 	uint64_t correlationID;
@@ -241,6 +247,8 @@ void SyncClokPacketNewReply(struct SyncClokPacket *scp, CFTypeID clockRef, uint8
 
 int NewSyncTimePacketFromBytes(uint8_t *data, size_t data_len, struct SyncTimePacket *packet)
 {
+	(void)data_len;
+
 	uint8_t *next_data_pointer = NULL;
 	CFTypeID clockRef;
 	uint64_t correlationID;
@@ -268,6 +276,8 @@ void SyncTimePacketNewReply(struct SyncTimePacket *packet, struct CMTime *time, 
 
 int NewSyncStopPacketFromBytes(uint8_t *data, size_t data_len, struct SyncStopPacket *packet)
 {
+	(void)data_len;
+
 	uint8_t *next_data_pointer = NULL;
 	CFTypeID clockRef;
 	uint64_t correlationID;
