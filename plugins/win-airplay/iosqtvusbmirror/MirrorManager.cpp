@@ -11,12 +11,14 @@ MirrorManager::MirrorManager()
 {
 	usb_init();
 	m_pktbuf = (unsigned char *)malloc(DEV_MRU);
+	m_pairBlockEvent = new QEventLoop(this);
+	m_usbDataBlockEvent = new QEventLoop(this);
+	m_notificationTimer = new QTimer(this);
 }
 
 MirrorManager::~MirrorManager()
 {
 	free(m_pktbuf);
-	//circlebuf_free(&m_usbDataCache);
 }
 
 void MirrorManager::readUSBData(void *data)
@@ -27,35 +29,48 @@ void MirrorManager::readUSBData(void *data)
 	while (!manager->m_stop) {
 		readLen = usb_bulk_read(manager->m_deviceHandle, manager->ep_in, buffer, DEV_MRU, 200);
 		if (readLen < 0) {
-			if (readLen != -116)
+			if (readLen != -116) {
+				QMetaObject::invokeMethod(manager, "resetDevice", Q_ARG(QString, u8"停止USB读取线程"), Q_ARG(bool ,false));
 				break;
+			}
 		} else
-			manager->onDeviceData((unsigned char *)buffer, readLen);
+			QMetaObject::invokeMethod(manager, "onDeviceData", Q_ARG(QByteArray, QByteArray(buffer, readLen)));
 	}
+
 	free(buffer);
+
+	qDebug() << "pair read usb data thread stopped...";
 }
 
-void MirrorManager::pairDeviceLost()
+void MirrorManager::resetDevice(QString msg, bool closeDevice)
 {
-	for (auto iter = m_connections.begin(); iter != m_connections.end(); iter++) {
-	}
-}
+	m_stop = true;
+	if (m_usbReadTh.joinable())
+		m_usbReadTh.join();
 
-void MirrorManager::resetDevice(QString msg)
-{
 	m_errorMsg = msg;
+	if (m_notificationTimer->isActive())
+		m_notificationTimer->stop();
+
+	qDeleteAll(m_connections);
+	m_connections.clear();
+
+	if (closeDevice && m_deviceHandle) {
+		usb_release_interface(m_deviceHandle, m_interface);
+		usb_release_interface(m_deviceHandle, m_interface_fa);
+		usb_close(m_deviceHandle);
+		m_deviceHandle = NULL;
+		m_device = NULL;
+	}
+
+	m_usbDataBlockEvent->quit();
+	m_pairBlockEvent->quit();
+	qDebug() << "reset device called+++++++++++++++++++++";
 }
 
-void MirrorManager::startConnect(uint16_t sport, uint16_t dport)
+void MirrorManager::startConnect(ConnectionType type, uint16_t dport)
 {
-	ConnectionInfo *info = new ConnectionInfo;
-	info->connTxAck = 0;
-	info->connTxSeq = 0;
-	info->connState = MuxConnState::CONN_CONNECTING;
-	info->srcPort = sport;
-	info->dstPort = dport;
-	circlebuf_init(&info->m_usbDataCache);
-
+	ConnectionInfo *info = new ConnectionInfo(type, m_initPort++, dport);
 	m_connections.append(info);
 
 	sendTcp(info, TH_SYN, NULL, 0);
@@ -80,8 +95,8 @@ void MirrorManager::onDeviceVersionInput(VersionHeader *vh)
 
 	qDebug("Connected to v%d.%d device on location 0x%x with serial number %s", m_devVersion, vh->minor, m_device->bus->location, m_serial);
 	m_devState = MuxDevState::MUXDEV_ACTIVE;
-
-	startConnect(0x233, 0xf27e);
+	
+	startConnect(InitPair, 0xf27e);
 }
 
 static bool lockdownCheckResult(plist_t dict, const char *query_match)
@@ -169,14 +184,14 @@ bool MirrorManager::receivePlist(ConnectionInfo *conn, plist_t *ret, const char 
 {
 	uint32_t pktlen = 0;
 	if (!readDataWithSize(conn, &pktlen, sizeof(pktlen), allowTimeout)) {
-		qDebug() << "read QueryType length failed";
+		qDebug() << QString("read %1 length failed").arg(key);
 		return false;
 	}
 
 	pktlen = be32toh(pktlen);
 	char *buf = (char *)malloc(pktlen);
 	if (!readDataWithSize(conn, buf, pktlen, allowTimeout)) {
-		qDebug() << "read QueryType data failed";
+		qDebug() << QString("read %1 data failed").arg(key);
 		free(buf);
 		return false;
 	}
@@ -273,12 +288,12 @@ static plist_t lockdowndPairRecordToPlist(MirrorManager::PairRecord *pair_record
 	return dict;
 }
 
-bool MirrorManager::lockdownPair(ConnectionInfo *conn, PairRecord *record)
+bool MirrorManager::lockdownPair(ConnectionInfo *conn, PairRecord *record, bool raiseError)
 {
 	plist_t options = plist_new_dict();
 	plist_dict_set_item(options, "ExtendedPairingErrors", plist_new_bool(1));
 
-	bool ret = lockdownDoPair(conn, record, "Pair", options, NULL);
+	bool ret = lockdownDoPair(conn, record, "Pair", options, NULL, raiseError);
 
 	plist_free(options);
 
@@ -350,8 +365,7 @@ leave:
 	return ret;
 }
 
-//这里的配对失败大概率是因为PairingDialogResponsePending,表示用户还没点这个信任的确定按钮
-bool MirrorManager::lockdownDoPair(ConnectionInfo *conn, PairRecord *pair_record, const char *verb, plist_t options, plist_t *result)
+bool MirrorManager::lockdownDoPair(ConnectionInfo *conn, PairRecord *pair_record, const char *verb, plist_t options, plist_t *result, bool raiseError)
 {
 	plist_t dict = NULL;
 	plist_t pair_record_plist = NULL;
@@ -481,6 +495,8 @@ bool MirrorManager::lockdownDoPair(ConnectionInfo *conn, PairRecord *pair_record
 				/* the first pairing fails if the device is password protected */
 				ret = false;
 				free(value);
+				if (raiseError)
+					resetDevice(QString(u8"配对失败, %1").arg(value));
 			}
 		}
 	}
@@ -652,7 +668,7 @@ void MirrorManager::handleVersionValue(ConnectionInfo *conn, plist_t value)
 					LockdownServiceDescriptor *service = NULL;
 					bool ret = lockdownStartService(conn, "com.apple.mobile.insecure_notification_proxy", &service);
 					if (ret) {
-						startConnect(0x234, service->port);
+						startConnect(StartService, service->port);
 						free(service);
 						service = NULL;
 					}
@@ -722,6 +738,38 @@ void MirrorManager::startActualPair(void *conn)
 	plist_free(dict);
 }
 
+void MirrorManager::pairResult(bool success)
+{
+	if (success) {
+		m_devicePaired = true;
+		m_stop = true;
+		if (m_usbReadTh.joinable())
+			m_usbReadTh.join();
+
+		m_pairBlockEvent->quit();
+	}
+}
+
+void MirrorManager::startFinalPair(ConnectionInfo *conn)
+{
+	pairResult(lockdownPair(conn, NULL, true));
+}
+
+void MirrorManager::lockdownProcessNotification(const char *notification)
+{
+	if (!notification || strlen(notification) == 0) {
+		resetDevice(u8"配对返回的notification字符串有误。");
+		return;
+	}
+
+	if (strcmp(notification, "com.apple.mobile.lockdown.request_pair") == 0) {
+		qDebug("%s: user trusted this computer on device %s, pairing now", __func__, m_serial);
+		startConnect(PairNotify, 0xf27e);
+	} else if (strcmp(notification, "com.apple.mobile.lockdown.request_host_buid") == 0) {
+		startConnect(Other, 0xf27e);
+	}
+}
+
 void MirrorManager::startObserve(void *conn)
 {
 	ConnectionInfo *c = (ConnectionInfo *)conn;
@@ -746,13 +794,18 @@ void MirrorManager::startObserve(void *conn)
 		i++;
 	}
 
-	QTimer *timer = new QTimer(this);
-	connect(timer, &QTimer::timeout, this, [c, this](){
+	m_notificationTimer->disconnect();
+	connect(m_notificationTimer, &QTimer::timeout, this, [c, this](){
+		if (!m_connections.contains(c))
+			return;
+
 		plist_t dict = NULL;
 
 		bool success = receivePlist(c, &dict, "GetNotification", true); //data->plist 可能失败吗？这里假设失败的原因就是超时
 		if (!success || !dict)
 			return;
+
+		m_notificationTimer->stop();
 
 		int res = 0;
 		char *cmd_value = NULL;
@@ -779,13 +832,20 @@ void MirrorManager::startObserve(void *conn)
 			}
 		} else if (cmd_value && !strcmp(cmd_value, "ProxyDeath")) {
 			qDebug("NotificationProxy died!");
+			resetDevice(u8"配对监听代理失效。");
 			res = -1;
 		} else if (cmd_value) {
 			qDebug("unknown NotificationProxy command '%s' received!", cmd_value);
+			resetDevice(QString(u8"未知的配对监听代理指令%1。").arg(cmd_value));
 			res = -1;
 		} else {
 			res = -2;
+			resetDevice(u8"未知的配对监听错误。");
 		}
+
+		if (res == 0)
+			lockdownProcessNotification(notification);
+
 		if (cmd_value) {
 			free(cmd_value);
 		}
@@ -796,7 +856,7 @@ void MirrorManager::startObserve(void *conn)
 		dict = NULL;
 
 	});
-	timer->start(200);
+	m_notificationTimer->start(200);
 }
 
 //m_connTxAck 这个值和原版的投屏进程还不太一样，设置的时机不一样。这里我设置的早了。明天得看下这个值设置的早了会不会有什么问题
@@ -850,24 +910,36 @@ void MirrorManager::onDeviceTcpInput(struct tcphdr *th, unsigned char *payload, 
 			}
 			conn->connState = MuxConnState::CONN_CONNECTED;
 
-			if (conn->dstPort == 0xf27e)
-				QMetaObject::invokeMethod(this, "startActualPair", Q_ARG(void*, conn));
-			else
-				QMetaObject::invokeMethod(this, "startObserve", Q_ARG(void*, conn));
+			if (conn->dstPort == 0xf27e) {
+				switch (conn->type)
+				{
+				case InitPair:
+					startActualPair(conn);
+					break;
+				case PairNotify:
+					startFinalPair(conn);
+					break;
+				case Other:
+					setUntrustedHostBuid(conn);
+					break;
+				case StartService:
+					break;
+				default:
+					break;
+				}
+			} else
+				startObserve(conn);
 		}
 	} else if(conn->connState == MuxConnState::CONN_CONNECTED) {
 		conn->connTxAck += payload_length;
 		if(th->th_flags != TH_ACK) {
-			qDebug("Connection reset by device %d (%d->%d)", sport, dport);
+			qDebug("Connection reset by device (%d->%d)", sport, dport);
 			if(th->th_flags & TH_RST)
 				conn->connState = MuxConnState::CONN_DYING;
 			resetDevice(u8"设备重置了连接，请断开设备、重启后再试。");
 		} else {
-			conn->m_usbDataLock.lock();
 			circlebuf_push_back(&conn->m_usbDataCache, payload, payload_length);
-			conn->m_usbDataWaitCondition.wakeOne();
-			conn->m_usbDataLock.unlock();
-
+			m_usbDataBlockEvent->quit();
 			// Device likes it best when we are prompty ACKing data
 			sendTcpAck(conn);
 		}
@@ -877,12 +949,21 @@ void MirrorManager::onDeviceTcpInput(struct tcphdr *th, unsigned char *payload, 
 bool MirrorManager::readDataWithSize(ConnectionInfo *conn, void *dst, size_t size, bool allowTimeout, int timeout)
 {
 	bool ret = false;
-	QMutexLocker locker(&conn->m_usbDataLock);
 	while (conn->m_usbDataCache.size < size) {
-		ret = conn->m_usbDataWaitCondition.wait(&conn->m_usbDataLock, timeout);
-		if (!ret)
+		QTimer timer;
+		timer.setSingleShot(true);
+		connect(&timer, &QTimer::timeout, m_usbDataBlockEvent, &QEventLoop::quit);
+		timer.start(timeout);
+		m_usbDataBlockEvent->exec();
+		if (m_connections.isEmpty())
+			return false;
+
+		if (!timer.isActive())
 			break;
 	}
+
+	if (m_connections.isEmpty())
+		return false;
 
 	if (conn->m_usbDataCache.size >= size) {
 		circlebuf_pop_front(&conn->m_usbDataCache, dst, size);
@@ -896,8 +977,11 @@ bool MirrorManager::readDataWithSize(ConnectionInfo *conn, void *dst, size_t siz
 	return ret;
 }
 
-void MirrorManager::onDeviceData(unsigned char *buffer, int length)
+void MirrorManager::onDeviceData(QByteArray data)
 {
+	int length = data.length();
+	auto buffer = data.data();
+	unsigned char *buffer2 = NULL;
 	if (!length)
 		return;
 
@@ -917,7 +1001,7 @@ void MirrorManager::onDeviceData(unsigned char *buffer, int length)
 		memcpy(m_pktbuf + m_pktlen, buffer, length);
 		MuxHeader *mhdr = (MuxHeader*)m_pktbuf;
 		if ((length < USB_MRU) || (ntohl(mhdr->length) == (length + m_pktlen))) {
-			buffer = m_pktbuf;
+			buffer2 = m_pktbuf;
 			length += m_pktlen;
 			m_pktlen = 0;
 			qDebug("Gathered mux data from buffer (total size: %d)", length);
@@ -936,7 +1020,7 @@ void MirrorManager::onDeviceData(unsigned char *buffer, int length)
 		}
 	}
 
-	MuxHeader *mhdr = (MuxHeader *)buffer;
+	MuxHeader *mhdr = (buffer2 == NULL ? (MuxHeader *)buffer : (MuxHeader *)buffer2);
 	int mux_header_size = ((m_devVersion < 2) ? 8 : sizeof(MuxHeader));
 	if (ntohl(mhdr->length) != length) {
 		qDebug("Incoming packet size mismatch (expected %d, got %d)", ntohl(mhdr->length), length);
@@ -1081,11 +1165,20 @@ static struct usb_device *findAppleDevice(int vid, int pid)
 #include <QThread>
 bool MirrorManager::checkAndChangeMode(int vid, int pid)
 {
-	int ret = -1;
+	auto openDeviceFunc = [=](struct usb_device *dev, int index){
+		m_qtConfigIndex = index;
+		m_deviceHandle = usb_open(dev);
+		m_device = dev;
+		memset(m_serial, 0, sizeof(m_serial));
+		usb_get_string_simple(m_deviceHandle, m_device->descriptor.iSerialNumber, m_serial, sizeof(m_serial));
+		qDebug() << "open ios device";
+	};
+
+	int ret = false;
 	struct usb_device *device = findAppleDevice(vid, pid);
 	if (!device) {
 		m_errorMsg = u8"iOS设备未找到";
-		return false;
+		return ret;
 	}	
 
 	int muxConfigIndex = -1;
@@ -1115,20 +1208,20 @@ bool MirrorManager::checkAndChangeMode(int vid, int pid)
 				if (qtConfigIndex == -1)
 					m_errorMsg = u8"进入投屏模式失败，请断开连接，重启手机后再试。";
 				else {
-					m_qtConfigIndex = qtConfigIndex;
-					m_deviceHandle = usb_open(dev);
-					m_device = dev;
-					memset(m_serial, 0, sizeof(m_serial));
-					usb_get_string_simple(m_deviceHandle, m_device->descriptor.iSerialNumber, m_serial, sizeof(m_serial));
+					openDeviceFunc(dev, qtConfigIndex);
 					ret = true;
 				}
 				break;
 			}
 		}
 		qDebug() << "Apple device reconnect cost time " << t.elapsed() << ", loop count: " << loopCount;
-	} else
-		m_errorMsg = u8"设备异常，请重新插拔手机后再试。";
+	} else {
+		openDeviceFunc(device, qtConfigIndex);
+		ret = true;
+	//	m_errorMsg = u8"设备异常，请重新插拔手机后再试。";
+	}
 
+	qDebug() << "checkAndChangeMode result: " << ret;
 	return ret;
 }
 
@@ -1141,8 +1234,16 @@ bool MirrorManager::setupUSBInfo()
 
 	char config = -1;
 	int res = usb_control_msg(m_deviceHandle, USB_RECIP_DEVICE | USB_ENDPOINT_IN, USB_REQ_GET_CONFIGURATION, 0, 0, &config, 1, 500);
-	if (config != m_qtConfigIndex)
-		usb_set_configuration(m_deviceHandle, m_qtConfigIndex);
+	if (res < 0) {
+		m_errorMsg = u8"发送控制指令失败。";
+		return false;
+	}
+	if (config != m_qtConfigIndex) {
+		if (usb_set_configuration(m_deviceHandle, m_qtConfigIndex)) {
+			m_errorMsg = u8"设置configuration失败。";
+			return false;
+		}
+	}
 
 	for (int m = 0; m < m_device->descriptor.bNumConfigurations; m++) {
 		struct usb_config_descriptor config = m_device->config[m];
@@ -1189,11 +1290,17 @@ bool MirrorManager::setupUSBInfo()
 
 	res = usb_claim_interface(m_deviceHandle, m_interface);
 	res = usb_claim_interface(m_deviceHandle, m_interface_fa);
+	if (res < 0) {
+		m_errorMsg = u8"claim interface失败。";
+		return false;
+	}
 	return true;
 }
 
 bool MirrorManager::startPair()
 {
+	m_pktlen = 0;
+	m_stop = false;
 	m_usbReadTh = std::thread(readUSBData, this);
 	m_usbReadTh.detach();
 
@@ -1206,7 +1313,9 @@ bool MirrorManager::startPair()
 	vh.padding = 0;
 	sendPacket(MuxProtocol::MUX_PROTO_VERSION, &vh, NULL, 0);
 
-	m_pairBlockEvent.exec();
+	m_pairBlockEvent->exec();
+
+	qDebug() << "pair end ===================== " << m_errorMsg << m_devicePaired;
 
 	return true;
 }
@@ -1217,7 +1326,6 @@ bool MirrorManager::startPair()
 //-4=>发送切换指令后，3s内未能重新找到设备，提示用户保持手机与电脑的连接
 bool MirrorManager::startMirrorTask(int vid, int pid) 
 {
-	m_pktlen = 0;
 	return checkAndChangeMode(vid, pid) && setupUSBInfo() && startPair();
 }
 
@@ -1249,6 +1357,9 @@ int MirrorManager::sendTcp(ConnectionInfo *conn, uint8_t flags, const unsigned c
 
 int MirrorManager::sendPacket(MuxProtocol proto, void *header, const void *data, int length)
 {
+	if (!m_deviceHandle)
+		return -1;
+
 	char *buffer;
 	int hdrlen;
 	int res;
@@ -1295,9 +1406,7 @@ int MirrorManager::sendPacket(MuxProtocol proto, void *header, const void *data,
 	if(data && length)
 		memcpy(buffer + mux_header_size + hdrlen, data, length);
 
-	m_usbSendLock.lock();
 	res = usb_bulk_write(m_deviceHandle, ep_out, buffer, total, 1000);
-	m_usbSendLock.unlock();
 	free(buffer);
 	if(res < 0) {
 		qDebug("usb_send failed while sending packet (len %d) to device", total);
