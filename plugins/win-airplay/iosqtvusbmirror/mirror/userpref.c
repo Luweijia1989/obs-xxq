@@ -306,7 +306,7 @@ userpref_error_t userpref_save_pair_record(const char *udid, plist_t pair_record
 userpref_error_t userpref_read_pair_record(const char *udid, plist_t *pair_record)
 {
 	char* record_data = NULL;
-	uint32_t record_size = 0;
+	uint64_t record_size = 0;
 
 	int res = config_get_device_record(udid, &record_data, &record_size);
 

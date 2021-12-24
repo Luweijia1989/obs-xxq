@@ -17,6 +17,14 @@ extern "C"
 #include "utils.h"
 }
 
+#ifdef HAVE_OPENSSL
+#include <openssl/err.h>
+#include <openssl/rsa.h>
+#include <openssl/ssl.h>
+#else
+#include <gnutls/gnutls.h>
+#endif
+
 #define DEV_MRU 65536
 #define USB_MTU (3 * 16384)
 #define USB_MRU 16384
@@ -41,6 +49,24 @@ struct MuxHeader {
 	uint16_t tx_seq;
 	uint16_t rx_seq;
 };
+
+#define DEVICE_VERSION(maj, min, patch) \
+	(((maj & 0xFF) << 16) | ((min & 0xFF) << 8) | (patch & 0xFF))
+
+struct ssl_data_private {
+#ifdef HAVE_OPENSSL
+	SSL *session;
+	SSL_CTX *ctx;
+#else
+	gnutls_certificate_credentials_t certificate;
+	gnutls_session_t session;
+	gnutls_x509_privkey_t root_privkey;
+	gnutls_x509_crt_t root_cert;
+	gnutls_x509_privkey_t host_privkey;
+	gnutls_x509_crt_t host_cert;
+#endif
+};
+typedef struct ssl_data_private *ssl_data_t;
 
 enum class MuxDevState {
 	MUXDEV_INIT,   // sent version packet
@@ -89,6 +115,8 @@ public:
 		uint16_t dstPort;
 		char *sessionId;
 		bool sslEnabled;
+		void *data;
+		ssl_data_t ssl_data;
 		ConnectionType type;
 		MuxConnState connState;
 
@@ -103,6 +131,8 @@ public:
 			dstPort = dport;
 			sessionId = NULL;
 			sslEnabled = false;
+			data = NULL;
+			ssl_data = NULL;
 			circlebuf_init(&m_usbDataCache);
 		}
 
@@ -156,6 +186,7 @@ private:
 
 	bool lockdownStartSession(ConnectionInfo *conn, const char *host_id, char **session_id, int *ssl_enabled);
 	bool lockdownStopSession(ConnectionInfo *conn, const char *session_id);
+	bool lockdownEnableSSL(ConnectionInfo *conn);
 	bool lockdownStartService(ConnectionInfo *conn, const char *identifier, LockdownServiceDescriptor **service);
 	bool lockdownDoStartService(ConnectionInfo *conn, const char *identifier, int send_escrow_bag, LockdownServiceDescriptor **service);
 	bool lockdownBuildStartServiceRequest(const char *identifier, int send_escrow_bag, plist_t *request);

@@ -7,6 +7,93 @@
 
 #define LOCKDOWN_PROTOCOL_VERSION "2"
 
+
+#ifdef HAVE_OPENSSL
+static int ssl_verify_callback(int ok, X509_STORE_CTX *ctx)
+{
+	return 1;
+}
+
+#ifndef STRIP_DEBUG_CODE
+static const char *ssl_error_to_string(int e)
+{
+	switch (e) {
+	case SSL_ERROR_NONE:
+		return "SSL_ERROR_NONE";
+	case SSL_ERROR_SSL:
+		return "SSL_ERROR_SSL";
+	case SSL_ERROR_WANT_READ:
+		return "SSL_ERROR_WANT_READ";
+	case SSL_ERROR_WANT_WRITE:
+		return "SSL_ERROR_WANT_WRITE";
+	case SSL_ERROR_WANT_X509_LOOKUP:
+		return "SSL_ERROR_WANT_X509_LOOKUP";
+	case SSL_ERROR_SYSCALL:
+		return "SSL_ERROR_SYSCALL";
+	case SSL_ERROR_ZERO_RETURN:
+		return "SSL_ERROR_ZERO_RETURN";
+	case SSL_ERROR_WANT_CONNECT:
+		return "SSL_ERROR_WANT_CONNECT";
+	case SSL_ERROR_WANT_ACCEPT:
+		return "SSL_ERROR_WANT_ACCEPT";
+	default:
+		return "UNKOWN_ERROR_VALUE";
+	}
+}
+#endif
+#endif
+
+#ifdef HAVE_OPENSSL
+
+#if OPENSSL_VERSION_NUMBER < 0x10100000L || \
+	(defined(LIBRESSL_VERSION_NUMBER) && (LIBRESSL_VERSION_NUMBER < 0x20020000L))
+#define TLS_method TLSv1_method
+#endif
+
+#if OPENSSL_VERSION_NUMBER < 0x10002000L || defined(LIBRESSL_VERSION_NUMBER)
+static void SSL_COMP_free_compression_methods(void)
+{
+	sk_SSL_COMP_free(SSL_COMP_get_compression_methods());
+}
+#endif
+
+static void openssl_remove_thread_state(void)
+{
+/*  ERR_remove_thread_state() is available since OpenSSL 1.0.0-beta1, but
+ *  deprecated in OpenSSL 1.1.0 */
+#if OPENSSL_VERSION_NUMBER < 0x10100000L || defined(LIBRESSL_VERSION_NUMBER)
+#if OPENSSL_VERSION_NUMBER >= 0x10000001L
+	ERR_remove_thread_state(NULL);
+#else
+	ERR_remove_state(0);
+#endif
+#endif
+}
+
+#if OPENSSL_VERSION_NUMBER < 0x10100000L || defined(LIBRESSL_VERSION_NUMBER)
+static mutex_t *mutex_buf = NULL;
+static void locking_function(int mode, int n, const char* file, int line)
+{
+	if (mode & CRYPTO_LOCK)
+		mutex_lock(&mutex_buf[n]);
+	else
+		mutex_unlock(&mutex_buf[n]);
+}
+
+#if OPENSSL_VERSION_NUMBER < 0x10000000L
+static unsigned long id_function(void)
+{
+	return ((unsigned long)THREAD_ID);
+}
+#else
+static void id_function(CRYPTO_THREADID *thread)
+{
+	CRYPTO_THREADID_set_numeric(thread, (unsigned long)THREAD_ID);
+}
+#endif
+#endif
+#endif /* HAVE_OPENSSL */
+
 MirrorManager::MirrorManager()
 {
 	usb_init();
@@ -732,6 +819,178 @@ bool MirrorManager::lockdownStopSession(ConnectionInfo *conn, const char *sessio
 	return ret;
 }
 
+bool MirrorManager::lockdownEnableSSL(ConnectionInfo *conn)
+{
+	bool ret = false;
+#ifdef HAVE_OPENSSL
+	uint32_t return_me = 0;
+#else
+	int return_me = 0;
+#endif
+	plist_t pair_record = NULL;
+
+	userpref_read_pair_record(m_serial, &pair_record);
+	if (!pair_record) {
+		qDebug("ERROR: Failed enabling SSL. Unable to read pair record for udid %s.", m_serial);
+		return ret;
+	}
+
+#ifdef HAVE_OPENSSL
+	key_data_t root_cert = { NULL, 0 };
+	key_data_t root_privkey = { NULL, 0 };
+
+	pair_record_import_crt_with_name(pair_record, USERPREF_ROOT_CERTIFICATE_KEY, &root_cert);
+	pair_record_import_key_with_name(pair_record, USERPREF_ROOT_PRIVATE_KEY_KEY, &root_privkey);
+
+	if (pair_record)
+		plist_free(pair_record);
+
+	BIO *ssl_bio = BIO_new(BIO_s_socket());
+	if (!ssl_bio) {
+		qDebug("ERROR: Could not create SSL bio.");
+		return ret;
+	}
+	BIO_set_fd(ssl_bio, (int)(long)conn->data, BIO_NOCLOSE);
+
+	SSL_CTX *ssl_ctx = SSL_CTX_new(TLS_method());
+	if (ssl_ctx == NULL) {
+		qDebug("ERROR: Could not create SSL context.");
+		BIO_free(ssl_bio);
+		return ret;
+	}
+
+#if OPENSSL_VERSION_NUMBER < 0x10100002L || \
+	(defined(LIBRESSL_VERSION_NUMBER) && (LIBRESSL_VERSION_NUMBER < 0x2060000fL))
+	/* force use of TLSv1 for older devices */
+	if (connection->device->version < DEVICE_VERSION(10,0,0)) {
+#ifdef SSL_OP_NO_TLSv1_1
+		long opts = SSL_CTX_get_options(ssl_ctx);
+		opts |= SSL_OP_NO_TLSv1_1;
+#ifdef SSL_OP_NO_TLSv1_2
+		opts |= SSL_OP_NO_TLSv1_2;
+#endif
+#ifdef SSL_OP_NO_TLSv1_3
+		opts |= SSL_OP_NO_TLSv1_3;
+#endif
+		SSL_CTX_set_options(ssl_ctx, opts);
+#endif
+	}
+#else
+	SSL_CTX_set_min_proto_version(ssl_ctx, TLS1_VERSION);
+	if (m_devVersion < DEVICE_VERSION(10,0,0)) {
+		SSL_CTX_set_max_proto_version(ssl_ctx, TLS1_VERSION);
+	}
+#endif
+
+	BIO* membp;
+	X509* rootCert = NULL;
+	membp = BIO_new_mem_buf(root_cert.data, root_cert.size);
+	PEM_read_bio_X509(membp, &rootCert, NULL, NULL);
+	BIO_free(membp);
+	if (SSL_CTX_use_certificate(ssl_ctx, rootCert) != 1) {
+		qDebug("WARNING: Could not load RootCertificate");
+	}
+	X509_free(rootCert);
+	free(root_cert.data);
+
+	RSA* rootPrivKey = NULL;
+	membp = BIO_new_mem_buf(root_privkey.data, root_privkey.size);
+	PEM_read_bio_RSAPrivateKey(membp, &rootPrivKey, NULL, NULL);
+	BIO_free(membp);
+	if (SSL_CTX_use_RSAPrivateKey(ssl_ctx, rootPrivKey) != 1) {
+		qDebug("WARNING: Could not load RootPrivateKey");
+	}
+	RSA_free(rootPrivKey);
+	free(root_privkey.data);
+
+	SSL *ssl = SSL_new(ssl_ctx);
+	if (!ssl) {
+		qDebug("ERROR: Could not create SSL object");
+		BIO_free(ssl_bio);
+		SSL_CTX_free(ssl_ctx);
+		return ret;
+	}
+	SSL_set_connect_state(ssl);
+	SSL_set_verify(ssl, 0, ssl_verify_callback);
+	SSL_set_bio(ssl, ssl_bio, ssl_bio);
+
+	return_me = SSL_do_handshake(ssl);
+	if (return_me != 1) {
+		qDebug("ERROR in SSL_do_handshake: %s", ssl_error_to_string(SSL_get_error(ssl, return_me)));
+		SSL_free(ssl);
+		SSL_CTX_free(ssl_ctx);
+	} else {
+		ssl_data_t ssl_data_loc = (ssl_data_t)malloc(sizeof(struct ssl_data_private));
+		ssl_data_loc->session = ssl;
+		ssl_data_loc->ctx = ssl_ctx;
+		conn->ssl_data = ssl_data_loc;
+		ret = true;
+		qDebug("SSL mode enabled, %s, cipher: %s", SSL_get_version(ssl), SSL_get_cipher(ssl));
+	}
+	/* required for proper multi-thread clean up to prevent leaks */
+	openssl_remove_thread_state();
+#else
+	ssl_data_t ssl_data_loc = (ssl_data_t)malloc(sizeof(struct ssl_data_private));
+
+	/* Set up GnuTLS... */
+	debug_info("enabling SSL mode");
+	errno = 0;
+	gnutls_certificate_allocate_credentials(&ssl_data_loc->certificate);
+#if GNUTLS_VERSION_NUMBER >= 0x020b07
+	gnutls_certificate_set_retrieve_function(ssl_data_loc->certificate, internal_cert_callback);
+#else
+	gnutls_certificate_client_set_retrieve_function(ssl_data_loc->certificate, internal_cert_callback);
+#endif
+	gnutls_init(&ssl_data_loc->session, GNUTLS_CLIENT);
+	gnutls_priority_set_direct(ssl_data_loc->session, "NONE:+VERS-TLS1.0:+ANON-DH:+RSA:+AES-128-CBC:+AES-256-CBC:+SHA1:+MD5:+COMP-NULL", NULL);
+	gnutls_credentials_set(ssl_data_loc->session, GNUTLS_CRD_CERTIFICATE, ssl_data_loc->certificate);
+	gnutls_session_set_ptr(ssl_data_loc->session, ssl_data_loc);
+
+	gnutls_x509_crt_init(&ssl_data_loc->root_cert);
+	gnutls_x509_crt_init(&ssl_data_loc->host_cert);
+	gnutls_x509_privkey_init(&ssl_data_loc->root_privkey);
+	gnutls_x509_privkey_init(&ssl_data_loc->host_privkey);
+
+	pair_record_import_crt_with_name(pair_record, USERPREF_ROOT_CERTIFICATE_KEY, ssl_data_loc->root_cert);
+	pair_record_import_crt_with_name(pair_record, USERPREF_HOST_CERTIFICATE_KEY, ssl_data_loc->host_cert);
+	pair_record_import_key_with_name(pair_record, USERPREF_ROOT_PRIVATE_KEY_KEY, ssl_data_loc->root_privkey);
+	pair_record_import_key_with_name(pair_record, USERPREF_HOST_PRIVATE_KEY_KEY, ssl_data_loc->host_privkey);
+
+	if (pair_record)
+		plist_free(pair_record);
+
+	debug_info("GnuTLS step 1...");
+	gnutls_transport_set_ptr(ssl_data_loc->session, (gnutls_transport_ptr_t)connection);
+	debug_info("GnuTLS step 2...");
+	gnutls_transport_set_push_function(ssl_data_loc->session, (gnutls_push_func) & internal_ssl_write);
+	debug_info("GnuTLS step 3...");
+	gnutls_transport_set_pull_function(ssl_data_loc->session, (gnutls_pull_func) & internal_ssl_read);
+	debug_info("GnuTLS step 4 -- now handshaking...");
+	if (errno) {
+		debug_info("WARNING: errno says %s before handshake!", strerror(errno));
+	}
+
+	do {
+		return_me = gnutls_handshake(ssl_data_loc->session);
+	} while(return_me == GNUTLS_E_AGAIN || return_me == GNUTLS_E_INTERRUPTED);
+
+	debug_info("GnuTLS handshake done...");
+
+	if (return_me != GNUTLS_E_SUCCESS) {
+		internal_ssl_cleanup(ssl_data_loc);
+		free(ssl_data_loc);
+		debug_info("GnuTLS reported something wrong: %s", gnutls_strerror(return_me));
+		debug_info("oh.. errno says %s", strerror(errno));
+	} else {
+		connection->ssl_data = ssl_data_loc;
+		ret = IDEVICE_E_SUCCESS;
+		debug_info("SSL mode enabled");
+	}
+#endif
+	return ret;
+}
+
+
 bool MirrorManager::lockdownStartSession(ConnectionInfo *conn, const char *host_id, char **session_id, int *ssl_enabled)
 {
 	bool ret = false;
@@ -775,7 +1034,7 @@ bool MirrorManager::lockdownStartSession(ConnectionInfo *conn, const char *host_
 
 	ret = receivePlist(conn, &dict, "StartSession");
 
-	if (!dict)
+	if (!ret || !dict)
 		return ret;
 
 	ret = lockdownCheckResult(dict, "StartSession");
@@ -808,7 +1067,7 @@ bool MirrorManager::lockdownStartSession(ConnectionInfo *conn, const char *host_
 		qDebug("Enable SSL Session: %s", (use_ssl ? "true" : "false"));
 
 		if (use_ssl) {
-			ret = lockdownd_error(property_list_service_enable_ssl(client->parent));
+			ret = lockdownEnableSSL(conn);
 			conn->sslEnabled = (ret ? 1 : 0);
 		} else {
 			ret = true;
