@@ -101,6 +101,45 @@ MirrorManager::MirrorManager()
 	m_pairBlockEvent = new QEventLoop(this);
 	m_usbDataBlockEvent = new QEventLoop(this);
 	m_notificationTimer = new QTimer(this);
+
+	serverSocket = new QTcpServer(this);
+	clientSocket = new QTcpSocket(this);
+	m_handshakeBlockEvent = new QEventLoop(this);
+	if (serverSocket->listen()) {
+		connect(serverSocket, &QTcpServer::newConnection, this, [this](){
+			auto client = serverSocket->nextPendingConnection();
+			QObject::connect(client, &QTcpSocket::readyRead, [this, client](){
+				auto all = client->readAll();
+				ConnectionInfo *conn = NULL;
+				for (auto iter = m_connections.begin(); iter != m_connections.end(); iter++)
+				{
+					if((*iter)->type == InitPair)
+						conn = *iter;
+				}
+				if (!conn)
+					return;
+				
+				sendTcp(conn, TH_ACK, (const unsigned char *)all.data(), all.size());
+				
+				uint32_t pktlen = 0;
+				if (!readDataWithSize(conn, &pktlen, sizeof(pktlen), false)) {
+					qDebug() << QString("read %1 length failed").arg("ReadSSLData");
+				}
+				 
+				pktlen = be32toh(pktlen);
+				char *buf = (char *)malloc(pktlen);
+				if (!readDataWithSize(conn, buf, pktlen, false)) {
+					qDebug() << QString("read %1 data failed").arg("ReadSSLData");
+					free(buf);
+				}
+				int cc = 0;
+				cc++;
+			});
+		});
+
+		clientSocket->connectToHost(QHostAddress::LocalHost, serverSocket->serverPort());
+
+	}
 }
 
 MirrorManager::~MirrorManager()
@@ -850,7 +889,7 @@ bool MirrorManager::lockdownEnableSSL(ConnectionInfo *conn)
 		qDebug("ERROR: Could not create SSL bio.");
 		return ret;
 	}
-	BIO_set_fd(ssl_bio, (int)(long)conn->data, BIO_NOCLOSE);
+	BIO_set_fd(ssl_bio, (int)(long)clientSocket->socketDescriptor(), BIO_NOCLOSE);
 
 	SSL_CTX *ssl_ctx = SSL_CTX_new(TLS_method());
 	if (ssl_ctx == NULL) {
@@ -1122,9 +1161,9 @@ void MirrorManager::startActualPair(ConnectionInfo *conn)
 			}
 			free(host_id);
 
-			plist_t value = NULL;
+			/*plist_t value = NULL;
 			if (lockdownGetValue(conn, NULL, "ProductVersion", &value))
-				handleVersionValue(conn, value);
+				handleVersionValue(conn, value);*/
 		}
 		free(typestr);
 	} else {
@@ -1497,8 +1536,6 @@ bool MirrorManager::sendPlist(ConnectionInfo *conn, plist_t plist, bool isBinary
 	free(content);
 	free(sendBuffer);
 
-	conn->connTxSeq += total;
-
 	return true;
 }
 
@@ -1750,7 +1787,9 @@ int MirrorManager::sendTcp(ConnectionInfo *conn, uint8_t flags, const unsigned c
 	th.th_off = sizeof(th) / 4;
 	th.th_win = htons(131072 >> 8);
 
-	return sendPacket(MuxProtocol::MUX_PROTO_TCP, &th, data, length);
+	auto ret = sendPacket(MuxProtocol::MUX_PROTO_TCP, &th, data, length);
+	conn->connTxSeq += length;
+	return ret;
 }
 
 int MirrorManager::sendPacket(MuxProtocol proto, void *header, const void *data, int length)

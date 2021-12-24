@@ -6,6 +6,8 @@
 #include <QObject>
 #include <QMutex>
 #include <QWaitCondition>
+#include <QTcpServer>
+#include <QTcpSocket>
 #include <util/circlebuf.h>
 #include "plist/plist.h"
 
@@ -115,7 +117,6 @@ public:
 		uint16_t dstPort;
 		char *sessionId;
 		bool sslEnabled;
-		void *data;
 		ssl_data_t ssl_data;
 		ConnectionType type;
 		MuxConnState connState;
@@ -130,10 +131,9 @@ public:
 			srcPort = sport;
 			dstPort = dport;
 			sessionId = NULL;
-			sslEnabled = false;
-			data = NULL;
+			sslEnabled = false;		
 			ssl_data = NULL;
-			circlebuf_init(&m_usbDataCache);
+			circlebuf_init(&m_usbDataCache);			
 		}
 
 		~ConnectionInfo() {
@@ -222,4 +222,8 @@ private:
 	MuxDevState m_devState;
 	QEventLoop *m_pairBlockEvent;
 	QEventLoop *m_usbDataBlockEvent;
+
+	QTcpServer *serverSocket;
+	QTcpSocket *clientSocket;
+	QEventLoop *m_handshakeBlockEvent;
 };

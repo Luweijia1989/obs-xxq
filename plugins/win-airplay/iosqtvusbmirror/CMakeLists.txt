@@ -1,13 +1,13 @@
 project(ios-qtvusb-mirror)
-
 find_package(Qt5Widgets REQUIRED)
+find_package(Qt5Network REQUIRED)
 set(CMAKE_AUTOMOC TRUE)
 
 include_directories(${PROJECT_SOURCE_DIR}/libwdi/include)
 include_directories(${PROJECT_SOURCE_DIR}/mirror/third-party/include)
 include_directories(${PROJECT_SOURCE_DIR}/mirror)
 include_directories(${PROJECT_SOURCE_DIR}/openssl/include)
-
+ 
 add_definitions( -D_USE_32BIT_TIME_T -DHAVE_LIBIMOBILEDEVICE -DHAVE_OPENSSL)
 
 file(GLOB_RECURSE iosusbmirror_SRC ${PROJECT_SOURCE_DIR}/mirror *.c)
@@ -47,6 +47,7 @@ add_executable(ios-qtvusb-mirror
 target_link_libraries(ios-qtvusb-mirror
 	libobs
 	Qt5::Widgets
+	Qt5::Network
 	debug ${PROJECT_SOURCE_DIR}/libwdi/lib/libwdid.lib
 	optimized ${PROJECT_SOURCE_DIR}/libwdi/lib/libwdi.lib
 	debug ${PROJECT_SOURCE_DIR}/mirror/third-party/lib/debug/plist.lib
