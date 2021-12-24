@@ -949,6 +949,9 @@ void MirrorManager::onDeviceTcpInput(struct tcphdr *th, unsigned char *payload, 
 bool MirrorManager::readDataWithSize(ConnectionInfo *conn, void *dst, size_t size, bool allowTimeout, int timeout)
 {
 	bool ret = false;
+	if (m_connections.isEmpty())
+		return ret;
+
 	while (conn->m_usbDataCache.size < size) {
 		QTimer timer;
 		timer.setSingleShot(true);
@@ -961,9 +964,6 @@ bool MirrorManager::readDataWithSize(ConnectionInfo *conn, void *dst, size_t siz
 		if (!timer.isActive())
 			break;
 	}
-
-	if (m_connections.isEmpty())
-		return false;
 
 	if (conn->m_usbDataCache.size >= size) {
 		circlebuf_pop_front(&conn->m_usbDataCache, dst, size);
@@ -1067,6 +1067,9 @@ void MirrorManager::onDeviceData(QByteArray data)
 
 bool MirrorManager::sendPlist(ConnectionInfo *conn, plist_t plist, bool isBinary)
 {
+	if (m_connections.isEmpty())
+		return false;
+
 	char *content = NULL;
 	uint32_t total = 0;
 	uint32_t length = 0;
