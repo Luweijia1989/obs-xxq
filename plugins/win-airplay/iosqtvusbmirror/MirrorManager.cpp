@@ -4,6 +4,7 @@
 #include <QDebug>
 #include <QElapsedTimer>
 #include <QTimer>
+#include <QThread>
 
 #define LOCKDOWN_PROTOCOL_VERSION "2"
 
@@ -94,6 +95,61 @@ static void id_function(CRYPTO_THREADID *thread)
 #endif
 #endif /* HAVE_OPENSSL */
 
+#include <winsock.h>
+int dddd = -1;
+int socket_connect(uint16_t port)
+{
+	int sfd = -1;
+	int yes = 1;
+	int bufsize = 0x20000;
+	char portstr[8];
+	int res;
+
+	u_long l_no = 0;
+	WSADATA wsa_data;
+	static int wsa_init = 0;
+	if (!wsa_init) {
+		if (WSAStartup(MAKEWORD(2,2), &wsa_data) != ERROR_SUCCESS) {
+			fprintf(stderr, "WSAStartup failed!\n");
+			ExitProcess(-1);
+		}
+		wsa_init = 1;
+	}
+
+
+
+	sfd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+	if (sfd == -1) {
+		return -1;
+	}
+
+	ioctlsocket(sfd, FIONBIO, &l_no);
+
+	struct sockaddr_in serv_addr;
+	memset(&serv_addr, 0, sizeof(serv_addr)); 
+	serv_addr.sin_family = AF_INET;          
+	serv_addr.sin_addr.s_addr = inet_addr("127.0.0.1"); 
+	serv_addr.sin_port = htons(port); 
+	connect(sfd, (struct sockaddr*)&serv_addr, sizeof(serv_addr));
+
+	ioctlsocket(sfd, FIONBIO, &l_no);
+
+
+	//if (setsockopt(sfd, IPPROTO_TCP, TCP_NODELAY, (void*)&yes, sizeof(int)) == -1) {
+	//	perror("Could not set TCP_NODELAY on socket");
+	//}
+
+	//if (setsockopt(sfd, SOL_SOCKET, SO_SNDBUF, (void*)&bufsize, sizeof(int)) == -1) {
+	//	perror("Could not set send buffer for socket");
+	//}
+
+	//if (setsockopt(sfd, SOL_SOCKET, SO_RCVBUF, (void*)&bufsize, sizeof(int)) == -1) {
+	//	perror("Could not set receive buffer for socket");
+	//}
+	dddd = sfd;
+	return sfd;
+}
+
 MirrorManager::MirrorManager()
 {
 	usb_init();
@@ -120,8 +176,21 @@ MirrorManager::MirrorManager()
 					return;
 				
 				sendTcp(conn, TH_ACK, (const unsigned char *)all.data(), all.size());
-				
-				uint32_t pktlen = 0;
+
+				QTimer t;
+				t.setSingleShot(true);
+				QEventLoop loop;
+				connect(&t, &QTimer::timeout, &loop, &QEventLoop::quit);
+				t.start(200);
+				loop.exec();
+
+				auto size = conn->m_usbDataCache.size;
+				auto buf = (char *)malloc(size);
+				circlebuf_pop_front(&conn->m_usbDataCache, buf, size);
+				auto ff = client->write(buf, size);
+				free(buf);
+
+				/*uint32_t pktlen = 0;
 				if (!readDataWithSize(conn, &pktlen, sizeof(pktlen), false)) {
 					qDebug() << QString("read %1 length failed").arg("ReadSSLData");
 				}
@@ -133,12 +202,17 @@ MirrorManager::MirrorManager()
 					free(buf);
 				}
 				int cc = 0;
-				cc++;
+				cc++;*/
 			});
 		});
 
-		clientSocket->connectToHost(QHostAddress::LocalHost, serverSocket->serverPort());
+		socket_connect(serverSocket->serverPort());
+		/*clientSocket->connectToHost(QHostAddress::LocalHost, serverSocket->serverPort());
+		clientSocket->waitForConnected();
 
+		u_long l_no = 0;
+		auto ret = ioctlsocket(clientSocket->socketDescriptor(), FIONBIO, &l_no);
+		ret++;*/
 	}
 }
 
@@ -889,7 +963,7 @@ bool MirrorManager::lockdownEnableSSL(ConnectionInfo *conn)
 		qDebug("ERROR: Could not create SSL bio.");
 		return ret;
 	}
-	BIO_set_fd(ssl_bio, (int)(long)clientSocket->socketDescriptor(), BIO_NOCLOSE);
+	BIO_set_fd(ssl_bio, (int)(long)dddd, BIO_NOCLOSE);
 
 	SSL_CTX *ssl_ctx = SSL_CTX_new(TLS_method());
 	if (ssl_ctx == NULL) {
