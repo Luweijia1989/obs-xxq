@@ -683,17 +683,154 @@ void MirrorManager::handleVersionValue(ConnectionInfo *conn, plist_t value)
 	plist_free(value);
 }
 
-void MirrorManager::startActualPair(void *conn)
+bool MirrorManager::lockdownStopSession(ConnectionInfo *conn, const char *session_id)
 {
-	ConnectionInfo *c = (ConnectionInfo *)conn;
+	if (!session_id) {
+		qDebug("no session_id given, cannot stop session");
+		return false;
+	}
+
+	bool ret = false;
 
 	plist_t dict = plist_new_dict();
 	plist_dict_add_label(dict, "usbmuxd");
+	plist_dict_set_item(dict,"Request", plist_new_string("StopSession"));
+	plist_dict_set_item(dict,"SessionID", plist_new_string(session_id));
+
+	qDebug("stopping session %s", session_id);
+
+	ret = sendPlist(conn, dict, false);
+
+	plist_free(dict);
+	dict = NULL;
+
+	ret = receivePlist(conn, &dict, "StopSession");
+
+	if (!dict) {
+		qDebug("LOCKDOWN_E_PLIST_ERROR");
+		return false;
+	}
+
+	ret = lockdownCheckResult(dict, "StopSession");
+	if (ret) {
+		qDebug("success");
+	}
+
+	plist_free(dict);
+	dict = NULL;
+
+	if (conn->sessionId) {
+		free(conn->sessionId);
+		conn->sessionId = NULL;
+	}
+
+	if (conn->sslEnabled) {
+		//property_list_service_disable_ssl(client->parent);
+		conn->sslEnabled = false;
+	}
+
+	return ret;
+}
+
+bool MirrorManager::lockdownStartSession(ConnectionInfo *conn, const char *host_id, char **session_id, int *ssl_enabled)
+{
+	bool ret = false;
+	plist_t dict = NULL;
+
+	if (!host_id)
+		ret = ret;
+
+	/* if we have a running session, stop current one first */
+	if (session_id) {
+		lockdownStopSession(conn, conn->sessionId);
+	}
+
+	/* setup request plist */
+	dict = plist_new_dict();
+	plist_dict_add_label(dict, "usbmuxd");
+	plist_dict_set_item(dict,"Request", plist_new_string("StartSession"));
+
+	/* add host id */
+	if (host_id) {
+		plist_dict_set_item(dict, "HostID", plist_new_string(host_id));
+	}
+
+	/* add system buid */
+	char *system_buid = NULL;
+	userpref_read_system_buid(&system_buid);
+	if (system_buid) {
+		plist_dict_set_item(dict, "SystemBUID", plist_new_string(system_buid));
+		if (system_buid) {
+			free(system_buid);
+			system_buid = NULL;
+		}
+	}
+
+	ret = sendPlist(conn, dict, false);
+	plist_free(dict);
+	dict = NULL;
+
+	if (!ret)
+		return ret;
+
+	ret = receivePlist(conn, &dict, "StartSession");
+
+	if (!dict)
+		return ret;
+
+	ret = lockdownCheckResult(dict, "StartSession");
+	if (ret) {
+		uint8_t use_ssl = 0;
+
+		plist_t enable_ssl = plist_dict_get_item(dict, "EnableSessionSSL");
+		if (enable_ssl && (plist_get_node_type(enable_ssl) == PLIST_BOOLEAN)) {
+			plist_get_bool_val(enable_ssl, &use_ssl);
+		}
+		qDebug("Session startup OK");
+
+		if (ssl_enabled != NULL)
+			*ssl_enabled = use_ssl;
+
+		/* store session id, we need it for StopSession */
+		plist_t session_node = plist_dict_get_item(dict, "SessionID");
+		if (session_node && (plist_get_node_type(session_node) == PLIST_STRING)) {
+			plist_get_string_val(session_node, &conn->sessionId);
+		}
+
+		if (conn->sessionId) {
+			qDebug("SessionID: %s", conn->sessionId);
+			if (session_id != NULL)
+				*session_id = strdup(conn->sessionId);
+		} else {
+			qDebug("Failed to get SessionID!");
+		}
+
+		qDebug("Enable SSL Session: %s", (use_ssl ? "true" : "false"));
+
+		if (use_ssl) {
+			ret = lockdownd_error(property_list_service_enable_ssl(client->parent));
+			conn->sslEnabled = (ret ? 1 : 0);
+		} else {
+			ret = true;
+			conn->sslEnabled = 0;
+		}
+	}
+
+	plist_free(dict);
+	dict = NULL;
+
+	return ret;
+}
+
+void MirrorManager::startActualPair(ConnectionInfo *conn)
+{
+	plist_t dict = plist_new_dict();
+	plist_dict_add_label(dict, "usbmuxd");
 	plist_dict_set_item(dict, "Request", plist_new_string("QueryType"));
-	sendPlist(c, dict, false);
+	sendPlist(conn, dict, false);
 	plist_free(dict);
 
-	if (!receivePlist(c, &dict, "QueryType"))
+	if (!receivePlist(conn, &dict, "QueryType"))
 		return;
 
 	plist_t type_node = plist_dict_get_item(dict, "Type");
@@ -709,6 +846,7 @@ void MirrorManager::startActualPair(void *conn)
 			char *host_id = NULL;
 			if (config_has_device_record(m_serial)) {
 				config_device_record_get_host_id(m_serial, &host_id);
+				lockdownStartSession(conn, host_id, NULL, NULL);
 				//lerr = lockdownd_start_session(lockdown, host_id, NULL, NULL);
 				//if (host_id)
 				//	free(host_id);
@@ -726,8 +864,8 @@ void MirrorManager::startActualPair(void *conn)
 			free(host_id);
 
 			plist_t value = NULL;
-			if (lockdownGetValue(c, NULL, "ProductVersion", &value))
-				handleVersionValue(c, value);
+			if (lockdownGetValue(conn, NULL, "ProductVersion", &value))
+				handleVersionValue(conn, value);
 		}
 		free(typestr);
 	} else {
@@ -770,21 +908,19 @@ void MirrorManager::lockdownProcessNotification(const char *notification)
 	}
 }
 
-void MirrorManager::startObserve(void *conn)
+void MirrorManager::startObserve(ConnectionInfo *conn)
 {
-	ConnectionInfo *c = (ConnectionInfo *)conn;
-
 	const char* spec[] = {
 			"com.apple.mobile.lockdown.request_pair",
 			"com.apple.mobile.lockdown.request_host_buid",
 			NULL
 		};
 
-	auto func = [c, this](const char *notification){
+	auto func = [conn, this](const char *notification){
 		plist_t dict = plist_new_dict();
 		plist_dict_set_item(dict,"Command", plist_new_string("ObserveNotification"));
 		plist_dict_set_item(dict,"Name", plist_new_string(notification));
-		sendPlist(c, dict, false);
+		sendPlist(conn, dict, false);
 		plist_free(dict);
 	};
 
@@ -795,13 +931,13 @@ void MirrorManager::startObserve(void *conn)
 	}
 
 	m_notificationTimer->disconnect();
-	connect(m_notificationTimer, &QTimer::timeout, this, [c, this](){
-		if (!m_connections.contains(c))
+	connect(m_notificationTimer, &QTimer::timeout, this, [conn, this](){
+		if (!m_connections.contains(conn))
 			return;
 
 		plist_t dict = NULL;
 
-		bool success = receivePlist(c, &dict, "GetNotification", true); //data->plist 可能失败吗？这里假设失败的原因就是超时
+		bool success = receivePlist(conn, &dict, "GetNotification", true); //data->plist 可能失败吗？这里假设失败的原因就是超时
 		if (!success || !dict)
 			return;
 

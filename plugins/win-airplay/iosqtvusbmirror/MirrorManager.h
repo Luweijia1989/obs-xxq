@@ -87,6 +87,8 @@ public:
 		u_long connTxAck;
 		uint16_t srcPort;
 		uint16_t dstPort;
+		char *sessionId;
+		bool sslEnabled;
 		ConnectionType type;
 		MuxConnState connState;
 
@@ -99,10 +101,15 @@ public:
 			connState = MuxConnState::CONN_CONNECTING;
 			srcPort = sport;
 			dstPort = dport;
+			sessionId = NULL;
+			sslEnabled = false;
 			circlebuf_init(&m_usbDataCache);
 		}
 
 		~ConnectionInfo() {
+			if (sessionId)
+				free(sessionId);
+
 			circlebuf_free(&m_usbDataCache);
 		}
 	};
@@ -131,8 +138,8 @@ private:
 	void onDeviceTcpInput(struct tcphdr *th, unsigned char *payload, uint32_t payload_length);
 	bool readDataWithSize(ConnectionInfo *conn, void *dst, size_t size, bool allowTimeout, int timeout = 500);
 
-	void startActualPair(void *conn);
-	void startObserve(void *conn);
+	void startActualPair(ConnectionInfo *conn);
+	void startObserve(ConnectionInfo *conn);
 	void startFinalPair(ConnectionInfo *conn);
 	void pairResult(bool success);
 
@@ -147,6 +154,8 @@ private:
 	bool lockdownPairRecordgenerate(ConnectionInfo *conn, plist_t *pair_record);
 	bool lockdownGetDevicePublicKeyAsKeyData(ConnectionInfo *conn, key_data_t *public_key);
 
+	bool lockdownStartSession(ConnectionInfo *conn, const char *host_id, char **session_id, int *ssl_enabled);
+	bool lockdownStopSession(ConnectionInfo *conn, const char *session_id);
 	bool lockdownStartService(ConnectionInfo *conn, const char *identifier, LockdownServiceDescriptor **service);
 	bool lockdownDoStartService(ConnectionInfo *conn, const char *identifier, int send_escrow_bag, LockdownServiceDescriptor **service);
 	bool lockdownBuildStartServiceRequest(const char *identifier, int send_escrow_bag, plist_t *request);
