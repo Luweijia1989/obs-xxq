@@ -17,7 +17,7 @@
 
 using namespace std;
 
-#define DRIVER_EXE "ios-qtvusb-mirror.exe"
+#define DRIVER_EXE "driver-tool.exe"
 #define AIRPLAY_EXE "airplay-server.exe"
 #define ANDROID_USB_EXE "android-usb-mirror.exe"
 #define ANDROID_AOA_EXE "android-aoa-server.exe"
@@ -182,7 +182,7 @@ void ScreenMirrorServer::mirrorServerDestroy()
 	if (process) {
 		uint8_t data[1] = {1};
 		os_process_pipe_write(process, data, 1);
-		os_process_pipe_destroy_timeout(process, 150000);
+		os_process_pipe_destroy_timeout(process, 1500);
 		process = NULL;
 	}
 
@@ -716,7 +716,7 @@ static void UpdateWinAirplaySource(void *obj, obs_data_t *settings)
 static void GetWinAirplayDefaultsOutput(obs_data_t *settings)
 {
 	obs_data_set_default_int(settings, "type",
-				 ScreenMirrorServer::IOS_USB_CABLE);
+				 ScreenMirrorServer::ANDROID_AOA);
 	obs_data_set_default_int(settings, "status", MIRROR_STOP);
 }
 
