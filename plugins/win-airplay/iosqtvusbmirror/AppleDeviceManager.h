@@ -11,6 +11,7 @@
 #include <QDebug>
 #include <QSet>
 #include <QWidget>
+#include <QThread>
 #include "DriverHelper.h"
 #include <windows.h>
 #include <dbt.h>
@@ -23,6 +24,18 @@ struct APPLE_DEVICE_INFO {
 	int vid;
 	int pid;
 	QString devicePath;
+};
+
+class ReadStdinThread : public QThread {
+	Q_OBJECT
+public:
+	ReadStdinThread(QObject *parent = nullptr);
+
+protected:
+	virtual void run() override;
+
+signals:
+	void quit();
 };
 
 class MirrorManager;
@@ -61,14 +74,17 @@ private:
 	APPLE_DEVICE_INFO m_appleDeviceInfo = { 0 };
 	bool m_inScreenMirror = false;
 	MirrorManager *m_mirrorManager = nullptr;
+	ReadStdinThread *m_readStdinThread = nullptr;
 };
 
 class HelerWidget : public QWidget {
 	Q_OBJECT
 public:
 	HelerWidget(AppleDeviceManager *helper, QWidget *parent = nullptr)
-		: m_helper(helper), QWidget(parent)
+		: QWidget(parent)
 	{
+		connect(this, &HelerWidget::updateDevice, helper, &AppleDeviceManager::deferUpdateUsbInventory);
+
 		auto registerNotification = [this](GUID id, HDEVNOTIFY &ret) {
 			DEV_BROADCAST_DEVICEINTERFACE NotificationFilter;
 			ZeroMemory(&NotificationFilter, sizeof(NotificationFilter));
@@ -105,8 +121,7 @@ protected:
 					QString devicePath = QString::fromWCharArray(info->dbcc_name);
 					qDebug() << "new device: " << devicePath;
 
-					m_helper->signalWait();
-					m_helper->deferUpdateUsbInventory(true);
+					emit updateDevice(true);
 				}
 			} break;
 			case DBT_DEVICEREMOVECOMPLETE:
@@ -116,7 +131,7 @@ protected:
 					QString devicePath = QString::fromWCharArray(info->dbcc_name);
 					qDebug() << "device remove: " << devicePath;
 				}
-				m_helper->deferUpdateUsbInventory(false);
+				emit updateDevice(false);
 			}
 				break;
 			case DBT_DEVNODES_CHANGED:
@@ -129,9 +144,11 @@ protected:
 		return QWidget::nativeEvent(eventType, message, result);
 	}
 
+signals:
+	void updateDevice(bool isAdd);
+
 private:
 	HDEVNOTIFY hDeviceNotify_normal;
-	AppleDeviceManager *m_helper;
 };
 
 #endif // AOADEVICEMANAGER_H

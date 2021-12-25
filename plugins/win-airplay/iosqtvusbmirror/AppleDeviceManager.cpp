@@ -6,6 +6,7 @@
 #include "../ipc.h"
 #include "../common-define.h"
 #include <winusb.h>
+#include <iostream>
 #include <Setupapi.h>
 #include <Devpkey.h>
 #include <QElapsedTimer>
@@ -19,6 +20,25 @@ GUID USB_DEVICE_GUID = {0xA5DCBF10,
 			0x6530,
 			0x11D2,
 			{0x90, 0x1F, 0x00, 0xC0, 0x4F, 0xB9, 0x51, 0xED}};
+
+ReadStdinThread::ReadStdinThread(QObject *parent)
+	: QThread(parent)
+{
+
+}
+
+void ReadStdinThread::run()
+{
+	uint8_t buf[1024] = {0};
+	while (true) {
+		int read_len = fread(buf, 1, 1024, stdin); // read 0 means parent has been stopped
+		if (!read_len || buf[0] == 1) {
+			break;
+		}
+	}
+	emit quit();
+	qDebug() << "ReadStdinThread stopped.";
+}
 			     
 AppleDeviceManager::AppleDeviceManager()
 {
@@ -29,6 +49,14 @@ AppleDeviceManager::AppleDeviceManager()
 		&AppleDeviceManager::installProgress);
 	connect(m_driverHelper, &DriverHelper::installError, this,
 		&AppleDeviceManager::installError);
+
+	m_readStdinThread = new ReadStdinThread(this);
+	connect(m_readStdinThread, &ReadStdinThread::quit, this, [=](){
+		deleteLater();
+	}, Qt::QueuedConnection);
+	m_readStdinThread->start();
+
+	connect(this, &QObject::destroyed, qApp, &QApplication::quit);
 }
 
 AppleDeviceManager::~AppleDeviceManager()
@@ -38,6 +66,9 @@ AppleDeviceManager::~AppleDeviceManager()
 
 void AppleDeviceManager::deferUpdateUsbInventory(bool isAdd)
 {
+	if (isAdd)
+		signalWait();
+
 	if (m_deviceChangeMutex.tryLock()) {
 		QMetaObject::invokeMethod(this, "updateUsbInventory",
 					  Qt::QueuedConnection,

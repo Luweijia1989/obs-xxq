@@ -8,6 +8,7 @@
 #include <QWaitCondition>
 #include <QTcpServer>
 #include <QTcpSocket>
+#include <QThread>
 #include <util/circlebuf.h>
 #include "plist/plist.h"
 
@@ -84,6 +85,26 @@ enum class MuxConnState {
 	CONN_DEAD // being freed; used to prevent infinite recursion between client<->device freeing
 };
 
+class HandshakeThread : public QThread
+{
+	Q_OBJECT
+public:
+	HandshakeThread(SSL *ssl) : QThread(nullptr) {
+		m_ssl = ssl;
+	}
+	void run() {
+		auto ret = SSL_do_handshake(m_ssl);
+		emit handshakeCompleted(ret);
+		deleteLater();
+		qDebug() << "HandshakeThread stopped.";
+	}
+
+signals:
+	void handshakeCompleted(quint32 ret);
+
+private:
+	SSL *m_ssl = nullptr;
+};
 
 class MirrorManager : public QObject
 {
@@ -224,6 +245,6 @@ private:
 	QEventLoop *m_usbDataBlockEvent;
 
 	QTcpServer *serverSocket;
-	QTcpSocket *clientSocket;
+	int clientSocktFD = -1;
 	QEventLoop *m_handshakeBlockEvent;
 };

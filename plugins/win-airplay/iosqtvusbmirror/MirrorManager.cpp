@@ -5,6 +5,7 @@
 #include <QElapsedTimer>
 #include <QTimer>
 #include <QThread>
+#include <QApplication>
 
 #define LOCKDOWN_PROTOCOL_VERSION "2"
 
@@ -96,27 +97,22 @@ static void id_function(CRYPTO_THREADID *thread)
 #endif /* HAVE_OPENSSL */
 
 #include <winsock.h>
-int dddd = -1;
 int socket_connect(uint16_t port)
 {
 	int sfd = -1;
 	int yes = 1;
 	int bufsize = 0x20000;
-	char portstr[8];
-	int res;
 
 	u_long l_no = 0;
 	WSADATA wsa_data;
 	static int wsa_init = 0;
 	if (!wsa_init) {
 		if (WSAStartup(MAKEWORD(2,2), &wsa_data) != ERROR_SUCCESS) {
-			fprintf(stderr, "WSAStartup failed!\n");
+			qFatal("WSAStartup failed!");
 			ExitProcess(-1);
 		}
 		wsa_init = 1;
 	}
-
-
 
 	sfd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 	if (sfd == -1) {
@@ -132,21 +128,18 @@ int socket_connect(uint16_t port)
 	serv_addr.sin_port = htons(port); 
 	connect(sfd, (struct sockaddr*)&serv_addr, sizeof(serv_addr));
 
-	ioctlsocket(sfd, FIONBIO, &l_no);
+	if (setsockopt(sfd, IPPROTO_TCP, TCP_NODELAY, (const char *)&yes, sizeof(int)) == -1) {
+		perror("Could not set TCP_NODELAY on socket");
+	}
 
+	if (setsockopt(sfd, SOL_SOCKET, SO_SNDBUF, (const char *)&bufsize, sizeof(int)) == -1) {
+		perror("Could not set send buffer for socket");
+	}
 
-	//if (setsockopt(sfd, IPPROTO_TCP, TCP_NODELAY, (void*)&yes, sizeof(int)) == -1) {
-	//	perror("Could not set TCP_NODELAY on socket");
-	//}
-
-	//if (setsockopt(sfd, SOL_SOCKET, SO_SNDBUF, (void*)&bufsize, sizeof(int)) == -1) {
-	//	perror("Could not set send buffer for socket");
-	//}
-
-	//if (setsockopt(sfd, SOL_SOCKET, SO_RCVBUF, (void*)&bufsize, sizeof(int)) == -1) {
-	//	perror("Could not set receive buffer for socket");
-	//}
-	dddd = sfd;
+	if (setsockopt(sfd, SOL_SOCKET, SO_RCVBUF, (const char *)&bufsize, sizeof(int)) == -1) {
+		perror("Could not set receive buffer for socket");
+	}
+	
 	return sfd;
 }
 
@@ -159,7 +152,6 @@ MirrorManager::MirrorManager()
 	m_notificationTimer = new QTimer(this);
 
 	serverSocket = new QTcpServer(this);
-	clientSocket = new QTcpSocket(this);
 	m_handshakeBlockEvent = new QEventLoop(this);
 	if (serverSocket->listen()) {
 		connect(serverSocket, &QTcpServer::newConnection, this, [this](){
@@ -206,19 +198,15 @@ MirrorManager::MirrorManager()
 			});
 		});
 
-		socket_connect(serverSocket->serverPort());
-		/*clientSocket->connectToHost(QHostAddress::LocalHost, serverSocket->serverPort());
-		clientSocket->waitForConnected();
-
-		u_long l_no = 0;
-		auto ret = ioctlsocket(clientSocket->socketDescriptor(), FIONBIO, &l_no);
-		ret++;*/
+		clientSocktFD = socket_connect(serverSocket->serverPort());
 	}
 }
 
 MirrorManager::~MirrorManager()
 {
 	free(m_pktbuf);
+	if (clientSocktFD != -1)
+		closesocket(clientSocktFD);
 }
 
 void MirrorManager::readUSBData(void *data)
@@ -963,7 +951,7 @@ bool MirrorManager::lockdownEnableSSL(ConnectionInfo *conn)
 		qDebug("ERROR: Could not create SSL bio.");
 		return ret;
 	}
-	BIO_set_fd(ssl_bio, (int)(long)dddd, BIO_NOCLOSE);
+	BIO_set_fd(ssl_bio, (int)(long)clientSocktFD, BIO_NOCLOSE);
 
 	SSL_CTX *ssl_ctx = SSL_CTX_new(TLS_method());
 	if (ssl_ctx == NULL) {
@@ -1027,7 +1015,14 @@ bool MirrorManager::lockdownEnableSSL(ConnectionInfo *conn)
 	SSL_set_verify(ssl, 0, ssl_verify_callback);
 	SSL_set_bio(ssl, ssl_bio, ssl_bio);
 
-	return_me = SSL_do_handshake(ssl);
+	HandshakeThread *ht = new HandshakeThread(ssl);
+	connect(ht, &HandshakeThread::handshakeCompleted, this, [=, &return_me](quint32 result){
+		return_me = result;
+		m_handshakeBlockEvent->quit();
+	});
+	ht->start();
+	m_handshakeBlockEvent->exec();
+	
 	if (return_me != 1) {
 		qDebug("ERROR in SSL_do_handshake: %s", ssl_error_to_string(SSL_get_error(ssl, return_me)));
 		SSL_free(ssl);
