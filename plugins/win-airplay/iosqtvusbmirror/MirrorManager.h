@@ -92,10 +92,12 @@ public:
 	HandshakeThread(SSL *ssl) : QThread(nullptr) {
 		m_ssl = ssl;
 	}
+	~HandshakeThread() {
+		qDebug() << "HandshakeThread destroyed.";
+	}
 	void run() {
 		auto ret = SSL_do_handshake(m_ssl);
 		emit handshakeCompleted(ret);
-		deleteLater();
 		qDebug() << "HandshakeThread stopped.";
 	}
 

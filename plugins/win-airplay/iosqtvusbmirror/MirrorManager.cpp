@@ -166,8 +166,9 @@ MirrorManager::MirrorManager()
 				}
 				if (!conn)
 					return;
-				
-				sendTcp(conn, TH_ACK, (const unsigned char *)all.data(), all.size());
+
+				client->close();
+				/*sendTcp(conn, TH_ACK, (const unsigned char *)all.data(), all.size());
 
 				QTimer t;
 				t.setSingleShot(true);
@@ -180,21 +181,7 @@ MirrorManager::MirrorManager()
 				auto buf = (char *)malloc(size);
 				circlebuf_pop_front(&conn->m_usbDataCache, buf, size);
 				auto ff = client->write(buf, size);
-				free(buf);
-
-				/*uint32_t pktlen = 0;
-				if (!readDataWithSize(conn, &pktlen, sizeof(pktlen), false)) {
-					qDebug() << QString("read %1 length failed").arg("ReadSSLData");
-				}
-				 
-				pktlen = be32toh(pktlen);
-				char *buf = (char *)malloc(pktlen);
-				if (!readDataWithSize(conn, buf, pktlen, false)) {
-					qDebug() << QString("read %1 data failed").arg("ReadSSLData");
-					free(buf);
-				}
-				int cc = 0;
-				cc++;*/
+				free(buf);*/
 			});
 		});
 
@@ -1022,7 +1009,8 @@ bool MirrorManager::lockdownEnableSSL(ConnectionInfo *conn)
 	});
 	ht->start();
 	m_handshakeBlockEvent->exec();
-	
+	ht->deleteLater();
+
 	if (return_me != 1) {
 		qDebug("ERROR in SSL_do_handshake: %s", ssl_error_to_string(SSL_get_error(ssl, return_me)));
 		SSL_free(ssl);
