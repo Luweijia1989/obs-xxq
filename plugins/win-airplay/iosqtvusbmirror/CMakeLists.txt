@@ -8,7 +8,7 @@ include_directories(${PROJECT_SOURCE_DIR}/mirror/third-party/include)
 include_directories(${PROJECT_SOURCE_DIR}/mirror)
 include_directories(${PROJECT_SOURCE_DIR}/openssl/include)
  
-add_definitions( -D_USE_32BIT_TIME_T -DHAVE_LIBIMOBILEDEVICE -DHAVE_OPENSSL)
+add_definitions(-DHAVE_OPENSSL)
 
 file(GLOB_RECURSE iosusbmirror_SRC ${PROJECT_SOURCE_DIR}/mirror *.c)
 file(GLOB_RECURSE iosusbmirror_HEADER ${PROJECT_SOURCE_DIR}/mirror *.h)
@@ -54,8 +54,10 @@ target_link_libraries(ios-qtvusb-mirror
 	debug ${PROJECT_SOURCE_DIR}/mirror/third-party/lib/debug/libusb0.lib
 	optimized ${PROJECT_SOURCE_DIR}/mirror/third-party/lib/relwithdebinfo/plist.lib
 	optimized ${PROJECT_SOURCE_DIR}/mirror/third-party/lib/relwithdebinfo/libusb0.lib
-	${PROJECT_SOURCE_DIR}/openssl/lib/libcrypto.lib
-	${PROJECT_SOURCE_DIR}/openssl/lib/libssl.lib
+	debug ${PROJECT_SOURCE_DIR}/openssl/lib/debug/libcrypto.lib
+	debug ${PROJECT_SOURCE_DIR}/openssl/lib/debug/libssl.lib
+	optimized ${PROJECT_SOURCE_DIR}/openssl/lib/release/libcrypto.lib
+	optimized ${PROJECT_SOURCE_DIR}/openssl/lib/release/libssl.lib
 	Setupapi
 	Crypt32
 	Ws2_32

@@ -96,9 +96,10 @@ public:
 		qDebug() << "HandshakeThread destroyed.";
 	}
 	void run() {
+		qDebug() << "begin handshake.";
 		auto ret = SSL_do_handshake(m_ssl);
 		emit handshakeCompleted(ret);
-		qDebug() << "HandshakeThread stopped.";
+		qDebug() << "HandshakeThread stopped. " << ret;
 	}
 
 signals:
@@ -226,6 +227,9 @@ private:
 public slots:
 	void onDeviceData(QByteArray data);
 	void resetDevice(QString msg, bool closeDevice = true);
+
+signals:
+	void handshakeCompleted(quint32 ret);
 
 private:
 	QString m_errorMsg;

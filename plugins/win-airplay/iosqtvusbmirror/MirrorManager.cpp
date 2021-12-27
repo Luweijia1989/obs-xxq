@@ -158,6 +158,16 @@ int socket_connect(uint16_t port)
 
 MirrorManager::MirrorManager()
 {
+	auto findConn = [this](){
+		ConnectionInfo *conn = NULL;
+		for (auto iter = m_connections.begin(); iter != m_connections.end(); iter++)
+		{
+			if((*iter)->type == InitPair && (*iter)->connState == MuxConnState::CONN_CONNECTED)
+				conn = *iter;
+		}
+		return conn;
+	};
+
 	usb_init();
 	m_pktbuf = (unsigned char *)malloc(DEV_MRU);
 	m_pairBlockEvent = new QEventLoop(this);
@@ -167,31 +177,38 @@ MirrorManager::MirrorManager()
 	serverSocket = new QTcpServer(this);
 	m_handshakeBlockEvent = new QEventLoop(this);
 	if (serverSocket->listen()) {
-		connect(serverSocket, &QTcpServer::newConnection, this, [this](){
+		connect(serverSocket, &QTcpServer::newConnection, this, [=](){
+			qDebug() << "new connection accepted.";
 			auto client = serverSocket->nextPendingConnection();
-			QObject::connect(client, &QTcpSocket::readyRead, [this, client](){
+			connect(this, &MirrorManager::handshakeCompleted, client, &QTcpSocket::deleteLater);
+			connect(client, &QTcpSocket::readyRead, [=](){
 				auto all = client->readAll();
-				ConnectionInfo *conn = NULL;
-				for (auto iter = m_connections.begin(); iter != m_connections.end(); iter++)
-				{
-					if((*iter)->type == InitPair && (*iter)->connState == MuxConnState::CONN_CONNECTED)
-						conn = *iter;
-				}
+				qDebug() << "socket recv size: " << all.size();
+				ConnectionInfo *conn = findConn();
 				if (!conn)
 					return;
 
 				sendTcp(conn, TH_ACK, (const unsigned char *)all.data(), all.size());
+			});
+
+			QTimer *timer = new QTimer(client);
+			connect(timer, &QTimer::timeout, client, [=](){
+				ConnectionInfo *conn = findConn();
+				if (!conn)
+					return;
 
 				char *buf = nullptr;
 				size_t outSize = 0;
-				bool success = readAllData(conn, (void **)&buf, &outSize);
+				bool success = readAllData(conn, (void **)&buf, &outSize, 2000);
 				if (!success)
 					client->close();
 				else {
-					client->write(buf, outSize);
+					auto size = client->write(buf, outSize);
+					qDebug("socket to send: %d, actual send size: %d", outSize, size);
 					free(buf);
 				}
 			});
+			timer->start(100);
 		});
 	}
 }
@@ -674,9 +691,13 @@ bool MirrorManager::lockdownDoPair(ConnectionInfo *conn, PairRecord *pair_record
 			if (value) {
 				/* the first pairing fails if the device is password protected */
 				ret = false;
+				if (strcmp(value, "UserDeniedPairing") == 0)
+					resetDevice(QString("用户拒绝了配对请求，请插拔后再试。"), false); //why? 这里close了device之后，有几率下次插入时set configuration失败
+				else {
+					if (raiseError)
+						resetDevice(QString(u8"配对失败, %1").arg(value));
+				}
 				free(value);
-				if (raiseError)
-					resetDevice(QString(u8"配对失败, %1").arg(value));
 			}
 		}
 	}
@@ -1004,6 +1025,11 @@ bool MirrorManager::lockdownEnableSSL(ConnectionInfo *conn)
 
 	HandshakeThread *ht = new HandshakeThread(ssl);
 	connect(ht, &HandshakeThread::handshakeCompleted, this, [=, &return_me](quint32 result){
+		closesocket(conn->clientSocktFD);
+		conn->clientSocktFD = -1;
+
+		emit handshakeCompleted(result);
+
 		return_me = result;
 		m_handshakeBlockEvent->quit();
 	});
