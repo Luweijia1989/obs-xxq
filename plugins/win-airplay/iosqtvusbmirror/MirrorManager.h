@@ -217,6 +217,7 @@ private:
 	bool lockdownStartSession(ConnectionInfo *conn, const char *host_id, char **session_id, int *ssl_enabled);
 	bool lockdownStopSession(ConnectionInfo *conn, const char *session_id);
 	bool lockdownEnableSSL(ConnectionInfo *conn);
+	bool lockdownDisableSSL(ConnectionInfo *conn);
 	bool lockdownStartService(ConnectionInfo *conn, const char *identifier, LockdownServiceDescriptor **service);
 	bool lockdownDoStartService(ConnectionInfo *conn, const char *identifier, int send_escrow_bag, LockdownServiceDescriptor **service);
 	bool lockdownBuildStartServiceRequest(const char *identifier, int send_escrow_bag, plist_t *request);

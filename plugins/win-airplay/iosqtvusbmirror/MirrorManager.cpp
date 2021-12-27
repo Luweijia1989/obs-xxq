@@ -9,8 +9,22 @@
 
 #define LOCKDOWN_PROTOCOL_VERSION "2"
 
+/**
+ * Internally used function for cleaning up SSL stuff.
+ */
+static void internal_ssl_cleanup(ssl_data_t ssl_data)
+{
+	if (!ssl_data)
+		return;
 
-#ifdef HAVE_OPENSSL
+	if (ssl_data->session) {
+		SSL_free(ssl_data->session);
+	}
+	if (ssl_data->ctx) {
+		SSL_CTX_free(ssl_data->ctx);
+	}
+}
+
 static int ssl_verify_callback(int ok, X509_STORE_CTX *ctx)
 {
 	(void)ctx;
@@ -45,9 +59,6 @@ static const char *ssl_error_to_string(int e)
 	}
 }
 #endif
-#endif
-
-#ifdef HAVE_OPENSSL
 
 #if OPENSSL_VERSION_NUMBER < 0x10100000L || \
 	(defined(LIBRESSL_VERSION_NUMBER) && (LIBRESSL_VERSION_NUMBER < 0x20020000L))
@@ -96,7 +107,6 @@ static void id_function(CRYPTO_THREADID *thread)
 }
 #endif
 #endif
-#endif /* HAVE_OPENSSL */
 
 #include <winsock.h>
 int socket_connect(uint16_t port)
@@ -164,7 +174,7 @@ MirrorManager::MirrorManager()
 				ConnectionInfo *conn = NULL;
 				for (auto iter = m_connections.begin(); iter != m_connections.end(); iter++)
 				{
-					if((*iter)->type == InitPair)
+					if((*iter)->type == InitPair && (*iter)->connState == MuxConnState::CONN_CONNECTED)
 						conn = *iter;
 				}
 				if (!conn)
@@ -831,17 +841,15 @@ void MirrorManager::handleVersionValue(ConnectionInfo *conn, plist_t value)
 			qDebug("%s: Found ProductVersion %s device %s", __func__, versionStr, m_serial);
 			setUntrustedHostBuid(conn);
 
-			if (!m_devicePaired) {
-				if (lockdownPair(conn, NULL)) {
-					//干成功的事儿
-				} else {
-					LockdownServiceDescriptor *service = NULL;
-					bool ret = lockdownStartService(conn, "com.apple.mobile.insecure_notification_proxy", &service);
-					if (ret) {
-						startConnect(StartService, service->port);
-						free(service);
-						service = NULL;
-					}
+			if (lockdownPair(conn, NULL)) {
+				pairResult(true);
+			} else {
+				LockdownServiceDescriptor *service = NULL;
+				bool ret = lockdownStartService(conn, "com.apple.mobile.insecure_notification_proxy", &service);
+				if (ret) {
+					startConnect(StartService, service->port);
+					free(service);
+					service = NULL;
 				}
 			}
 		}
@@ -855,11 +863,6 @@ void MirrorManager::handleVersionValue(ConnectionInfo *conn, plist_t value)
 
 bool MirrorManager::lockdownStopSession(ConnectionInfo *conn, const char *session_id)
 {
-	if (!session_id) {
-		qDebug("no session_id given, cannot stop session");
-		return false;
-	}
-
 	bool ret = false;
 
 	plist_t dict = plist_new_dict();
@@ -895,7 +898,7 @@ bool MirrorManager::lockdownStopSession(ConnectionInfo *conn, const char *sessio
 	}
 
 	if (conn->sslEnabled) {
-		//property_list_service_disable_ssl(client->parent); //todo
+		lockdownDisableSSL(conn);
 		conn->sslEnabled = false;
 	}
 
@@ -905,11 +908,7 @@ bool MirrorManager::lockdownStopSession(ConnectionInfo *conn, const char *sessio
 bool MirrorManager::lockdownEnableSSL(ConnectionInfo *conn)
 {
 	bool ret = false;
-#ifdef HAVE_OPENSSL
 	uint32_t return_me = 0;
-#else
-	int return_me = 0;
-#endif
 	plist_t pair_record = NULL;
 
 	userpref_read_pair_record(m_serial, &pair_record);
@@ -918,7 +917,6 @@ bool MirrorManager::lockdownEnableSSL(ConnectionInfo *conn)
 		return ret;
 	}
 
-#ifdef HAVE_OPENSSL
 	key_data_t root_cert = { NULL, 0 };
 	key_data_t root_privkey = { NULL, 0 };
 
@@ -931,6 +929,7 @@ bool MirrorManager::lockdownEnableSSL(ConnectionInfo *conn)
 	conn->clientSocktFD = socket_connect(serverSocket->serverPort());
 	if (conn->clientSocktFD < 0) {
 		qDebug("connect local socket error");
+		resetDevice(u8"ssl握手连接本地socket出错。");
 		return ret;
 	}
 
@@ -1026,64 +1025,37 @@ bool MirrorManager::lockdownEnableSSL(ConnectionInfo *conn)
 	}
 	/* required for proper multi-thread clean up to prevent leaks */
 	openssl_remove_thread_state();
-#else
-	ssl_data_t ssl_data_loc = (ssl_data_t)malloc(sizeof(struct ssl_data_private));
 
-	/* Set up GnuTLS... */
-	debug_info("enabling SSL mode");
-	errno = 0;
-	gnutls_certificate_allocate_credentials(&ssl_data_loc->certificate);
-#if GNUTLS_VERSION_NUMBER >= 0x020b07
-	gnutls_certificate_set_retrieve_function(ssl_data_loc->certificate, internal_cert_callback);
-#else
-	gnutls_certificate_client_set_retrieve_function(ssl_data_loc->certificate, internal_cert_callback);
-#endif
-	gnutls_init(&ssl_data_loc->session, GNUTLS_CLIENT);
-	gnutls_priority_set_direct(ssl_data_loc->session, "NONE:+VERS-TLS1.0:+ANON-DH:+RSA:+AES-128-CBC:+AES-256-CBC:+SHA1:+MD5:+COMP-NULL", NULL);
-	gnutls_credentials_set(ssl_data_loc->session, GNUTLS_CRD_CERTIFICATE, ssl_data_loc->certificate);
-	gnutls_session_set_ptr(ssl_data_loc->session, ssl_data_loc);
+	return ret;
+}
 
-	gnutls_x509_crt_init(&ssl_data_loc->root_cert);
-	gnutls_x509_crt_init(&ssl_data_loc->host_cert);
-	gnutls_x509_privkey_init(&ssl_data_loc->root_privkey);
-	gnutls_x509_privkey_init(&ssl_data_loc->host_privkey);
-
-	pair_record_import_crt_with_name(pair_record, USERPREF_ROOT_CERTIFICATE_KEY, ssl_data_loc->root_cert);
-	pair_record_import_crt_with_name(pair_record, USERPREF_HOST_CERTIFICATE_KEY, ssl_data_loc->host_cert);
-	pair_record_import_key_with_name(pair_record, USERPREF_ROOT_PRIVATE_KEY_KEY, ssl_data_loc->root_privkey);
-	pair_record_import_key_with_name(pair_record, USERPREF_HOST_PRIVATE_KEY_KEY, ssl_data_loc->host_privkey);
-
-	if (pair_record)
-		plist_free(pair_record);
-
-	debug_info("GnuTLS step 1...");
-	gnutls_transport_set_ptr(ssl_data_loc->session, (gnutls_transport_ptr_t)connection);
-	debug_info("GnuTLS step 2...");
-	gnutls_transport_set_push_function(ssl_data_loc->session, (gnutls_push_func) & internal_ssl_write);
-	debug_info("GnuTLS step 3...");
-	gnutls_transport_set_pull_function(ssl_data_loc->session, (gnutls_pull_func) & internal_ssl_read);
-	debug_info("GnuTLS step 4 -- now handshaking...");
-	if (errno) {
-		debug_info("WARNING: errno says %s before handshake!", strerror(errno));
+bool MirrorManager::lockdownDisableSSL(ConnectionInfo *conn)
+{
+	bool ret = true;
+	if (!conn->ssl_data) {
+		/* ignore if ssl is not enabled */
+		return ret;
 	}
 
-	do {
-		return_me = gnutls_handshake(ssl_data_loc->session);
-	} while(return_me == GNUTLS_E_AGAIN || return_me == GNUTLS_E_INTERRUPTED);
-
-	debug_info("GnuTLS handshake done...");
-
-	if (return_me != GNUTLS_E_SUCCESS) {
-		internal_ssl_cleanup(ssl_data_loc);
-		free(ssl_data_loc);
-		debug_info("GnuTLS reported something wrong: %s", gnutls_strerror(return_me));
-		debug_info("oh.. errno says %s", strerror(errno));
-	} else {
-		connection->ssl_data = ssl_data_loc;
-		ret = IDEVICE_E_SUCCESS;
-		debug_info("SSL mode enabled");
+	if (conn->ssl_data->session) {
+		/* see: https://www.openssl.org/docs/ssl/SSL_shutdown.html#RETURN_VALUES */
+		if (SSL_shutdown(conn->ssl_data->session) == 0) {
+			/* Only try bidirectional shutdown if we know it can complete */
+			int ssl_error;
+			if ((ssl_error = SSL_get_error(conn->ssl_data->session, 0)) == SSL_ERROR_NONE) {
+				SSL_shutdown(conn->ssl_data->session);
+			} else  {
+				qDebug("Skipping bidirectional SSL shutdown. SSL error code: %i\n", ssl_error);
+			}
+		}
 	}
-#endif
+
+	internal_ssl_cleanup(conn->ssl_data);
+	free(conn->ssl_data);
+	conn->ssl_data = NULL;
+
+	qDebug("SSL mode disabled");
+
 	return ret;
 }
 
@@ -1098,7 +1070,8 @@ bool MirrorManager::lockdownStartSession(ConnectionInfo *conn, const char *host_
 
 	/* if we have a running session, stop current one first */
 	if (session_id) {
-		lockdownStopSession(conn, conn->sessionId);
+		if (!lockdownStopSession(conn, conn->sessionId))
+			return ret;
 	}
 
 	/* setup request plist */
@@ -1170,7 +1143,8 @@ bool MirrorManager::lockdownStartSession(ConnectionInfo *conn, const char *host_
 			ret = true;
 			conn->sslEnabled = 0;
 		}
-	}
+	} else
+		resetDevice(u8"startSession check result出错。");
 
 	plist_free(dict);
 	dict = NULL;
@@ -1193,45 +1167,39 @@ void MirrorManager::startActualPair(ConnectionInfo *conn)
 	if (type_node && (plist_get_node_type(type_node) == PLIST_STRING)) {
 		char* typestr = NULL;
 		plist_get_string_val(type_node, &typestr);
+		bool lockdown = strcmp(typestr, "com.apple.mobile.lockdown") != 0;
 		qDebug("success with type %s", typestr);
+		if (typestr)
+			free(typestr);
 
-		if (strcmp(typestr, "com.apple.mobile.lockdown") != 0) {
+		if (lockdown) {
 			pairResult(true);
 		} else {
-			char *host_id = NULL;
 			if (config_has_device_record(m_serial)) {
+				char *host_id = NULL;
 				config_device_record_get_host_id(m_serial, &host_id);
-				if (lockdownStartSession(conn, host_id, NULL, NULL))
+				bool success = lockdownStartSession(conn, host_id, NULL, NULL);
+				if (host_id)
+					free(host_id);
+
+				if (success)
 					pairResult(true);
 				else {
 					qDebug("%s: The stored pair record for device %s is invalid. Removing.", __func__, m_serial);
 					if (config_remove_device_record(m_serial) == 0) {
-						goto retry;
+						startConnect(InitPair, 0xf27e);
 					} else {
 						qDebug("%s: Could not remove pair record for device %s", __func__, m_serial);
+						resetDevice(u8"无法删除之前的配对记录，请重启电脑后再试。");
 					}
 				}
-				//lerr = lockdownd_start_session(lockdown, host_id, NULL, NULL);
-				//if (host_id)
-				//	free(host_id);
-				//if (lerr == LOCKDOWN_E_SUCCESS) {
-				//	usbmuxd_log(LL_INFO, "%s: StartSession success for device %s", __func__, _dev->udid);
-				//	usbmuxd_log(LL_INFO, "%s: Finished preflight on device %s", __func__, _dev->udid);
-				//	client_device_add(info);
-				//	goto leave;
-				//}
-
-				//usbmuxd_log(LL_INFO, "%s: StartSession failed on device %s, lockdown error %d", __func__, _dev->udid, lerr);
-			} else {
-								
+				
+			} else {	
+				plist_t value = NULL;
+				if (lockdownGetValue(conn, NULL, "ProductVersion", &value))
+					handleVersionValue(conn, value);			
 			}
-			free(host_id);
-
-			/*plist_t value = NULL;
-			if (lockdownGetValue(conn, NULL, "ProductVersion", &value))
-				handleVersionValue(conn, value);*/
 		}
-		free(typestr);
 	} else {
 		qDebug("hmm. QueryType response does not contain a type?!");
 		resetDevice(u8"QueryType响应中未包含Type字段。");
@@ -1394,18 +1362,25 @@ void MirrorManager::onDeviceTcpInput(struct tcphdr *th, unsigned char *payload, 
 		free(buf);
 	}
 
+	auto removeConnection = [this](ConnectionInfo *i) {
+		m_connections.removeOne(i);
+		delete i;
+	};
+
 	if(conn->connState == MuxConnState::CONN_CONNECTING) {
 		if(th->th_flags != (TH_SYN|TH_ACK)) {
 			if(th->th_flags & TH_RST)
 				conn->connState = MuxConnState::CONN_REFUSED;
 			qDebug("Connection refused (%d->%d)", sport, dport);
-			resetDevice(u8"设备拒绝连接。"); //this also sends the notification to the client
+
+			removeConnection(conn);
 		} else {
 			conn->connTxSeq++;
 			conn->connTxAck++;
 			if(sendTcp(conn, TH_ACK, NULL, 0) < 0) {
 				qDebug("Error sending TCP ACK to device (%d->%d)", sport, dport);
-				resetDevice(u8"发送响应指令失败，请重新连接。");
+
+				removeConnection(conn);
 				return;
 			}
 			conn->connState = MuxConnState::CONN_CONNECTED;
@@ -1436,7 +1411,8 @@ void MirrorManager::onDeviceTcpInput(struct tcphdr *th, unsigned char *payload, 
 			qDebug("Connection reset by device (%d->%d)", sport, dport);
 			if(th->th_flags & TH_RST)
 				conn->connState = MuxConnState::CONN_DYING;
-			resetDevice(u8"设备重置了连接，请断开设备、重启后再试。");
+
+			removeConnection(conn);
 		} else {
 			circlebuf_push_back(&conn->m_usbDataCache, payload, payload_length);
 			m_usbDataBlockEvent->quit();
@@ -1449,7 +1425,7 @@ void MirrorManager::onDeviceTcpInput(struct tcphdr *th, unsigned char *payload, 
 bool MirrorManager::readDataWithSize(ConnectionInfo *conn, void *dst, size_t size, bool allowTimeout, int timeout)
 {
 	bool ret = false;
-	if (m_connections.isEmpty())
+	if (!m_connections.contains(conn))
 		return ret;
 
 	while (conn->m_usbDataCache.size < size) {
@@ -1458,7 +1434,7 @@ bool MirrorManager::readDataWithSize(ConnectionInfo *conn, void *dst, size_t siz
 		connect(&timer, &QTimer::timeout, m_usbDataBlockEvent, &QEventLoop::quit);
 		timer.start(timeout);
 		m_usbDataBlockEvent->exec();
-		if (m_connections.isEmpty())
+		if (!m_connections.contains(conn))
 			return false;
 
 		if (!timer.isActive())
@@ -1480,7 +1456,7 @@ bool MirrorManager::readDataWithSize(ConnectionInfo *conn, void *dst, size_t siz
 bool MirrorManager::readAllData(ConnectionInfo *conn, void **dst, size_t *outSize, int timeout /* = 500 */)
 {
 	bool ret = false;
-	if (m_connections.isEmpty())
+	if (!m_connections.contains(conn))
 		return ret;
 
 	while (conn->m_usbDataCache.size <= 0) {
@@ -1489,7 +1465,7 @@ bool MirrorManager::readAllData(ConnectionInfo *conn, void **dst, size_t *outSiz
 		connect(&timer, &QTimer::timeout, m_usbDataBlockEvent, &QEventLoop::quit);
 		timer.start(timeout);
 		m_usbDataBlockEvent->exec();
-		if (m_connections.isEmpty())
+		if (!m_connections.contains(conn))
 			return false;
 
 		if (!timer.isActive())
@@ -1599,7 +1575,7 @@ void MirrorManager::onDeviceData(QByteArray data)
 
 bool MirrorManager::sendPlist(ConnectionInfo *conn, plist_t plist, bool isBinary)
 {
-	if (m_connections.isEmpty())
+	if (!m_connections.contains(conn))
 		return false;
 
 	char *content = NULL;
