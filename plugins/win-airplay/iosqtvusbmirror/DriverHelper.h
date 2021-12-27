@@ -12,7 +12,7 @@ class DriverHelper : public QObject
     Q_OBJECT
 public:
     explicit DriverHelper(QObject *parent = nullptr);
-    bool checkInstall(int vid, int pid, QString targetDevicePath);
+    int checkInstall(int vid, int pid, QString targetDevicePath);
 
 private:
     void install(wdi_device_info *dev);
@@ -27,8 +27,6 @@ private:
     UINT64 target_driver_version = 0;
     wdi_options_prepare_driver pd_options = {0};
     wdi_options_install_driver id_options = {0};
-
-    bool inInstall = false;
 };
 
 #endif // DRIVERHELPER_H

@@ -70,10 +70,8 @@ void AppleDeviceManager::deferUpdateUsbInventory(bool isAdd)
 		signalWait();
 
 	if (m_deviceChangeMutex.tryLock()) {
-		QMetaObject::invokeMethod(this, "updateUsbInventory",
-					  Qt::QueuedConnection,
-					  Q_ARG(bool, isAdd));
 		m_deviceChangeMutex.unlock();
+		QMetaObject::invokeMethod(this, "updateUsbInventory", Qt::QueuedConnection, Q_ARG(bool, isAdd));
 	}
 }
 
@@ -88,7 +86,9 @@ Retry:
 	path = path.left(path.lastIndexOf('#'));
 	path.replace("#", "\\");
 
-	if (m_driverHelper->checkInstall(m_appleDeviceInfo.vid, m_appleDeviceInfo.pid, path)) {
+	//0->一切ok 1->需要安装 -1->设备不见了
+	int ret = m_driverHelper->checkInstall(m_appleDeviceInfo.vid, m_appleDeviceInfo.pid, path);
+	if (ret == 1) {
 		qDebug() << "checkInstall wait device reconnect";
 		m_waitMutex.lock();
 		m_waitCondition.wait(&m_waitMutex, 2500);
@@ -97,7 +97,7 @@ Retry:
 		goto Retry;
 	}
 
-	return 0;
+	return ret;
 }
 
 bool isAppleDevice(int vid, int pid)
@@ -209,7 +209,7 @@ void AppleDeviceManager::updateUsbInventory(bool isDeviceAdd)
 		if (exist) {
 			int ret = checkAndInstallDriver();
 			if (ret != 0)
-				emit infoPrompt(u8"无效的设备路径，请插拔设备后再试");
+				emit infoPrompt(u8"设备异常，请插拔设备后再试");
 			else
 				startTask();
 		}

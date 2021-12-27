@@ -100,12 +100,9 @@ DriverHelper::DriverHelper(QObject *parent) : QObject(parent)
 	pd_options.driver_type = WDI_LIBUSB0;
 }
 
-bool DriverHelper::checkInstall(int vid, int pid, QString targetDevicePath)
+int DriverHelper::checkInstall(int vid, int pid, QString targetDevicePath)
 {
-	int ret = false;
-
-	if (inInstall)
-		return ret;
+	int ret = 0;
 
 	wdi_device_info *list = nullptr;
 	wdi_options_create_list option = {true, true, false};
@@ -133,18 +130,20 @@ bool DriverHelper::checkInstall(int vid, int pid, QString targetDevicePath)
 
 		if (iter == targetDevs.end())
 			targetDev = targetDevs.front();
-	}
+	} 
 
-	QString driverName(targetDev->driver);
-	if (!driverName.startsWith("libusb0"))
-		ret = true;
+	if (targetDev) {
+		QString driverName(targetDev->driver);
+		if (!driverName.startsWith("libusb0"))
+			ret = 1;
 
-	if (ret) {
-		inInstall = true;
-		emit installProgress(0);
+		if (ret) {
+			emit installProgress(0);
 
-		install(targetDev);
-	}
+			install(targetDev);
+		}
+	} else
+		ret = -1;
 
 	wdi_destroy_list(list);
 
@@ -208,7 +207,6 @@ Retry:
 		}
 	}
 
-	inInstall = false;
 	safe_free(inf_name);
 	if(!success)
 		emit installError(u8"驱动安装失败，正在重试，请耐心等待。。。");

@@ -180,7 +180,10 @@ MirrorManager::MirrorManager()
 		connect(serverSocket, &QTcpServer::newConnection, this, [=](){
 			qDebug() << "new connection accepted.";
 			auto client = serverSocket->nextPendingConnection();
-			connect(this, &MirrorManager::handshakeCompleted, client, &QTcpSocket::deleteLater);
+			auto c = findConn();
+			if (c)
+				c->clientSocketInServerSide = client;
+
 			connect(client, &QTcpSocket::readyRead, [=](){
 				auto all = client->readAll();
 				qDebug() << "socket recv size: " << all.size();
@@ -190,25 +193,6 @@ MirrorManager::MirrorManager()
 
 				sendTcp(conn, TH_ACK, (const unsigned char *)all.data(), all.size());
 			});
-
-			QTimer *timer = new QTimer(client);
-			connect(timer, &QTimer::timeout, client, [=](){
-				ConnectionInfo *conn = findConn();
-				if (!conn)
-					return;
-
-				char *buf = nullptr;
-				size_t outSize = 0;
-				bool success = readAllData(conn, (void **)&buf, &outSize, 2000);
-				if (!success)
-					client->close();
-				else {
-					auto size = client->write(buf, outSize);
-					qDebug("socket to send: %d, actual send size: %d", outSize, size);
-					free(buf);
-				}
-			});
-			timer->start(100);
 		});
 	}
 }
@@ -241,16 +225,25 @@ void MirrorManager::readUSBData(void *data)
 
 void MirrorManager::resetDevice(QString msg, bool closeDevice)
 {
+	qDebug() << "enter resetDevice";
 	m_stop = true;
 	if (m_usbReadTh.joinable())
 		m_usbReadTh.join();
+
+	qDebug() << "read thread finished...";
 
 	m_errorMsg = msg;
 	if (m_notificationTimer->isActive())
 		m_notificationTimer->stop();
 
-	qDeleteAll(m_connections);
+	for (auto iter = m_connections.begin(); iter != m_connections.end(); iter++) {
+		auto c = *iter;
+		clearHandshakeResource(c);
+		delete c;
+	}
 	m_connections.clear();
+
+	qDebug() << "connections cleared...";
 
 	if (closeDevice && m_deviceHandle) {
 		usb_release_interface(m_deviceHandle, m_interface);
@@ -926,6 +919,29 @@ bool MirrorManager::lockdownStopSession(ConnectionInfo *conn, const char *sessio
 	return ret;
 }
 
+void MirrorManager::clearHandshakeResource(ConnectionInfo *conn)
+{
+	if (!m_connections.contains(conn))
+		return;
+
+	if (conn->clientSocktFD != -1) {
+		closesocket(conn->clientSocktFD);
+		conn->clientSocktFD = -1;
+	}
+
+	if (conn->clientSocketInServerSide) {
+		conn->clientSocketInServerSide->deleteLater();
+		conn->clientSocketInServerSide = nullptr;
+	}
+}
+
+void MirrorManager::removeConnection(ConnectionInfo *conn)
+{
+	clearHandshakeResource(conn);
+	m_connections.removeOne(conn);
+	delete conn;
+}
+
 bool MirrorManager::lockdownEnableSSL(ConnectionInfo *conn)
 {
 	bool ret = false;
@@ -1025,17 +1041,14 @@ bool MirrorManager::lockdownEnableSSL(ConnectionInfo *conn)
 
 	HandshakeThread *ht = new HandshakeThread(ssl);
 	connect(ht, &HandshakeThread::handshakeCompleted, this, [=, &return_me](quint32 result){
-		closesocket(conn->clientSocktFD);
-		conn->clientSocktFD = -1;
-
-		emit handshakeCompleted(result);
-
 		return_me = result;
 		m_handshakeBlockEvent->quit();
 	});
 	ht->start();
 	m_handshakeBlockEvent->exec();
 	ht->deleteLater();
+
+	clearHandshakeResource(conn);
 
 	if (return_me != 1) {
 		qDebug("ERROR in SSL_do_handshake: %s", ssl_error_to_string(SSL_get_error(ssl, return_me)));
@@ -1388,11 +1401,6 @@ void MirrorManager::onDeviceTcpInput(struct tcphdr *th, unsigned char *payload, 
 		free(buf);
 	}
 
-	auto removeConnection = [this](ConnectionInfo *i) {
-		m_connections.removeOne(i);
-		delete i;
-	};
-
 	if(conn->connState == MuxConnState::CONN_CONNECTING) {
 		if(th->th_flags != (TH_SYN|TH_ACK)) {
 			if(th->th_flags & TH_RST)
@@ -1440,8 +1448,12 @@ void MirrorManager::onDeviceTcpInput(struct tcphdr *th, unsigned char *payload, 
 
 			removeConnection(conn);
 		} else {
-			circlebuf_push_back(&conn->m_usbDataCache, payload, payload_length);
-			m_usbDataBlockEvent->quit();
+			if (conn->clientSocketInServerSide)
+				conn->clientSocketInServerSide->write((char *)payload, payload_length);
+			else {
+				circlebuf_push_back(&conn->m_usbDataCache, payload, payload_length);
+				m_usbDataBlockEvent->quit();
+			}
 			// Device likes it best when we are prompty ACKing data
 			sendTcpAck(conn);
 		}
@@ -1709,7 +1721,7 @@ bool MirrorManager::checkAndChangeMode(int vid, int pid)
 		qDebug() << "open ios device";
 	};
 
-	int ret = false;
+	bool ret = false;
 	struct usb_device *device = findAppleDevice(vid, pid);
 	if (!device) {
 		m_errorMsg = u8"iOS设备未找到";
@@ -1722,6 +1734,10 @@ bool MirrorManager::checkAndChangeMode(int vid, int pid)
 	if (qtConfigIndex == -1) {
 		qDebug() << "change Apple device index";
 		auto deviceHandle = usb_open(device);
+		if (!deviceHandle) {
+			m_errorMsg = u8"iOS设备未找到， 请保持设备连接。";
+			return ret;
+		}
 		usb_control_msg(deviceHandle, 0x40, 0x52, 0x00, 0x02, NULL, 0, 0);
 		usb_close(deviceHandle);
 		QThread::msleep(200);
@@ -1762,6 +1778,7 @@ bool MirrorManager::checkAndChangeMode(int vid, int pid)
 
 bool MirrorManager::setupUSBInfo()
 {
+	qDebug() << "enter setup usb";
 	if(!m_device || !m_deviceHandle) {
 		m_errorMsg = u8"iOS设备异常，请插拔后再试";
 		return false;
@@ -1829,6 +1846,8 @@ bool MirrorManager::setupUSBInfo()
 		m_errorMsg = u8"claim interface失败。";
 		return false;
 	}
+
+	qDebug() << "setup usb device ok";
 	return true;
 }
 

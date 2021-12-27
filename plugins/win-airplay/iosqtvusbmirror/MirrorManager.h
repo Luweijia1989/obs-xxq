@@ -143,6 +143,7 @@ public:
 		bool sslEnabled;
 		ssl_data_t ssl_data;
 		int clientSocktFD;
+		QTcpSocket *clientSocketInServerSide;
 		ConnectionType type;
 		MuxConnState connState;
 
@@ -159,14 +160,12 @@ public:
 			sslEnabled = false;		
 			ssl_data = NULL;
 			clientSocktFD = -1;
+			clientSocketInServerSide = nullptr;
 			circlebuf_init(&m_usbDataCache);			
 		}
 
 		~ConnectionInfo()
 		{
-			if (clientSocktFD != -1)
-				closesocket(clientSocktFD);
-
 			if (sessionId)
 				free(sessionId);
 
@@ -198,6 +197,8 @@ private:
 	void onDeviceTcpInput(struct tcphdr *th, unsigned char *payload, uint32_t payload_length);
 	bool readDataWithSize(ConnectionInfo *conn, void *dst, size_t size, bool allowTimeout, int timeout = 500);
 	bool readAllData(ConnectionInfo *conn, void **dst, size_t *outSize, int timeout = 500);
+	void clearHandshakeResource(ConnectionInfo *conn);
+	void removeConnection(ConnectionInfo *conn);
 
 	void startActualPair(ConnectionInfo *conn);
 	void startObserve(ConnectionInfo *conn);
@@ -227,9 +228,6 @@ private:
 public slots:
 	void onDeviceData(QByteArray data);
 	void resetDevice(QString msg, bool closeDevice = true);
-
-signals:
-	void handshakeCompleted(quint32 ret);
 
 private:
 	QString m_errorMsg;
