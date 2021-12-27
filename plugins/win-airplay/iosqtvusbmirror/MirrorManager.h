@@ -141,6 +141,7 @@ public:
 		char *sessionId;
 		bool sslEnabled;
 		ssl_data_t ssl_data;
+		int clientSocktFD;
 		ConnectionType type;
 		MuxConnState connState;
 
@@ -156,10 +157,15 @@ public:
 			sessionId = NULL;
 			sslEnabled = false;		
 			ssl_data = NULL;
+			clientSocktFD = -1;
 			circlebuf_init(&m_usbDataCache);			
 		}
 
-		~ConnectionInfo() {
+		~ConnectionInfo()
+		{
+			if (clientSocktFD != -1)
+				closesocket(clientSocktFD);
+
 			if (sessionId)
 				free(sessionId);
 
@@ -190,6 +196,7 @@ private:
 	void onDeviceVersionInput(VersionHeader *vh);
 	void onDeviceTcpInput(struct tcphdr *th, unsigned char *payload, uint32_t payload_length);
 	bool readDataWithSize(ConnectionInfo *conn, void *dst, size_t size, bool allowTimeout, int timeout = 500);
+	bool readAllData(ConnectionInfo *conn, void **dst, size_t *outSize, int timeout = 500);
 
 	void startActualPair(ConnectionInfo *conn);
 	void startObserve(ConnectionInfo *conn);
@@ -247,6 +254,5 @@ private:
 	QEventLoop *m_usbDataBlockEvent;
 
 	QTcpServer *serverSocket;
-	int clientSocktFD = -1;
 	QEventLoop *m_handshakeBlockEvent;
 };

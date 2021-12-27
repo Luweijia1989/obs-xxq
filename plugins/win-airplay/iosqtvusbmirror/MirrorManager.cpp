@@ -13,6 +13,8 @@
 #ifdef HAVE_OPENSSL
 static int ssl_verify_callback(int ok, X509_STORE_CTX *ctx)
 {
+	(void)ctx;
+	(void)ok;
 	return 1;
 }
 
@@ -109,7 +111,7 @@ int socket_connect(uint16_t port)
 	if (!wsa_init) {
 		if (WSAStartup(MAKEWORD(2,2), &wsa_data) != ERROR_SUCCESS) {
 			qFatal("WSAStartup failed!");
-			ExitProcess(-1);
+			ExitProcess(0);
 		}
 		wsa_init = 1;
 	}
@@ -126,7 +128,8 @@ int socket_connect(uint16_t port)
 	serv_addr.sin_family = AF_INET;          
 	serv_addr.sin_addr.s_addr = inet_addr("127.0.0.1"); 
 	serv_addr.sin_port = htons(port); 
-	connect(sfd, (struct sockaddr*)&serv_addr, sizeof(serv_addr));
+	if (connect(sfd, (struct sockaddr*)&serv_addr, sizeof(serv_addr)) < 0)
+		return -1;
 
 	if (setsockopt(sfd, IPPROTO_TCP, TCP_NODELAY, (const char *)&yes, sizeof(int)) == -1) {
 		perror("Could not set TCP_NODELAY on socket");
@@ -167,33 +170,25 @@ MirrorManager::MirrorManager()
 				if (!conn)
 					return;
 
-				client->close();
-				/*sendTcp(conn, TH_ACK, (const unsigned char *)all.data(), all.size());
+				sendTcp(conn, TH_ACK, (const unsigned char *)all.data(), all.size());
 
-				QTimer t;
-				t.setSingleShot(true);
-				QEventLoop loop;
-				connect(&t, &QTimer::timeout, &loop, &QEventLoop::quit);
-				t.start(200);
-				loop.exec();
-
-				auto size = conn->m_usbDataCache.size;
-				auto buf = (char *)malloc(size);
-				circlebuf_pop_front(&conn->m_usbDataCache, buf, size);
-				auto ff = client->write(buf, size);
-				free(buf);*/
+				char *buf = nullptr;
+				size_t outSize = 0;
+				bool success = readAllData(conn, (void **)&buf, &outSize);
+				if (!success)
+					client->close();
+				else {
+					client->write(buf, outSize);
+					free(buf);
+				}
 			});
 		});
-
-		clientSocktFD = socket_connect(serverSocket->serverPort());
 	}
 }
 
 MirrorManager::~MirrorManager()
 {
 	free(m_pktbuf);
-	if (clientSocktFD != -1)
-		closesocket(clientSocktFD);
 }
 
 void MirrorManager::readUSBData(void *data)
@@ -900,7 +895,7 @@ bool MirrorManager::lockdownStopSession(ConnectionInfo *conn, const char *sessio
 	}
 
 	if (conn->sslEnabled) {
-		//property_list_service_disable_ssl(client->parent);
+		//property_list_service_disable_ssl(client->parent); //todo
 		conn->sslEnabled = false;
 	}
 
@@ -933,12 +928,18 @@ bool MirrorManager::lockdownEnableSSL(ConnectionInfo *conn)
 	if (pair_record)
 		plist_free(pair_record);
 
+	conn->clientSocktFD = socket_connect(serverSocket->serverPort());
+	if (conn->clientSocktFD < 0) {
+		qDebug("connect local socket error");
+		return ret;
+	}
+
 	BIO *ssl_bio = BIO_new(BIO_s_socket());
 	if (!ssl_bio) {
 		qDebug("ERROR: Could not create SSL bio.");
 		return ret;
 	}
-	BIO_set_fd(ssl_bio, (int)(long)clientSocktFD, BIO_NOCLOSE);
+	BIO_set_fd(ssl_bio, (int)(long)conn->clientSocktFD, BIO_NOCLOSE);
 
 	SSL_CTX *ssl_ctx = SSL_CTX_new(TLS_method());
 	if (ssl_ctx == NULL) {
@@ -1195,13 +1196,21 @@ void MirrorManager::startActualPair(ConnectionInfo *conn)
 		qDebug("success with type %s", typestr);
 
 		if (strcmp(typestr, "com.apple.mobile.lockdown") != 0) {
-			int cc = 0;
-			cc++; 
+			pairResult(true);
 		} else {
 			char *host_id = NULL;
 			if (config_has_device_record(m_serial)) {
 				config_device_record_get_host_id(m_serial, &host_id);
-				lockdownStartSession(conn, host_id, NULL, NULL);
+				if (lockdownStartSession(conn, host_id, NULL, NULL))
+					pairResult(true);
+				else {
+					qDebug("%s: The stored pair record for device %s is invalid. Removing.", __func__, m_serial);
+					if (config_remove_device_record(m_serial) == 0) {
+						goto retry;
+					} else {
+						qDebug("%s: Could not remove pair record for device %s", __func__, m_serial);
+					}
+				}
 				//lerr = lockdownd_start_session(lockdown, host_id, NULL, NULL);
 				//if (host_id)
 				//	free(host_id);
@@ -1463,6 +1472,38 @@ bool MirrorManager::readDataWithSize(ConnectionInfo *conn, void *dst, size_t siz
 		ret = false;
 		if (!allowTimeout)
 			resetDevice(u8"读取usb数据超时。");
+	}
+
+	return ret;
+}
+
+bool MirrorManager::readAllData(ConnectionInfo *conn, void **dst, size_t *outSize, int timeout /* = 500 */)
+{
+	bool ret = false;
+	if (m_connections.isEmpty())
+		return ret;
+
+	while (conn->m_usbDataCache.size <= 0) {
+		QTimer timer;
+		timer.setSingleShot(true);
+		connect(&timer, &QTimer::timeout, m_usbDataBlockEvent, &QEventLoop::quit);
+		timer.start(timeout);
+		m_usbDataBlockEvent->exec();
+		if (m_connections.isEmpty())
+			return false;
+
+		if (!timer.isActive())
+			break;
+	}
+
+	if (conn->m_usbDataCache.size > 0) {
+		*outSize = conn->m_usbDataCache.size;
+		*dst = malloc(*outSize);
+		circlebuf_pop_front(&conn->m_usbDataCache, *dst, *outSize);
+		ret = true;
+	} else {
+		ret = false;
+		resetDevice(u8"读取usb数据超时。");
 	}
 
 	return ret;
