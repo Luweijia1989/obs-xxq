@@ -207,8 +207,7 @@ MirrorManager::~MirrorManager()
 
 void MirrorManager::quit()
 {
-	if (m_inMirror)
-		stopScreenMirror();
+	stopScreenMirror();
 
 	if (m_inPair)
 		pairError(u8"final stop");
@@ -1937,18 +1936,18 @@ void MirrorManager::handleSyncPacket(unsigned char *buf, uint32_t length)
 		NewAsynHpd1Packet(hpd1_dict, &device_info, &device_info_len);
 		list_destroy(hpd1_dict);
 		qDebug("Sending ASYN HPD1");
-		usb_bulk_write(m_deviceHandle, ep_out_fa, (char *)device_info, device_info_len, 1000);
+		writeUBSData(ep_out_fa, (char *)device_info, device_info_len, 1000);
 
 		uint8_t *cwpa_reply;
 		size_t cwpa_reply_len;
 		CwpaPacketNewReply(&cwpaPacket, clockRef, &cwpa_reply,
 				   &cwpa_reply_len);
 		qDebug("Send CWPA-RPLY {correlation:%p, clockRef:%p}", cwpaPacket.CorrelationID, clockRef);
-		usb_bulk_write(m_deviceHandle, ep_out_fa, (char *)cwpa_reply, cwpa_reply_len, 1000);
+		writeUBSData(ep_out_fa, (char *)cwpa_reply, cwpa_reply_len, 1000);
 		free(cwpa_reply);
 
 		qDebug("Sending ASYN HPD1");
-		usb_bulk_write(m_deviceHandle, ep_out_fa, (char *)device_info, device_info_len, 1000);
+		writeUBSData(ep_out_fa, (char *)device_info, device_info_len, 1000);
 		free(device_info);
 
 		uint8_t *hpa1;
@@ -1957,7 +1956,7 @@ void MirrorManager::handleSyncPacket(unsigned char *buf, uint32_t length)
 		NewAsynHpa1Packet(hpa1_dict, cwpaPacket.DeviceClockRef, &hpa1, &hpa1_len);
 		list_destroy(hpa1_dict);
 		qDebug("Sending ASYN HPA1");
-		usb_bulk_write(m_deviceHandle, ep_out_fa, (char *)hpa1, hpa1_len, 1000);
+		writeUBSData(ep_out_fa, (char *)hpa1, hpa1_len, 1000);
 		free(hpa1);
 	} break;
 	case AFMT: {
@@ -1975,7 +1974,7 @@ void MirrorManager::handleSyncPacket(unsigned char *buf, uint32_t length)
 		size_t afmt_len;
 		AfmtPacketNewReply(&afmtPacket, &afmt, &afmt_len);
 		qDebug("Send AFMT-REPLY {correlation:%p}", afmtPacket.CorrelationID);
-		usb_bulk_write(m_deviceHandle, ep_out_fa, (char *)afmt, afmt_len, 1000);
+		writeUBSData(ep_out_fa, (char *)afmt, afmt_len, 1000);
 		free(afmt);
 	} break;
 	case CVRP: {
@@ -2003,13 +2002,13 @@ void MirrorManager::handleSyncPacket(unsigned char *buf, uint32_t length)
 
 		mp->needClockRef = cvrp_packet.DeviceClockRef;
 		AsynNeedPacketBytes(mp->needClockRef, &mp->needMessage, &mp->needMessageLen);
-		usb_bulk_write(m_deviceHandle, ep_out_fa, (char *)mp->needMessage, mp->needMessageLen, 1000);
+		writeUBSData(ep_out_fa, (char *)mp->needMessage, mp->needMessageLen, 1000);
 
 		CFTypeID clockRef2 = cvrp_packet.DeviceClockRef + 0x1000AF;
 		uint8_t *send_data;
 		size_t send_data_len;
 		SyncCvrpPacketNewReply(&cvrp_packet, clockRef2, &send_data, &send_data_len);
-		usb_bulk_write(m_deviceHandle, ep_out_fa, (char *)send_data, send_data_len, 1000);
+		writeUBSData(ep_out_fa, (char *)send_data, send_data_len, 1000);
 		free(send_data);
 		clearSyncCvrpPacket(&cvrp_packet);
 	} break;
@@ -2019,7 +2018,7 @@ void MirrorManager::handleSyncPacket(unsigned char *buf, uint32_t length)
 		uint8_t *send_data;
 		size_t send_data_len;
 		SyncOgPacketNewReply(&og_packet, &send_data, &send_data_len);
-		usb_bulk_write(m_deviceHandle, ep_out_fa, (char *)send_data, send_data_len, 1000);
+		writeUBSData(ep_out_fa, (char *)send_data, send_data_len, 1000);
 		free(send_data);
 	} break;
 	case CLOK: {
@@ -2032,7 +2031,7 @@ void MirrorManager::handleSyncPacket(unsigned char *buf, uint32_t length)
 		uint8_t *send_data;
 		size_t send_data_len;
 		SyncClokPacketNewReply(&clock_packet, clockRef, &send_data, &send_data_len);
-		usb_bulk_write(m_deviceHandle, ep_out_fa, (char *)send_data, send_data_len, 1000);
+		writeUBSData(ep_out_fa, (char *)send_data, send_data_len, 1000);
 		free(send_data);
 	} break;
 	case TIME: {
@@ -2044,7 +2043,7 @@ void MirrorManager::handleSyncPacket(unsigned char *buf, uint32_t length)
 		uint8_t *send_data;
 		size_t send_data_len;
 		SyncTimePacketNewReply(&time_packet, &time_to_send, &send_data, &send_data_len);
-		usb_bulk_write(m_deviceHandle, ep_out_fa, (char *)send_data, send_data_len, 1000);
+		writeUBSData(ep_out_fa, (char *)send_data, send_data_len, 1000);
 		free(send_data);
 	} break;
 	case SKEW: {
@@ -2062,7 +2061,7 @@ void MirrorManager::handleSyncPacket(unsigned char *buf, uint32_t length)
 		uint8_t *send_data;
 		size_t send_data_len;
 		SyncSkewPacketNewReply(&skew_packet, mp->sampleRate, &send_data, &send_data_len);
-		usb_bulk_write(m_deviceHandle, ep_out_fa, (char *)send_data, send_data_len, 1000);
+		writeUBSData(ep_out_fa, (char *)send_data, send_data_len, 1000);
 		free(send_data);
 	} break;
 	case STOP: {
@@ -2075,7 +2074,7 @@ void MirrorManager::handleSyncPacket(unsigned char *buf, uint32_t length)
 		size_t send_data_len;
 		SyncStopPacketNewReply(&stop_packet, &send_data,
 				       &send_data_len);
-		usb_bulk_write(m_deviceHandle, ep_out_fa, (char *)send_data, send_data_len, 1000);
+		writeUBSData(ep_out_fa, (char *)send_data, send_data_len, 1000);
 		free(send_data);
 	} break;
 	default:
@@ -2122,7 +2121,7 @@ void MirrorManager::handleAsyncPacket(unsigned char *buf, uint32_t length)
 		struct AsynCmSampleBufPacket acsbp = {0};
 		bool success = NewAsynCmSampleBufPacketFromBytes(buf, length, &acsbp);
 		if (!success) {
-			usb_bulk_write(m_deviceHandle, ep_out_fa, (char *)mp->needMessage, mp->needMessageLen, 1000);
+			writeUBSData(ep_out_fa, (char *)mp->needMessage, mp->needMessageLen, 1000);
 		} else {
 			mp->videoSamplesReceived++;
 
@@ -2134,7 +2133,7 @@ void MirrorManager::handleAsyncPacket(unsigned char *buf, uint32_t length)
 				qDebug("RCV Video Samples:%d ", mp->videoSamplesReceived);
 				mp->videoSamplesReceived = 0;
 			}
-			usb_bulk_write(m_deviceHandle, ep_out_fa, (char *)mp->needMessage, mp->needMessageLen, 1000);
+			writeUBSData(ep_out_fa, (char *)mp->needMessage, mp->needMessageLen, 1000);
 			clearAsynCmSampleBufPacket(&acsbp);
 		}
 	} break;
@@ -2170,7 +2169,7 @@ void MirrorManager::mirrorFrameReceived(unsigned char *buf, uint32_t len)
 					       0x67, 0x6e, 0x69, 0x70,
 					       0x01, 0x00, 0x00, 0x00,
 					       0x01, 0x00, 0x00, 0x00};
-			usb_bulk_write(m_deviceHandle, ep_out_fa, (char *)cmd, 16, 1000);
+			writeUBSData(ep_out_fa, (char *)cmd, 16, 1000);
 			mp->firstPingPacket = true;
 		}
 		break;
@@ -2199,7 +2198,7 @@ void MirrorManager::readMirrorData(void *data)
 		readLen = usb_bulk_read(manager->m_deviceHandle, manager->ep_in_fa, (char *)read_buffer, DEV_MRU, 200);
 		if (readLen < 0) {
 			if (readLen != -116) {
-				QMetaObject::invokeMethod(manager, "deviceLostWhileMirror");
+				QMetaObject::invokeMethod(manager, "clearMirrorResource");
 				break;
 			}
 		} else
@@ -2211,6 +2210,9 @@ void MirrorManager::readMirrorData(void *data)
 
 bool MirrorManager::startScreenMirror()
 {
+	if (mp)
+		delete mp;
+
 	m_inMirror = true;
 	mp = new ScreenMirrorInfo;
 	m_readMirrorDataTh = std::thread(readMirrorData, this);
@@ -2226,7 +2228,7 @@ void MirrorManager::stopScreenMirror()
 		uint8_t *d1;
 		size_t d1_len;
 		NewAsynHPA0(mp->deviceAudioClockRef, &d1, &d1_len);
-		usb_bulk_write(m_deviceHandle, ep_out_fa, (char *)d1, d1_len, 1000);
+		writeUBSData(ep_out_fa, (char *)d1, d1_len, 1000);
 		free(d1);
 	}
 
@@ -2234,7 +2236,7 @@ void MirrorManager::stopScreenMirror()
 		uint8_t *d1;
 		size_t d1_len;
 		NewAsynHPD0(&d1, &d1_len);
-		usb_bulk_write(m_deviceHandle, ep_out_fa, (char *)d1, d1_len, 1000);
+		writeUBSData(ep_out_fa, (char *)d1, d1_len, 1000);
 		free(d1);
 	}
 
@@ -2249,7 +2251,7 @@ void MirrorManager::stopScreenMirror()
 			uint8_t *d1;
 			size_t d1_len;
 			NewAsynHPD0(&d1, &d1_len);
-			usb_bulk_write(m_deviceHandle, ep_out_fa, (char *)d1, d1_len, 1000);
+			writeUBSData(ep_out_fa, (char *)d1, d1_len, 1000);
 			free(d1);
 			qDebug("OK. Ready to release USB Device.");
 		}
@@ -2259,21 +2261,19 @@ void MirrorManager::stopScreenMirror()
 		usb_set_configuration(m_deviceHandle, 4);
 	}
 
+	clearMirrorResource();
+}
+
+void MirrorManager::clearMirrorResource()
+{
+	m_inMirror = false;
+
 	m_stop = true;
 	if (m_readMirrorDataTh.joinable())
 		m_readMirrorDataTh.join();
 
 	delete mp;
-}
-
-void MirrorManager::deviceLostWhileMirror()
-{
-	m_stop = true;
-	if (m_readMirrorDataTh.joinable())
-		m_readMirrorDataTh.join();
-
-	m_inMirror = false;
-	clearDeviceResource(false);
+	mp = nullptr;
 }
 
 //-1=>没找到设备
@@ -2315,6 +2315,15 @@ int MirrorManager::sendTcp(ConnectionInfo *conn, uint8_t flags, const unsigned c
 	auto ret = sendPacket(MuxProtocol::MUX_PROTO_TCP, &th, data, length);
 	conn->connTxSeq += length;
 	return ret;
+}
+
+int MirrorManager::writeUBSData(int ep, char *bytes, int size, int timeout)
+{
+	if (!m_deviceHandle)
+		return -1;
+
+	QMutexLocker locker(&m_usbWriteLock);
+	return usb_bulk_write(m_deviceHandle, ep, bytes, size, timeout);
 }
 
 int MirrorManager::sendPacket(MuxProtocol proto, void *header, const void *data, int length)
@@ -2368,7 +2377,7 @@ int MirrorManager::sendPacket(MuxProtocol proto, void *header, const void *data,
 	if(data && length)
 		memcpy(buffer + mux_header_size + hdrlen, data, length);
 
-	res = usb_bulk_write(m_deviceHandle, ep_out, buffer, total, 1000);
+	res = writeUBSData(ep_out, buffer, total, 1000);
 	free(buffer);
 	if(res < 0) {
 		qDebug("usb_send failed while sending packet (len %d) to device", total);

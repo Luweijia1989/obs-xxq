@@ -72,7 +72,6 @@ private:
 	QWaitCondition m_waitCondition;
 	DriverHelper *m_driverHelper = nullptr;
 	APPLE_DEVICE_INFO m_appleDeviceInfo = { 0 };
-	bool m_inScreenMirror = false;
 	MirrorManager *m_mirrorManager = nullptr;
 	ReadStdinThread *m_readStdinThread = nullptr;
 };

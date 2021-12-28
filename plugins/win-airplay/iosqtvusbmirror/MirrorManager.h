@@ -233,6 +233,7 @@ public:
 	~MirrorManager();
 
 	bool startMirrorTask(int vid, int pid);
+	bool inMirror() { return m_inMirror; }
 
 	static void readUSBData(void *data);
 	static void readMirrorData(void *data);
@@ -251,7 +252,9 @@ private:
 	void mirrorFrameReceived(unsigned char *buf, uint32_t len);
 	void handleSyncPacket(unsigned char *buf, uint32_t len);
 	void handleAsyncPacket(unsigned char *buf, uint32_t len);
-private:
+
+	int writeUBSData(int ep, char *bytes, int size, int timeout);
+ private:
 	void startConnect(ConnectionType type, uint16_t dport);
 	int sendTcpAck(ConnectionInfo *conn);
 	int sendTcp(ConnectionInfo *conn, uint8_t flags, const unsigned char *data, int length);
@@ -294,13 +297,14 @@ private:
 public slots:
 	void onDeviceData(QByteArray data);
 	void pairError(QString msg, bool closeDevice = true);
-	void deviceLostWhileMirror();
+	void clearMirrorResource();
 	void quit();
 
 private:
 	QString m_errorMsg;
 	unsigned char *m_pktbuf = nullptr;
 	uint32_t m_pktlen;
+	QMutex m_usbWriteLock;
 
 	bool m_stop = false;
 	char m_serial[256] = { 0 };

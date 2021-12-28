@@ -50,13 +50,16 @@ AppleDeviceManager::AppleDeviceManager()
 	connect(m_driverHelper, &DriverHelper::installError, this,
 		&AppleDeviceManager::installError);
 
-	m_readStdinThread = new ReadStdinThread(this);
+	/*m_readStdinThread = new ReadStdinThread(this);
 	connect(m_readStdinThread, &ReadStdinThread::quit, this, [=](){
 		deleteLater();
 	}, Qt::QueuedConnection);
-	m_readStdinThread->start();
+	m_readStdinThread->start();*/
 
-	connect(this, &QObject::destroyed, qApp, &QApplication::quit);
+	//QTimer *timer = new QTimer;
+	//timer->setSingleShot(true);
+	//connect(timer, &QTimer::timeout, m_mirrorManager, &MirrorManager::quit);
+	//timer->start(5000);
 }
 
 AppleDeviceManager::~AppleDeviceManager()
@@ -204,9 +207,9 @@ bool AppleDeviceManager::enumDeviceAndCheck()
 void AppleDeviceManager::updateUsbInventory(bool isDeviceAdd)
 {
 	QMutexLocker locker(&m_deviceChangeMutex);
-	qDebug() << "enter updateUsbInventory";
+	qDebug() << "==========enter updateUsbInventory";
 	bool doLost = true;
-	if (isDeviceAdd && !m_inScreenMirror) {
+	if (isDeviceAdd && !m_mirrorManager->inMirror()) {
 		bool exist = enumDeviceAndCheck();
 		if (exist) {
 			int ret = checkAndInstallDriver();
@@ -223,7 +226,7 @@ void AppleDeviceManager::updateUsbInventory(bool isDeviceAdd)
 	if (doLost)
 		emit deviceLost();
 
-	qDebug() << "leave updateUsbInventory";
+	qDebug() << "==========leave updateUsbInventory";
 }
 
 
