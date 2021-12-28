@@ -50,16 +50,9 @@ AppleDeviceManager::AppleDeviceManager()
 	connect(m_driverHelper, &DriverHelper::installError, this,
 		&AppleDeviceManager::installError);
 
-	/*m_readStdinThread = new ReadStdinThread(this);
-	connect(m_readStdinThread, &ReadStdinThread::quit, this, [=](){
-		deleteLater();
-	}, Qt::QueuedConnection);
-	m_readStdinThread->start();*/
-
-	//QTimer *timer = new QTimer;
-	//timer->setSingleShot(true);
-	//connect(timer, &QTimer::timeout, m_mirrorManager, &MirrorManager::quit);
-	//timer->start(5000);
+	m_readStdinThread = new ReadStdinThread(this);
+	connect(m_readStdinThread, &ReadStdinThread::quit, m_mirrorManager, &MirrorManager::quit);
+	m_readStdinThread->start();
 }
 
 AppleDeviceManager::~AppleDeviceManager()

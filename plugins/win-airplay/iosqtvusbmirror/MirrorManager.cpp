@@ -158,6 +158,7 @@ int socket_connect(uint16_t port)
 
 MirrorManager::MirrorManager()
 {
+	ipc_client_create(&ipc_client);
 	connect(this, &QObject::destroyed, qApp, &QApplication::quit);
 
 	auto findConn = [this](){
@@ -203,6 +204,7 @@ MirrorManager::~MirrorManager()
 {
 	qDebug() << "MirrorManager destroyed.";
 	free(m_pktbuf);
+	ipc_client_destroy(&ipc_client);
 }
 
 void MirrorManager::quit()
@@ -1893,12 +1895,12 @@ bool MirrorManager::startPair()
 	return m_devicePaired;
 }
 
-void MirrorManager::usbExtractFrame(unsigned char *buf, uint32_t length)
+void MirrorManager::usbExtractFrame(QByteArray data)
 {
-	if (!length)
+	if (!data.size() || !mp)
 		return;
 
-	circlebuf_push_back(&mp->m_mirrorDataBuf, buf, length);
+	circlebuf_push_back(&mp->m_mirrorDataBuf, data.data(), data.size());
 	while (true) {
 		size_t byte_remain = mp->m_mirrorDataBuf.size;
 		if (byte_remain < 4)
@@ -1963,11 +1965,7 @@ void MirrorManager::handleSyncPacket(unsigned char *buf, uint32_t length)
 		qDebug("AFMT");
 		struct SyncAfmtPacket afmtPacket = {0};
 		if (NewSyncAfmtPacketFromBytes(buf, length, &afmtPacket) == 0) { //处理音频格式
-			/*app_device.m_audioInfo.samples_per_sec =
-				(uint32_t)afmtPacket.AudioStreamInfo.SampleRate;
-			app_device.m_audioInfo.format = AUDIO_FORMAT_16BIT;
-			app_device.m_audioInfo.speakers =
-				afmtPacket.AudioStreamInfo.ChannelsPerFrame;*/
+			mp->sendAudioInfo((uint32_t)afmtPacket.AudioStreamInfo.SampleRate, (speaker_layout)afmtPacket.AudioStreamInfo.ChannelsPerFrame);
 		}
 
 		uint8_t *afmt;
@@ -2107,9 +2105,7 @@ void MirrorManager::handleAsyncPacket(unsigned char *buf, uint32_t length)
 				mp->lastEatFrameReceivedLocalAudioClockTime = GetTime(&mp->localAudioClock);
 			}
 
-		/*	app_device.mp.consumer.consume(
-				&eatPacket.CMSampleBuf,
-				app_device.mp.consumer.consumer_ctx);*/
+			mp->sendData(&eatPacket.CMSampleBuf);
 
 			if (mp->audioSamplesReceived % 100 == 0) {
 				qDebug("RCV Audio Samples:%d", mp->audioSamplesReceived);
@@ -2125,9 +2121,7 @@ void MirrorManager::handleAsyncPacket(unsigned char *buf, uint32_t length)
 		} else {
 			mp->videoSamplesReceived++;
 
-			//app_device.mp.consumer.consume(
-			//	&acsbp.CMSampleBuf,
-			//	app_device.mp.consumer.consumer_ctx);
+			mp->sendData(&acsbp.CMSampleBuf);
 
 			if (mp->videoSamplesReceived % 500 == 0) {
 				qDebug("RCV Video Samples:%d ", mp->videoSamplesReceived);
@@ -2202,7 +2196,7 @@ void MirrorManager::readMirrorData(void *data)
 				break;
 			}
 		} else
-			manager->usbExtractFrame(read_buffer, (uint32_t)readLen);
+			QMetaObject::invokeMethod(manager, "usbExtractFrame", Q_ARG(QByteArray, QByteArray((char *)read_buffer, readLen)));
 	}
 	free(read_buffer);
 	qDebug() << "leave readMirrorData";
@@ -2210,11 +2204,9 @@ void MirrorManager::readMirrorData(void *data)
 
 bool MirrorManager::startScreenMirror()
 {
-	if (mp)
-		delete mp;
-
 	m_inMirror = true;
-	mp = new ScreenMirrorInfo;
+	mp = new ScreenMirrorInfo(ipc_client);
+	mp->sendStatus(true);
 	m_readMirrorDataTh = std::thread(readMirrorData, this);
 	return true;
 }
@@ -2266,14 +2258,21 @@ void MirrorManager::stopScreenMirror()
 
 void MirrorManager::clearMirrorResource()
 {
-	m_inMirror = false;
+	if (!mp)
+		return;
 
+	qDebug() << "++++++++++++ enter clearMirrorResource";
+	mp->sendStatus(false);
+
+	m_inMirror = false;
 	m_stop = true;
 	if (m_readMirrorDataTh.joinable())
 		m_readMirrorDataTh.join();
 
 	delete mp;
 	mp = nullptr;
+
+	qDebug() << "++++++++++++ leave clearMirrorResource";
 }
 
 //-1=>没找到设备
@@ -2322,7 +2321,6 @@ int MirrorManager::writeUBSData(int ep, char *bytes, int size, int timeout)
 	if (!m_deviceHandle)
 		return -1;
 
-	QMutexLocker locker(&m_usbWriteLock);
 	return usb_bulk_write(m_deviceHandle, ep, bytes, size, timeout);
 }
 

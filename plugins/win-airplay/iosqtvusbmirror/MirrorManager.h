@@ -30,6 +30,8 @@ extern "C" {
 #include "dict.h"
 #include "cmclock.h"
 #include "asyn_feed.h"
+#include "../ipc.h"
+#include "../common-define.h"
 }
 
 #define DEV_MRU 65536
@@ -190,6 +192,7 @@ public:
 		bool firstAudioTimeTaken;
 		double sampleRate;
 		bool firstPingPacket;
+		IPCClient *ipc_client = NULL;
 
 		struct CMTime startTimeDeviceAudioClock;
 		struct CMTime startTimeLocalAudioClock;
@@ -200,7 +203,8 @@ public:
 		QEventLoop quitBlockEvent;
 
 	public:
-		ScreenMirrorInfo() {
+		ScreenMirrorInfo(IPCClient *client) {
+			ipc_client = client;
 			circlebuf_init(&m_mirrorDataBuf);
 
 			deviceAudioClockRef = 0;
@@ -227,6 +231,46 @@ public:
 
 			circlebuf_free(&m_mirrorDataBuf);
 		}
+
+		void sendAudioInfo(uint32_t sampleRate, speaker_layout layout) {
+			media_audio_info info;
+			info.format = AUDIO_FORMAT_16BIT;
+			info.samples_per_sec = sampleRate;
+			info.speakers = layout;
+
+			struct av_packet_info audio_pack_info = {0};
+			audio_pack_info.size = sizeof(struct media_audio_info);
+			audio_pack_info.type = FFM_MEDIA_AUDIO_INFO;
+
+			ipc_client_write_2(ipc_client, &audio_pack_info, sizeof(struct av_packet_info), &info, sizeof(struct media_audio_info), INFINITE);
+		}
+		void sendData(struct CMSampleBuffer *buf) {
+			if (buf->HasFormatDescription) {
+				media_video_info info;
+				memcpy(info.video_extra, buf->FormatDescription.PPS, buf->FormatDescription.PPS_len);
+				info.video_extra_len = buf->FormatDescription.PPS_len;
+				struct av_packet_info pack_info = {0};
+				pack_info.size = sizeof(struct media_video_info);
+				pack_info.type = FFM_MEDIA_VIDEO_INFO;
+
+				ipc_client_write_2(ipc_client, &pack_info, sizeof(struct av_packet_info), &info, sizeof(struct media_video_info), INFINITE);
+			}
+
+			if (buf->SampleData_len <= 0)
+				return;
+
+			struct av_packet_info pack_info = {0};
+			pack_info.size = buf->SampleData_len;
+			pack_info.type = buf->MediaType == MediaTypeSound ? FFM_PACKET_AUDIO : FFM_PACKET_VIDEO;
+			if (buf->OutputPresentationTimestamp.CMTimeValue > 17446044073700192000)
+				buf->OutputPresentationTimestamp.CMTimeValue = 0;
+			pack_info.pts = 0;
+			ipc_client_write_2(ipc_client, &pack_info, sizeof(struct av_packet_info), buf->SampleData, buf->SampleData_len, INFINITE);
+		}
+
+		void sendStatus(bool isStart) {
+			send_status(ipc_client, isStart ? MIRROR_START : MIRROR_STOP);
+		}
 	};
 
 	MirrorManager();
@@ -248,7 +292,6 @@ private:
 	void clearPairResource();
 	void clearDeviceResource(bool doClose);
 
-	void usbExtractFrame(unsigned char *buf, uint32_t len);
 	void mirrorFrameReceived(unsigned char *buf, uint32_t len);
 	void handleSyncPacket(unsigned char *buf, uint32_t len);
 	void handleAsyncPacket(unsigned char *buf, uint32_t len);
@@ -296,15 +339,16 @@ private:
 	void lockdownProcessNotification(const char *notification);
 public slots:
 	void onDeviceData(QByteArray data);
+	void usbExtractFrame(QByteArray data);
 	void pairError(QString msg, bool closeDevice = true);
 	void clearMirrorResource();
 	void quit();
 
 private:
+	IPCClient *ipc_client = NULL;
 	QString m_errorMsg;
 	unsigned char *m_pktbuf = nullptr;
 	uint32_t m_pktlen;
-	QMutex m_usbWriteLock;
 
 	bool m_stop = false;
 	char m_serial[256] = { 0 };

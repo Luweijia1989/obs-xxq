@@ -1,9 +1,13 @@
 #include "AppleDeviceManager.h"
 #include "InformationWidget.h"
 #include <QApplication>
+#include <iostream>
 #include "DriverHelper.h"
 
 int main(int argc, char *argv[]){
+    SetErrorMode(SEM_FAILCRITICALERRORS);
+    freopen("NUL", "w", stderr);
+
     QGuiApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
     QGuiApplication::setAttribute(Qt::AA_UseHighDpiPixmaps);
 
