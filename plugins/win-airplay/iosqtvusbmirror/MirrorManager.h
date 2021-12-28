@@ -12,14 +12,6 @@
 #include <util/circlebuf.h>
 #include "plist/plist.h"
 
-extern "C"
-{
-#include "qt_configuration.h"
-#include "conf.h"
-#include "userpref.h"
-#include "utils.h"
-}
-
 #ifdef HAVE_OPENSSL
 #include <openssl/err.h>
 #include <openssl/rsa.h>
@@ -27,6 +19,18 @@ extern "C"
 #else
 #include <gnutls/gnutls.h>
 #endif
+
+extern "C" {
+#include "qt_configuration.h"
+#include "conf.h"
+#include "userpref.h"
+#include "utils.h"
+#include "byteutils.h"
+#include "parse_header.h"
+#include "dict.h"
+#include "cmclock.h"
+#include "asyn_feed.h"
+}
 
 #define DEV_MRU 65536
 #define USB_MTU (3 * 16384)
@@ -173,18 +177,43 @@ public:
 		}
 	};
 
+	struct MessageProcessor {
+		struct CMClock clock;
+		struct CMClock localAudioClock;
+		CFTypeID deviceAudioClockRef;
+		CFTypeID needClockRef;
+		uint8_t *needMessage;
+		size_t needMessageLen;
+		size_t audioSamplesReceived;
+		size_t videoSamplesReceived;
+		bool firstAudioTimeTaken;
+		double sampleRate;
+		bool firstPingPacket;
+
+		struct CMTime startTimeDeviceAudioClock;
+		struct CMTime startTimeLocalAudioClock;
+		struct CMTime lastEatFrameReceivedDeviceAudioClockTime;
+		struct CMTime lastEatFrameReceivedLocalAudioClockTime;
+	};
+
 	MirrorManager();
 	~MirrorManager();
 
 	bool startMirrorTask(int vid, int pid);
 
 	static void readUSBData(void *data);
+	static void readMirrorData(void *data);
 
 private:
 	bool checkAndChangeMode(int vid, int pid);
 	bool setupUSBInfo();
 	bool startPair();
+	bool startScreenMirror();
 
+	void usbExtractFrame(unsigned char *buf, uint32_t len);
+	void mirrorFrameReceived(unsigned char *buf, uint32_t len);
+	void handleSyncPacket(unsigned char *buf, uint32_t len);
+	void handleAsyncPacket(unsigned char *buf, uint32_t len);
 private:
 	void startConnect(ConnectionType type, uint16_t dport);
 	int sendTcpAck(ConnectionInfo *conn);
@@ -242,6 +271,7 @@ private:
 	struct usb_dev_handle *m_deviceHandle = nullptr;
 	struct usb_device *m_device = nullptr;
 	std::thread m_usbReadTh;
+	std::thread m_readMirrorDataTh;
 
 	bool m_devicePaired = false;
 
@@ -258,4 +288,7 @@ private:
 
 	QTcpServer *serverSocket;
 	QEventLoop *m_handshakeBlockEvent;
+
+	circlebuf m_mirrorDataBuf;
+	MessageProcessor *mp = nullptr;
 };

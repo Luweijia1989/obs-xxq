@@ -1249,6 +1249,7 @@ void MirrorManager::startActualPair(ConnectionInfo *conn)
 
 void MirrorManager::pairResult(bool success)
 {
+	qDebug() << "got pair result: " << success;
 	if (success) {
 		m_devicePaired = true;
 		m_stop = true;
@@ -1856,7 +1857,6 @@ bool MirrorManager::startPair()
 	m_pktlen = 0;
 	m_stop = false;
 	m_usbReadTh = std::thread(readUSBData, this);
-	m_usbReadTh.detach();
 
 	m_devicePaired = false;
 	m_devVersion = 0;
@@ -1871,6 +1871,330 @@ bool MirrorManager::startPair()
 
 	qDebug() << "pair end ===================== " << m_errorMsg << m_devicePaired;
 
+	return m_devicePaired;
+}
+
+void MirrorManager::usbExtractFrame(unsigned char *buf, uint32_t length)
+{
+	if (!length)
+		return;
+
+	circlebuf_push_back(&m_mirrorDataBuf, buf, length);
+	while (true) {
+		size_t byte_remain = m_mirrorDataBuf.size;
+		if (byte_remain < 4)
+			break;
+
+		unsigned char buff_len[4] = {0};
+		circlebuf_peek_front(&m_mirrorDataBuf, buff_len, 4);
+		uint32_t len = byteutils_get_int(buff_len, 0);
+		if (byte_remain >= len) {
+			//有一帧
+			unsigned char *temp_buf = (unsigned char *)malloc(len);
+			circlebuf_pop_front(&m_mirrorDataBuf, temp_buf, len);
+			mirrorFrameReceived(temp_buf + 4, len - 4);
+			free(temp_buf);
+		} else
+			break;
+	}
+}
+
+void MirrorManager::handleSyncPacket(unsigned char *buf, uint32_t length)
+{
+	uint32_t type = byteutils_get_int(buf, 12);
+	switch (type) {
+	case CWPA: {
+		qDebug("CWPA");
+		struct SyncCwpaPacket cwpaPacket;
+		int res = newSyncCwpaPacketFromBytes(buf, &cwpaPacket);
+		CFTypeID clockRef = cwpaPacket.DeviceClockRef + 1000;
+
+		mp->localAudioClock = NewCMClockWithHostTime(clockRef);
+		mp->deviceAudioClockRef = cwpaPacket.DeviceClockRef;
+		uint8_t *device_info;
+		size_t device_info_len;
+		list_t *hpd1_dict = CreateHpd1DeviceInfoDict();
+		NewAsynHpd1Packet(hpd1_dict, &device_info, &device_info_len);
+		list_destroy(hpd1_dict);
+		qDebug("Sending ASYN HPD1");
+		usb_bulk_write(m_deviceHandle, ep_out_fa, (char *)device_info, device_info_len, 1000);
+
+		uint8_t *cwpa_reply;
+		size_t cwpa_reply_len;
+		CwpaPacketNewReply(&cwpaPacket, clockRef, &cwpa_reply,
+				   &cwpa_reply_len);
+		qDebug("Send CWPA-RPLY {correlation:%p, clockRef:%p}", cwpaPacket.CorrelationID, clockRef);
+		usb_bulk_write(m_deviceHandle, ep_out_fa, (char *)cwpa_reply, cwpa_reply_len, 1000);
+		free(cwpa_reply);
+
+		qDebug("Sending ASYN HPD1");
+		usb_bulk_write(m_deviceHandle, ep_out_fa, (char *)device_info, device_info_len, 1000);
+		free(device_info);
+
+		uint8_t *hpa1;
+		size_t hpa1_len;
+		list_t *hpa1_dict = CreateHpa1DeviceInfoDict();
+		NewAsynHpa1Packet(hpa1_dict, cwpaPacket.DeviceClockRef, &hpa1, &hpa1_len);
+		list_destroy(hpa1_dict);
+		qDebug("Sending ASYN HPA1");
+		usb_bulk_write(m_deviceHandle, ep_out_fa, (char *)hpa1, hpa1_len, 1000);
+		free(hpa1);
+	} break;
+	case AFMT: {
+		qDebug("AFMT");
+		struct SyncAfmtPacket afmtPacket = {0};
+		if (NewSyncAfmtPacketFromBytes(buf, length, &afmtPacket) == 0) { //处理音频格式
+			/*app_device.m_audioInfo.samples_per_sec =
+				(uint32_t)afmtPacket.AudioStreamInfo.SampleRate;
+			app_device.m_audioInfo.format = AUDIO_FORMAT_16BIT;
+			app_device.m_audioInfo.speakers =
+				afmtPacket.AudioStreamInfo.ChannelsPerFrame;*/
+		}
+
+		uint8_t *afmt;
+		size_t afmt_len;
+		AfmtPacketNewReply(&afmtPacket, &afmt, &afmt_len);
+		qDebug("Send AFMT-REPLY {correlation:%p}", afmtPacket.CorrelationID);
+		usb_bulk_write(m_deviceHandle, ep_out_fa, (char *)afmt, afmt_len, 1000);
+		free(afmt);
+	} break;
+	case CVRP: {
+		qDebug("CVRP");
+		struct SyncCvrpPacket cvrp_packet = {0};
+		NewSyncCvrpPacketFromBytes(buf, length, &cvrp_packet);
+
+		if (cvrp_packet.Payload) {
+			list_node_t *node;
+			list_iterator_t *it = list_iterator_new(cvrp_packet.Payload, LIST_HEAD);
+			while ((node = list_iterator_next(it))) {
+				struct StringKeyEntry *entry = (struct StringKeyEntry *)node->val;
+				if (entry->typeMagic == FormatDescriptorMagic) {
+					struct FormatDescriptor *fd = (struct FormatDescriptor *)entry->children;
+					mp->sampleRate = fd->AudioDescription.SampleRate;
+					break;
+				}
+			}
+			list_iterator_destroy(it);
+		}
+
+		const double EPS = 1e-6;
+		if (fabs(mp->sampleRate - 0.f) > EPS)
+			mp->sampleRate = 48000.0f;
+
+		mp->needClockRef = cvrp_packet.DeviceClockRef;
+		AsynNeedPacketBytes(mp->needClockRef, &mp->needMessage, &mp->needMessageLen);
+		usb_bulk_write(m_deviceHandle, ep_out_fa, (char *)mp->needMessage, mp->needMessageLen, 1000);
+
+		CFTypeID clockRef2 = cvrp_packet.DeviceClockRef + 0x1000AF;
+		uint8_t *send_data;
+		size_t send_data_len;
+		SyncCvrpPacketNewReply(&cvrp_packet, clockRef2, &send_data, &send_data_len);
+		usb_bulk_write(m_deviceHandle, ep_out_fa, (char *)send_data, send_data_len, 1000);
+		free(send_data);
+		clearSyncCvrpPacket(&cvrp_packet);
+	} break;
+	case OG: {
+		struct SyncOgPacket og_packet = {0};
+		NewSyncOgPacketFromBytes(buf, length, &og_packet);
+		uint8_t *send_data;
+		size_t send_data_len;
+		SyncOgPacketNewReply(&og_packet, &send_data, &send_data_len);
+		usb_bulk_write(m_deviceHandle, ep_out_fa, (char *)send_data, send_data_len, 1000);
+		free(send_data);
+	} break;
+	case CLOK: {
+		qDebug("CLOCK");
+		struct SyncClokPacket clock_packet = {0};
+		NewSyncClokPacketFromBytes(buf, length, &clock_packet);
+		CFTypeID clockRef = clock_packet.ClockRef + 0x10000;
+		mp->clock = NewCMClockWithHostTime(clockRef);
+
+		uint8_t *send_data;
+		size_t send_data_len;
+		SyncClokPacketNewReply(&clock_packet, clockRef, &send_data, &send_data_len);
+		usb_bulk_write(m_deviceHandle, ep_out_fa, (char *)send_data, send_data_len, 1000);
+		free(send_data);
+	} break;
+	case TIME: {
+		qDebug("TIME");
+		struct SyncTimePacket time_packet = {0};
+		NewSyncTimePacketFromBytes(buf, length, &time_packet);
+		struct CMTime time_to_send = GetTime(&mp->clock);
+
+		uint8_t *send_data;
+		size_t send_data_len;
+		SyncTimePacketNewReply(&time_packet, &time_to_send, &send_data, &send_data_len);
+		usb_bulk_write(m_deviceHandle, ep_out_fa, (char *)send_data, send_data_len, 1000);
+		free(send_data);
+	} break;
+	case SKEW: {
+		struct SyncSkewPacket skew_packet = {0};
+		int res = NewSyncSkewPacketFromBytes(buf, length, &skew_packet);
+		if (res < 0)
+			qDebug("Error parsing SYNC SKEW packet");
+
+		double skewValue = CalculateSkew(
+			&mp->startTimeLocalAudioClock,
+			&mp->lastEatFrameReceivedLocalAudioClockTime,
+			&mp->startTimeDeviceAudioClock,
+			&mp->lastEatFrameReceivedDeviceAudioClockTime);
+
+		uint8_t *send_data;
+		size_t send_data_len;
+		SyncSkewPacketNewReply(&skew_packet, mp->sampleRate, &send_data, &send_data_len);
+		usb_bulk_write(m_deviceHandle, ep_out_fa, (char *)send_data, send_data_len, 1000);
+		free(send_data);
+	} break;
+	case STOP: {
+		struct SyncStopPacket stop_packet = {0};
+		int res = NewSyncStopPacketFromBytes(buf, length, &stop_packet);
+		if (res < 0)
+			qDebug("Error parsing SYNC STOP packet");
+
+		uint8_t *send_data;
+		size_t send_data_len;
+		SyncStopPacketNewReply(&stop_packet, &send_data,
+				       &send_data_len);
+		usb_bulk_write(m_deviceHandle, ep_out_fa, (char *)send_data, send_data_len, 1000);
+		free(send_data);
+	} break;
+	default:
+		qDebug("received unknown sync packet type"); //stop
+		break;
+	}
+}
+
+void MirrorManager::handleAsyncPacket(unsigned char *buf, uint32_t length)
+{
+	uint32_t type = byteutils_get_int(buf, 12);
+	switch (type) {
+	case EAT: {
+		mp->audioSamplesReceived++;
+		struct AsynCmSampleBufPacket eatPacket = {0};
+		bool success = NewAsynCmSampleBufPacketFromBytes(buf, length,
+								 &eatPacket);
+
+		if (!success) {
+			qDebug("unknown eat");
+		} else {
+			if (!mp->firstAudioTimeTaken) {
+				mp->startTimeDeviceAudioClock = eatPacket.CMSampleBuf.OutputPresentationTimestamp;
+				mp->startTimeLocalAudioClock = GetTime(&mp->localAudioClock);
+				mp->lastEatFrameReceivedDeviceAudioClockTime = eatPacket.CMSampleBuf.OutputPresentationTimestamp;
+				mp->lastEatFrameReceivedLocalAudioClockTime = mp->startTimeLocalAudioClock;
+				mp->firstAudioTimeTaken = true;
+			} else {
+				mp->lastEatFrameReceivedDeviceAudioClockTime = eatPacket.CMSampleBuf.OutputPresentationTimestamp;
+				mp->lastEatFrameReceivedLocalAudioClockTime = GetTime(&mp->localAudioClock);
+			}
+
+		/*	app_device.mp.consumer.consume(
+				&eatPacket.CMSampleBuf,
+				app_device.mp.consumer.consumer_ctx);*/
+
+			if (mp->audioSamplesReceived % 100 == 0) {
+				qDebug("RCV Audio Samples:%d", mp->audioSamplesReceived);
+			}
+			clearAsynCmSampleBufPacket(&eatPacket);
+		}
+	} break;
+	case FEED: {
+		struct AsynCmSampleBufPacket acsbp = {0};
+		bool success = NewAsynCmSampleBufPacketFromBytes(buf, length, &acsbp);
+		if (!success) {
+			usb_bulk_write(m_deviceHandle, ep_out_fa, (char *)mp->needMessage, mp->needMessageLen, 1000);
+		} else {
+			mp->videoSamplesReceived++;
+
+			//app_device.mp.consumer.consume(
+			//	&acsbp.CMSampleBuf,
+			//	app_device.mp.consumer.consumer_ctx);
+
+			if (mp->videoSamplesReceived % 500 == 0) {
+				qDebug("RCV Video Samples:%d ", mp->videoSamplesReceived);
+				mp->videoSamplesReceived = 0;
+			}
+			usb_bulk_write(m_deviceHandle, ep_out_fa, (char *)mp->needMessage, mp->needMessageLen, 1000);
+			clearAsynCmSampleBufPacket(&acsbp);
+		}
+	} break;
+	case SPRP: {
+		qDebug("SPRP");
+	} break;
+	case TJMP:
+		qDebug("TJMP");
+		break;
+	case SRAT:
+		qDebug("SART");
+		break;
+	case TBAS:
+		qDebug("TBAS");
+		break;
+	case RELS:
+		qDebug("RELS");
+		//SetEvent(app_device.stop_signal);
+		break;
+	default:
+		qDebug("UNKNOWN");
+		break;
+	}
+}
+
+void MirrorManager::mirrorFrameReceived(unsigned char *buf, uint32_t len)
+{
+	uint32_t type = byteutils_get_int(buf, 0);
+	switch (type) {
+	case PingPacketMagic:
+		if (!mp->firstPingPacket) {
+			unsigned char cmd[] = {0x10, 0x00, 0x00, 0x00,
+					       0x67, 0x6e, 0x69, 0x70,
+					       0x01, 0x00, 0x00, 0x00,
+					       0x01, 0x00, 0x00, 0x00};
+			usb_bulk_write(m_deviceHandle, ep_out_fa, (char *)cmd, 16, 1000);
+			mp->firstPingPacket = true;
+		}
+		break;
+	case SyncPacketMagic:
+		handleSyncPacket(buf, len);
+		break;
+	case AsynPacketMagic:
+		handleAsyncPacket(buf, len);
+		break;
+	default:
+		break;
+	}
+}
+
+void MirrorManager::readMirrorData(void *data)
+{
+	qDebug() << "enter readMirrorData";
+	MirrorManager *manager = (MirrorManager *)data;
+	usb_clear_halt(manager->m_deviceHandle, manager->ep_in_fa);
+	usb_clear_halt(manager->m_deviceHandle, manager->ep_out_fa);
+
+	unsigned char *read_buffer = (unsigned char *)malloc(DEV_MRU);
+	int readLen = -1;
+	manager->m_stop = false;
+	while (!manager->m_stop) {
+		readLen = usb_bulk_read(manager->m_deviceHandle, manager->ep_in_fa, (char *)read_buffer, DEV_MRU, 200);
+		if (readLen < 0) {
+			if (readLen != -116) {
+				QMetaObject::invokeMethod(manager, "resetDevice", Q_ARG(QString, u8"停止USB读取镜像数据线程"), Q_ARG(bool ,false));
+				break;
+			}
+		} else
+			manager->usbExtractFrame(read_buffer, (uint32_t)readLen);
+	}
+	free(read_buffer);
+	qDebug() << "leave readMirrorData";
+}
+
+bool MirrorManager::startScreenMirror()
+{
+	circlebuf_init(&m_mirrorDataBuf);
+	mp = (MessageProcessor*)malloc(sizeof(MessageProcessor));
+	memset(mp, 0, sizeof(MessageProcessor));
+	m_readMirrorDataTh = std::thread(readMirrorData, this);
 	return true;
 }
 
@@ -1880,7 +2204,11 @@ bool MirrorManager::startPair()
 //-4=>发送切换指令后，3s内未能重新找到设备，提示用户保持手机与电脑的连接
 bool MirrorManager::startMirrorTask(int vid, int pid) 
 {
-	return checkAndChangeMode(vid, pid) && setupUSBInfo() && startPair();
+	m_errorMsg.clear();
+	if (checkAndChangeMode(vid, pid) && setupUSBInfo() && startPair()) {
+		return startScreenMirror();
+	}
+	return false;
 }
 
 int MirrorManager::sendTcpAck(ConnectionInfo *conn)
