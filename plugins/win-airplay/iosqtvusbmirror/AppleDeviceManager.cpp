@@ -66,6 +66,7 @@ AppleDeviceManager::~AppleDeviceManager()
 
 void AppleDeviceManager::deferUpdateUsbInventory(bool isAdd)
 {
+	qDebug() << "enter deferUpdateUsbInventory";
 	if (isAdd)
 		signalWait();
 
@@ -73,6 +74,7 @@ void AppleDeviceManager::deferUpdateUsbInventory(bool isAdd)
 		m_deviceChangeMutex.unlock();
 		QMetaObject::invokeMethod(this, "updateUsbInventory", Qt::QueuedConnection, Q_ARG(bool, isAdd));
 	}
+	qDebug() << "leave deferUpdateUsbInventory";
 }
 
 int AppleDeviceManager::checkAndInstallDriver() 

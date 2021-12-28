@@ -83,7 +83,7 @@ public:
 	HelerWidget(AppleDeviceManager *helper, QWidget *parent = nullptr)
 		: QWidget(parent)
 	{
-		connect(this, &HelerWidget::updateDevice, helper, &AppleDeviceManager::deferUpdateUsbInventory);
+		connect(this, &HelerWidget::updateDevice, helper, &AppleDeviceManager::deferUpdateUsbInventory, Qt::DirectConnection);
 
 		auto registerNotification = [this](GUID id, HDEVNOTIFY &ret) {
 			DEV_BROADCAST_DEVICEINTERFACE NotificationFilter;
