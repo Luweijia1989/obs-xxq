@@ -158,6 +158,8 @@ int socket_connect(uint16_t port)
 
 MirrorManager::MirrorManager()
 {
+	connect(this, &QObject::destroyed, qApp, &QApplication::quit);
+
 	auto findConn = [this](){
 		ConnectionInfo *conn = NULL;
 		for (auto iter = m_connections.begin(); iter != m_connections.end(); iter++)
@@ -199,7 +201,21 @@ MirrorManager::MirrorManager()
 
 MirrorManager::~MirrorManager()
 {
+	qDebug() << "MirrorManager destroyed.";
 	free(m_pktbuf);
+}
+
+void MirrorManager::quit()
+{
+	if (m_inMirror)
+		stopScreenMirror();
+
+	if (m_inPair)
+		pairError(u8"final stop");
+	else
+		clearDeviceResource(true);
+
+	deleteLater();
 }
 
 void MirrorManager::readUSBData(void *data)
@@ -211,7 +227,7 @@ void MirrorManager::readUSBData(void *data)
 		readLen = usb_bulk_read(manager->m_deviceHandle, manager->ep_in, buffer, DEV_MRU, 200);
 		if (readLen < 0) {
 			if (readLen != -116) {
-				QMetaObject::invokeMethod(manager, "resetDevice", Q_ARG(QString, u8"停止USB读取线程"), Q_ARG(bool ,false));
+				QMetaObject::invokeMethod(manager, "pairError", Q_ARG(QString, u8"停止USB读取线程"), Q_ARG(bool ,false));
 				break;
 			}
 		} else
@@ -223,16 +239,12 @@ void MirrorManager::readUSBData(void *data)
 	qDebug() << "pair read usb data thread stopped...";
 }
 
-void MirrorManager::resetDevice(QString msg, bool closeDevice)
+void MirrorManager::clearPairResource()
 {
-	qDebug() << "enter resetDevice";
 	m_stop = true;
 	if (m_usbReadTh.joinable())
 		m_usbReadTh.join();
 
-	qDebug() << "read thread finished...";
-
-	m_errorMsg = msg;
 	if (m_notificationTimer->isActive())
 		m_notificationTimer->stop();
 
@@ -244,18 +256,31 @@ void MirrorManager::resetDevice(QString msg, bool closeDevice)
 	m_connections.clear();
 
 	qDebug() << "connections cleared...";
+}
 
-	if (closeDevice && m_deviceHandle) {
+void MirrorManager::clearDeviceResource(bool doClose)
+{
+	qDebug() << "clearDeviceResource, do close: " << doClose;
+	if (doClose && m_deviceHandle) {
 		usb_release_interface(m_deviceHandle, m_interface);
 		usb_release_interface(m_deviceHandle, m_interface_fa);
 		usb_close(m_deviceHandle);
-		m_deviceHandle = NULL;
-		m_device = NULL;
 	}
+	m_deviceHandle = NULL;
+	m_device = NULL;
+}
+
+void MirrorManager::pairError(QString msg, bool closeDevice)
+{
+	qDebug() << "enter pairError";
+	m_errorMsg = msg;
+	
+	clearPairResource();
+	clearDeviceResource(closeDevice);
 
 	m_usbDataBlockEvent->quit();
 	m_pairBlockEvent->quit();
-	qDebug() << "reset device called+++++++++++++++++++++";
+	qDebug() << "pairError called+++++++++++++++++++++";
 }
 
 void MirrorManager::startConnect(ConnectionType type, uint16_t dport)
@@ -390,7 +415,7 @@ bool MirrorManager::receivePlist(ConnectionInfo *conn, plist_t *ret, const char 
 	bool success = receivePlistInternal(buf, pktlen, ret);
 	free(buf);
 	if (!success) {
-		resetDevice(QString(u8"%1 响应数据解析异常。").arg(key));
+		pairError(QString(u8"%1 响应数据解析异常。").arg(key));
 		return false;
 	}
 
@@ -423,10 +448,10 @@ bool MirrorManager::lockdownGetValue(ConnectionInfo *conn, const char *domain, c
 			*value = plist_copy(value_node);
 			ret = true;
 		} else
-			resetDevice(QString(u8"GetValue 返回中没有 %1").arg(key));
+			pairError(QString(u8"GetValue 返回中没有 %1").arg(key));
 
 	} else {
-		resetDevice(u8"GetValue 返回校验失败。");
+		pairError(u8"GetValue 返回校验失败。");
 	}
 
 	plist_free(dict);
@@ -456,7 +481,7 @@ bool MirrorManager::lockdownSetValue(ConnectionInfo *conn, const char *domain, c
 	if (lockdownCheckResult(dict, "SetValue"))
 		ret = true;
 	else 
-		resetDevice(u8"GetValue 返回校验失败。");
+		pairError(u8"GetValue 返回校验失败。");
 
 	plist_free(dict);
 	return ret;
@@ -565,7 +590,7 @@ bool MirrorManager::lockdownDoPair(ConnectionInfo *conn, PairRecord *pair_record
 	if (pair_record && pair_record->system_buid && pair_record->host_id) {
 		/* valid pair_record passed? */
 		if (!pair_record->device_certificate || !pair_record->host_certificate || !pair_record->root_certificate) {
-			resetDevice(u8"传递的配对信息缺少必要信息。");
+			pairError(u8"传递的配对信息缺少必要信息。");
 			return false;
 		}
 
@@ -582,7 +607,7 @@ bool MirrorManager::lockdownDoPair(ConnectionInfo *conn, PairRecord *pair_record
 				if (pair_record_plist)
 					plist_free(pair_record_plist);
 
-				resetDevice(u8"生成配对信息有误。");
+				pairError(u8"生成配对信息有误。");
 				return ret;
 			}
 
@@ -592,7 +617,7 @@ bool MirrorManager::lockdownDoPair(ConnectionInfo *conn, PairRecord *pair_record
 			/* use existing pair record */
 			userpref_read_pair_record(m_serial, &pair_record_plist);
 			if (!pair_record_plist) {
-				resetDevice(u8"读取保存的host id有误。");
+				pairError(u8"读取保存的host id有误。");
 				return false;
 			}
 		}
@@ -685,10 +710,10 @@ bool MirrorManager::lockdownDoPair(ConnectionInfo *conn, PairRecord *pair_record
 				/* the first pairing fails if the device is password protected */
 				ret = false;
 				if (strcmp(value, "UserDeniedPairing") == 0)
-					resetDevice(QString("用户拒绝了配对请求，请插拔后再试。"), false); //why? 这里close了device之后，有几率下次插入时set configuration失败
+					pairError(QString("用户拒绝了配对请求，请插拔后再试。"), false); //why? 这里close了device之后，有几率下次插入时set configuration失败
 				else {
 					if (raiseError)
-						resetDevice(QString(u8"配对失败, %1").arg(value));
+						pairError(QString(u8"配对失败, %1").arg(value));
 				}
 				free(value);
 			}
@@ -741,7 +766,7 @@ bool MirrorManager::lockdownBuildStartServiceRequest(const char *identifier, int
 		if (!pair_record) {
 			qDebug("ERROR: failed to read pair record for device: %s", m_serial);
 			plist_free(dict);
-			resetDevice(u8"从配对记录中读取信息失败。");
+			pairError(u8"从配对记录中读取信息失败。");
 			return false;
 		}
 
@@ -751,7 +776,7 @@ bool MirrorManager::lockdownBuildStartServiceRequest(const char *identifier, int
 			qDebug("ERROR: Failed to retrieve the escrow bag from the device's record");
 			plist_free(dict);
 			plist_free(pair_record);
-			resetDevice(u8"ERROR: Failed to retrieve the escrow bag from the device's record 从配对记录中读取信息失败。");
+			pairError(u8"ERROR: Failed to retrieve the escrow bag from the device's record 从配对记录中读取信息失败。");
 			return false;
 		}
 
@@ -772,7 +797,7 @@ bool MirrorManager::lockdownStartService(ConnectionInfo *conn, const char *ident
 bool MirrorManager::lockdownDoStartService(ConnectionInfo *conn, const char *identifier, int send_escrow_bag, LockdownServiceDescriptor **service)
 {
 	if (!identifier || !service) {
-		resetDevice(u8"lockdownDoStartService 参数有误。");
+		pairError(u8"lockdownDoStartService 参数有误。");
 		return false;
 	}
 
@@ -834,7 +859,7 @@ bool MirrorManager::lockdownDoStartService(ConnectionInfo *conn, const char *ide
 			plist_get_string_val(error_node, &error);
 			free(error);
 		}
-		resetDevice(u8"StartService返回检查失败。");
+		pairError(u8"StartService返回检查失败。");
 	}
 
 	plist_free(dict);
@@ -850,7 +875,7 @@ void MirrorManager::handleVersionValue(ConnectionInfo *conn, plist_t value)
 		plist_get_string_val(value, &versionStr);
 		int versionMajor = strtol(versionStr, NULL, 10);
 		if (versionMajor < 7)
-			resetDevice(u8"iOS版本太低，投屏所需最低版本为iOS7。");
+			pairError(u8"iOS版本太低，投屏所需最低版本为iOS7。");
 		else {
 			qDebug("%s: Found ProductVersion %s device %s", __func__, versionStr, m_serial);
 			setUntrustedHostBuid(conn);
@@ -870,7 +895,7 @@ void MirrorManager::handleVersionValue(ConnectionInfo *conn, plist_t value)
 
 		free(versionStr);
 	} else
-		resetDevice(u8"ProductionVersion 获取version字符串失败。");
+		pairError(u8"ProductionVersion 获取version字符串失败。");
 
 	plist_free(value);
 }
@@ -966,7 +991,7 @@ bool MirrorManager::lockdownEnableSSL(ConnectionInfo *conn)
 	conn->clientSocktFD = socket_connect(serverSocket->serverPort());
 	if (conn->clientSocktFD < 0) {
 		qDebug("connect local socket error");
-		resetDevice(u8"ssl握手连接本地socket出错。");
+		pairError(u8"ssl握手连接本地socket出错。");
 		return ret;
 	}
 
@@ -1183,7 +1208,7 @@ bool MirrorManager::lockdownStartSession(ConnectionInfo *conn, const char *host_
 			conn->sslEnabled = 0;
 		}
 	} else
-		resetDevice(u8"startSession check result出错。");
+		pairError(u8"startSession check result出错。");
 
 	plist_free(dict);
 	dict = NULL;
@@ -1229,7 +1254,7 @@ void MirrorManager::startActualPair(ConnectionInfo *conn)
 						startConnect(InitPair, 0xf27e);
 					} else {
 						qDebug("%s: Could not remove pair record for device %s", __func__, m_serial);
-						resetDevice(u8"无法删除之前的配对记录，请重启电脑后再试。");
+						pairError(u8"无法删除之前的配对记录，请重启电脑后再试。");
 					}
 				}
 				
@@ -1241,7 +1266,7 @@ void MirrorManager::startActualPair(ConnectionInfo *conn)
 		}
 	} else {
 		qDebug("hmm. QueryType response does not contain a type?!");
-		resetDevice(u8"QueryType响应中未包含Type字段。");
+		pairError(u8"QueryType响应中未包含Type字段。");
 	}
 
 	plist_free(dict);
@@ -1252,12 +1277,9 @@ void MirrorManager::pairResult(bool success)
 	qDebug() << "got pair result: " << success;
 	if (success) {
 		m_devicePaired = true;
-		m_stop = true;
-		if (m_usbReadTh.joinable())
-			m_usbReadTh.join();
-
-		m_pairBlockEvent->quit();
 	}
+	clearPairResource();
+	m_pairBlockEvent->quit();
 }
 
 void MirrorManager::startFinalPair(ConnectionInfo *conn)
@@ -1268,7 +1290,7 @@ void MirrorManager::startFinalPair(ConnectionInfo *conn)
 void MirrorManager::lockdownProcessNotification(const char *notification)
 {
 	if (!notification || strlen(notification) == 0) {
-		resetDevice(u8"配对返回的notification字符串有误。");
+		pairError(u8"配对返回的notification字符串有误。");
 		return;
 	}
 
@@ -1340,15 +1362,15 @@ void MirrorManager::startObserve(ConnectionInfo *conn)
 			}
 		} else if (cmd_value && !strcmp(cmd_value, "ProxyDeath")) {
 			qDebug("NotificationProxy died!");
-			resetDevice(u8"配对监听代理失效。");
+			pairError(u8"配对监听代理失效。");
 			res = -1;
 		} else if (cmd_value) {
 			qDebug("unknown NotificationProxy command '%s' received!", cmd_value);
-			resetDevice(QString(u8"未知的配对监听代理指令%1。").arg(cmd_value));
+			pairError(QString(u8"未知的配对监听代理指令%1。").arg(cmd_value));
 			res = -1;
 		} else {
 			res = -2;
-			resetDevice(u8"未知的配对监听错误。");
+			pairError(u8"未知的配对监听错误。");
 		}
 
 		if (res == 0)
@@ -1366,8 +1388,6 @@ void MirrorManager::startObserve(ConnectionInfo *conn)
 	});
 	m_notificationTimer->start(200);
 }
-
-//m_connTxAck 这个值和原版的投屏进程还不太一样，设置的时机不一样。这里我设置的早了。明天得看下这个值设置的早了会不会有什么问题
 
 void MirrorManager::onDeviceTcpInput(struct tcphdr *th, unsigned char *payload, uint32_t payload_length)
 {
@@ -1486,7 +1506,7 @@ bool MirrorManager::readDataWithSize(ConnectionInfo *conn, void *dst, size_t siz
 	} else {
 		ret = false;
 		if (!allowTimeout)
-			resetDevice(u8"读取usb数据超时。");
+			pairError(u8"读取usb数据超时。");
 	}
 
 	return ret;
@@ -1518,7 +1538,7 @@ bool MirrorManager::readAllData(ConnectionInfo *conn, void **dst, size_t *outSiz
 		ret = true;
 	} else {
 		ret = false;
-		resetDevice(u8"读取usb数据超时。");
+		pairError(u8"读取usb数据超时。");
 	}
 
 	return ret;
@@ -1594,7 +1614,6 @@ void MirrorManager::onDeviceData(QByteArray data)
 	case MuxProtocol::MUX_PROTO_CONTROL:
 		payload = (unsigned char *)(mhdr + 1);
 		payload_length = length - mux_header_size;
-		//device_control_input(dev, payload, payload_length);
 		break;
 	case MuxProtocol::MUX_PROTO_TCP:
 		if (length < (mux_header_size + sizeof(struct tcphdr))) {
@@ -1770,7 +1789,6 @@ bool MirrorManager::checkAndChangeMode(int vid, int pid)
 	} else {
 		openDeviceFunc(device, qtConfigIndex);
 		ret = true;
-	//	m_errorMsg = u8"设备异常，请重新插拔手机后再试。";
 	}
 
 	qDebug() << "checkAndChangeMode result: " << ret;
@@ -1854,6 +1872,7 @@ bool MirrorManager::setupUSBInfo()
 
 bool MirrorManager::startPair()
 {
+	m_inPair = true;
 	m_pktlen = 0;
 	m_stop = false;
 	m_usbReadTh = std::thread(readUSBData, this);
@@ -1869,6 +1888,7 @@ bool MirrorManager::startPair()
 
 	m_pairBlockEvent->exec();
 
+	m_inPair = false;
 	qDebug() << "pair end ===================== " << m_errorMsg << m_devicePaired;
 
 	return m_devicePaired;
@@ -1879,19 +1899,19 @@ void MirrorManager::usbExtractFrame(unsigned char *buf, uint32_t length)
 	if (!length)
 		return;
 
-	circlebuf_push_back(&m_mirrorDataBuf, buf, length);
+	circlebuf_push_back(&mp->m_mirrorDataBuf, buf, length);
 	while (true) {
-		size_t byte_remain = m_mirrorDataBuf.size;
+		size_t byte_remain = mp->m_mirrorDataBuf.size;
 		if (byte_remain < 4)
 			break;
 
 		unsigned char buff_len[4] = {0};
-		circlebuf_peek_front(&m_mirrorDataBuf, buff_len, 4);
+		circlebuf_peek_front(&mp->m_mirrorDataBuf, buff_len, 4);
 		uint32_t len = byteutils_get_int(buff_len, 0);
 		if (byte_remain >= len) {
 			//有一帧
 			unsigned char *temp_buf = (unsigned char *)malloc(len);
-			circlebuf_pop_front(&m_mirrorDataBuf, temp_buf, len);
+			circlebuf_pop_front(&mp->m_mirrorDataBuf, temp_buf, len);
 			mirrorFrameReceived(temp_buf + 4, len - 4);
 			free(temp_buf);
 		} else
@@ -2132,7 +2152,7 @@ void MirrorManager::handleAsyncPacket(unsigned char *buf, uint32_t length)
 		break;
 	case RELS:
 		qDebug("RELS");
-		//SetEvent(app_device.stop_signal);
+		mp->quitBlockEvent.quit();
 		break;
 	default:
 		qDebug("UNKNOWN");
@@ -2179,7 +2199,7 @@ void MirrorManager::readMirrorData(void *data)
 		readLen = usb_bulk_read(manager->m_deviceHandle, manager->ep_in_fa, (char *)read_buffer, DEV_MRU, 200);
 		if (readLen < 0) {
 			if (readLen != -116) {
-				QMetaObject::invokeMethod(manager, "resetDevice", Q_ARG(QString, u8"停止USB读取镜像数据线程"), Q_ARG(bool ,false));
+				QMetaObject::invokeMethod(manager, "deviceLostWhileMirror");
 				break;
 			}
 		} else
@@ -2191,11 +2211,69 @@ void MirrorManager::readMirrorData(void *data)
 
 bool MirrorManager::startScreenMirror()
 {
-	circlebuf_init(&m_mirrorDataBuf);
-	mp = (MessageProcessor*)malloc(sizeof(MessageProcessor));
-	memset(mp, 0, sizeof(MessageProcessor));
+	m_inMirror = true;
+	mp = new ScreenMirrorInfo;
 	m_readMirrorDataTh = std::thread(readMirrorData, this);
 	return true;
+}
+
+void MirrorManager::stopScreenMirror()
+{
+	if (!m_inMirror || !m_deviceHandle)
+		return;
+
+	{
+		uint8_t *d1;
+		size_t d1_len;
+		NewAsynHPA0(mp->deviceAudioClockRef, &d1, &d1_len);
+		usb_bulk_write(m_deviceHandle, ep_out_fa, (char *)d1, d1_len, 1000);
+		free(d1);
+	}
+
+	{
+		uint8_t *d1;
+		size_t d1_len;
+		NewAsynHPD0(&d1, &d1_len);
+		usb_bulk_write(m_deviceHandle, ep_out_fa, (char *)d1, d1_len, 1000);
+		free(d1);
+	}
+
+	QTimer timer;
+	timer.setSingleShot(true);
+	connect(&timer, &QTimer::timeout, &mp->quitBlockEvent, &QEventLoop::quit);
+	timer.start(1000);
+	mp->quitBlockEvent.exec();
+
+	if (m_deviceHandle) {
+		{
+			uint8_t *d1;
+			size_t d1_len;
+			NewAsynHPD0(&d1, &d1_len);
+			usb_bulk_write(m_deviceHandle, ep_out_fa, (char *)d1, d1_len, 1000);
+			free(d1);
+			qDebug("OK. Ready to release USB Device.");
+		}
+
+		usb_release_interface(m_deviceHandle, m_interface_fa);
+		usb_control_msg(m_deviceHandle, 0x40, 0x52, 0x00, 0x00, NULL, 0, 1000 /* LIBUSB_DEFAULT_TIMEOUT */);
+		usb_set_configuration(m_deviceHandle, 4);
+	}
+
+	m_stop = true;
+	if (m_readMirrorDataTh.joinable())
+		m_readMirrorDataTh.join();
+
+	delete mp;
+}
+
+void MirrorManager::deviceLostWhileMirror()
+{
+	m_stop = true;
+	if (m_readMirrorDataTh.joinable())
+		m_readMirrorDataTh.join();
+
+	m_inMirror = false;
+	clearDeviceResource(false);
 }
 
 //-1=>没找到设备
@@ -2215,7 +2293,7 @@ int MirrorManager::sendTcpAck(ConnectionInfo *conn)
 {
 	if (sendTcp(conn, TH_ACK, NULL, 0) < 0) {
 		qDebug("Error sending TCP ACK");
-		resetDevice(u8"发送响应指令失败，请重新连接。");
+		pairError(u8"发送响应指令失败，请重新连接。");
 		return -1;
 	}
 

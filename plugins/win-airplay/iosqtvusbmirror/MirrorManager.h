@@ -177,7 +177,8 @@ public:
 		}
 	};
 
-	struct MessageProcessor {
+	class ScreenMirrorInfo {
+	public:
 		struct CMClock clock;
 		struct CMClock localAudioClock;
 		CFTypeID deviceAudioClockRef;
@@ -194,6 +195,38 @@ public:
 		struct CMTime startTimeLocalAudioClock;
 		struct CMTime lastEatFrameReceivedDeviceAudioClockTime;
 		struct CMTime lastEatFrameReceivedLocalAudioClockTime;
+
+		circlebuf m_mirrorDataBuf;
+		QEventLoop quitBlockEvent;
+
+	public:
+		ScreenMirrorInfo() {
+			circlebuf_init(&m_mirrorDataBuf);
+
+			deviceAudioClockRef = 0;
+			needClockRef = 0;
+			needMessage = nullptr;
+			needMessageLen = 0;
+			audioSamplesReceived = 0;
+			videoSamplesReceived = 0;
+			firstAudioTimeTaken = false;
+			sampleRate = 0.;
+			firstPingPacket = false;
+
+			memset(&clock, 0, sizeof(CMClock));
+			memset(&localAudioClock, 0, sizeof(CMClock));
+			memset(&startTimeDeviceAudioClock, 0, sizeof(CMTime));
+			memset(&startTimeLocalAudioClock, 0, sizeof(CMTime));
+			memset(&lastEatFrameReceivedDeviceAudioClockTime, 0, sizeof(CMTime));
+			memset(&lastEatFrameReceivedLocalAudioClockTime, 0, sizeof(CMTime));
+		}
+
+		~ScreenMirrorInfo() {
+			if (needMessage)
+				free(needMessage);
+
+			circlebuf_free(&m_mirrorDataBuf);
+		}
 	};
 
 	MirrorManager();
@@ -209,6 +242,10 @@ private:
 	bool setupUSBInfo();
 	bool startPair();
 	bool startScreenMirror();
+	void stopScreenMirror();
+
+	void clearPairResource();
+	void clearDeviceResource(bool doClose);
 
 	void usbExtractFrame(unsigned char *buf, uint32_t len);
 	void mirrorFrameReceived(unsigned char *buf, uint32_t len);
@@ -256,7 +293,9 @@ private:
 	void lockdownProcessNotification(const char *notification);
 public slots:
 	void onDeviceData(QByteArray data);
-	void resetDevice(QString msg, bool closeDevice = true);
+	void pairError(QString msg, bool closeDevice = true);
+	void deviceLostWhileMirror();
+	void quit();
 
 private:
 	QString m_errorMsg;
@@ -274,9 +313,8 @@ private:
 	std::thread m_readMirrorDataTh;
 
 	bool m_devicePaired = false;
-
+	bool m_inPair = false;
 	QTimer *m_notificationTimer = nullptr;
-
 	QList<ConnectionInfo *> m_connections;
 	uint16_t m_initPort = 1;
 	uint16_t m_rxSeq;
@@ -289,6 +327,6 @@ private:
 	QTcpServer *serverSocket;
 	QEventLoop *m_handshakeBlockEvent;
 
-	circlebuf m_mirrorDataBuf;
-	MessageProcessor *mp = nullptr;
+	ScreenMirrorInfo *mp = nullptr;
+	bool m_inMirror = false;
 };
