@@ -228,6 +228,7 @@ void MirrorManager::readUSBData(void *data)
 		readLen = usb_bulk_read(manager->m_deviceHandle, manager->ep_in, buffer, DEV_MRU, 200);
 		if (readLen < 0) {
 			if (readLen != -116) {
+				qDebug() << "usb_bulk_read fail: " << readLen;
 				QMetaObject::invokeMethod(manager, "pairError", Q_ARG(QString, u8"停止USB读取线程"), Q_ARG(bool ,false));
 				break;
 			}
@@ -1297,10 +1298,10 @@ void MirrorManager::startActualPair(ConnectionInfo *conn)
 
 void MirrorManager::pairSuccess(ConnectionInfo *conn)
 {
-	qDebug() << "pair success";
+	qDebug() << "enter pair success";
 
 	if (conn->sessionId)
-		m_devicePaired = lockdownStopSession(conn, conn->sessionId);
+		m_devicePaired = lockdownStopSession(conn, conn->sessionId) && m_deviceHandle;
 	else 
 		m_devicePaired = true;
 
@@ -1308,6 +1309,8 @@ void MirrorManager::pairSuccess(ConnectionInfo *conn)
 		clearPairResource();
 		m_pairBlockEvent->quit();
 	}
+
+	qDebug() << "leave pair success";
 }
 
 void MirrorManager::startFinalPair(ConnectionInfo *conn)
