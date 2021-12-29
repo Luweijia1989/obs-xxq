@@ -2373,13 +2373,14 @@ void MirrorManager::readMirrorData(void *data)
 		readLen = usb_bulk_read(manager->m_deviceHandle, manager->ep_in_fa, (char *)read_buffer, DEV_MRU, 200);
 		if (readLen < 0) {
 			if (readLen != -116) {
-				QMetaObject::invokeMethod(manager, "clearMirrorResource");
 				break;
 			}
 		} else
 			QMetaObject::invokeMethod(manager, "usbExtractFrame", Q_ARG(QByteArray, QByteArray((char *)read_buffer, readLen)));
 	}
 	free(read_buffer);
+
+	QMetaObject::invokeMethod(manager, "clearMirrorResource");
 	qDebug() << "leave readMirrorData";
 }
 
