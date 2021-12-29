@@ -399,17 +399,30 @@ static void plist_dict_add_label(plist_t plist, const char *label)
 bool MirrorManager::receivePlist(ConnectionInfo *conn, plist_t *ret, const char *key, bool allowTimeout)
 {
 	uint32_t pktlen = 0;
-	if (!readDataWithSize(conn, &pktlen, sizeof(pktlen), allowTimeout)) {
-		qDebug() << QString("read %1 length failed").arg(key);
-		return false;
-	}
+	char *buf = NULL;
+	if (conn->ssl_data) {
+		if (!readDataFromSSL(conn, &pktlen, sizeof(pktlen)))
+			return false;
 
-	pktlen = be32toh(pktlen);
-	char *buf = (char *)malloc(pktlen);
-	if (!readDataWithSize(conn, buf, pktlen, allowTimeout)) {
-		qDebug() << QString("read %1 data failed").arg(key);
-		free(buf);
-		return false;
+		pktlen = be32toh(pktlen);
+		buf = (char *)malloc(pktlen);
+		if (!readDataFromSSL(conn, (void*)buf, pktlen)) {
+			free(buf);
+			return false;
+		}
+	} else {
+		if (!readDataWithSize(conn, &pktlen, sizeof(pktlen), allowTimeout)) {
+			qDebug() << QString("read %1 length failed").arg(key);
+			return false;
+		}
+
+		pktlen = be32toh(pktlen);
+		buf = (char *)malloc(pktlen);
+		if (!readDataWithSize(conn, buf, pktlen, allowTimeout)) {
+			qDebug() << QString("read %1 data failed").arg(key);
+			free(buf);
+			return false;
+		}
 	}
 
 	*ret = NULL;
@@ -882,7 +895,7 @@ void MirrorManager::handleVersionValue(ConnectionInfo *conn, plist_t value)
 			setUntrustedHostBuid(conn);
 
 			if (lockdownPair(conn, NULL)) {
-				pairResult(true);
+				pairSuccess(conn);
 			} else {
 				LockdownServiceDescriptor *service = NULL;
 				bool ret = lockdownStartService(conn, "com.apple.mobile.insecure_notification_proxy", &service);
@@ -919,7 +932,7 @@ bool MirrorManager::lockdownStopSession(ConnectionInfo *conn, const char *sessio
 
 	ret = receivePlist(conn, &dict, "StopSession");
 
-	if (!dict) {
+	if (!ret || !dict) {
 		qDebug("LOCKDOWN_E_PLIST_ERROR");
 		return false;
 	}
@@ -949,6 +962,19 @@ void MirrorManager::clearHandshakeResource(ConnectionInfo *conn)
 {
 	if (!m_connections.contains(conn))
 		return;
+
+	QMutexLocker locker(&conn->deleteMutex);
+
+	if (conn->sessionId) {
+		free(conn->sessionId);
+		conn->sessionId = NULL;
+	}
+
+	if (conn->ssl_data) {
+		internal_ssl_cleanup(conn->ssl_data);
+		free(conn->ssl_data);
+		conn->ssl_data = NULL;
+	}
 
 	if (conn->clientSocktFD != -1) {
 		closesocket(conn->clientSocktFD);
@@ -1074,8 +1100,6 @@ bool MirrorManager::lockdownEnableSSL(ConnectionInfo *conn)
 	m_handshakeBlockEvent->exec();
 	ht->deleteLater();
 
-	clearHandshakeResource(conn);
-
 	if (return_me != 1) {
 		qDebug("ERROR in SSL_do_handshake: %s", ssl_error_to_string(SSL_get_error(ssl, return_me)));
 		SSL_free(ssl);
@@ -1090,7 +1114,6 @@ bool MirrorManager::lockdownEnableSSL(ConnectionInfo *conn)
 	}
 	/* required for proper multi-thread clean up to prevent leaks */
 	openssl_remove_thread_state();
-
 	return ret;
 }
 
@@ -1238,7 +1261,7 @@ void MirrorManager::startActualPair(ConnectionInfo *conn)
 			free(typestr);
 
 		if (lockdown) {
-			pairResult(true);
+			pairSuccess(conn);
 		} else {
 			if (config_has_device_record(m_serial)) {
 				char *host_id = NULL;
@@ -1248,7 +1271,7 @@ void MirrorManager::startActualPair(ConnectionInfo *conn)
 					free(host_id);
 
 				if (success)
-					pairResult(true);
+					pairSuccess(conn);
 				else {
 					qDebug("%s: The stored pair record for device %s is invalid. Removing.", __func__, m_serial);
 					if (config_remove_device_record(m_serial) == 0) {
@@ -1258,7 +1281,6 @@ void MirrorManager::startActualPair(ConnectionInfo *conn)
 						pairError(u8"无法删除之前的配对记录，请重启电脑后再试。");
 					}
 				}
-				
 			} else {	
 				plist_t value = NULL;
 				if (lockdownGetValue(conn, NULL, "ProductVersion", &value))
@@ -1273,19 +1295,25 @@ void MirrorManager::startActualPair(ConnectionInfo *conn)
 	plist_free(dict);
 }
 
-void MirrorManager::pairResult(bool success)
+void MirrorManager::pairSuccess(ConnectionInfo *conn)
 {
-	qDebug() << "got pair result: " << success;
-	if (success) {
+	qDebug() << "pair success";
+
+	if (conn->sessionId)
+		m_devicePaired = lockdownStopSession(conn, conn->sessionId);
+	else 
 		m_devicePaired = true;
+
+	if (m_devicePaired) {
+		clearPairResource();
+		m_pairBlockEvent->quit();
 	}
-	clearPairResource();
-	m_pairBlockEvent->quit();
 }
 
 void MirrorManager::startFinalPair(ConnectionInfo *conn)
 {
-	pairResult(lockdownPair(conn, NULL, true));
+	if(lockdownPair(conn, NULL, true))
+		pairSuccess(conn);
 }
 
 void MirrorManager::lockdownProcessNotification(const char *notification)
@@ -1513,6 +1541,146 @@ bool MirrorManager::readDataWithSize(ConnectionInfo *conn, void *dst, size_t siz
 	return ret;
 }
 
+enum fd_mode { FDM_READ, FDM_WRITE, FDM_EXCEPT };
+typedef enum fd_mode fd_mode;
+int socket_check_fd(int fd, fd_mode fdm, unsigned int timeout)
+{
+	fd_set fds;
+	int sret;
+	int eagain;
+	struct timeval to;
+	struct timeval *pto;
+
+	if (fd < 0) {
+		qDebug("ERROR: invalid fd in check_fd %d", fd);
+		return -1;
+	}
+
+	FD_ZERO(&fds);
+	FD_SET(fd, &fds);
+
+	sret = -1;
+
+	do {
+		if (timeout > 0) {
+			to.tv_sec = (time_t) (timeout / 1000);
+			to.tv_usec = (time_t) ((timeout - (to.tv_sec * 1000)) * 1000);
+			pto = &to;
+		} else {
+			pto = NULL;
+		}
+		eagain = 0;
+		switch (fdm) {
+		case FDM_READ:
+			sret = select(fd + 1, &fds, NULL, NULL, pto);
+			break;
+		case FDM_WRITE:
+			sret = select(fd + 1, NULL, &fds, NULL, pto);
+			break;
+		case FDM_EXCEPT:
+			sret = select(fd + 1, NULL, NULL, &fds, pto);
+			break;
+		default:
+			return -1;
+		}
+
+		if (sret < 0) {
+			switch (errno) {
+			case EINTR:
+				// interrupt signal in select
+				qDebug("%s: EINTR\n", __func__);
+				eagain = 1;
+				break;
+			case EAGAIN:
+				qDebug("%s: EAGAIN\n", __func__);
+				break;
+			default:
+				qDebug("%s: select failed: %s\n", __func__,
+				       strerror(errno));
+				return -1;
+			}
+		} else if (sret == 0) {
+			qDebug("%s: timeout", __func__);
+			return -ETIMEDOUT;
+		}
+	} while (eagain);
+
+	return sret;
+}
+
+int socket_recv_to_idevice_error(int conn_error, uint32_t len, uint32_t received)
+{
+	if (conn_error < 0) {
+		switch (conn_error) {
+		case -EAGAIN:
+			qDebug("ERROR: received partial data %d/%d (%s)",
+				   received, len, strerror(-conn_error));
+			return -1;
+		case -ETIMEDOUT:
+			return -2;
+		default:
+			return -3;
+		}
+	}
+
+	return 0;
+}
+
+bool MirrorManager::readDataFromSSL(ConnectionInfo *conn, void *dst, size_t size, int timeout)
+{
+	bool ret = false;
+	if (!m_connections.contains(conn))
+		return ret;
+
+	QEventLoop block;
+	auto read = [=, &block, &ret](){
+		QMutexLocker locker(&conn->deleteMutex);
+		if (!conn->ssl_data)
+			return;
+
+		uint32_t received = 0;
+		int do_select = 1;
+		while (received < size) {
+			do_select = (SSL_pending(conn->ssl_data->session) == 0);
+			if (do_select) {
+				int conn_error = socket_check_fd((int)(long)conn->clientSocktFD, FDM_READ, timeout);
+				auto error = socket_recv_to_idevice_error(conn_error, size, received);
+
+				switch (error) {
+					case 0:
+						break;
+					case -3:
+						qDebug("ERROR: socket_check_fd returned %d (%s)", conn_error, strerror(-conn_error));
+					default:
+						qDebug("ERROR: socket_check_fd returned unknown");
+				}
+
+				if (error != 0) {
+					ret = false;
+					block.quit();
+					return;
+				}
+			}
+
+			int r = SSL_read(conn->ssl_data->session, (void*)((char*)dst+received), (int)size-received);
+			if (r > 0) {
+				received += r;
+			} else {
+				break;
+			}
+		}
+
+		ret = received >= size;
+		block.quit();
+	};
+	std::thread th(read);
+	block.exec();
+	if (th.joinable())
+		th.join();
+
+	return ret;
+}
+
 bool MirrorManager::readAllData(ConnectionInfo *conn, void **dst, size_t *outSize, int timeout /* = 500 */)
 {
 	bool ret = false;
@@ -1664,7 +1832,17 @@ bool MirrorManager::sendPlist(ConnectionInfo *conn, plist_t plist, bool isBinary
 	memcpy(sendBuffer, &nlen, sizeof(nlen));
 	memcpy(sendBuffer + sizeof(nlen), content, length);
 
-	sendTcp(conn, TH_ACK, (const unsigned char *)sendBuffer, total);
+	if (conn->ssl_data) {
+		uint32_t sent = 0;
+		while (sent < total) {
+			int s = SSL_write(conn->ssl_data->session, (const void*)(sendBuffer + sent), (int)(total - sent));
+			if (s < 0) {
+				break;
+			}
+			sent += s;
+		}
+	} else
+		sendTcp(conn, TH_ACK, (const unsigned char *)sendBuffer, total);
 
 	free(content);
 	free(sendBuffer);

@@ -152,6 +152,7 @@ public:
 		QTcpSocket *clientSocketInServerSide;
 		ConnectionType type;
 		MuxConnState connState;
+		QMutex deleteMutex;
 
 		circlebuf m_usbDataCache;
 
@@ -308,6 +309,7 @@ private:
 	void onDeviceVersionInput(VersionHeader *vh);
 	void onDeviceTcpInput(struct tcphdr *th, unsigned char *payload, uint32_t payload_length);
 	bool readDataWithSize(ConnectionInfo *conn, void *dst, size_t size, bool allowTimeout, int timeout = 500);
+	bool readDataFromSSL(ConnectionInfo *conn, void *dst, size_t size, int timeout = 500);
 	bool readAllData(ConnectionInfo *conn, void **dst, size_t *outSize, int timeout = 500);
 	void clearHandshakeResource(ConnectionInfo *conn);
 	void removeConnection(ConnectionInfo *conn);
@@ -315,7 +317,7 @@ private:
 	void startActualPair(ConnectionInfo *conn);
 	void startObserve(ConnectionInfo *conn);
 	void startFinalPair(ConnectionInfo *conn);
-	void pairResult(bool success);
+	void pairSuccess(ConnectionInfo *conn);
 
 	void setUntrustedHostBuid(ConnectionInfo *conn);
 	bool receivePlist(ConnectionInfo *conn, plist_t *ret, const char *key, bool allowTimeout = false);
