@@ -2132,10 +2132,6 @@ void MirrorManager::handleSyncPacket(unsigned char *buf, uint32_t length)
 		writeUBSData(ep_out_fa, (char *)cwpa_reply, cwpa_reply_len, 1000);
 		free(cwpa_reply);
 
-		qDebug("Sending ASYN HPD1");
-		writeUBSData(ep_out_fa, (char *)device_info, device_info_len, 1000);
-		free(device_info);
-
 		uint8_t *hpa1;
 		size_t hpa1_len;
 		list_t *hpa1_dict = CreateHpa1DeviceInfoDict();
