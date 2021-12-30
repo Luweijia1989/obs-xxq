@@ -227,5 +227,6 @@ void AppleDeviceManager::startTask()
 {
 	qDebug() << "start usb stask";
 
-	m_mirrorManager->startMirrorTask(m_appleDeviceInfo.vid, m_appleDeviceInfo.pid);
+	if (!m_mirrorManager->startMirrorTask(m_appleDeviceInfo.vid, m_appleDeviceInfo.pid))
+		emit infoPrompt(m_mirrorManager->errorMsg());
 }

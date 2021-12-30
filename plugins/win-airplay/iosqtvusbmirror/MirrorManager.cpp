@@ -229,7 +229,7 @@ void MirrorManager::readUSBData(void *data)
 		if (readLen < 0) {
 			if (readLen != -116) {
 				qDebug() << "usb_bulk_read fail: " << readLen;
-				QMetaObject::invokeMethod(manager, "pairError", Q_ARG(QString, u8"停止USB读取线程"), Q_ARG(bool ,false));
+				QMetaObject::invokeMethod(manager, "pairError", Q_ARG(QString, u8"停止USB读取线程，设备被移除。"), Q_ARG(bool ,false));
 				break;
 			}
 		} else

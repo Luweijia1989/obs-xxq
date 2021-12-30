@@ -198,12 +198,16 @@ public:
 		struct CMTime lastEatFrameReceivedLocalAudioClockTime;
 
 		circlebuf m_mirrorDataBuf;
+		circlebuf m_audioDataCacheBuf;
+		char *m_audioPopBuffer;
 		QEventLoop quitBlockEvent;
 
 	public:
 		ScreenMirrorInfo(IPCClient *client) {
 			ipc_client = client;
 			circlebuf_init(&m_mirrorDataBuf);
+			circlebuf_init(&m_audioDataCacheBuf);
+			m_audioPopBuffer = (char *)malloc(4096 * sizeof(char));
 
 			deviceAudioClockRef = 0;
 			needClockRef = 0;
@@ -227,7 +231,11 @@ public:
 			if (needMessage)
 				free(needMessage);
 
+			if (m_audioPopBuffer)
+				free(m_audioPopBuffer);
+
 			circlebuf_free(&m_mirrorDataBuf);
+			circlebuf_free(&m_audioDataCacheBuf);
 		}
 
 		void sendAudioInfo(uint32_t sampleRate, speaker_layout layout) {
@@ -257,13 +265,33 @@ public:
 			if (buf->SampleData_len <= 0)
 				return;
 
-			struct av_packet_info pack_info = {0};
-			pack_info.size = buf->SampleData_len;
-			pack_info.type = buf->MediaType == MediaTypeSound ? FFM_PACKET_AUDIO : FFM_PACKET_VIDEO;
-			if (buf->OutputPresentationTimestamp.CMTimeValue > 17446044073700192000)
-				buf->OutputPresentationTimestamp.CMTimeValue = 0;
-			pack_info.pts = 0;
-			ipc_client_write_2(ipc_client, &pack_info, sizeof(struct av_packet_info), buf->SampleData, buf->SampleData_len, INFINITE);
+			bool isAudio = buf->MediaType == MediaTypeSound ? FFM_PACKET_AUDIO : FFM_PACKET_VIDEO;
+			if (isAudio) {
+				circlebuf_push_back(&m_audioDataCacheBuf, buf->SampleData, buf->SampleData_len);
+				qDebug() << buf->SampleData_len;
+
+				while (true) {
+					if (m_audioDataCacheBuf.size >= 4096) {
+						circlebuf_pop_front(&m_audioDataCacheBuf, m_audioPopBuffer, 4096);
+
+						struct av_packet_info pack_info = {0};
+						pack_info.size = 4096;
+						pack_info.type = FFM_PACKET_AUDIO;
+						pack_info.pts = 0;
+
+						ipc_client_write_2(ipc_client, &pack_info, sizeof(struct av_packet_info), m_audioPopBuffer, 4096, INFINITE);
+					} else
+						break;
+				}
+			} else {
+				struct av_packet_info pack_info = {0};
+				pack_info.size = buf->SampleData_len;
+				pack_info.type = FFM_PACKET_VIDEO;
+				if (buf->OutputPresentationTimestamp.CMTimeValue > 17446044073700192000)
+					buf->OutputPresentationTimestamp.CMTimeValue = 0;
+				pack_info.pts = 0;
+				ipc_client_write_2(ipc_client, &pack_info, sizeof(struct av_packet_info), buf->SampleData, buf->SampleData_len, INFINITE);
+			}
 		}
 
 		void sendStatus(bool isStart) {
@@ -276,6 +304,7 @@ public:
 
 	bool startMirrorTask(int vid, int pid);
 	bool inMirror() { return m_inMirror; }
+	QString errorMsg() { return m_errorMsg; }
 
 	static void readUSBData(void *data);
 	static void readMirrorData(void *data);
