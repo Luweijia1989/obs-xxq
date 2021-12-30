@@ -252,8 +252,7 @@ void MirrorManager::clearPairResource()
 
 	for (auto iter = m_connections.begin(); iter != m_connections.end(); iter++) {
 		auto c = *iter;
-		clearHandshakeResource(c);
-		delete c;
+		removeConnection(c, false);
 	}
 	m_connections.clear();
 
@@ -988,10 +987,11 @@ void MirrorManager::clearHandshakeResource(ConnectionInfo *conn)
 	}
 }
 
-void MirrorManager::removeConnection(ConnectionInfo *conn)
+void MirrorManager::removeConnection(ConnectionInfo *conn, bool removeFromList)
 {
 	clearHandshakeResource(conn);
-	m_connections.removeOne(conn);
+	if (removeFromList)
+		m_connections.removeOne(conn);
 	delete conn;
 }
 
@@ -1301,14 +1301,15 @@ void MirrorManager::pairSuccess(ConnectionInfo *conn)
 	qDebug() << "enter pair success";
 
 	if (conn->sessionId)
-		m_devicePaired = lockdownStopSession(conn, conn->sessionId) && m_deviceHandle;
+		m_devicePaired = lockdownStopSession(conn, conn->sessionId);
 	else 
 		m_devicePaired = true;
 
 	if (m_devicePaired) {
 		clearPairResource();
 		m_pairBlockEvent->quit();
-	}
+	} else
+		m_errorMsg = u8"配对成功后执行stop session失败。";
 
 	qDebug() << "leave pair success";
 }
@@ -1659,7 +1660,6 @@ bool MirrorManager::readDataFromSSL(ConnectionInfo *conn, void *dst, size_t size
 				}
 
 				if (error != 0) {
-					ret = false;
 					block.quit();
 					return;
 				}
@@ -1680,6 +1680,9 @@ bool MirrorManager::readDataFromSSL(ConnectionInfo *conn, void *dst, size_t size
 	block.exec();
 	if (th.joinable())
 		th.join();
+
+	if (!m_connections.contains(conn))
+		ret = false;
 
 	return ret;
 }

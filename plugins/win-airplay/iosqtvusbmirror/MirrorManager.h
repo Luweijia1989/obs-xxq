@@ -173,9 +173,6 @@ public:
 
 		~ConnectionInfo()
 		{
-			if (sessionId)
-				free(sessionId);
-
 			circlebuf_free(&m_usbDataCache);
 		}
 	};
@@ -312,7 +309,7 @@ private:
 	bool readDataFromSSL(ConnectionInfo *conn, void *dst, size_t size, int timeout = 500);
 	bool readAllData(ConnectionInfo *conn, void **dst, size_t *outSize, int timeout = 500);
 	void clearHandshakeResource(ConnectionInfo *conn);
-	void removeConnection(ConnectionInfo *conn);
+	void removeConnection(ConnectionInfo *conn, bool removeFromList = true);
 
 	void startActualPair(ConnectionInfo *conn);
 	void startObserve(ConnectionInfo *conn);
