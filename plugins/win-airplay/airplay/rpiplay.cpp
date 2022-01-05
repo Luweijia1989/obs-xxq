@@ -68,7 +68,6 @@ typedef struct audio_renderer_list_entry_s {
     audio_init_func_t init_func;
 } audio_renderer_list_entry_t;
 
-static bool running = false;
 static dnssd_t *dnssd = NULL;
 static raop_t *raop = NULL;
 static video_init_func_t video_init_func = NULL;
@@ -160,29 +159,13 @@ static audio_init_func_t find_audio_init_func(const char *name) {
     return NULL;
 }
 
-void print_info(char *name) {
-    printf("RPiPlay %s: An open-source AirPlay mirroring server for Raspberry Pi\n", VERSION);
-    printf("Usage: %s [-n name] [-b (on|auto|off)] [-r (90|180|270)] [-l] [-a (hdmi|analog|off)] [-vr renderer] [-ar renderer]\n", name);
-    printf("Options:\n");
-    printf("-n name               Specify the network name of the AirPlay server\n");
-    printf("-b (on|auto|off)      Show black background always, only during active connection, or never\n");
-    printf("-r (90|180|270)       Specify image rotation in multiples of 90 degrees\n");
-    printf("-f (horiz|vert|both)  Specify image flipping (horiz = horizontal, vert = vertical, both = both)\n");
-    printf("-l                    Enable low-latency mode (disables render clock)\n");
-    printf("-a (hdmi|analog|off)  Set audio output device\n");
-    printf("-vr renderer          Set video renderer to use. Available renderers:\n");
-    for (int i = 0; i < sizeof(video_renderers)/sizeof(video_renderers[0]); i++) {
-        printf("    %s: %s%s\n", video_renderers[i].name, video_renderers[i].description, i == 0 ? " [Default]" : "");
-    }
-    printf("-ar renderer          Set audio renderer to use. Available renderers:\n");
-    for (int i = 0; i < sizeof(audio_renderers)/sizeof(audio_renderers[0]); i++) {
-        printf("    %s: %s%s\n", audio_renderers[i].name, audio_renderers[i].description, i == 0 ? " [Default]" : "");
-    }
-    printf("-d                    Enable debug logging\n");
-    printf("-v/-h                 Displays this help and version information\n");
-}
-
 int main(int argc, char *argv[]) {
+    bool isDebug = argc > 1 && strcmp(argv[1], "debug") == 0;
+    if (!isDebug) {
+	SetErrorMode(SEM_FAILCRITICALERRORS);
+	freopen("NUL", "w", stderr);
+    }
+
 #ifndef WIN32
     init_signals();
 #endif
@@ -205,69 +188,6 @@ int main(int argc, char *argv[]) {
     video_init_func = video_renderers[0].init_func;
     audio_init_func = audio_renderers[0].init_func;
 
-    // Parse arguments
-    for (int i = 1; i < argc; i++) {
-        std::string arg(argv[i]);
-        if (arg == "-n") {
-            if (i == argc - 1) continue;
-            server_name = std::string(argv[++i]);
-        } else if (arg == "-b") {
-            // For backwards-compatibility, make just -b disable the background
-            if (i == argc - 1 || argv[i + 1][0] == '-') {
-                video_config.background_mode = BACKGROUND_MODE_OFF;
-                continue;
-            }
-
-            std::string background_mode(argv[++i]);
-            video_config.background_mode = background_mode == "off" ? BACKGROUND_MODE_OFF :
-                                           background_mode == "auto" ? BACKGROUND_MODE_AUTO :
-                                           BACKGROUND_MODE_ON;
-        } else if (arg == "-a") {
-            if (i == argc - 1) continue;
-            std::string audio_device_name(argv[++i]);
-            audio_config.device = audio_device_name == "hdmi" ? AUDIO_DEVICE_HDMI :
-                                  audio_device_name == "analog" ? AUDIO_DEVICE_ANALOG :
-                                  AUDIO_DEVICE_NONE;
-        } else if (arg == "-l") {
-            video_config.low_latency = !video_config.low_latency;
-            audio_config.low_latency = !audio_config.low_latency;
-        } else if (arg == "-r") {
-            video_config.rotation = atoi(argv[++i]);
-        } else if (arg == "-f") {
-            if (i == argc - 1) continue;
-            std::string flip_type(argv[++i]);
-            video_config.flip = flip_type == "horiz" ? FLIP_HORIZONTAL :
-                                flip_type == "vert" ? FLIP_VERTICAL :
-                                flip_type == "both" ? FLIP_BOTH :
-                                FLIP_NONE;
-        } else if (arg == "-d") {
-            debug_log = !debug_log;
-        } else if (arg == "-vr") {
-            if (i == argc - 1) {
-                fprintf(stderr, "Error: You must supply the name of a video renderer after the -vr argument.\n");
-                exit(1);
-            }
-            video_init_func = find_video_init_func(argv[++i]);
-            if (!video_init_func) {
-                fprintf(stderr, "Error: Unable to locate video renderer \"%s\".\n", argv[i]);
-                exit(1);
-            }
-        } else if (arg == "-ar") {
-            if (i == argc - 1) {
-                fprintf(stderr, "Error: You must supply the name of an audio renderer after the -ar argument.\n");
-                exit(1);
-            }
-            audio_init_func = find_audio_init_func(argv[++i]);
-            if (!audio_init_func) {
-                fprintf(stderr, "Error: Unable to locate audio renderer \"%s\".\n", argv[i]);
-                exit(1);
-            }
-        } else if (arg == "-h" || arg == "-v") {
-            print_info(argv[0]);
-            exit(0);
-        }
-    }
-
     std::string mac_address = find_mac();
     if (!mac_address.empty()) {
         server_hw_addr.clear();
@@ -278,13 +198,13 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    running = true;
-    while (running) {
-#ifdef WIN32
-	Sleep(1000);
-#else
-        sleep(1);
-#endif
+    uint8_t buf[1024] = {0};
+    while (true) {
+	    int read_len = fread(buf, 1, 1024,
+				 stdin); // read 0 means parent has been stopped
+	    if (!read_len || buf[0] == 1) {
+		    break;
+	    }
     }
 
     LOGI("Stopping...");
