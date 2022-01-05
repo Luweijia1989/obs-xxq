@@ -91,7 +91,7 @@ static void close_fdk_aac_decoder(HANDLE_AACDECODER decoder)
 	aacDecoder_Close(decoder);
 }
 
-static void do_fdk_aac_decode(aac_decode_struct *data)
+static bool do_fdk_aac_decode(aac_decode_struct *data)
 {
 	unsigned int pkt_size = data->data_len;
 	unsigned int valid_size = data->data_len;
@@ -99,11 +99,15 @@ static void do_fdk_aac_decode(aac_decode_struct *data)
 	auto ret = aacDecoder_Fill(aacdecoder_handler, input_buf, &pkt_size, &valid_size);
 	if (ret != AAC_DEC_OK) {
 		LOGE("aacDecoder_Fill error : %x", ret);
+		return false;
 	}
 	ret = aacDecoder_DecodeFrame(aacdecoder_handler, (INT_PCM *)decode_buffer, pcm_pkt_size, 0);
 	if (ret != AAC_DEC_OK) {
 		LOGE("aacDecoder_DecodeFrame error : 0x%x", ret);
+		return false;
 	}
+
+	return true;
 }
 
 static int parse_hw_addr(std::string str, std::vector<char> &hw_addr) {
@@ -126,7 +130,7 @@ std::string find_mac() {
     return mac_address;
 }
 
-FILE *f1;
+//FILE *f1;
 //FILE *f2;
 
 int main(int argc, char *argv[]) {
@@ -135,7 +139,7 @@ int main(int argc, char *argv[]) {
 	SetErrorMode(SEM_FAILCRITICALERRORS);
 	freopen("NUL", "w", stderr);
     }
-    f1 = fopen("D:\\airplay.aac", "wb");
+    //f1 = fopen("D:\\airplay.aac", "wb");
     //f2 = fopen("D:\\airplay.264", "wb");
 
     aacdecoder_handler = create_fdk_aac_decoder();
@@ -169,27 +173,58 @@ int main(int argc, char *argv[]) {
 
     ipc_client_destroy(&ipc_client);
     close_fdk_aac_decoder(aacdecoder_handler);
-    fclose(f1);
+    //fclose(f1);
     //fclose(f2);
 }
 
 // Server callbacks
 extern "C" void conn_init(void *cls) {
-    send_status(ipc_client, MIRROR_START);
+	send_status(ipc_client, MIRROR_START);
+
+	media_audio_info info;
+	info.format = AUDIO_FORMAT_16BIT;
+	info.samples_per_sec = 44100;
+	info.speakers = SPEAKERS_STEREO;
+	struct av_packet_info pack_info = {0};
+	pack_info.size = sizeof(struct media_audio_info);
+	pack_info.type = FFM_MEDIA_AUDIO_INFO;
+
+	ipc_client_write_2(ipc_client, &pack_info, sizeof(struct av_packet_info), &info, sizeof(struct media_audio_info), INFINITE);
 }
 
 extern "C" void conn_destroy(void *cls) {
-    send_status(ipc_client, MIRROR_STOP);
+	send_status(ipc_client, MIRROR_STOP);
 }
 
 extern "C" void audio_process(void *cls, raop_ntp_t *ntp, aac_decode_struct *data) {
     //fwrite(data->data, 1, data->data_len, f1);
-    do_fdk_aac_decode(data);
-    fwrite(decode_buffer, 1, 1920, f1);
+	if (do_fdk_aac_decode(data)) {
+		struct av_packet_info pack_info = {0};
+		pack_info.size = data->data_len;
+		pack_info.type = FFM_PACKET_AUDIO;
+		pack_info.pts = data->pts;
+		ipc_client_write_2(ipc_client, &pack_info, sizeof(struct av_packet_info), decode_buffer, 1920, INFINITE);
+	}
 }
 
 extern "C" void video_process(void *cls, raop_ntp_t *ntp, h264_decode_struct *data) {
     //fwrite(data->data, 1, data->data_len, f2);
+	if (data->frame_type == 0) { //sps pps
+		media_video_info info;
+		memcpy(info.video_extra, data->data, data->data_len);
+		info.video_extra_len = data->data_len;
+		struct av_packet_info pack_info = {0};
+		pack_info.size = sizeof(struct media_video_info);
+		pack_info.type = FFM_MEDIA_VIDEO_INFO;
+
+		ipc_client_write_2(ipc_client, &pack_info, sizeof(struct av_packet_info), &info, sizeof(struct media_video_info), INFINITE);
+	} else {
+		struct av_packet_info pack_info = {0};
+		pack_info.size = data->data_len;
+		pack_info.type = FFM_PACKET_VIDEO;
+		pack_info.pts = data->pts;
+		ipc_client_write_2(ipc_client, &pack_info, sizeof(struct av_packet_info), data->data, data->data_len, INFINITE);
+	}
 }
 
 extern "C" void audio_flush(void *cls) {
