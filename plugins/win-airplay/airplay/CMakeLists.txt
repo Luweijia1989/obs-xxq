@@ -31,7 +31,7 @@ add_executable(airplay-server
 	${airplay_main_HEADER}
 	${airplay_extra_SOURCES}
 	${airplay_extra_HEADERS})
-
+	
 target_link_libraries(airplay-server
 	libobs
 	debug ${PROJECT_SOURCE_DIR}/third-party/lib/debug/plist.lib
