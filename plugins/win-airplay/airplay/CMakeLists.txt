@@ -18,10 +18,12 @@ set(airplay_main_HEADER
 
 set(airplay_extra_SOURCES
 	../ipc.c
+	airplay-server.rc
 )
 			 
 set(airplay_extra_HEADERS
 	../ipc.h
+	resource.h
 )
  
 add_executable(airplay-server
@@ -45,6 +47,7 @@ target_link_libraries(airplay-server
 	Setupapi
 	Crypt32
 	Ws2_32
+	Shlwapi
 	w32-pthreads)
 
 install_obs_core(airplay-server)

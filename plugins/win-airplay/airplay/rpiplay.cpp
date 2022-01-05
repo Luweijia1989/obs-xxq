@@ -27,6 +27,14 @@
 #ifdef WIN32
 #include <windows.h>
 #include <synchapi.h>
+#include <tchar.h>
+#include <fcntl.h>
+#include <io.h>
+#include <stdio.h>
+#include <Shlwapi.h>
+#include "resource.h"
+#include <iphlpapi.h>
+#pragma comment(lib, "iphlpapi.lib")
 #endif
 
 #include "../ipc.h"
@@ -41,8 +49,6 @@
 
 #define VERSION "1.2"
 
-#define DEFAULT_NAME "yuerzhibo"
-#define DEFAULT_LOW_LATENCY false
 #define DEFAULT_DEBUG_LOG false
 #define DEFAULT_HW_ADDRESS { (char) 0x48, (char) 0x5d, (char) 0x60, (char) 0x7c, (char) 0xee, (char) 0x22 }
 
@@ -110,28 +116,248 @@ static bool do_fdk_aac_decode(aac_decode_struct *data)
 	return true;
 }
 
+static BOOL Is64BitWindows()
+{
+#if defined(_WIN64)
+	return TRUE; // 64-bit programs run only on Win64
+#elif defined(_WIN32)
+	// 32-bit programs run on both 32-bit and 64-bit Windows
+	// so must sniff
+	BOOL f64 = FALSE;
+	return IsWow64Process(GetCurrentProcess(), &f64) && f64;
+#else
+	return FALSE; // Win64 does not support Win16
+#endif
+}
+
+
+static void installBonjourService()
+{
+	BOOL is64 = Is64BitWindows();
+	TCHAR path[MAX_PATH] = {0};
+	DWORD len = GetTempPath(MAX_PATH, path);
+	_tcscpy_s(path + len, MAX_PATH - len,
+		  is64 ? L"Bonjour64.msi" : L"Bonjour.msi");
+
+	if (!PathFileExists(path)) {
+		HANDLE hFile = CreateFile(path, GENERIC_WRITE, FILE_SHARE_READ,
+					  NULL, CREATE_ALWAYS,
+					  FILE_ATTRIBUTE_NORMAL, NULL);
+		if (hFile != INVALID_HANDLE_VALUE) {
+			HRSRC res = FindResource(
+				NULL,
+				MAKEINTRESOURCE(is64 ? IDR_SETUPFILE2
+						     : IDR_SETUPFILE1),
+				RT_RCDATA);
+			HGLOBAL res_handle = LoadResource(NULL, res);
+			auto res_data = LockResource(res_handle);
+			auto res_size = SizeofResource(NULL, res);
+
+			DWORD written = 0;
+			WriteFile(hFile, res_data, res_size, &written, NULL);
+			CloseHandle(hFile);
+		}
+	}
+
+	STARTUPINFO si;
+	PROCESS_INFORMATION pi;
+
+	ZeroMemory(&si, sizeof(si));
+	si.cb = sizeof(si);
+	ZeroMemory(&pi, sizeof(pi));
+
+	TCHAR cmd[512] = {0};
+
+	_stprintf_s(cmd, L"msiexec /i %s /qn", path);
+
+	// Start the child process.
+	if (!CreateProcess(NULL,  // No module name (use command line)
+			   cmd,   // Command line
+			   NULL,  // Process handle not inheritable
+			   NULL,  // Thread handle not inheritable
+			   FALSE, // Set handle inheritance to FALSE
+			   0,     // No creation flags
+			   NULL,  // Use parent's environment block
+			   NULL,  // Use parent's starting directory
+			   &si,   // Pointer to STARTUPINFO structure
+			   &pi)   // Pointer to PROCESS_INFORMATION structure
+	) {
+		printf("CreateProcess failed (%d).\n", GetLastError());
+		return;
+	}
+
+	// Wait until child process exits.
+	WaitForSingleObject(pi.hProcess, INFINITE);
+
+	// Close process and thread handles.
+	CloseHandle(pi.hProcess);
+	CloseHandle(pi.hThread);
+}
+
+
+static void bonjourCheckInstall()
+{
+	DWORD dwOldCheckPoint;
+	DWORD dwStartTickCount;
+	DWORD dwWaitTime;
+	SC_HANDLE schSCManager = OpenSCManager(
+						NULL,                    // local computer
+						NULL,                    // servicesActive database 
+						SC_MANAGER_ALL_ACCESS);  // full access rights 
+ 
+	if (NULL == schSCManager) 
+	{
+		printf("OpenSCManager failed (%d)\n", GetLastError());
+		return;
+	}
+
+	SC_HANDLE schService = OpenService(schSCManager,        // SCM database
+				 L"Bonjour Service",           // name of service
+				 SERVICE_ALL_ACCESS); // full access
+
+	if (schService == NULL) {
+		installBonjourService();
+
+		schService = OpenService(schSCManager,        // SCM database
+					 L"Bonjour Service",  // name of service
+					 SERVICE_ALL_ACCESS); // full access
+		if (schService == NULL)
+			goto END;
+	}
+
+	SERVICE_STATUS_PROCESS ssStatus;
+	DWORD dwBytesNeeded;
+	if (!QueryServiceStatusEx(
+		    schService,                     // handle to service
+		    SC_STATUS_PROCESS_INFO,         // information level
+		    (LPBYTE)&ssStatus,              // address of structure
+		    sizeof(SERVICE_STATUS_PROCESS), // size of structure
+		    &dwBytesNeeded)) // size needed if buffer is too small
+		goto END;
+
+	if (ssStatus.dwCurrentState == SERVICE_STOPPED) {
+		if (!StartService(
+			schService,  // handle to service 
+			0,           // number of arguments 
+			NULL) )      // no arguments 
+			goto END;
+
+			// Check the status until the service is no longer start pending. 
+ 
+		if (!QueryServiceStatusEx( 
+			schService,                     // handle to service 
+			SC_STATUS_PROCESS_INFO,         // info level
+			(LPBYTE) &ssStatus,             // address of structure
+			sizeof(SERVICE_STATUS_PROCESS), // size of structure
+			&dwBytesNeeded ) )              // if buffer too small
+			goto END;
+ 
+		// Save the tick count and initial checkpoint.
+
+		dwStartTickCount = GetTickCount();
+		dwOldCheckPoint = ssStatus.dwCheckPoint;
+
+		while (ssStatus.dwCurrentState == SERVICE_START_PENDING) 
+		{ 
+			// Do not wait longer than the wait hint. A good interval is 
+			// one-tenth the wait hint, but no less than 1 second and no 
+			// more than 10 seconds. 
+ 
+			dwWaitTime = ssStatus.dwWaitHint / 10;
+
+			if( dwWaitTime < 1000 )
+				dwWaitTime = 1000;
+			else if ( dwWaitTime > 10000 )
+				dwWaitTime = 10000;
+
+			Sleep( dwWaitTime );
+
+			// Check the status again. 
+ 
+			if (!QueryServiceStatusEx( 
+						schService,             // handle to service 
+						SC_STATUS_PROCESS_INFO, // info level
+						(LPBYTE) &ssStatus,             // address of structure
+						sizeof(SERVICE_STATUS_PROCESS), // size of structure
+						&dwBytesNeeded ) )              // if buffer too small
+			{
+				printf("QueryServiceStatusEx failed (%d)\n", GetLastError());
+				break; 
+			}
+ 
+			if ( ssStatus.dwCheckPoint > dwOldCheckPoint )
+			{
+				// Continue to wait and check.
+
+				dwStartTickCount = GetTickCount();
+				dwOldCheckPoint = ssStatus.dwCheckPoint;
+			}
+			else
+			{
+				if(GetTickCount()-dwStartTickCount > ssStatus.dwWaitHint)
+				{
+					// No progress made within the wait hint.
+					break;
+				}
+			}
+		} 
+	}
+
+END:
+	if (schService)
+		CloseServiceHandle(schService);
+	if (schSCManager)
+		CloseServiceHandle(schSCManager);
+}
+
 static int parse_hw_addr(std::string str, std::vector<char> &hw_addr) {
-    for (int i = 0; i < str.length(); i += 3) {
-        hw_addr.push_back((char) stol(str.substr(i), NULL, 16));
+    for (int i = 0; i < str.length(); i ++) {
+        hw_addr.push_back((char)str[i]);
     }
     return 0;
 }
 
-std::string find_mac() {
-    std::ifstream iface_stream("/sys/class/net/eth0/address");
-    if (!iface_stream) {
-        iface_stream.open("/sys/class/net/wlan0/address");
-    }
-    if (!iface_stream) return "";
+std::string find_mac()
+{
+	std::string ret;
+	PIP_ADAPTER_INFO pAdapterInfo;
+	DWORD AdapterInfoSize;
+	DWORD Err;
+	AdapterInfoSize = 0;
+	Err = GetAdaptersInfo(NULL, &AdapterInfoSize);
+	if ((Err != 0) && (Err != ERROR_BUFFER_OVERFLOW)) {
+		return ret;
+	}
+	
+	pAdapterInfo = (PIP_ADAPTER_INFO)GlobalAlloc(GPTR, AdapterInfoSize);
+	if (pAdapterInfo == NULL) {
+		return ret;
+	}
+	if (GetAdaptersInfo(pAdapterInfo, &AdapterInfoSize) != 0) {
+		GlobalFree(pAdapterInfo);
+		return ret;
+	}
 
-    std::string mac_address;
-    iface_stream >> mac_address;
-    iface_stream.close();
-    return mac_address;
+	ret.resize(6);
+	for (int i = 0; i < 6; i++) {
+		ret[i] = pAdapterInfo->Address[i];
+	}
+
+	GlobalFree(pAdapterInfo);
+	return ret;
 }
 
-//FILE *f1;
-//FILE *f2;
+std::string get_host_name()
+{
+	std::string ret;
+	char name_buffer[512] = { 0 };
+	DWORD len = 511;
+	if (GetComputerNameA(name_buffer, &len)) {
+		ret = name_buffer;
+	}
+
+	return ret;
+}
 
 int main(int argc, char *argv[]) {
     bool isDebug = argc > 1 && strcmp(argv[1], "debug") == 0;
@@ -139,13 +365,13 @@ int main(int argc, char *argv[]) {
 	SetErrorMode(SEM_FAILCRITICALERRORS);
 	freopen("NUL", "w", stderr);
     }
-    //f1 = fopen("D:\\airplay.aac", "wb");
-    //f2 = fopen("D:\\airplay.264", "wb");
+
+    bonjourCheckInstall();
 
     aacdecoder_handler = create_fdk_aac_decoder();
     ipc_client_create(&ipc_client);
 
-    std::string server_name = DEFAULT_NAME;
+    std::string server_name = "yuerzhibo[" + get_host_name() + "]";
     std::vector<char> server_hw_addr = DEFAULT_HW_ADDRESS;
     bool debug_log = DEFAULT_DEBUG_LOG;
 
@@ -173,8 +399,6 @@ int main(int argc, char *argv[]) {
 
     ipc_client_destroy(&ipc_client);
     close_fdk_aac_decoder(aacdecoder_handler);
-    //fclose(f1);
-    //fclose(f2);
 }
 
 // Server callbacks
@@ -197,7 +421,6 @@ extern "C" void conn_destroy(void *cls) {
 }
 
 extern "C" void audio_process(void *cls, raop_ntp_t *ntp, aac_decode_struct *data) {
-    //fwrite(data->data, 1, data->data_len, f1);
 	if (do_fdk_aac_decode(data)) {
 		struct av_packet_info pack_info = {0};
 		pack_info.size = 1920;
@@ -208,7 +431,6 @@ extern "C" void audio_process(void *cls, raop_ntp_t *ntp, aac_decode_struct *dat
 }
 
 extern "C" void video_process(void *cls, raop_ntp_t *ntp, h264_decode_struct *data) {
-    //fwrite(data->data, 1, data->data_len, f2);
 	if (data->frame_type == 0) { //sps pps
 		media_video_info info;
 		memcpy(info.video_extra, data->data, data->data_len);
