@@ -22,7 +22,6 @@ float4 mainImage(VertData v_in) : TARGET
 	float corner_radius1 = corner_radius;
 	bool is_in_corner = false;
     bool is_within_radius = false;
-	float border_thickness1 = abs(border_thickness);
 	float minR = min(width*x_scale1/2,height*y_scale1/2);
 	if(corner_radius1 >= minR)
 	{
@@ -76,18 +75,18 @@ float4 mainImage(VertData v_in) : TARGET
 
     if(border_enable)
     {
-		float border_thicknessX = border_thickness1/x_scale1;
-		float border_thicknessY = border_thickness1/y_scale1;
+		float border_thicknessX = border_thickness/x_scale1;
+		float border_thicknessY = border_thickness/y_scale1;
         bool is_within_edge_border = !is_in_corner && (pixel_position.x < 0 && pixel_position.x >= -border_thicknessX || pixel_position.y < 0 && pixel_position.y >= -border_thicknessY);
-        bool is_within_corner_border = is_in_corner && pixel_distance_from_center > corner_radius1 && pixel_distance_from_center <= (corner_radius1 + border_thickness1);
+        bool is_within_corner_border = is_in_corner && pixel_distance_from_center > corner_radius1 && pixel_distance_from_center <= (corner_radius1 + border_thickness);
 		
 		// 边角处理
-		if(pixel_position.x < -border_thicknessX && pixel_position.x >= -border_thickness1&&x_scale1>=1.0)
+		if(pixel_position.x < -border_thicknessX && pixel_position.x >= -border_thickness&&x_scale1>=1.0)
 		{
 			is_within_edge_border = false;
 			is_within_corner_border = false;
 		}
-		else if(pixel_position.y < -border_thicknessY && pixel_position.y >= -border_thickness1&&y_scale1>=1.0)
+		else if(pixel_position.y < -border_thicknessY && pixel_position.y >= -border_thickness&&y_scale1>=1.0)
 		{
 			is_within_edge_border = false;
 			is_within_corner_border = false;
