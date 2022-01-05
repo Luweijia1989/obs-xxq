@@ -607,7 +607,8 @@ void ScreenMirrorServer::dropAudioFrame(int64_t now_ms)
 		auto p1ts = p1 + m_audioOffset + m_extraDelay;
 		auto p2ts = p2 + m_audioOffset + m_extraDelay;
 
-		if (p1ts < now_ms && p2ts < now_ms && now_ms - p2ts > 60) {
+		if (p1ts < now_ms && p2ts < now_ms && now_ms - p2ts > 150) {
+			blog(LOG_INFO, "enter dropAudioFrame, audio frame pts delay: %lld", now_ms - p2ts);
 			free(m_audioFrames.front().data);
 			m_audioFrames.pop_front();
 		} else
