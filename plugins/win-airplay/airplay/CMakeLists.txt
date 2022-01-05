@@ -38,8 +38,8 @@ target_link_libraries(airplay-server
 	optimized ${PROJECT_SOURCE_DIR}/third-party/lib/relwithdebinfo/plist.lib
 	debug ${PROJECT_SOURCE_DIR}/third-party/lib/debug/libcrypto.lib
 	debug ${PROJECT_SOURCE_DIR}/third-party/lib/debug/libssl.lib
-	optimized ${PROJECT_SOURCE_DIR}/third-party/lib/release/libcrypto.lib
-	optimized ${PROJECT_SOURCE_DIR}/third-party/lib/release/libssl.lib
+	optimized ${PROJECT_SOURCE_DIR}/third-party/lib/relwithdebinfo/libcrypto.lib
+	optimized ${PROJECT_SOURCE_DIR}/third-party/lib/relwithdebinfo/libssl.lib
 	Setupapi
 	Crypt32
 	Ws2_32
