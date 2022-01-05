@@ -37,6 +37,8 @@
 #include "lib/logger.h"
 #include "lib/dnssd.h"
 
+#include "aacdecoder_lib.h"
+
 #define VERSION "1.2"
 
 #define DEFAULT_NAME "yuerzhibo"
@@ -47,11 +49,62 @@
 int start_server(std::vector<char> hw_addr, std::string name, bool debug_log);
 int stop_server();
 
+#define N_SAMPLE 480
+static int pcm_pkt_size = 4 * N_SAMPLE;
+static unsigned char decode_buffer[1920];
 
 static dnssd_t *dnssd = NULL;
 static raop_t *raop = NULL;
 static logger_t *render_logger = NULL;
 static IPCClient *ipc_client = NULL;
+static HANDLE_AACDECODER aacdecoder_handler;
+
+static HANDLE_AACDECODER create_fdk_aac_decoder()
+{
+	HANDLE_AACDECODER phandle = aacDecoder_Open(TT_MP4_RAW, 1);
+	if (phandle == NULL) {
+		LOGI("aacDecoder open faild!");
+		return NULL;
+	}
+	/* ASC config binary data */
+	UCHAR eld_conf[] = {0xF8, 0xE8, 0x50, 0x00};
+	UCHAR *conf[] = {eld_conf};
+	static UINT conf_len = sizeof(eld_conf);
+	if (aacDecoder_ConfigRaw(phandle, conf, &conf_len) != AAC_DEC_OK) {
+		LOGI("Unable to set configRaw");
+		return NULL;
+	}
+	CStreamInfo *aac_stream_info = aacDecoder_GetStreamInfo(phandle);
+	if (aac_stream_info == NULL) {
+		LOGI("aacDecoder_GetStreamInfo failed!");
+		return NULL;
+	}
+	LOGI("> stream info: channel = %d\tsample_rate = %d\tframe_size = %d\taot = %d\tbitrate = %d",
+		aac_stream_info->channelConfig, aac_stream_info->aacSampleRate,
+		aac_stream_info->aacSamplesPerFrame, aac_stream_info->aot,
+		aac_stream_info->bitRate);
+	return phandle;
+}
+
+static void close_fdk_aac_decoder(HANDLE_AACDECODER decoder)
+{
+	aacDecoder_Close(decoder);
+}
+
+static void do_fdk_aac_decode(aac_decode_struct *data)
+{
+	unsigned int pkt_size = data->data_len;
+	unsigned int valid_size = data->data_len;
+	unsigned char *input_buf[1] = { data->data };
+	auto ret = aacDecoder_Fill(aacdecoder_handler, input_buf, &pkt_size, &valid_size);
+	if (ret != AAC_DEC_OK) {
+		LOGE("aacDecoder_Fill error : %x", ret);
+	}
+	ret = aacDecoder_DecodeFrame(aacdecoder_handler, (INT_PCM *)decode_buffer, pcm_pkt_size, 0);
+	if (ret != AAC_DEC_OK) {
+		LOGE("aacDecoder_DecodeFrame error : 0x%x", ret);
+	}
+}
 
 static int parse_hw_addr(std::string str, std::vector<char> &hw_addr) {
     for (int i = 0; i < str.length(); i += 3) {
@@ -74,7 +127,7 @@ std::string find_mac() {
 }
 
 FILE *f1;
-FILE *f2;
+//FILE *f2;
 
 int main(int argc, char *argv[]) {
     bool isDebug = argc > 1 && strcmp(argv[1], "debug") == 0;
@@ -82,8 +135,10 @@ int main(int argc, char *argv[]) {
 	SetErrorMode(SEM_FAILCRITICALERRORS);
 	freopen("NUL", "w", stderr);
     }
-    f1 = fopen("E:\\airplay.aac", "wb");
-    f2 = fopen("E:\\airplay.264", "wb");
+    f1 = fopen("D:\\airplay.aac", "wb");
+    //f2 = fopen("D:\\airplay.264", "wb");
+
+    aacdecoder_handler = create_fdk_aac_decoder();
     ipc_client_create(&ipc_client);
 
     std::string server_name = DEFAULT_NAME;
@@ -113,8 +168,9 @@ int main(int argc, char *argv[]) {
     stop_server();
 
     ipc_client_destroy(&ipc_client);
+    close_fdk_aac_decoder(aacdecoder_handler);
     fclose(f1);
-    fclose(f2);
+    //fclose(f2);
 }
 
 // Server callbacks
@@ -127,11 +183,13 @@ extern "C" void conn_destroy(void *cls) {
 }
 
 extern "C" void audio_process(void *cls, raop_ntp_t *ntp, aac_decode_struct *data) {
-    fwrite(data->data, 1, data->data_len, f1);
+    //fwrite(data->data, 1, data->data_len, f1);
+    do_fdk_aac_decode(data);
+    fwrite(decode_buffer, 1, 1920, f1);
 }
 
 extern "C" void video_process(void *cls, raop_ntp_t *ntp, h264_decode_struct *data) {
-    fwrite(data->data, 1, data->data_len, f2);
+    //fwrite(data->data, 1, data->data_len, f2);
 }
 
 extern "C" void audio_flush(void *cls) {
