@@ -55,7 +55,7 @@ set(airplay_QRC
 
 qt5_add_resources(airplay_QRC_SOURCES ${airplay_QRC})
 
-add_subdirectory(${PROJECT_SOURCE_DIR}/airplay2)
+add_subdirectory(${PROJECT_SOURCE_DIR}/airplay)
 add_subdirectory(${PROJECT_SOURCE_DIR}/iosusbmirror)
 add_subdirectory(${PROJECT_SOURCE_DIR}/iosqtvusbmirror)
 add_subdirectory(${PROJECT_SOURCE_DIR}/androidusbmirror)
