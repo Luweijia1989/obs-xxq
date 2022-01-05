@@ -200,9 +200,9 @@ extern "C" void audio_process(void *cls, raop_ntp_t *ntp, aac_decode_struct *dat
     //fwrite(data->data, 1, data->data_len, f1);
 	if (do_fdk_aac_decode(data)) {
 		struct av_packet_info pack_info = {0};
-		pack_info.size = data->data_len;
+		pack_info.size = 1920;
 		pack_info.type = FFM_PACKET_AUDIO;
-		pack_info.pts = data->pts;
+		pack_info.pts = data->pts * 1000;
 		ipc_client_write_2(ipc_client, &pack_info, sizeof(struct av_packet_info), decode_buffer, 1920, INFINITE);
 	}
 }
@@ -222,7 +222,7 @@ extern "C" void video_process(void *cls, raop_ntp_t *ntp, h264_decode_struct *da
 		struct av_packet_info pack_info = {0};
 		pack_info.size = data->data_len;
 		pack_info.type = FFM_PACKET_VIDEO;
-		pack_info.pts = data->pts;
+		pack_info.pts = data->pts * 1000;
 		ipc_client_write_2(ipc_client, &pack_info, sizeof(struct av_packet_info), data->data, data->data_len, INFINITE);
 	}
 }
