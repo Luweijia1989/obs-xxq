@@ -50,3 +50,28 @@ target_link_libraries(airplay-server
 	w32-pthreads)
 
 install_obs_core(airplay-server)
+
+function(install_dependency target)
+add_custom_command(TARGET airplay-server POST_BUILD
+		COMMAND "${CMAKE_COMMAND}" -E copy
+			"${PROJECT_SOURCE_DIR}/third-party/bin/$<CONFIGURATION>/${target}.pdb"
+			"${OBS_OUTPUT_DIR}/$<CONFIGURATION>/bin/${_bit_suffix}${target}.pdb"
+		VERBATIM)
+add_custom_command(TARGET airplay-server POST_BUILD
+		COMMAND "${CMAKE_COMMAND}" -E copy
+			"${PROJECT_SOURCE_DIR}/third-party/bin/$<CONFIGURATION>/${target}.dll"
+			"${OBS_OUTPUT_DIR}/$<CONFIGURATION>/bin/${_bit_suffix}${target}.dll"
+		VERBATIM)
+add_custom_command(TARGET airplay-server POST_BUILD
+		COMMAND "${CMAKE_COMMAND}" -E copy
+			"${PROJECT_SOURCE_DIR}/third-party/bin/$<CONFIGURATION>/${target}.pdb"
+			"$<TARGET_FILE_DIR:airplay-server>/${target}.pdb"
+		VERBATIM)
+add_custom_command(TARGET airplay-server POST_BUILD
+		COMMAND "${CMAKE_COMMAND}" -E copy
+			"${PROJECT_SOURCE_DIR}/third-party/bin/$<CONFIGURATION>/${target}.dll"
+			"$<TARGET_FILE_DIR:airplay-server>/${target}.dll"
+		VERBATIM)
+endfunction()
+ 
+install_dependency("plist") 
