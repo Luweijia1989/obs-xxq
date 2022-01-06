@@ -46,6 +46,7 @@ target_link_libraries(airplay-server
 	Setupapi
 	Crypt32
 	Ws2_32
+	Dbghelp
 	Shlwapi
 	w32-pthreads)
 

@@ -34,6 +34,9 @@
 #include <Shlwapi.h>
 #include "resource.h"
 #include <iphlpapi.h>
+#include <errhandlingapi.h>
+#include <dbghelp.h>
+#include <Shlobj.h>
 #pragma comment(lib, "iphlpapi.lib")
 #endif
 
@@ -375,7 +378,42 @@ std::string get_host_name()
 	return ret;
 }
 
+LONG CALLBACK crash_handler(PEXCEPTION_POINTERS exception)
+{
+	static bool inside_handler = false;
+
+	/* don't use if a debugger is present */
+	if (IsDebuggerPresent())
+		return EXCEPTION_CONTINUE_SEARCH;
+
+	if (inside_handler)
+		return EXCEPTION_CONTINUE_SEARCH;
+
+	inside_handler = true;
+
+	HANDLE file = CreateFile(L"airplay-server-crash.dump", GENERIC_WRITE, 0,
+				 NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL,
+				 NULL);
+
+	if (file != INVALID_HANDLE_VALUE) {
+		MINIDUMP_EXCEPTION_INFORMATION di;
+		di.ExceptionPointers = exception;
+		di.ThreadId = GetCurrentThreadId();
+		di.ClientPointers = TRUE;
+
+		BOOL ret = MiniDumpWriteDump(GetCurrentProcess(),
+					     GetCurrentProcessId(), file,
+					     MiniDumpNormal, &di, NULL, NULL);
+		CloseHandle(file);
+	}
+
+	inside_handler = false;
+	return EXCEPTION_EXECUTE_HANDLER;
+}
+
 int main(int argc, char *argv[]) {
+    SetUnhandledExceptionFilter(crash_handler);
+
     bool isDebug = argc > 1 && strcmp(argv[1], "debug") == 0;
     if (!isDebug) {
 	SetErrorMode(SEM_FAILCRITICALERRORS);
