@@ -46,7 +46,6 @@
 #include "lib/dnssd.h"
 
 #include "aacdecoder_lib.h"
-#include "util/utf8.h"
 
 #define VERSION "1.2"
 
@@ -348,6 +347,20 @@ std::string find_mac()
 	return ret;
 }
 
+size_t wchar_convert(const wchar_t *in, size_t insize, char *out, size_t outsize)
+{
+	int i_insize = (int)insize;
+	int ret;
+
+	if (i_insize == 0)
+		i_insize = (int)wcslen(in);
+
+	ret = WideCharToMultiByte(CP_UTF8, 0, in, i_insize, out, (int)outsize,
+				  NULL, NULL);
+
+	return (ret > 0) ? (size_t)ret : 0;
+}
+
 std::string get_host_name()
 {
 	std::string ret;
@@ -355,7 +368,7 @@ std::string get_host_name()
 	char u8_buffer[512] = { 0 };
 	DWORD len = 511;
 	if (GetComputerName(buffer, &len)) {
-		wchar_to_utf8(buffer, 0, u8_buffer, 512, 0);
+		wchar_convert(buffer, 0, u8_buffer, 512);
 		ret = u8_buffer;
 	}
 

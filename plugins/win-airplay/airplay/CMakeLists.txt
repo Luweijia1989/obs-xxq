@@ -35,7 +35,6 @@ add_executable(airplay-server
 	${airplay_extra_HEADERS})
 	
 target_link_libraries(airplay-server
-	libobs
 	debug ${PROJECT_SOURCE_DIR}/third-party/lib/debug/plist.lib
 	optimized ${PROJECT_SOURCE_DIR}/third-party/lib/relwithdebinfo/plist.lib
 	debug ${PROJECT_SOURCE_DIR}/third-party/lib/debug/fdk-aac.lib
