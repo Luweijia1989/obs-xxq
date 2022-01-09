@@ -52,7 +52,7 @@
 
 #define VERSION "1.2"
 
-#define DEFAULT_DEBUG_LOG false
+#define DEFAULT_DEBUG_LOG true
 #define DEFAULT_HW_ADDRESS { (char) 0x48, (char) 0x5d, (char) 0x60, (char) 0x7c, (char) 0xee, (char) 0x22 }
 
 int start_server(std::vector<char> hw_addr, std::string name, bool debug_log);
@@ -67,6 +67,7 @@ static raop_t *raop = NULL;
 static logger_t *render_logger = NULL;
 static IPCClient *ipc_client = NULL;
 static HANDLE_AACDECODER aacdecoder_handler;
+static FILE *log_file;
 
 static HANDLE_AACDECODER create_fdk_aac_decoder()
 {
@@ -422,6 +423,11 @@ int main(int argc, char *argv[]) {
 
     bonjourCheckInstall();
 
+    time_t now = time(0);
+    char fileName[256] = { 0 };
+    sprintf(fileName, "%lld-log.txt", now);
+    log_file = fopen(fileName, "w");
+
     aacdecoder_handler = create_fdk_aac_decoder();
     ipc_client_create(&ipc_client);
 
@@ -453,6 +459,7 @@ int main(int argc, char *argv[]) {
 
     ipc_client_destroy(&ipc_client);
     close_fdk_aac_decoder(aacdecoder_handler);
+    fclose(log_file);
 }
 
 // Server callbacks
@@ -516,6 +523,10 @@ extern "C" void audio_set_volume(void *cls, float volume) {
 }
 
 extern "C" void log_callback(void *cls, int level, const char *msg) {
+    fwrite(msg, 1, strlen(msg), log_file);
+    fwrite("\n", 1, 1, log_file);
+    fflush(log_file);
+
     switch (level) {
         case LOGGER_DEBUG: {
             LOGD("%s", msg);
