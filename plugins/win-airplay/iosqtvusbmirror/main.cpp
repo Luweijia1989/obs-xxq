@@ -5,12 +5,6 @@
 #include "DriverHelper.h"
 
 int main(int argc, char *argv[]){
-    bool isDebug = argc > 1 && strcmp(argv[1], "debug") == 0;
-    if (!isDebug) {
-	SetErrorMode(SEM_FAILCRITICALERRORS);
-	freopen("NUL", "w", stderr);
-    }
-
     QGuiApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
     QGuiApplication::setAttribute(Qt::AA_UseHighDpiPixmaps);
 

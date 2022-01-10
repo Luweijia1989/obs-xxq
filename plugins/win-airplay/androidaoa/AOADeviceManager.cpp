@@ -3,8 +3,7 @@
 #include <QDebug>
 #include <QDateTime>
 #include <QStandardPaths>
-#include "../ipc.h"
-#include "../common-define.h"
+#include "common-define.h"
 #include <winusb.h>
 #include <Setupapi.h>
 #include <Devpkey.h>

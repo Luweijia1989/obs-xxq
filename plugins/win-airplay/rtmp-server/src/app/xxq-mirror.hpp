@@ -13,7 +13,6 @@
 #include <srs_kernel_file.hpp>
 #include <srs_app_async_call.hpp>
 
-#include "ipc.h"
 #include "common-define.h"
 #include "aacdecoder_lib.h"
 

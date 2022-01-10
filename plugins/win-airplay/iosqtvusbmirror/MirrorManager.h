@@ -30,9 +30,8 @@ extern "C" {
 #include "dict.h"
 #include "cmclock.h"
 #include "asyn_feed.h"
-#include "../ipc.h"
-#include "../common-define.h"
 }
+#include "common-define.h"
 
 #define DEV_MRU 65536
 #define USB_MTU (3 * 16384)

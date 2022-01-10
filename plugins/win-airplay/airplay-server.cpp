@@ -14,6 +14,7 @@
 #include <QRegularExpression>
 #include <QMessageBox>
 #include <QApplication>
+#include "common-define.h"
 
 using namespace std;
 
@@ -60,6 +61,7 @@ ScreenMirrorServer::ScreenMirrorServer(obs_source_t *source, int type)
 	: m_source(source),
 	  if2((gs_image_file2_t *)bzalloc(sizeof(gs_image_file2_t)))
 {
+	m_commandIPC = new MirrorRPC;
 	m_timerHelperObject = new QObject;
 	m_helperTimer = new QTimer(m_timerHelperObject);
 	m_helperTimer->setSingleShot(true);
@@ -95,6 +97,7 @@ ScreenMirrorServer::~ScreenMirrorServer()
 {
 	mirrorServerDestroy();
 
+	delete m_commandIPC;
 	delete m_timerHelperObject;
 
 	m_stop = true;
@@ -180,8 +183,7 @@ void ScreenMirrorServer::mirrorServerSetup()
 void ScreenMirrorServer::mirrorServerDestroy()
 {
 	if (process) {
-		uint8_t data[1] = {1};
-		os_process_pipe_write(process, data, 1);
+		m_commandIPC->requestQuit();
 		os_process_pipe_destroy_timeout(process, 1500);
 		process = NULL;
 	}

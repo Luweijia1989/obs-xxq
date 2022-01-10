@@ -14,7 +14,6 @@ set(CMAKE_CXX_STANDARD 17)
 
 set(win-airplay_SOURCES
 	airplay-server.cpp
-	ipc.c
 	dxva2_decoder.cc
 	dxva2_renderer.cc
 	video-renderer/d3d9_render_texture.cc
@@ -30,8 +29,6 @@ set(win-airplay_SOURCES
 set(win-airplay_HEADERS
 	airplay-server.h
 	Airplay2Def.h
-	common-define.h
-	ipc.h
 	dxva2_decoder.h
 	dxva2_renderer.h
 	av_log.h
@@ -60,12 +57,14 @@ add_subdirectory(${PROJECT_SOURCE_DIR}/iosqtvusbmirror)
 add_subdirectory(${PROJECT_SOURCE_DIR}/androidusbmirror)
 add_subdirectory(${PROJECT_SOURCE_DIR}/androidaoa)
 add_subdirectory(${PROJECT_SOURCE_DIR}/rtmp-server)
+add_subdirectory(${PROJECT_SOURCE_DIR}/mirror-ipc)
 
 add_library(win-airplay MODULE
 	${win-airplay_SOURCES}
 	${win-airplay_HEADERS}
 	${airplay_QRC_SOURCES})
 target_link_libraries(win-airplay
+	mirror-ipc
 	Ws2_32
 	libobs
 	w32-pthreads

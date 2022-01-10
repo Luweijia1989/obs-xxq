@@ -9,7 +9,6 @@ include_directories(
 )
 
 set(android-aoa-server_SOURCES
-	../ipc.c
 	AOADeviceManager.cpp
 	DriverHelper.cpp
 	InformationWidget.cpp
@@ -17,7 +16,6 @@ set(android-aoa-server_SOURCES
 )
 			 
 set(android-aoa-server_HEADERS
-	../ipc.h
 	AOADeviceManager.h
 	DriverHelper.h
 	InformationWidget.h
@@ -29,6 +27,7 @@ add_executable(android-aoa-server
 	)
 
 target_link_libraries(android-aoa-server
+	mirror-ipc
 	libobs
 	Qt5::Widgets
 	debug ${PROJECT_SOURCE_DIR}/libwdi/lib/libwdid.lib

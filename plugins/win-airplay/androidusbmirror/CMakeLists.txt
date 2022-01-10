@@ -15,22 +15,12 @@ include_directories(
 	${PROJECT_SOURCE_DIR}/../
 )
 
-
-set(androidusbmirror_extra_SOURCES
-	../ipc.c
-)
-			 
-set(androidusbmirror_extra_HEADERS
-	../ipc.h
-)
-
 add_executable(android-usb-mirror
 	${androidusbmirror_SRC} 
-	${androidusbmirror_HEADER}
-	${androidusbmirror_extra_SOURCES} 
-	${androidusbmirror_extra_HEADERS})
+	${androidusbmirror_HEADER})
 
 target_link_libraries(android-usb-mirror
+	mirror-ipc
 	libobs
 	Ws2_32
 	w32-pthreads)

@@ -40,8 +40,8 @@
 #pragma comment(lib, "iphlpapi.lib")
 #endif
 
-#include "../ipc.h"
-#include "../common-define.h"
+#include <QCoreApplication>
+#include "common-define.h"
 #include "log.h"
 #include "lib/raop.h"
 #include "lib/stream.h"
@@ -415,11 +415,10 @@ LONG CALLBACK crash_handler(PEXCEPTION_POINTERS exception)
 int main(int argc, char *argv[]) {
     SetUnhandledExceptionFilter(crash_handler);
 
-    bool isDebug = argc > 1 && strcmp(argv[1], "debug") == 0;
-    if (!isDebug) {
-	SetErrorMode(SEM_FAILCRITICALERRORS);
-	freopen("NUL", "w", stderr);
-    }
+    QCoreApplication app(argc, argv);
+
+    MirrorRPC rpc;
+    QObject::connect(&rpc, &MirrorRPC::quit, &app, &QCoreApplication::quit);
 
     bonjourCheckInstall();
 
@@ -445,14 +444,7 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    uint8_t buf[1024] = {0};
-    while (true) {
-	    int read_len = fread(buf, 1, 1024,
-				 stdin); // read 0 means parent has been stopped
-	    if (!read_len || buf[0] == 1) {
-		    break;
-	    }
-    }
+    app.exec();
 
     LOGI("Stopping...");
     stop_server();

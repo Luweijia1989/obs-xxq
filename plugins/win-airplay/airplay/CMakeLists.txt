@@ -17,12 +17,10 @@ set(airplay_main_HEADER
 )
 
 set(airplay_extra_SOURCES
-	../ipc.c
 	airplay-server.rc
 )
 			 
 set(airplay_extra_HEADERS
-	../ipc.h
 	resource.h
 )
  
@@ -48,7 +46,8 @@ target_link_libraries(airplay-server
 	Ws2_32
 	Dbghelp
 	Shlwapi
-	w32-pthreads)
+	w32-pthreads
+	mirror-ipc)
 
 install_obs_core(airplay-server)
 

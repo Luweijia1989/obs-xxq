@@ -50,22 +50,12 @@ include_directories(
 	${PROJECT_SOURCE_DIR}/../
 )
 
-
-set(rtmp-server_extra_SOURCES
-	../ipc.c
-)
-			 
-set(rtmp-server_extra_HEADERS
-	../ipc.h
-)
-
 add_executable(rtmp-server
 	${rtmp-server_SRC} 
-	${rtmp-server_HEADER}
-	${rtmp-server_extra_SOURCES} 
-	${rtmp-server_extra_HEADERS})
+	${rtmp-server_HEADER})
 
 target_link_libraries(rtmp-server
+	mirror-ipc
 	libobs
 	Ws2_32
 	w32-pthreads

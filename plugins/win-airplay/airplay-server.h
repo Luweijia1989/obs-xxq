@@ -45,6 +45,7 @@ struct VideoInfo {
 };
 
 class QTimer;
+class MirrorRPC;
 class ScreenMirrorServer {
 public:
 	enum MirrorBackEnd {
@@ -140,4 +141,6 @@ private:
 
 	QObject *m_timerHelperObject = nullptr;
 	QTimer *m_helperTimer = nullptr;
+
+	MirrorRPC *m_commandIPC = nullptr;
 };

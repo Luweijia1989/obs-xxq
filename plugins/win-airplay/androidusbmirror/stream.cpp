@@ -4,7 +4,7 @@
 #include "config.h"
 #include "util/buffer_util.h"
 #include "util/log.h"
-#include "../common-define.h"
+#include "common-define.h"
 
 #define BUFSIZE 0x10000
 
@@ -36,7 +36,7 @@ static bool stream_recv_packet(struct stream *stream)
 	assert(pts == NO_PTS || (pts & 0x8000000000000000) == 0);
 	assert(len);
 
-	uint8_t *buffer = calloc(1, len);
+	uint8_t *buffer = (uint8_t *)calloc(1, len);
 	r = net_recv_all(stream->socket, buffer, len);
 	if (r < 0 || ((uint32_t)r) < len) {
 		free(buffer);
@@ -72,7 +72,7 @@ static bool stream_recv_packet(struct stream *stream)
 
 static void *run_stream(void *data)
 {
-	struct stream *stream = data;
+	struct stream *stream = (struct stream *)data;
 	while (!stream->stop) {
 		bool ok = stream_recv_packet(stream);
 		if (!ok) {

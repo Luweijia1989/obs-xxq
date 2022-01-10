@@ -27,24 +27,15 @@ set(ios-qtvusb-mirror_HEADER
 	DriverHelper.h
 	InformationWidget.h
 )
-
-set(ios-qtvusb-mirror_extra_SOURCES
-	../ipc.c
-)
-			 
-set(ios-qtvusb-mirror_extra_HEADERS
-	../ipc.h
-)
  
 add_executable(ios-qtvusb-mirror
 	${iosusbmirror_SRC}
 	${iosusbmirror_HEADER}
 	${ios-qtvusb-mirror_SRC}
-	${ios-qtvusb-mirror_HEADER}
-	${ios-qtvusb-mirror_extra_SOURCES}
-	${ios-qtvusb-mirror_extra_HEADERS})
+	${ios-qtvusb-mirror_HEADER})
 
 target_link_libraries(ios-qtvusb-mirror
+	mirror-ipc
 	libobs
 	Qt5::Widgets
 	Qt5::Network

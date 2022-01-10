@@ -26,18 +26,6 @@ struct APPLE_DEVICE_INFO {
 	QString devicePath;
 };
 
-class ReadStdinThread : public QThread {
-	Q_OBJECT
-public:
-	ReadStdinThread(QObject *parent = nullptr);
-
-protected:
-	virtual void run() override;
-
-signals:
-	void quit();
-};
-
 class MirrorManager;
 class AppleDeviceManager : public QObject {
 	Q_OBJECT
@@ -73,7 +61,6 @@ private:
 	DriverHelper *m_driverHelper = nullptr;
 	APPLE_DEVICE_INFO m_appleDeviceInfo = { 0 };
 	MirrorManager *m_mirrorManager = nullptr;
-	ReadStdinThread *m_readStdinThread = nullptr;
 };
 
 class HelerWidget : public QWidget {
