@@ -20,19 +20,30 @@ float4 mainImage(VertData v_in) : TARGET
 	float width = 1.0/uv_pixel_interval.x;
 	float height = 1.0/uv_pixel_interval.y;
 	float corner_radius1 = corner_radius;
-	float border_thickness1 = border_thickness;
-	if(corner_radius1 >= min(width*x_scale1/2,height*y_scale1/2))
+	bool is_in_corner = false;
+    bool is_within_radius = false;
+	float minR = min(width*x_scale1/2,height*y_scale1/2);
+	if(corner_radius1 >= minR)
 	{
-		corner_radius1 = min(width*x_scale1/2,height*y_scale1/2);
+		corner_radius1 = minR;
 	}
     float4 output = image.Sample(textureSampler, v_in.uv);
     float2 mirrored_tex_coord = float2(0.5, 0.5) - abs(v_in.uv - float2(0.5, 0.5));
     float2 pixel_position = float2(mirrored_tex_coord.x / uv_pixel_interval.x, mirrored_tex_coord.y / uv_pixel_interval.y);
-	float r = pow(x_scale1*pixel_position.x/corner_radius1-1.0,2) + pow(y_scale1*pixel_position.y/corner_radius1-1.0,2);
-    float pixel_distance_from_center = sqrt(r*corner_radius1*corner_radius1);//distance(pixel_position, float2(corner_radius1, corner_radius1));
-    bool is_in_corner = false;
-    bool is_within_radius = false;
-    if(roundcorner_enable)
+	bool use_corner = true;
+	float pixel_distance_from_center = 0.0;
+	if(abs(corner_radius)<0.001)
+	{
+		use_corner = false;
+		pixel_distance_from_center =  sqrt(pow(x_scale1*pixel_position.x,2) + pow(y_scale1*pixel_position.y,2));
+	}
+	else
+	{
+		float r = pow(x_scale1*pixel_position.x/corner_radius1-1.0,2) + pow(y_scale1*pixel_position.y/corner_radius1-1.0,2);
+		pixel_distance_from_center = sqrt(r*corner_radius1*corner_radius1);
+	}
+	
+    if(roundcorner_enable&&use_corner)
     {
         is_in_corner = pixel_position.x < corner_radius1/x_scale1 && pixel_position.y < corner_radius1/y_scale1;
         is_within_radius = pixel_distance_from_center <= corner_radius1;

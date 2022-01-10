@@ -5,24 +5,14 @@
 #ifndef QR_TO_PNG_H
 #define QR_TO_PNG_H
 
-/* If your compiler is recent enough,
- * you don't need to include '::experimental::',
- * you can just include "::filesystem". The below
- * code makes both work, accessible at 'fs::'. */
-#if defined(__GNUC__) && __GNUC__ < 9
-#include <experimental/filesystem>
-namespace fs = std::experimental::filesystem;
-#else
-#include <filesystem>
-namespace fs = std::filesystem;
-#endif
-
 #include "QrCode.hpp"
 #include "TinyPngOut.hpp"
 #include <fstream>
 #include <iostream>
 #include <memory>
 #include <string>
+#include <QString>
+#include <QFile>
 
 class QrToPng {
 public:
@@ -38,19 +28,17 @@ public:
      * @param overwriteExistingFile Overwrite if a file with @fileName already exists?
      * @param ecc error correction (low,mid,high).
      */
-    QrToPng(std::string fileName, int imgSize, int minModulePixelSize, std::string text,
-            bool overwriteExistingFile, qrcodegen::QrCode::Ecc ecc);
+    QrToPng(QString fileName, int imgSize, int minModulePixelSize, std::string text, qrcodegen::QrCode::Ecc ecc);
 
     /** Writes a QrToPng object to a png file at @_fileName.
      * @return true if file could be written, false if file could not be written */
     bool writeToPNG();
 
 private:
-    std::string _fileName;
+    QString _fileName;
     int _size;
     int _minModulePixelSize;
     std::string _text;
-    bool _overwriteExistingFile;
     qrcodegen::QrCode::Ecc _ecc;
 
     /** Writes the PNG file. Constructs a vector with

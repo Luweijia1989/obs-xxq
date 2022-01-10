@@ -37,7 +37,7 @@ QString streamUrlImage()
 	QString s = jd.toJson(QJsonDocument::Compact);
 	
 	QString pngPath = QStandardPaths::writableLocation(QStandardPaths::TempLocation) + "/xxq-stream-qrcode.png";
-	auto exampleQrPng1 = QrToPng(pngPath.toStdString(), 200, 3, s.toStdString(), true, qrcodegen::QrCode::Ecc::MEDIUM);
+	auto exampleQrPng1 = QrToPng(pngPath, 200, 3, s.toStdString(), qrcodegen::QrCode::Ecc::MEDIUM);
 	exampleQrPng1.writeToPNG();
 	return pngPath;
 }

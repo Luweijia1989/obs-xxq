@@ -426,6 +426,11 @@ void DShowInput::DShowLoop()
 				}
 			}
 
+			obs_data_t *event = obs_data_create();
+			obs_data_set_int(event, "state", state);
+			obs_source_signal_event(source, event);
+			obs_data_release(event);
+
 			if (block)
 				SetEvent(activated_event);
 			obs_data_release(settings);
