@@ -1,4 +1,13 @@
 project(ios-qtvusb-mirror)
+
+if(APPLE)
+	set(_bit_suffix "")
+elseif(CMAKE_SIZEOF_VOID_P EQUAL 8)
+	set(_bit_suffix "64bit/")
+else()
+	set(_bit_suffix "32bit/")
+endif()
+
 find_package(Qt5Widgets REQUIRED)
 find_package(Qt5Network REQUIRED)
 set(CMAKE_AUTOMOC TRUE)

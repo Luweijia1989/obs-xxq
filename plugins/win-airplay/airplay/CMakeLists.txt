@@ -1,5 +1,13 @@
 project(airplay-server)
 
+if(APPLE)
+	set(_bit_suffix "")
+elseif(CMAKE_SIZEOF_VOID_P EQUAL 8)
+	set(_bit_suffix "64bit/")
+else()
+	set(_bit_suffix "32bit/")
+endif()
+
 include_directories(${PROJECT_SOURCE_DIR}/third-party/include)
 include_directories(${PROJECT_SOURCE_DIR}/lib)
 
