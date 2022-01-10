@@ -19,7 +19,7 @@
 
 using namespace std;
 
-#define DRIVER_EXE "driver-tool.exe"
+#define DRIVER_EXE "ios-qtvusb-mirror.exe"
 #define AIRPLAY_EXE "airplay-server.exe"
 #define ANDROID_USB_EXE "android-usb-mirror.exe"
 #define ANDROID_AOA_EXE "android-aoa-server.exe"
