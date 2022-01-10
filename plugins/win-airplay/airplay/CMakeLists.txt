@@ -20,10 +20,6 @@ set(airplay_main_SRC
 	rpiplay.cpp
 )
 
-set(airplay_main_HEADER
-	log.h
-)
-
 set(airplay_extra_SOURCES
 	airplay-server.rc
 )
@@ -36,7 +32,6 @@ add_executable(airplay-server
 	${airplay_SRC}
 	${airplay_HEADER}
 	${airplay_main_SRC}
-	${airplay_main_HEADER}
 	${airplay_extra_SOURCES}
 	${airplay_extra_HEADERS})
 	

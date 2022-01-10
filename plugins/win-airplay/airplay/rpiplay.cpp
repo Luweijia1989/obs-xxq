@@ -41,6 +41,10 @@
 #endif
 
 #include <QCoreApplication>
+#include <QStandardPaths>
+#include <QDir>
+#include <QDateTime>
+#include <QDebug>
 #include "common-define.h"
 #include "log.h"
 #include "lib/raop.h"
@@ -73,7 +77,7 @@ static HANDLE_AACDECODER create_fdk_aac_decoder()
 {
 	HANDLE_AACDECODER phandle = aacDecoder_Open(TT_MP4_RAW, 1);
 	if (phandle == NULL) {
-		LOGI("aacDecoder open faild!");
+		qDebug("aacDecoder open faild!");
 		return NULL;
 	}
 	/* ASC config binary data */
@@ -81,15 +85,15 @@ static HANDLE_AACDECODER create_fdk_aac_decoder()
 	UCHAR *conf[] = {eld_conf};
 	static UINT conf_len = sizeof(eld_conf);
 	if (aacDecoder_ConfigRaw(phandle, conf, &conf_len) != AAC_DEC_OK) {
-		LOGI("Unable to set configRaw");
+		qDebug("Unable to set configRaw");
 		return NULL;
 	}
 	CStreamInfo *aac_stream_info = aacDecoder_GetStreamInfo(phandle);
 	if (aac_stream_info == NULL) {
-		LOGI("aacDecoder_GetStreamInfo failed!");
+		qDebug("aacDecoder_GetStreamInfo failed!");
 		return NULL;
 	}
-	LOGI("> stream info: channel = %d\tsample_rate = %d\tframe_size = %d\taot = %d\tbitrate = %d",
+	qDebug("> stream info: channel = %d\tsample_rate = %d\tframe_size = %d\taot = %d\tbitrate = %d",
 		aac_stream_info->channelConfig, aac_stream_info->aacSampleRate,
 		aac_stream_info->aacSamplesPerFrame, aac_stream_info->aot,
 		aac_stream_info->bitRate);
@@ -108,12 +112,12 @@ static bool do_fdk_aac_decode(aac_decode_struct *data)
 	unsigned char *input_buf[1] = { data->data };
 	auto ret = aacDecoder_Fill(aacdecoder_handler, input_buf, &pkt_size, &valid_size);
 	if (ret != AAC_DEC_OK) {
-		LOGE("aacDecoder_Fill error : %x", ret);
+		qDebug("aacDecoder_Fill error : %x", ret);
 		return false;
 	}
 	ret = aacDecoder_DecodeFrame(aacdecoder_handler, (INT_PCM *)decode_buffer, pcm_pkt_size, 0);
 	if (ret != AAC_DEC_OK) {
-		LOGE("aacDecoder_DecodeFrame error : 0x%x", ret);
+		qDebug("aacDecoder_DecodeFrame error : 0x%x", ret);
 		return false;
 	}
 
@@ -379,6 +383,36 @@ std::string get_host_name()
 	return ret;
 }
 
+void createDir(QString path) {
+	QDir dir(path);
+	if (!dir.exists(path))
+		dir.mkdir(path);
+};
+
+QString get_dump_path()
+{
+	QString path = QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation);
+	createDir(path);
+
+	path += "/dump";
+	createDir(path);
+
+	path += "/airplay_" + QDateTime::currentDateTime().toString("yyyyMMdd-hhmmss") + ".dmp";
+	return path;
+}
+
+QString get_log_path()
+{
+	QString path = QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation);
+	createDir(path);
+
+	path += "/logs";
+	createDir(path);
+
+	path += "/airplay_" + QDateTime::currentDateTime().toString("yyyyMMdd-hhmmss") + ".log";
+	return path;
+}
+
 LONG CALLBACK crash_handler(PEXCEPTION_POINTERS exception)
 {
 	static bool inside_handler = false;
@@ -392,7 +426,8 @@ LONG CALLBACK crash_handler(PEXCEPTION_POINTERS exception)
 
 	inside_handler = true;
 
-	HANDLE file = CreateFile(L"airplay-server-crash.dump", GENERIC_WRITE, 0,
+	QString path = get_dump_path();
+	HANDLE file = CreateFile(path.toStdWString().c_str(), GENERIC_WRITE, 0,
 				 NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL,
 				 NULL);
 
@@ -412,20 +447,29 @@ LONG CALLBACK crash_handler(PEXCEPTION_POINTERS exception)
 	return EXCEPTION_EXECUTE_HANDLER;
 }
 
+static void qtMessageOutput(QtMsgType type, const QMessageLogContext &context, const QString &msg)
+{
+    QByteArray localMsg = msg.toUtf8();
+    fwrite(localMsg.data(), 1, localMsg.size(), log_file);
+    fwrite("\n", 1, 1, log_file);
+    fflush(log_file);
+}
+
 int main(int argc, char *argv[]) {
     SetUnhandledExceptionFilter(crash_handler);
 
     QCoreApplication app(argc, argv);
+    app.setApplicationName("yuerlive");
+
+    qInstallMessageHandler(qtMessageOutput);
 
     MirrorRPC rpc;
     QObject::connect(&rpc, &MirrorRPC::quit, &app, &QCoreApplication::quit);
 
     bonjourCheckInstall();
 
-    time_t now = time(0);
-    char fileName[256] = { 0 };
-    sprintf(fileName, "%lld-log.txt", now);
-    log_file = fopen(fileName, "w");
+    
+    log_file = fopen(get_log_path().toStdString().c_str(), "w");
 
     aacdecoder_handler = create_fdk_aac_decoder();
     ipc_client_create(&ipc_client);
@@ -446,7 +490,7 @@ int main(int argc, char *argv[]) {
 
     app.exec();
 
-    LOGI("Stopping...");
+    qDebug("Stopping...");
     stop_server();
 
     ipc_client_destroy(&ipc_client);
@@ -515,31 +559,9 @@ extern "C" void audio_set_volume(void *cls, float volume) {
 }
 
 extern "C" void log_callback(void *cls, int level, const char *msg) {
-    fwrite(msg, 1, strlen(msg), log_file);
-    fwrite("\n", 1, 1, log_file);
-    fflush(log_file);
-
-    switch (level) {
-        case LOGGER_DEBUG: {
-            LOGD("%s", msg);
-            break;
-        }
-        case LOGGER_WARNING: {
-            LOGW("%s", msg);
-            break;
-        }
-        case LOGGER_INFO: {
-            LOGI("%s", msg);
-            break;
-        }
-        case LOGGER_ERR: {
-            LOGE("%s", msg);
-            break;
-        }
-        default:
-            break;
-    }
-
+    Q_UNUSED(cls)
+    Q_UNUSED(level)
+    qDebug() << msg;
 }
 
 int start_server(std::vector<char> hw_addr, std::string name, bool debug_log) {
@@ -555,7 +577,7 @@ int start_server(std::vector<char> hw_addr, std::string name, bool debug_log) {
 
     raop = raop_init(10, &raop_cbs);
     if (raop == NULL) {
-        LOGE("Error initializing raop!");
+        qDebug("Error initializing raop!");
         return -1;
     }
 
@@ -573,7 +595,7 @@ int start_server(std::vector<char> hw_addr, std::string name, bool debug_log) {
     int error;
     dnssd = dnssd_init(name.c_str(), strlen(name.c_str()), hw_addr.data(), hw_addr.size(), &error);
     if (error) {
-        LOGE("Could not initialize dnssd library!");
+        qDebug("Could not initialize dnssd library!");
         return -2;
     }
 
