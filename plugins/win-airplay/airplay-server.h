@@ -17,6 +17,7 @@
 #include <graphics/image-file.h>
 #include <QObject>
 #include <QMap>
+#include <QProcess>
 
 #include "dxva2_decoder.h"
 #include "dxva2_renderer.h"
@@ -121,7 +122,7 @@ private:
 	uint32_t m_lastVideoInfoIndex = 0;
 
 	struct IPCServer *m_ipcServer = nullptr;
-	os_process_pipe_t *process = nullptr;
+	QProcess m_backendProcess;
 	circlebuf m_avBuffer;
 	MirrorBackEnd m_backend = None;
 	MirrorBackEnd m_lastStopType = None;
