@@ -166,9 +166,7 @@ ScreenMirrorServer::ScreenMirrorServer(obs_source_t *source, int type)
 	m_renderer->Init();
 
 	m_stop = false;
-	m_audioLoopThread =
-		std::thread(ScreenMirrorServer::audio_tick_thread, this);
-	m_audioLoopThread.detach();
+	m_audioLoopThread = std::thread(ScreenMirrorServer::audio_tick_thread, this);
 
 	changeBackendType(type);
 }
