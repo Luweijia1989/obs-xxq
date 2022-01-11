@@ -250,7 +250,7 @@ void ScreenMirrorServer::mirrorServerSetup()
 	os_kill_process(m_backendProcessName.toStdString().c_str());
 	ipc_server_create(&m_ipcServer, ScreenMirrorServer::pipeCallback, this);
 
-	auto path = QString("%1/%2").arg(QApplication::applicationDirPath()).arg(m_backendProcessName);
+	auto path = QString("\"%1/%2\"").arg(QApplication::applicationDirPath()).arg(m_backendProcessName);
 	m_backendProcess.start(path);
 	m_backendProcess.waitForStarted();
 }
