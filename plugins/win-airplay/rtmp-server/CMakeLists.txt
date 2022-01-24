@@ -1,11 +1,9 @@
 project(rtmp-server)
 
-if(APPLE)
-	set(_bit_suffix "")
-elseif(CMAKE_SIZEOF_VOID_P EQUAL 8)
-	set(_bit_suffix "64bit/")
+if(CMAKE_SIZEOF_VOID_P EQUAL 8)
+	set(_bit_suffix "x64")
 else()
-	set(_bit_suffix "32bit/")
+	set(_bit_suffix "x86")
 endif()
 
 add_definitions(-D__x86_64__)

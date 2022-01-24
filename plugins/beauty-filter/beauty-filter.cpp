@@ -199,7 +199,7 @@ std::vector<BYTE> base64_decode(std::string const &encoded_string)
 static void initBDResource(std::string appPath)
 {
 #ifdef DEBUG
-	bef_effect_ai_set_log_to_local_func(logFuncForEffect);
+	//bef_effect_ai_set_log_to_local_func(logFuncForEffect);
 #endif // DEBUG
 
 	beResourceContext = new BEResourceContext;

@@ -1,5 +1,11 @@
 cmake_minimum_required(VERSION 3.4.1)
 
+if(CMAKE_SIZEOF_VOID_P EQUAL 8)
+	set(_bit_suffix "x64")
+else()
+	set(_bit_suffix "x86")
+endif()
+
 find_package(Qt5Core REQUIRED)
 set(CMAKE_AUTOMOC TRUE)
 
@@ -24,8 +30,8 @@ add_library(mirror-ipc
 target_link_libraries(mirror-ipc
 	Qt5::Core
 	libobs
-	debug ${PROJECT_SOURCE_DIR}/mirror-ipc/lib/debug/RPC.lib
-	optimized ${PROJECT_SOURCE_DIR}/mirror-ipc/lib/release/RPC.lib
+	debug ${PROJECT_SOURCE_DIR}/mirror-ipc/lib/${_bit_suffix}/debug/RPC.lib
+	optimized ${PROJECT_SOURCE_DIR}/mirror-ipc/lib/${_bit_suffix}/release/RPC.lib
 )
 
 target_include_directories(mirror-ipc

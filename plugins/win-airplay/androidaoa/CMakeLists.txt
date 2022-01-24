@@ -1,5 +1,11 @@
 project(android-aoa-server)
 
+if(CMAKE_SIZEOF_VOID_P EQUAL 8)
+	set(_bit_suffix "x64")
+else()
+	set(_bit_suffix "x86")
+endif()
+
 find_package(Qt5Widgets REQUIRED)
 set(CMAKE_AUTOMOC TRUE)
 
@@ -30,10 +36,10 @@ target_link_libraries(android-aoa-server
 	mirror-ipc
 	libobs
 	Qt5::Widgets
-	debug ${PROJECT_SOURCE_DIR}/libwdi/lib/libwdid.lib
-	optimized ${PROJECT_SOURCE_DIR}/libwdi/lib/libwdi.lib
-	debug ${PROJECT_SOURCE_DIR}/libusb/lib/libusb-1.0-d.lib
-	optimized ${PROJECT_SOURCE_DIR}/libusb/lib/libusb-1.0.lib
+	debug ${PROJECT_SOURCE_DIR}/libwdi/lib/${_bit_suffix}/libwdid.lib
+	optimized ${PROJECT_SOURCE_DIR}/libwdi/lib/${_bit_suffix}/libwdi.lib
+	debug ${PROJECT_SOURCE_DIR}/libusb/lib/${_bit_suffix}/libusb-1.0-d.lib
+	optimized ${PROJECT_SOURCE_DIR}/libusb/lib/${_bit_suffix}/libusb-1.0.lib
 	Setupapi
 	ntdll)
 

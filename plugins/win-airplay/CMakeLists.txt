@@ -56,7 +56,6 @@ add_subdirectory(${PROJECT_SOURCE_DIR}/airplay)
 add_subdirectory(${PROJECT_SOURCE_DIR}/iosqtvusbmirror)
 add_subdirectory(${PROJECT_SOURCE_DIR}/androidusbmirror)
 add_subdirectory(${PROJECT_SOURCE_DIR}/androidaoa)
-add_subdirectory(${PROJECT_SOURCE_DIR}/rtmp-server)
 add_subdirectory(${PROJECT_SOURCE_DIR}/mirror-ipc)
 
 add_library(win-airplay MODULE
