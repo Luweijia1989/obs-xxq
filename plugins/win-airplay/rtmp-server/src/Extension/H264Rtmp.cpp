@@ -79,6 +79,9 @@ static void sendMediaInfo(const char* sps, size_t sps_len, const char* pps, size
 }
 
 static void send264Data(const char* data, size_t len, uint32_t pts) {
+	if ((data[0] & 0x1F) == 0x06)
+		return;
+
 	char start_code[4] = { 0x00, 0x00, 0x00, 0x01 };
 	char *buffer = (char *)malloc(len + 4);
 	memcpy(buffer, start_code, 4);
