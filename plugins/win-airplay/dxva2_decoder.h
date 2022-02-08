@@ -41,5 +41,4 @@ private:
 
 	int decoder_reorder_pts_ = -1;
 	bool is_hw_decode = false;
-	bool is_recv_first_frame = false;
 };

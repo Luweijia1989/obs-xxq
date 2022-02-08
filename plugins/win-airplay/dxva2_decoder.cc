@@ -1,6 +1,5 @@
 #include "dxva2_decoder.h"
 #include "av_log.h"
-#include <util/base.h>
 
 #include "libavcodec/dxva2.h"
 #include "libavutil/hwcontext.h"
@@ -96,7 +95,9 @@ static int dxva2_device_create2(AVHWDeviceContext* device_context, IDirect3DDevi
 	pCreateDeviceManager9* createDeviceManager = NULL;
 
 	unsigned reset_token = 0;
+	UINT adapter = D3DADAPTER_DEFAULT;
 	HRESULT hr = S_OK;
+	int err = 0;
 
 	dxva2_device_priv = (DXVA2DevicePriv*)av_mallocz(sizeof(*dxva2_device_priv));
 	if (!dxva2_device_priv) {
@@ -162,12 +163,11 @@ AVDecoder::~AVDecoder()
 
 bool AVDecoder::CheckSPSChanged(uint8_t *data, size_t len)
 {
-	is_recv_first_frame = false;
-
 	if (!codec_context_)
 		return true;
 
-	return codec_context_->extradata_size != (int)len || memcmp(data, codec_context_->extradata, len) != 0;
+	return codec_context_->extradata_size != len ||
+	       memcmp(data, codec_context_->extradata, len) != 0;
 }
 
 void AVDecoder::Init(uint8_t *data, size_t len, void* d3d9_device, bool useSoftware)
@@ -210,33 +210,8 @@ int AVDecoder::Send(AVPacket* packet)
 		return -1;
 	}
 
-	auto checkKeyFrame = [](uint8_t *data, int len){
-		bool ret = false;
-		int marker = 0xffffffff;
-		for (int i = 0; i < len; i++) {
-			int b = data[i] & 0xFF;
-			if (marker == 1) {
-				if ((b & 0x1F) == 5)
-					ret = true;
-
-				break;
-			}
-			marker = (marker << 8) | b;
-		}
-
-		return ret;
-	};
-	 
-	if (!is_recv_first_frame) {
-		bool isKeyFrame = checkKeyFrame(packet->data, packet->size);
-		if (isKeyFrame) {
-			blog(LOG_INFO, "decode find first key frame");
-			is_recv_first_frame = true;
-			return avcodec_send_packet(codec_context_, packet);
-		} else
-			return -2;
-	} else
-		return avcodec_send_packet(codec_context_, packet);
+	int ret = avcodec_send_packet(codec_context_, packet);
+	return ret;
 }
 
 int AVDecoder::Recv(AVFrame* frame)
