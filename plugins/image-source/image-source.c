@@ -276,11 +276,13 @@ MODULE_EXPORT const char *obs_module_description(void)
 
 extern struct obs_source_info slideshow_info;
 extern struct obs_source_info color_source_info;
+extern struct obs_source_info danmu_source_info;
 
 bool obs_module_load(void)
 {
 	obs_register_source(&image_source_info);
 	obs_register_source(&color_source_info);
 	obs_register_source(&slideshow_info);
+	obs_register_source(&danmu_source_info);
 	return true;
 }
