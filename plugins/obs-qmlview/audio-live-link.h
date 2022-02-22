@@ -7,6 +7,7 @@ class AudioLiveLink : public QmlSourceBase {
 	Q_OBJECT
 	DEFINE_PROPERTY(QString, path)
 	DEFINE_PROPERTY(QString, name)
+	DEFINE_PROPERTY(QString, wave)
 public:
 	AudioLiveLink(QObject *parent = nullptr);
 	static void default(obs_data_t *settings);

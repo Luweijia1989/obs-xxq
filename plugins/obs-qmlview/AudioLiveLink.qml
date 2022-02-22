@@ -36,9 +36,10 @@ Item {
       width: 293
       height: 293
       suffix: "apng"
-      cacheSource: "file:///D:\\img_recording.apng"
+      cacheSource: audioLiveLinkProperties.wave
 	  cache: true
 	  visible:true
+      playing: false
       Rectangle {
 		  id: avartar
 		  x: 52
@@ -106,7 +107,7 @@ Item {
 	    height:58
 		elide: Text.ElideRight
 		font.family: "阿里巴巴普惠体 M"
-		font.pixelSize: 43
+		font.pixelSize: 42
 		font.bold: true
 		color:"#FFFFFF"
 		horizontalAlignment: Text.AlignHCenter
