@@ -1,4 +1,4 @@
-﻿import QtQuick 2.12
+import QtQuick 2.12
 import QtQuick.Controls 2.12
 
 AnimatedImage {
@@ -17,10 +17,16 @@ AnimatedImage {
     smooth: true
     mipmap: true
 
-    function replay() {
+    function play() {
         currentFrame = 0
         tempPlayCount = playCount
         playing = true
+    }
+
+    function stop() {
+        currentFrame = 0
+        tempPlayCount = 0
+        playing = false
     }
 
     onPlayCountChanged: tempPlayCount = playCount
@@ -40,7 +46,7 @@ AnimatedImage {
         var str = cacheSource
         if(imageCrop){
             var index = main.cacheSource.indexOf("imageView2")
-            var urlSuffix = "?imageView2/0/w/" + Math.round(main.width * 2) + "/h/" + Math.round(main.height * 2)
+            var urlSuffix = "?imageView2/3/w/" + Math.round(main.width * 2) + "/h/" + Math.round(main.height * 2)
             if(index === -1){
                 str += urlSuffix
             }

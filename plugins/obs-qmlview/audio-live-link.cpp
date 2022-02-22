@@ -1,4 +1,4 @@
-﻿#include "audio-live-link.h"
+#include "audio-live-link.h"
 #include "renderer.h"
 #include <QDebug>
 
@@ -71,9 +71,13 @@ static void audioLiveLinkCommand(void *data, obs_data_t *cmd)
 {
 	AudioLiveLink *s = (AudioLiveLink *)data;
 	const char *cmdType = obs_data_get_string(cmd, "type");
-	if (strcmp("replay", cmdType) == 0 && s) {
-		emit s->replay();
+	if (strcmp("play", cmdType) == 0 && s) {
+		emit s->play();
 	}
+	else if (strcmp("stop", cmdType) == 0 && s) {
+		emit s->stop();
+	}
+		
 }
 
 struct obs_source_info audio_livelink_source_info = {

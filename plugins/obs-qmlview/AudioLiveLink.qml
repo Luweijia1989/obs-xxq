@@ -35,8 +35,8 @@ Item {
       anchors.topMargin: 350
       width: 293
       height: 293
-	  suffix: "apng"
-      cacheSource: "file:///D:/voice_wave.png"
+      suffix: "apng"
+      cacheSource: "file:///D:\\img_recording.apng"
 	  cache: true
 	  visible:true
       Rectangle {
@@ -115,10 +115,15 @@ Item {
 
     Connections {
 		target: audioLiveLinkProperties
-		onReplay:
-		{
-			voicewave.replay();
-			console.log("voicewave replay");
+        onPlay:
+        {
+            voicewave.play();
+            console.log("voicewave play");
 		}
+        onStop:
+        {
+            voicewave.stop();
+            console.log("voicewave stop");
+        }
 	}
 }
