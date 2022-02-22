@@ -10,8 +10,7 @@ EnterRoom::EnterRoom(QObject *parent /* = nullptr */) : QmlSourceBase(parent)
 	setuitype(5);
 
 	connect(&m_timer, &QTimer::timeout, this, [=]() {
-		if (!m_canstay)
-		{
+		if (!m_canstay) {
 			doHide();
 		}
 	});
@@ -19,8 +18,7 @@ EnterRoom::EnterRoom(QObject *parent /* = nullptr */) : QmlSourceBase(parent)
 
 EnterRoom::~EnterRoom()
 {
-	if (m_timer.isActive())
-	{
+	if (m_timer.isActive()) {
 		m_timer.stop();
 	}
 }
@@ -28,9 +26,9 @@ EnterRoom::~EnterRoom()
 void EnterRoom::default(obs_data_t *settings)
 {
 	obs_data_set_default_string(settings, "file",
-		"qrc:/qmlfiles/NewCommon.qml");
+				    "qrc:/qmlfiles/NewCommon.qml");
 	obs_data_set_default_string(settings, "themefont",
-		u8"阿里巴巴普惠体 M");
+				    u8"阿里巴巴普惠体 M");
 	obs_data_set_default_bool(settings, "themebold", false);
 	obs_data_set_default_bool(settings, "themeitalic", false);
 
@@ -66,8 +64,7 @@ void EnterRoom::doHide()
 void EnterRoom::doStart(bool isenter)
 {
 	int costTime = m_staytime;
-	if (m_timer.isActive())
-	{
+	if (m_timer.isActive()) {
 		m_timer.stop();
 	}
 
@@ -187,7 +184,8 @@ static obs_properties_t *enterRoom_source_properties(void *data)
 	return props;
 }
 
-static void quickview_enterRoomsource_make_custom(void *data, obs_data_t *command)
+static void quickview_enterRoomsource_make_custom(void *data,
+						  obs_data_t *command)
 {
 	if (!data)
 		return;
@@ -197,16 +195,13 @@ static void quickview_enterRoomsource_make_custom(void *data, obs_data_t *comman
 		EnterRoom *s1 = (EnterRoom *)data;
 		emit s1->replay();
 		s1->doStart(false);
-	}
-	else if (strcmp("update", cmdType) == 0) {
+	} else if (strcmp("update", cmdType) == 0) {
 		EnterRoom *s2 = (EnterRoom *)data;
 		emit s2->update();
-	}
-	else if (strcmp("enterUpdate", cmdType) == 0) {
+	} else if (strcmp("enterUpdate", cmdType) == 0) {
 		EnterRoom *s3 = (EnterRoom *)data;
 		s3->doStart(true);
-	}
-	else if (strcmp("hide", cmdType) == 0) {
+	} else if (strcmp("hide", cmdType) == 0) {
 		EnterRoom *s4 = (EnterRoom *)data;
 		emit s4->doHide();
 	}
@@ -250,4 +245,4 @@ struct obs_source_info quickenterroomshow_source_info = {
 	nullptr,
 	nullptr,
 	nullptr,
-	quickview_enterRoomsource_make_custom };
+	quickview_enterRoomsource_make_custom};

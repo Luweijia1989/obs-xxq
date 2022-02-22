@@ -1,4 +1,4 @@
-/******************************************************************************
+﻿/******************************************************************************
     Copyright (C) 2013-2014 by Hugh Bailey <obs.jim@gmail.com>
 
     This program is free software: you can redistribute it and/or modify
@@ -407,7 +407,7 @@ struct obs_core_data {
 	struct obs_source *h5_source;
 	struct obs_source *sticker_source;
 	struct obs_source *mask_source;
-
+	struct obs_source *audiolivelink_source;
 	volatile bool valid;
 };
 
