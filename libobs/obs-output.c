@@ -2339,11 +2339,11 @@ static void output_reconnect(struct obs_output *output)
 		os_event_reset(output->reconnect_stop_event);
 	}
 
-	if (output->reconnect_retries) {
-		output->reconnect_retry_cur_sec *= 2;
-		if (output->reconnect_retry_cur_sec > MAX_RETRY_SEC)
-			output->reconnect_retry_cur_sec = MAX_RETRY_SEC;
-	}
+	//if (output->reconnect_retries) {
+	//	output->reconnect_retry_cur_sec *= 2;
+	//	if (output->reconnect_retry_cur_sec > MAX_RETRY_SEC)
+	//		output->reconnect_retry_cur_sec = MAX_RETRY_SEC;
+	//}
 
 	output->reconnect_retries++;
 

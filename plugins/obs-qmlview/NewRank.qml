@@ -17,7 +17,7 @@ Item {
         }
         else if(themeType === 3)
         {
-			return "qrc:/qmlfiles/image/newrank/deepblue.png";
+			return "qrc:/qmlfiles/image/newrank/grayblue.png";
 		}
         else if(themeType === 4)
         {

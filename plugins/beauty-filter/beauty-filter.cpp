@@ -18,6 +18,7 @@
 #include <QNetworkRequest>
 #include <QDebug>
 #include <QElapsedTimer>
+#include <QTimer>
 #include "beauty-handle.h"
 
 static const char *beauty_filter_name(void *unused)
@@ -245,7 +246,12 @@ static void initBDResource(std::string appPath)
 		req.setRawHeader("cache-control", "no-cache");
 		QJsonDocument jd(obj);
 		auto reply = manager->post(req, jd.toJson());
-		QObject::connect(reply, &QNetworkReply::finished, [=](){
+		QEventLoop loop;
+		QTimer t;
+		QObject::connect(&t, &QTimer::timeout, &loop, &QEventLoop::quit);
+		t.setSingleShot(true);
+		t.start(3000);
+		QObject::connect(reply, &QNetworkReply::finished, [=, &loop](){
 			QJsonDocument doc = QJsonDocument::fromJson(reply->readAll());
 			qDebug() << "license doc " << doc;
 			auto o = doc.object();
@@ -262,7 +268,10 @@ static void initBDResource(std::string appPath)
 			}
 			reply->deleteLater();
 			manager->deleteLater();
+
+			loop.quit();
 		});
+		loop.exec(QEventLoop::ExcludeUserInputEvents);
 	}
 
 	blog(LOG_INFO, "EffectDemoVersion %s\n",
