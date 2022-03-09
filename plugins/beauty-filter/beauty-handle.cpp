@@ -159,6 +159,37 @@ obs_source_frame *BeautyHandle::processFrame(obs_source_frame *frame)
         double timestamp = (double)starTime.count() / 1000.0;
 	auto result = m_effectHandle->process(copyDraw ? m_outputTexture2 : m_backgroundTexture, m_outputTexture, frame->width, frame->height, false, timestamp);	
 
+	//草莓
+	{
+		glBindFramebuffer(GL_FRAMEBUFFER, m_fbo);
+		glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
+				       GL_TEXTURE_2D, m_outputTexture, 0);
+		GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+		if (status != GL_FRAMEBUFFER_COMPLETE) {
+			printf("GLError BERender::drawFace \n");
+		}
+
+		glBindTexture(GL_TEXTURE_2D, m_outputTexture);
+
+		float vertices[] = {
+			//---- 位置 ----    - 纹理坐标 -
+			0.5f,  0.5f,  0.0f, 1.0f, 1.0f, // 右上
+			0.5f,  -0.5f, 0.0f, 1.0f, 0.0f, // 右下
+			-0.5f, -0.5f, 0.0f, 0.0f, 0.0f, // 左下
+			-0.5f, 0.5f,  0.0f, 0.0f, 1.0f // 左上
+		};
+		GLuint vbo;
+		glBindBuffer(GL_ARRAY_BUFFER, vbo);
+		glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices, GL_STATIC_DRAW);
+		glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void *)0);
+		glEnableVertexAttribArray(0);
+		glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 5 * sizeof(float), (void *)3);
+		glEnableVertexAttribArray(1);
+
+		glBindVertexArray(vbo);
+		glUseProgram(m_shader);
+	}
+
 	if (m_glctx.usePbo()) {
 		PBOReader::DisposableBuffer buf;
 		if (m_reader->read(m_outputTexture, frame->width, frame->height, buf)) {
