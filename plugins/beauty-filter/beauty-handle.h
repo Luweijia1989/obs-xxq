@@ -3,6 +3,7 @@
 #include "BEFEffectGLContext.h"
 #include "effect_manager/be_effect_handle.h"
 #include "effect_manager/be_render.h"
+#include "effect_manager/be_detector.h"
 #include <obs-module.h>
 #include "PBOReader.h"
 #include <QMutex>
@@ -23,6 +24,7 @@ public:
 	~BeautyHandle();
 	obs_source_frame *processFrame(obs_source_frame *frame);
 	void updateBeautySettings(obs_data_t *beautySetting);
+	void updateStrawberrySettings(obs_data_t *setting);
 
 private:
 	void initOpenGL();
@@ -38,7 +40,7 @@ private:
 	void deletePBO();
 	void checkBeautySettings();
 	void calcPosition(int &width, int &height, int w, int h);
-	bool updateStrawberryData(float width, float height);
+	void updateStrawberryData(float width, float height);
 
 private:
 	obs_source_t *m_source;
@@ -47,8 +49,10 @@ private:
 	bool effectHandlerInited = false;
 	bool beautyEnabled = false;
 	EffectHandle *m_effectHandle = nullptr;
+	BEDectector* m_dectector = nullptr;
 
 	QMutex m_beautifySettingMutex;
+	QMutex m_strawberryMutex;
 	QList<QString> m_beautifySettings;
 
 	uint32_t m_lastWidth = 0;
@@ -66,10 +70,11 @@ private:
 	GLuint m_outputTexture = 0;
 	GLuint m_outputTexture2 = 0;
 	GLuint m_strawberryTexture = 0;
+	GLuint m_bombTexture = 0;
 
 	GameStickerType m_gameStickerType = None;
 	QImage m_strawberry;
+	QImage m_bomb;
 	int m_curRegion = -1;
 	quint64 m_gameStartTime;
-	//QTimer m_timer;
 };

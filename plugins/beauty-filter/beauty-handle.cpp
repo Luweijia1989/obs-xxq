@@ -5,21 +5,15 @@
 #include <QJsonObject>
 #include <QDateTime>
 #include <QtMath>
+#include <QJsonDocument>
+#include <QApplication>
+#include <QEvent>
 
 #define STRAWBERRY_TIME 4
 
 BeautyHandle::BeautyHandle(obs_source_t *context) : m_source(context)
 {
 	initOpenGL();
-
-	/*m_timer.setInterval(10 * 1000);
-	QObject* obj = new QObject;
-	QObject::connect(&m_timer, &QTimer::timeout, obj, [=]() {
-		m_gameStickerType = GameStickerType::GameStart;
-		m_curRegion = 2;
-		m_gameStartTime = QDateTime::currentMSecsSinceEpoch();
-	});
-	m_timer.start();*/
 }
 
  BeautyHandle::~BeautyHandle()
@@ -42,6 +36,9 @@ void BeautyHandle::initOpenGL()
 	m_effectHandle = new EffectHandle;
 	auto ret = m_effectHandle->initializeHandle();
 	effectHandlerInited = BEF_RESULT_SUC == ret;
+
+	m_dectector = new BEDectector;
+	m_dectector->initializeDetector(false);
 
 	m_glctx.doneCurrentContext();
 }
@@ -116,8 +113,12 @@ void BeautyHandle::calcPosition(int &width, int &height, int w, int h)
 	height = h - (y_r + 0.5) * stepy;
 }
 
-bool BeautyHandle::updateStrawberryData(float width, float height)
+void BeautyHandle::updateStrawberryData(float width, float height)
 {
+	QMutexLocker lock(&m_strawberryMutex);
+
+	QSize strawberrySize = m_gameStickerType == Strawberry ? m_strawberry.size() : m_bomb.size();
+
 	int s, h;
 	calcPosition(s, h, width, height);
 	qreal deltaTime = (QDateTime::currentMSecsSinceEpoch() - m_gameStartTime) / 1000.;
@@ -125,31 +126,52 @@ bool BeautyHandle::updateStrawberryData(float width, float height)
 	int s1 = s / qSqrt(8 * h / gvalue) * deltaTime;
 	int h1 = qSqrt(2 * gvalue * h) * deltaTime -
 		 0.5 * gvalue * deltaTime * deltaTime;
-	QPoint center = QPoint(s1 + width / 2 - m_strawberry.width() / 2,
-		m_strawberry.height() + h1);
+	QPoint center = QPoint(s1 + width / 2 - strawberrySize.width() / 2,
+		strawberrySize.height() + h1);
 	QRect strawberryRect = QRect(center.x(), height - center.y(),
-		m_strawberry.width(),
-		m_strawberry.height());
+		strawberrySize.width(),
+		strawberrySize.height());
 	float maskX = 2. * center.x() / width - 1;
 	float maskY = -(2. * center.y() / height - 1);
 
-	QRect w(0, 0, width, height);
-	// 草莓离开可视区域
-	if (!w.intersects(strawberryRect)) {
-		m_gameStickerType = GameStickerType::None;
-		return false;
-	}
-
-	float m_scaleWidth = m_strawberry.width()/ width;
-	float m_scaleHeight = m_strawberry.height()/ height;
-	if (m_scaleWidth == 0.0f || m_scaleHeight == 0.0f)
+	bool hit = false;
+	PBOReader::DisposableBuffer buf;
+	if (m_dectector && m_reader->read(m_outputTexture, width, height, buf))
 	{
-		printf("GLError BERender::drawFace \n");
-		return false;
+		bef_ai_face_info faceInfo;
+		m_dectector->detectFace(&faceInfo, buf.get(),
+					BEF_AI_PIX_FMT_RGBA8888,
+					BEF_AI_CLOCKWISE_ROTATE_0,
+					BEF_DETECT_MODE_VIDEO | BEF_FACE_DETECT,
+					false);
+
+		if (faceInfo.face_count >= 1) {
+			if (m_gameStickerType == Strawberry) {
+				// 吃到草莓
+				bef_ai_face_ext_info face = faceInfo.extra_infos[0];
+				QRect r(QPoint(face.lips[84].x, face.lips[87].y),
+					QPoint(face.lips[90].x, face.lips[93].y));
+				hit = strawberryRect.intersects(r);
+			} else if (m_gameStickerType == Bomb) {
+				bef_ai_face_106 face = faceInfo.base_infos[0];
+				QRect r(QPoint(face.rect.left, face.rect.top),
+					QPoint(face.rect.right, face.rect.bottom));
+				hit = strawberryRect.intersects(r);
+			}
+		}
 	}
 
-	float maskWith = maskX + m_scaleWidth;
-	float maskHeight = maskY + m_scaleHeight;
+	// 草莓离开可视区域
+	QRect w(0, 0, width, height);
+	if (hit || !w.intersects(strawberryRect)) {
+		m_gameStickerType = GameStickerType::None;
+		qApp->postEvent(qApp, new QEvent((QEvent::Type)(
+					      hit ? QEvent::User + 1024
+						  : QEvent::User + 1025)));
+	}
+
+	float maskWith = maskX + strawberrySize.width() / width;
+	float maskHeight = maskY + strawberrySize.height() / height;
 	float vertices[] = {
 		// positions         // texture coords
 		maskWith, maskY,      1.0f, 0.0f, // top right
@@ -171,14 +193,12 @@ bool BeautyHandle::updateStrawberryData(float width, float height)
 
 	glBindBuffer(GL_ARRAY_BUFFER, 0);
 	glBindVertexArray(0);
-
-	return true;
 }
 
 obs_source_frame *BeautyHandle::processFrame(obs_source_frame *frame)
 {
 	static bool needDrop = false;
-	/*checkBeautySettings();
+	checkBeautySettings();
 	bool doBeauty = effectHandlerInited && beautyEnabled;
 	auto settings = obs_source_get_settings(m_source);
 	obs_data_set_int(settings, "need_beauty", doBeauty ? 1 : 0);
@@ -186,7 +206,7 @@ obs_source_frame *BeautyHandle::processFrame(obs_source_frame *frame)
 	if (!doBeauty || frame->format != VIDEO_FORMAT_RGBA) {
 		needDrop = true;
 		return frame;
-	}*/
+	}
 
 	m_glctx.makeCurrentContext();
 
@@ -251,8 +271,10 @@ obs_source_frame *BeautyHandle::processFrame(obs_source_frame *frame)
 	auto result = m_effectHandle->process(copyDraw ? m_outputTexture2 : m_backgroundTexture, m_outputTexture, frame->width, frame->height, false, timestamp);	
 
 	//草莓
-	if (m_gameStickerType != GameStickerType::None && updateStrawberryData(frame->width, frame->height))
+	if (m_gameStickerType == GameStickerType::Strawberry || m_gameStickerType == GameStickerType::Bomb)
 	{
+		updateStrawberryData(frame->width, frame->height);
+
 		glEnable(GL_BLEND);
 		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
@@ -265,7 +287,7 @@ obs_source_frame *BeautyHandle::processFrame(obs_source_frame *frame)
 		}
 
 		glActiveTexture(GL_TEXTURE0);
-		glBindTexture(GL_TEXTURE_2D, m_strawberryTexture);
+		glBindTexture(GL_TEXTURE_2D, m_gameStickerType == Strawberry ? m_strawberryTexture : m_bombTexture);
 		
 		//glViewport(0, 0, frame->width, frame->height);
 		glUseProgram(m_strawberryShader);
@@ -299,6 +321,21 @@ void BeautyHandle::updateBeautySettings(obs_data_t *beautySetting)
 	const char *s = obs_data_get_string(beautySetting, "beautifySetting");
 	QMutexLocker locker(&m_beautifySettingMutex);
 	m_beautifySettings.append(s);
+}
+
+void BeautyHandle::updateStrawberrySettings(obs_data_t *setting)
+{
+	const char *s = obs_data_get_string(setting, "face_sticker_info");
+	QJsonObject obj = QJsonDocument::fromJson(s).object();
+	if (obj.isEmpty())
+		return;
+
+	QMutexLocker lock(&m_strawberryMutex);
+	m_gameStickerType = (GameStickerType)obs_data_get_int(setting, "gameType");
+	if (m_gameStickerType == Bomb || m_gameStickerType == Strawberry) {
+		m_curRegion = obs_data_get_int(setting, "region");
+		m_gameStartTime = QDateTime::currentMSecsSinceEpoch();
+	}
 }
 
 void BeautyHandle::initShader()
@@ -479,14 +516,27 @@ void BeautyHandle::createTextures(int w, int h)
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 	glBindTexture(GL_TEXTURE_2D, 0);
 
-	//QImage strawberry = QImage(":/mark/image/main/strawberry2.png");
-	m_strawberry.load("D:\\xxq-recon\\yuerlive\\resource\\image\\main\\strawberry2.png");
+	//QImage strawberry = QImage("D:\\xxq-recon\\yuerlive\\resource\\image\\main\\strawberry2.png");
+	m_strawberry.load(":/mark/image/main/strawberry2.png");
 	m_strawberry.convertTo(QImage::Format_RGBA8888);
 	
 	glGenTextures(1, &m_strawberryTexture);
 	glBindTexture(GL_TEXTURE_2D, m_strawberryTexture);
 	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, m_strawberry.width(),
 		m_strawberry.height(), 0, GL_RGBA, GL_UNSIGNED_BYTE, m_strawberry.bits());
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+	glBindTexture(GL_TEXTURE_2D, 0);
+
+	m_bomb.load(":/mark/image/main/bomb2.png");
+	m_bomb.convertTo(QImage::Format_RGBA8888);
+
+	glGenTextures(1, &m_bombTexture);
+	glBindTexture(GL_TEXTURE_2D, m_bombTexture);
+	glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, m_bomb.width(),
+		m_bomb.height(), 0, GL_RGBA, GL_UNSIGNED_BYTE, m_bomb.bits());
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
 	glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
@@ -510,6 +560,11 @@ void BeautyHandle::deleteTextures()
 	if (m_strawberryTexture) {
 		glDeleteTextures(1, &m_strawberryTexture);
 	}
+
+	if (m_bombTexture)
+	{
+		glDeleteTextures(1, &m_bombTexture);
+	}
 }
 
 void BeautyHandle::freeResource()
@@ -517,6 +572,13 @@ void BeautyHandle::freeResource()
 	m_effectHandle->releaseHandle();
 	delete m_effectHandle;
 	m_effectHandle = nullptr;
+
+	if (m_dectector)
+	{
+		m_dectector->releaseDetector();
+		delete m_dectector;
+		m_dectector = nullptr;
+	}
 }
 
 void BeautyHandle::clearGLResource()

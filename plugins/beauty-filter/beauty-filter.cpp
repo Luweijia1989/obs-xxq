@@ -71,7 +71,10 @@ beauty_filter_video(void *data, struct obs_source_frame *frame)
 void beauty_custom_command(void *data, obs_data_t *command)
 {
 	BeautyHandle *filter = (BeautyHandle *)data;
-	filter->updateBeautySettings(command);
+	if (obs_data_has_user_value(command, "face_sticker_info"))
+		filter->updateBeautySettings(command);
+	else
+		filter->updateBeautySettings(command);
 }
 
 OBS_DECLARE_MODULE()
