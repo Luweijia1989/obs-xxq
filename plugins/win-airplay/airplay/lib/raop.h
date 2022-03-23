@@ -36,6 +36,7 @@ struct raop_callbacks_s {
 
     void  (*audio_process)(void *cls, raop_ntp_t *ntp, aac_decode_struct *data);
     void  (*video_process)(void *cls, raop_ntp_t *ntp, h264_decode_struct *data);
+    void  (*audio_session_start)(void *cls);
 
     /* Optional but recommended callback functions */
     void  (*conn_init)(void *cls);

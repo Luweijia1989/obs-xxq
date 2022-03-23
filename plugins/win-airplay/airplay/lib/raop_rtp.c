@@ -548,6 +548,7 @@ raop_rtp_start_audio(raop_rtp_t *raop_rtp, int use_udp, unsigned short control_r
     raop_rtp->running = 1;
     raop_rtp->joined = 0;
 
+    raop_rtp->callbacks.audio_session_start(raop_rtp->callbacks.cls);
     THREAD_CREATE(raop_rtp->thread, raop_rtp_thread_udp, raop_rtp);
     MUTEX_UNLOCK(raop_rtp->run_mutex);
 }

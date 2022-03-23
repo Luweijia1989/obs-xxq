@@ -20,6 +20,7 @@ enum mirror_status { // same as obs_source_mirror_status
 	MIRROR_START,
 	MIRROR_STOP,
 	MIRROR_OUTPUT,
+	MIRROR_AUDIO_SESSION_START,
 };
 
 #define FFM_SUCCESS 0

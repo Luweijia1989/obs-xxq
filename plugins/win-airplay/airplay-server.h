@@ -99,6 +99,8 @@ private:
 	bool canProcessMediaData();
 	void releaseRenderTexture();
 
+	void resetAudioState(bool clearAudioInfo = false);
+
 private:
 	std::thread m_audioLoopThread;
 	media_audio_info m_audioInfo;
@@ -115,6 +117,8 @@ private:
 	int64_t m_firstVideoPTS = LLONG_MAX;
 	int64_t m_audioExtraOffset = LLONG_MAX;
 	int64_t m_videoExtraOffset = LLONG_MAX;
+	int64_t m_lastAudioPts = LLONG_MAX;
+	int64_t m_fixAudioOffset = LLONG_MAX;
 	pthread_mutex_t m_ptsMutex;
 
 	std::map<uint32_t, VideoInfo> m_videoInfos;

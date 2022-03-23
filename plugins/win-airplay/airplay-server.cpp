@@ -505,7 +505,10 @@ bool ScreenMirrorServer::handleMediaData()
 	if (header_info.type == FFM_MIRROR_STATUS) {
 		int status = -1;
 		circlebuf_pop_front(&m_avBuffer, &status, sizeof(int));
-		handleMirrorStatus(status);
+		if (status == MIRROR_AUDIO_SESSION_START) {
+			resetAudioState();
+		} else
+			handleMirrorStatus(status);
 	} else if (header_info.type == FFM_MEDIA_VIDEO_INFO) {
 		struct media_video_info info;
 		memset(&info, 0, req_size);
@@ -540,6 +543,24 @@ bool ScreenMirrorServer::handleMediaData()
 	return true;
 }
 
+void ScreenMirrorServer::resetAudioState(bool clearAudioInfo)
+{
+	pthread_mutex_lock(&m_audioDataMutex);
+	m_audioOffset = LLONG_MAX;
+	for (auto iter = m_audioFrames.begin(); iter != m_audioFrames.end();
+	     iter++) {
+		AudioFrame &f = *iter;
+		free(f.data);
+	}
+	m_audioFrames.clear();
+	if (clearAudioInfo)
+		memset(&m_audioInfo, 0, sizeof(media_audio_info));
+	m_lastAudioPts = LLONG_MAX;
+	m_fixAudioOffset = LLONG_MAX;
+
+	pthread_mutex_unlock(&m_audioDataMutex);
+}
+
 void ScreenMirrorServer::resetState()
 {
 	pthread_mutex_lock(&m_videoDataMutex);
@@ -560,16 +581,7 @@ void ScreenMirrorServer::resetState()
 	m_videoInfos.clear();
 	pthread_mutex_unlock(&m_videoDataMutex);
 
-	pthread_mutex_lock(&m_audioDataMutex);
-	m_audioOffset = LLONG_MAX;
-	for (auto iter = m_audioFrames.begin(); iter != m_audioFrames.end();
-	     iter++) {
-		AudioFrame &f = *iter;
-		free(f.data);
-	}
-	m_audioFrames.clear();
-	memset(&m_audioInfo, 0, sizeof(media_audio_info));
-	pthread_mutex_unlock(&m_audioDataMutex);
+	resetAudioState(true);
 
 	pthread_mutex_lock(&m_ptsMutex);
 	if (m_backend == ANDROID_WIRELESS || m_backend == IOS_WIRELESS)
@@ -723,7 +735,7 @@ void *ScreenMirrorServer::audio_tick_thread(void *data)
 				int64_t now_ms = (int64_t)os_gettime_ns() / 1000000;
 
 				if (s->m_audioOffset == LLONG_MAX) {
-					s->m_audioOffset = now_ms - pts + s->m_audioExtraOffset; 
+					s->m_audioOffset = now_ms - pts + s->m_audioExtraOffset;
 				}
 
 				s->dropAudioFrame(now_ms);
@@ -752,7 +764,25 @@ void ScreenMirrorServer::outputAudio(uint8_t *data, size_t data_len, int64_t pts
 
 	pts = pts / 1000000;
 	pthread_mutex_lock(&m_audioDataMutex);
+	//这边的pts修正逻辑只有ios镜像投屏才会走到
+	if (m_lastAudioPts == LLONG_MAX) {
+		m_lastAudioPts = pts;
+	} else {
+		if (m_fixAudioOffset != LLONG_MAX) {
+			pts = pts - m_fixAudioOffset;
+		} else {
+			int64_t frameDuration = data_len * 1000 / (m_audioInfo.samples_per_sec * 4); //发过来的pcm都是16bit 双声道
+			if (pts - m_lastAudioPts > 3600 * 24) {//如果相邻时间戳的值相差太大，需要修正
+				m_fixAudioOffset = pts - m_lastAudioPts - frameDuration;
+				pts = pts - m_fixAudioOffset;
+			}
+		}
+	}
+
 	m_audioFrames.push_back({data, data_len, pts, serial});
+
+	m_lastAudioPts = pts;
+
 	pthread_mutex_unlock(&m_audioDataMutex);
 }
 

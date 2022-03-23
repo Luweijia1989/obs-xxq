@@ -564,11 +564,16 @@ extern "C" void log_callback(void *cls, int level, const char *msg) {
     qDebug() << msg;
 }
 
+extern "C" void audio_session_start(void *cls) {
+    send_status(ipc_client, MIRROR_AUDIO_SESSION_START);
+}
+
 int start_server(std::vector<char> hw_addr, std::string name, bool debug_log) {
     raop_callbacks_t raop_cbs;
     memset(&raop_cbs, 0, sizeof(raop_cbs));
     raop_cbs.conn_init = conn_init;
     raop_cbs.conn_destroy = conn_destroy;
+    raop_cbs.audio_session_start = audio_session_start;
     raop_cbs.audio_process = audio_process;
     raop_cbs.video_process = video_process;
     raop_cbs.audio_flush = audio_flush;
