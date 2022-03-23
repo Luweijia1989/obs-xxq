@@ -73,7 +73,6 @@ public:
 
 	static void pipeCallback(void *param, uint8_t *data, size_t size);
 	static void *CreateWinAirplay(obs_data_t *settings, obs_source_t *source);
-	static void *audio_tick_thread(void *data);
 	int m_width = 0;
 	int m_height = 0;
 	obs_source_t *m_source = nullptr;
@@ -102,7 +101,6 @@ private:
 	void resetAudioState(bool clearAudioInfo = false);
 
 private:
-	std::thread m_audioLoopThread;
 	media_audio_info m_audioInfo;
 	bool m_stop = false;
 

@@ -166,21 +166,18 @@ ScreenMirrorServer::ScreenMirrorServer(obs_source_t *source, int type)
 	m_renderer->Init();
 
 	m_stop = false;
-	m_audioLoopThread = std::thread(ScreenMirrorServer::audio_tick_thread, this);
 
 	changeBackendType(type);
 }
 
 ScreenMirrorServer::~ScreenMirrorServer()
 {
+	m_stop = true;
+
 	mirrorServerDestroy();
 
 	delete m_commandIPC;
 	delete m_timerHelperObject;
-
-	m_stop = true;
-	if (m_audioLoopThread.joinable())
-		m_audioLoopThread.join();
 
 	obs_enter_graphics();
 	gs_image_file2_free(if2);
@@ -467,8 +464,54 @@ void ScreenMirrorServer::handleMirrorStatus(int status)
 	});
 }
 
+static void sendToObs(std::list<AudioFrame> *frames, obs_source_t *source, media_audio_info *audioInfo) {
+	if (frames->size() <= 0
+		|| !audioInfo->samples_per_sec
+		|| audioInfo->format == AUDIO_FORMAT_UNKNOWN
+		|| audioInfo->speakers == SPEAKERS_UNKNOWN)
+		return;
+	AudioFrame &frame = frames->front();
+	obs_source_audio audio;
+	audio.format = audioInfo->format;
+	audio.samples_per_sec = audioInfo->samples_per_sec;
+	audio.speakers = audioInfo->speakers;
+	audio.frames = frame.data_len / (audioInfo->speakers * sizeof(short));
+	audio.timestamp = os_gettime_ns();
+	audio.data[0] = frame.data;
+	obs_source_output_audio(source, &audio);
+
+	free(frame.data);
+	frames->pop_front();
+}
+
 bool ScreenMirrorServer::handleMediaData()
 {
+	pthread_mutex_lock(&m_audioDataMutex);
+	while (true) {
+		if (canProcessMediaData() && m_audioFrames.size() > 0) {
+			int64_t pts = m_audioFrames.front().pts;
+			if (pts > 0) {
+				int64_t now_ms = (int64_t)os_gettime_ns() / 1000000;
+
+				if (m_audioOffset == LLONG_MAX) {
+					m_audioOffset = now_ms - pts + m_audioExtraOffset;
+				}
+
+				dropAudioFrame(now_ms);
+
+				int64_t target_pts = m_audioFrames.front().pts + m_audioOffset + m_extraDelay;
+				if (target_pts <= now_ms) {
+					sendToObs(&m_audioFrames, m_source, &m_audioInfo);
+				} else
+					break;
+			} else {
+				sendToObs(&m_audioFrames, m_source, &m_audioInfo);
+			}
+		} else
+			break;
+	}
+	pthread_mutex_unlock(&m_audioDataMutex);
+
 	static size_t max_packet_size = 1024 * 1024 * 10;
 
 	size_t header_size = sizeof(struct av_packet_info);
@@ -702,57 +745,6 @@ void ScreenMirrorServer::dropAudioFrame(int64_t now_ms)
 		} else
 			break;
 	}
-}
-
-void *ScreenMirrorServer::audio_tick_thread(void *data)
-{
-	auto func = [](std::list<AudioFrame> *frames, obs_source_t *source, media_audio_info *audioInfo) {
-		if (frames->size() <= 0
-		    || !audioInfo->samples_per_sec
-		    || audioInfo->format == AUDIO_FORMAT_UNKNOWN
-		    || audioInfo->speakers == SPEAKERS_UNKNOWN)
-			return;
-		AudioFrame &frame = frames->front();
-		obs_source_audio audio;
-		audio.format = audioInfo->format;
-		audio.samples_per_sec = audioInfo->samples_per_sec;
-		audio.speakers = audioInfo->speakers;
-		audio.frames = frame.data_len / (audioInfo->speakers * sizeof(short));
-		audio.timestamp = os_gettime_ns();
-		audio.data[0] = frame.data;
-		obs_source_output_audio(source, &audio);
-
-		free(frame.data);
-		frames->pop_front();
-	};
-
-	ScreenMirrorServer *s = (ScreenMirrorServer *)data;
-	while (!s->m_stop) {
-		pthread_mutex_lock(&s->m_audioDataMutex);
-		if (s->canProcessMediaData() && s->m_audioFrames.size() > 0) {
-			int64_t pts = s->m_audioFrames.front().pts;
-			if (pts > 0) {
-				int64_t now_ms = (int64_t)os_gettime_ns() / 1000000;
-
-				if (s->m_audioOffset == LLONG_MAX) {
-					s->m_audioOffset = now_ms - pts + s->m_audioExtraOffset;
-				}
-
-				s->dropAudioFrame(now_ms);
-
-				int64_t target_pts = s->m_audioFrames.front().pts + s->m_audioOffset + s->m_extraDelay;
-				if (target_pts <= now_ms) {
-					func(&s->m_audioFrames, s->m_source, &s->m_audioInfo);
-				}
-			} else {
-				func(&s->m_audioFrames, s->m_source, &s->m_audioInfo);
-			}
-		}
-		pthread_mutex_unlock(&s->m_audioDataMutex);
-		os_sleep_ms(2);
-	}
-
-	return NULL;
 }
 
 void ScreenMirrorServer::outputAudio(uint8_t *data, size_t data_len, int64_t pts, int serial)
