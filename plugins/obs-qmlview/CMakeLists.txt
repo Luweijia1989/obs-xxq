@@ -1,4 +1,4 @@
-project(obs-qmlview)
+﻿project(obs-qmlview)
 
 set(CMAKE_INCLUDE_CURRENT_DIR TRUE)
 set(CMAKE_AUTOMOC TRUE)
@@ -57,6 +57,7 @@ set(qmlview_SOURCES
     enter-room.cpp
     new-rank.cpp
     new-vote.cpp
+    audio-live-link.cpp
 )
 
 set( qmlview_HEADERS
@@ -83,6 +84,7 @@ set( qmlview_HEADERS
     enter-room.h
     new-rank.h
     new-vote.h
+    audio-live-link.h
 )
 
 set(qmlview_QRC qmlview.qrc)

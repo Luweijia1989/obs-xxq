@@ -153,5 +153,7 @@
         <file>image/timer/theme7@2x.png</file>
         <file>image/fanstarget/grayBlue.png</file>
         <file>image/fanstarget/grayBlue@2x.png</file>
+        <file>AudioLiveLink.qml</file>
+        <file>CommonAnimateImage.qml</file>
     </qresource>
 </RCC>

@@ -1,4 +1,4 @@
-/******************************************************************************
+﻿/******************************************************************************
     Copyright (C) 2013-2014 by Hugh Bailey <obs.jim@gmail.com>
 
     This program is free software: you can redistribute it and/or modify
@@ -1881,8 +1881,8 @@ static obs_source_t *obs_load_source_type(obs_data_t *source_data)
 		sprintf(duplicate_name, "%s %d", name, search_index++);
 	}
 
-	source = obs_source_create_set_last_ver(id, duplicate_name, settings, hotkeys,
-						prev_ver);
+	source = obs_source_create_set_last_ver(id, duplicate_name, settings,
+						hotkeys, prev_ver);
 	obs_data_set_string(source_data, "name", duplicate_name);
 
 	obs_data_release(hotkeys);
@@ -2536,7 +2536,6 @@ void obs_default_output_audio_device_changed()
 	pthread_mutex_unlock(&obs->audio.monitoring_mutex);
 }
 
-
 bool obs_set_audio_monitoring_device(const char *name, const char *id)
 {
 	if (!obs || !name || !id || !*name || !*id)
@@ -2822,6 +2821,10 @@ void obs_source_create_xxqsource(int type /*1=privacy 2=leave*/,
 				"mask_source", MASK_ID, settings);
 			obs_source_activate(data->mask_source, MAIN_VIEW);
 		}
+	} else if (type == 6) {
+		data->audiolivelink_source = obs_source_create_private(
+			"audio_livelink_source", AUDIOLINK_ID, settings);
+		obs_source_activate(data->audiolivelink_source, MAIN_VIEW);
 	}
 }
 
@@ -2841,6 +2844,9 @@ void obs_source_update_xxqsource(int type /*1=privacy 2=leave*/,
 		break;
 	case 5:
 		obs_source_update(data->mask_source, settings);
+		break;
+	case 6:
+		obs_source_update(data->audiolivelink_source, settings);
 		break;
 	default:
 		break;
@@ -2865,6 +2871,9 @@ void obs_source_destroy_xxqsource(int type)
 	} else if (type == 5) {
 		obs_source_release(data->mask_source);
 		data->mask_source = NULL;
+	} else if (type == 6) {
+		obs_source_release(data->audiolivelink_source);
+		data->audiolivelink_source = NULL;
 	}
 }
 
@@ -2873,6 +2882,9 @@ void obs_source_custom_command_xxqsource(int type, obs_data_t *settings)
 	struct obs_core_data *data = &obs->data;
 	if (type == 5 && data->mask_source) {
 		obs_source_do_custom_command(data->mask_source, settings);
+	} else if (type == 6 && data->audiolivelink_source) {
+		obs_source_do_custom_command(data->audiolivelink_source,
+					     settings);
 	}
 }
 
@@ -3079,8 +3091,10 @@ void obs_rtc_update_frame(int channel, char *data, uint32_t width,
 		return;
 	obs_enter_graphics();
 	if (rtc_mix->rtc_textures[channel]) {
-		uint32_t w = gs_texture_get_width(rtc_mix->rtc_textures[channel]);
-		uint32_t h = gs_texture_get_height(rtc_mix->rtc_textures[channel]);
+		uint32_t w =
+			gs_texture_get_width(rtc_mix->rtc_textures[channel]);
+		uint32_t h =
+			gs_texture_get_height(rtc_mix->rtc_textures[channel]);
 		if (w != width || h != height) {
 			gs_texture_destroy(rtc_mix->rtc_textures[channel]);
 			rtc_mix->rtc_textures[channel] = NULL;
