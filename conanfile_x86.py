@@ -97,6 +97,7 @@ class ObsXXQConan(ConanFile):
             self.copy("*.dll", dst="plugins/data/obs-plugins/win-capture", src="build64/plugins/win-capture/graphics-hook/Debug", keep_path=False)
             self.copy("*.pdb*", dst="plugins/data/obs-plugins/win-capture", src="build64/plugins/win-capture/graphics-hook/Debug", keep_path=False)
             self.copy("*.exe*", dst="plugins/data/obs-plugins/enc-amf", src="build32/plugins/enc-amf/amf-test/Debug", keep_path=True)
+            self.copy("*.exe*", dst="plugins/data/obs-plugins/enc-amf", src="build64/plugins/enc-amf/amf-test/Debug", keep_path=True)
         else:
             self.copy("*.dll", dst="bin", src="build32/libobs/RelWithDebInfo", keep_path=False)
             self.copy("*.pdb", dst="bin", src="build32/libobs/RelWithDebInfo", keep_path=False)
@@ -173,6 +174,7 @@ class ObsXXQConan(ConanFile):
             self.copy("*.dll", dst="plugins/data/obs-plugins/win-capture", src="build64/plugins/win-capture/graphics-hook/RelWithDebInfo", keep_path=False)
             self.copy("*.pdb", dst="plugins/data/obs-plugins/win-capture", src="build64/plugins/win-capture/graphics-hook/RelWithDebInfo", keep_path=False)
             self.copy("*.exe*", dst="plugins/data/obs-plugins/enc-amf", src="build32/plugins/enc-amf/amf-test/RelWithDebInfo", keep_path=True)
+            self.copy("*.exe*", dst="plugins/data/obs-plugins/enc-amf", src="build64/plugins/enc-amf/amf-test/RelWithDebInfo", keep_path=True)
             
             
         self.copy("*.*", dst="plugins/data/libobs", src="libobs/data", keep_path=True)
