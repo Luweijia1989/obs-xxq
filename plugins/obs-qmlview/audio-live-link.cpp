@@ -31,6 +31,10 @@ static void audio_livelink_source_update(void *data, obs_data_t *settings)
 
 	const char *wavePath = obs_data_get_string(settings, "wavepath");
 	s->setwave(wavePath);
+
+	const char *effectPath = obs_data_get_string(settings, "effectpath");
+	s->seteffect(effectPath);
+
 	s->baseUpdate(settings);
 }
 
@@ -78,6 +82,10 @@ static void audioLiveLinkCommand(void *data, obs_data_t *cmd)
 		emit s->play();
 	} else if (strcmp("stop", cmdType) == 0 && s) {
 		emit s->stop();
+	} else if (strcmp("showpkface", cmdType) == 0 && s) {
+		emit s->showPkEffect();
+	} else if (strcmp("stoppkface", cmdType) == 0 && s) {
+		emit s->stopPkEffect();
 	}
 }
 
