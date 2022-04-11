@@ -560,53 +560,91 @@ static inline void render_rtc_textures(gs_effect_t *effect,
 
 static inline void render_rtc_remote_textures(gs_effect_t *effect,
 				       gs_technique_t *tech,
+				       gs_texrender_t **render,
 				       gs_texture_t *src_texture, int x_pos,
 				       int y_pos, uint32_t target_width,
 				       uint32_t target_height, uint32_t final_width, uint32_t final_height)
 {
-	gs_eparam_t *image = gs_effect_get_param_by_name(effect, "image");
-	size_t passes, i;
+	if (!*render)
+		*render = gs_texrender_create(GS_RGBA, GS_ZS_NONE);
 
-	gs_viewport_push();
-	gs_projection_push();
-	gs_matrix_push();
-	gs_matrix_identity();
-
-	uint32_t src_width = gs_texture_get_width(src_texture);
-	uint32_t src_height = gs_texture_get_height(src_texture);
+	uint32_t width = gs_texture_get_width(src_texture);
+	uint32_t height = gs_texture_get_height(src_texture);
 
 	uint32_t ret_width = 0;
 	uint32_t ret_height = 0;
-	uint32_t rw = (uint32_t)((float)target_height * (float)src_width / (float)src_height);
+	uint32_t rw = (uint32_t)((float)target_height * (float)width / (float)height);
 	bool use_height = (rw >= target_width);
 	if (use_height) {
 		ret_width = rw;
 		ret_height = target_height;
 	} else {
 		ret_width = target_width;
-		ret_height = (uint32_t)((float)target_width * (float)src_height / (float)src_width);
+		ret_height = (uint32_t)((float)target_width * (float)height / (float)width);
 	}
 
-	int width_o = target_width - ret_width;
-	int height_o = target_height - ret_height;
-	int view_x = x_pos + width_o / 2;
-	int view_y = y_pos + height_o / 2;
+	int width_o = ret_width - target_width;
+	int height_o = ret_height - target_height;
 
-	int view_w = view_x < 0 ? abs(view_x) * 2 + final_width : final_width;
-	int view_h = view_y < 0 ? abs(view_y) * 2 + final_height : final_height;
+	int crop_left = width_o / 2;
+	int crop_top = height_o / 2;
 
-	gs_ortho(0.0f, (float)view_w, 0.0f, (float)view_h, -100.0f, 100.0f);
-	gs_set_viewport(view_x, view_y, view_w, view_h);
+	if (gs_texrender_begin(*render, target_width, target_height)) {
+		float cx_scale = (float)ret_width / (float)target_width;
+		float cy_scale = (float)ret_height / (float)target_height;
+		
+		struct vec4 clear_color;
 
-	float ratio = (float)ret_width / (float)src_width;
-	gs_matrix_scale3f(ratio, ratio, 1.0f);
-	gs_effect_set_texture(image, src_texture);
+		vec4_zero(&clear_color);
+		clear_color.x = 1.0f;
+		gs_clear(GS_CLEAR_COLOR, &clear_color, 0.0f, 0);
+		gs_ortho(0.0f, (float)width, 0.0f, (float)height,
+				-100.0f, 100.0f);
+
+		gs_matrix_scale3f(cx_scale, cy_scale, 1.0f);
+		gs_matrix_translate3f(-(float)crop_left,
+					-(float)crop_top, 0.0f);
+
+		{
+			gs_effect_t *effect = obs->video.default_effect;
+			gs_technique_t *tech = gs_effect_get_technique(effect, "Draw");
+			size_t passes, i;
+
+			passes = gs_technique_begin(tech);
+			for (i = 0; i < passes; i++) {
+				gs_technique_begin_pass(tech, i);
+				gs_effect_set_texture(gs_effect_get_param_by_name(effect, "image"),
+				      src_texture);
+				gs_draw_sprite(src_texture, 0, width, height);
+				gs_technique_end_pass(tech);
+			}
+			gs_technique_end(tech);
+		}
+
+		gs_texrender_end(*render);
+	}
+
+
+	size_t passes, i;
+	gs_eparam_t *image = gs_effect_get_param_by_name(effect, "image");
+
+	gs_viewport_push();
+	gs_projection_push();
+	gs_matrix_push();
+	gs_matrix_identity();
+
+	uint32_t src_width = gs_texture_get_width(gs_texrender_get_texture(*render));
+	uint32_t src_height = gs_texture_get_height(gs_texrender_get_texture(*render));
+
+	gs_effect_set_texture(image, gs_texrender_get_texture(*render));
+
+	gs_set_viewport(x_pos, y_pos, final_width, final_height);
 
 	gs_enable_blending(false);
 	passes = gs_technique_begin(tech);
 	for (i = 0; i < passes; i++) {
 		gs_technique_begin_pass(tech, i);
-		gs_draw_sprite(src_texture, 0, src_width, src_height);
+		gs_draw_sprite(gs_texrender_get_texture(*render), 0, src_width, src_height);
 		gs_technique_end_pass(tech);
 	}
 	gs_technique_end(tech);
@@ -642,10 +680,8 @@ render_rtc_output_texture(struct obs_core_video *video) //final output
 	gs_clear(GS_CLEAR_COLOR, &clear_color, 0.0f, 0);
 
 	//to do, auto texture layout, here we only user rtc_texture channel 0
-
-	
 	if (rtc_mix->rtc_textures[0]) {
-		render_rtc_remote_textures(effect, tech, rtc_mix->rtc_textures[0], 720, 0, 720, 1080, width, height);
+		render_rtc_remote_textures(effect, tech, &rtc_mix->rtc_texture_render[0],rtc_mix->rtc_textures[0], 720, 0, 720, 1080, width, height);
 	}
 	//two 
 	render_rtc_textures(

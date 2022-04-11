@@ -1,4 +1,4 @@
-﻿/******************************************************************************
+/******************************************************************************
     Copyright (C) 2013-2014 by Hugh Bailey <obs.jim@gmail.com>
 
     This program is free software: you can redistribute it and/or modify
@@ -247,6 +247,7 @@ typedef void (*rtc_frame_output_t)(uint8_t **data, uint32_t *linesize,
 				   void *userdata);
 struct obs_rtc_mix {
 	gs_texture_t *rtc_textures[NUM_RTC_CHANNEL];
+	gs_texrender_t *rtc_texture_render[NUM_RTC_CHANNEL];
 	gs_texture_t *rtc_frame_texture;
 	gs_texture_t *rtc_frame_output_texture;
 	bool render_rtc_textures;

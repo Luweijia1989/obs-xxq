@@ -511,6 +511,9 @@ static void obs_rtc_capture_free(void)
 			gs_texture_destroy(rtc_mix->rtc_textures[c]);
 			rtc_mix->rtc_textures[c] = NULL;
 		}
+
+		if (rtc_mix->rtc_texture_render[c])
+			gs_texrender_destroy(rtc_mix->rtc_texture_render[c]);
 	}
 
 	obs_leave_graphics();
