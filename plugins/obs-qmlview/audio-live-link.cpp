@@ -83,6 +83,8 @@ static void audioLiveLinkCommand(void *data, obs_data_t *cmd)
 	} else if (strcmp("stop", cmdType) == 0 && s) {
 		emit s->stop();
 	} else if (strcmp("showpkface", cmdType) == 0 && s) {
+		const char *effectPath = obs_data_get_string(cmd, "effectpath");
+		s->seteffect(effectPath);
 		emit s->showPkEffect();
 	} else if (strcmp("stoppkface", cmdType) == 0 && s) {
 		emit s->stopPkEffect();

@@ -144,6 +144,7 @@ Item {
 	    onShowPkEffect:
         {
 			faceeffect.visible = true;
+			faceeffect.cacheSource = audioLiveLinkProperties.effect
             faceeffect.play();
             console.log("faceeffect play");
 		}
