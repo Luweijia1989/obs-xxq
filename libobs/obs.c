@@ -518,6 +518,11 @@ static void obs_rtc_capture_free(void)
 		}
 	}
 
+	if (rtc_mix->self_texture_render) {
+		gs_texrender_destroy(rtc_mix->self_texture_render);
+		rtc_mix->self_texture_render = NULL;
+	}
+
 	obs_leave_graphics();
 }
 
@@ -3111,4 +3116,12 @@ void obs_rtc_update_frame(int channel, char *data, uint32_t width,
 	gs_texture_set_image(rtc_mix->rtc_textures[channel], data, width * 4,
 			     false);
 	obs_leave_graphics();
+}
+
+void obs_rtc_set_merge_info(int type, int count, int self_index)
+{
+	struct obs_rtc_mix *rtc_mix = &obs->video.rtc_mix;
+	rtc_mix->total_remote_channels = count;
+	rtc_mix->video_merge_type = type;
+	rtc_mix->self_index = self_index;
 }

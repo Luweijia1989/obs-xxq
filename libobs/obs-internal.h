@@ -41,7 +41,7 @@
 #define MICROSECOND_DEN 1000000
 #define NUM_ENCODE_TEXTURES 3
 #define NUM_ENCODE_TEXTURE_FRAMES_TO_WAIT 1
-#define NUM_RTC_CHANNEL 8
+#define NUM_RTC_CHANNEL 9
 
 static inline int64_t packet_dts_usec(struct encoder_packet *packet)
 {
@@ -246,8 +246,12 @@ typedef void (*rtc_frame_output_t)(uint8_t **data, uint32_t *linesize,
 				   uint32_t width, uint32_t height,
 				   void *userdata);
 struct obs_rtc_mix {
+	uint32_t total_remote_channels;
+	int video_merge_type;
+	int self_index;
 	gs_texture_t *rtc_textures[NUM_RTC_CHANNEL];
 	gs_texrender_t *rtc_texture_render[NUM_RTC_CHANNEL];
+	gs_texrender_t *self_texture_render;
 	gs_texture_t *rtc_frame_texture;
 	gs_texture_t *rtc_frame_output_texture;
 	bool render_rtc_textures;

@@ -1,4 +1,4 @@
-﻿/******************************************************************************
+/******************************************************************************
     Copyright (C) 2013-2014 by Hugh Bailey <jim@obsproject.com>
 
     This program is free software: you can redistribute it and/or modify
@@ -2278,6 +2278,11 @@ EXPORT void obs_source_update_xxqsource(int type /*1=privacy 2=leave*/,
 EXPORT void obs_source_destroy_xxqsource(int type);
 
 EXPORT void obs_source_custom_command_xxqsource(int type, obs_data_t *settings);
+
+//设置本地混流基本信息
+//type 0=>普通连麦 1=>多人连麦 宫格形式
+//count type!=1时忽略 总共宫格数
+EXPORT void obs_rtc_set_merge_info(int type, int count, int self_index);
 
 EXPORT void obs_rtc_capture_begin(
 	uint32_t self_crop_x, uint32_t self_crop_y, uint32_t self_crop_width,
