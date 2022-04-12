@@ -1,4 +1,4 @@
-﻿/******************************************************************************
+/******************************************************************************
     Copyright (C) 2013-2014 by Hugh Bailey <obs.jim@gmail.com>
 
     This program is free software: you can redistribute it and/or modify
@@ -512,8 +512,10 @@ static void obs_rtc_capture_free(void)
 			rtc_mix->rtc_textures[c] = NULL;
 		}
 
-		if (rtc_mix->rtc_texture_render[c])
+		if (rtc_mix->rtc_texture_render[c]) {
 			gs_texrender_destroy(rtc_mix->rtc_texture_render[c]);
+			rtc_mix->rtc_texture_render[c] = NULL;
+		}
 	}
 
 	obs_leave_graphics();

@@ -589,6 +589,7 @@ static inline void render_rtc_remote_textures(gs_effect_t *effect,
 	int crop_left = width_o / 2;
 	int crop_top = height_o / 2;
 
+	gs_texrender_reset(*render);
 	if (gs_texrender_begin(*render, target_width, target_height)) {
 		float cx_scale = (float)ret_width / (float)target_width;
 		float cy_scale = (float)ret_height / (float)target_height;
@@ -639,6 +640,8 @@ static inline void render_rtc_remote_textures(gs_effect_t *effect,
 	gs_effect_set_texture(image, gs_texrender_get_texture(*render));
 
 	gs_set_viewport(x_pos, y_pos, final_width, final_height);
+	gs_ortho(0.0f, (float)final_width, 0.0f, (float)final_height,
+				-100.0f, 100.0f);
 
 	gs_enable_blending(false);
 	passes = gs_technique_begin(tech);
@@ -681,7 +684,7 @@ render_rtc_output_texture(struct obs_core_video *video) //final output
 
 	//to do, auto texture layout, here we only user rtc_texture channel 0
 	if (rtc_mix->rtc_textures[0]) {
-		render_rtc_remote_textures(effect, tech, &rtc_mix->rtc_texture_render[0],rtc_mix->rtc_textures[0], 720, 0, 720, 1080, width, height);
+		render_rtc_remote_textures(effect, tech, &rtc_mix->rtc_texture_render[0], rtc_mix->rtc_textures[0], 720, 0, 720, 1080, width, height);
 	}
 	//two 
 	render_rtc_textures(
