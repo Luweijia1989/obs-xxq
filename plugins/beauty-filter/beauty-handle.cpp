@@ -14,6 +14,16 @@
 BeautyHandle::BeautyHandle(obs_source_t *context) : m_source(context)
 {
 	initOpenGL();
+
+	/*QTimer* timer = new QTimer;
+	timer->setInterval(10 * 1000);
+	QObject* obj = new QObject;
+	QObject::connect(timer, &QTimer::timeout, obj, [=]() {
+		m_gameStickerType = GameStickerType::Strawberry;
+		m_curRegion = 2;
+		m_gameStartTime = QDateTime::currentMSecsSinceEpoch();
+	});
+	timer->start();*/
 }
 
  BeautyHandle::~BeautyHandle()
@@ -113,7 +123,7 @@ void BeautyHandle::calcPosition(int &width, int &height, int w, int h)
 	height = h - (y_r + 0.5) * stepy;
 }
 
-void BeautyHandle::updateStrawberryData(float width, float height)
+void BeautyHandle::updateStrawberryData(float width, float height, bef_ai_face_info faceInfo)
 {
 	QMutexLocker lock(&m_strawberryMutex);
 
@@ -135,31 +145,20 @@ void BeautyHandle::updateStrawberryData(float width, float height)
 	float maskY = -(2. * center.y() / height - 1);
 
 	bool hit = false;
-	//PBOReader::DisposableBuffer buf;
-	//if (m_dectector && m_reader->read(m_outputTexture, width, height, buf))
-	//{
-	//	bef_ai_face_info faceInfo;
-	//	m_dectector->detectFace(&faceInfo, buf.get(),
-	//				BEF_AI_PIX_FMT_RGBA8888,
-	//				BEF_AI_CLOCKWISE_ROTATE_0,
-	//				BEF_DETECT_MODE_VIDEO | BEF_FACE_DETECT,
-	//				false);
-
-	//	if (faceInfo.face_count >= 1) {
-	//		if (m_gameStickerType == Strawberry) {
-	//			// 吃到草莓
-	//			bef_ai_face_ext_info face = faceInfo.extra_infos[0];
-	//			QRect r(QPoint(face.lips[84].x, face.lips[87].y),
-	//				QPoint(face.lips[90].x, face.lips[93].y));
-	//			hit = strawberryRect.intersects(r);
-	//		} else if (m_gameStickerType == Bomb) {
-	//			bef_ai_face_106 face = faceInfo.base_infos[0];
-	//			QRect r(QPoint(face.rect.left, face.rect.top),
-	//				QPoint(face.rect.right, face.rect.bottom));
-	//			hit = strawberryRect.intersects(r);
-	//		}
-	//	}
-	//}
+	if (faceInfo.face_count >= 1) {
+		if (m_gameStickerType == Strawberry) {
+			// 吃到草莓
+			bef_ai_face_106 face = faceInfo.base_infos[0];
+			QRect r(QPoint(face.points_array[84].x, face.points_array[87].y),
+				QPoint(face.points_array[90].x, face.points_array[93].y));
+			hit = strawberryRect.intersects(r);
+		} else if (m_gameStickerType == Bomb) {
+			bef_ai_face_106 face = faceInfo.base_infos[0];
+			QRect r(QPoint(face.rect.left, face.rect.top),
+				QPoint(face.rect.right, face.rect.bottom));
+			hit = strawberryRect.intersects(r);
+		}
+	}
 
 	// 草莓离开可视区域
 	QRect w(0, 0, width, height);
@@ -200,6 +199,7 @@ obs_source_frame *BeautyHandle::processFrame(obs_source_frame *frame)
 	static bool needDrop = false;
 	checkBeautySettings();
 	bool doBeauty = effectHandlerInited && beautyEnabled;
+	//doBeauty = true;
 	auto settings = obs_source_get_settings(m_source);
 	obs_data_set_int(settings, "need_beauty", doBeauty ? 1 : 0);
 	obs_data_release(settings);
@@ -207,6 +207,11 @@ obs_source_frame *BeautyHandle::processFrame(obs_source_frame *frame)
 		needDrop = true;
 		return frame;
 	}
+	bef_ai_face_info faceInfo;
+	m_dectector->setWidthAndHeight(frame->width, frame->height, frame->width * 4);
+	m_dectector->detectFace(&faceInfo, frame->data[0], BEF_AI_PIX_FMT_RGBA8888,
+				BEF_AI_CLOCKWISE_ROTATE_0,
+				BEF_DETECT_MODE_VIDEO | BEF_FACE_DETECT, false);
 
 	m_glctx.makeCurrentContext();
 
@@ -273,7 +278,7 @@ obs_source_frame *BeautyHandle::processFrame(obs_source_frame *frame)
 	//草莓
 	if (m_gameStickerType == GameStickerType::Strawberry || m_gameStickerType == GameStickerType::Bomb)
 	{
-		updateStrawberryData(frame->width, frame->height);
+		updateStrawberryData(frame->width, frame->height, faceInfo);
 
 		glEnable(GL_BLEND);
 		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);

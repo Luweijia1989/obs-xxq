@@ -40,7 +40,7 @@ private:
 	void deletePBO();
 	void checkBeautySettings();
 	void calcPosition(int &width, int &height, int w, int h);
-	void updateStrawberryData(float width, float height);
+	void updateStrawberryData(float width, float height, bef_ai_face_info info);
 
 private:
 	obs_source_t *m_source;
