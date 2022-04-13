@@ -72,7 +72,7 @@ void beauty_custom_command(void *data, obs_data_t *command)
 {
 	BeautyHandle *filter = (BeautyHandle *)data;
 	if (obs_data_has_user_value(command, "face_sticker_info"))
-		filter->updateBeautySettings(command);
+		filter->updateStrawberrySettings(command);
 	else
 		filter->updateBeautySettings(command);
 }
