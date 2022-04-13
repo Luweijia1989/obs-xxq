@@ -135,31 +135,31 @@ void BeautyHandle::updateStrawberryData(float width, float height)
 	float maskY = -(2. * center.y() / height - 1);
 
 	bool hit = false;
-	PBOReader::DisposableBuffer buf;
-	if (m_dectector && m_reader->read(m_outputTexture, width, height, buf))
-	{
-		bef_ai_face_info faceInfo;
-		m_dectector->detectFace(&faceInfo, buf.get(),
-					BEF_AI_PIX_FMT_RGBA8888,
-					BEF_AI_CLOCKWISE_ROTATE_0,
-					BEF_DETECT_MODE_VIDEO | BEF_FACE_DETECT,
-					false);
+	//PBOReader::DisposableBuffer buf;
+	//if (m_dectector && m_reader->read(m_outputTexture, width, height, buf))
+	//{
+	//	bef_ai_face_info faceInfo;
+	//	m_dectector->detectFace(&faceInfo, buf.get(),
+	//				BEF_AI_PIX_FMT_RGBA8888,
+	//				BEF_AI_CLOCKWISE_ROTATE_0,
+	//				BEF_DETECT_MODE_VIDEO | BEF_FACE_DETECT,
+	//				false);
 
-		if (faceInfo.face_count >= 1) {
-			if (m_gameStickerType == Strawberry) {
-				// 吃到草莓
-				bef_ai_face_ext_info face = faceInfo.extra_infos[0];
-				QRect r(QPoint(face.lips[84].x, face.lips[87].y),
-					QPoint(face.lips[90].x, face.lips[93].y));
-				hit = strawberryRect.intersects(r);
-			} else if (m_gameStickerType == Bomb) {
-				bef_ai_face_106 face = faceInfo.base_infos[0];
-				QRect r(QPoint(face.rect.left, face.rect.top),
-					QPoint(face.rect.right, face.rect.bottom));
-				hit = strawberryRect.intersects(r);
-			}
-		}
-	}
+	//	if (faceInfo.face_count >= 1) {
+	//		if (m_gameStickerType == Strawberry) {
+	//			// 吃到草莓
+	//			bef_ai_face_ext_info face = faceInfo.extra_infos[0];
+	//			QRect r(QPoint(face.lips[84].x, face.lips[87].y),
+	//				QPoint(face.lips[90].x, face.lips[93].y));
+	//			hit = strawberryRect.intersects(r);
+	//		} else if (m_gameStickerType == Bomb) {
+	//			bef_ai_face_106 face = faceInfo.base_infos[0];
+	//			QRect r(QPoint(face.rect.left, face.rect.top),
+	//				QPoint(face.rect.right, face.rect.bottom));
+	//			hit = strawberryRect.intersects(r);
+	//		}
+	//	}
+	//}
 
 	// 草莓离开可视区域
 	QRect w(0, 0, width, height);
@@ -331,9 +331,9 @@ void BeautyHandle::updateStrawberrySettings(obs_data_t *setting)
 		return;
 
 	QMutexLocker lock(&m_strawberryMutex);
-	m_gameStickerType = (GameStickerType)obs_data_get_int(setting, "gameType");
+	m_gameStickerType = (GameStickerType)obj["gameType"].toInt();
 	if (m_gameStickerType == Bomb || m_gameStickerType == Strawberry) {
-		m_curRegion = obs_data_get_int(setting, "region");
+		m_curRegion = obj["region"].toInt();
 		m_gameStartTime = QDateTime::currentMSecsSinceEpoch();
 	}
 }
