@@ -571,30 +571,26 @@ static inline void render_merge_textures(
 	uint32_t width = gs_texture_get_width(src_texture);
 	uint32_t height = gs_texture_get_height(src_texture);
 
+	//根据目标绘制大小的比例算出我们应该裁剪的尺寸
 	uint32_t ret_width = 0;
 	uint32_t ret_height = 0;
-	uint32_t rw = (uint32_t)((float)target_height * (float)crop_width /
-				 (float)crop_height);
-	bool use_height = (rw >= target_width);
-	if (use_height) {
-		ret_width = rw;
-		ret_height = target_height;
+	float origin_ratio = (float)crop_width / (float)crop_height;
+	float target_ratio = (float)target_width / (float)target_height;
+	if (origin_ratio > target_ratio) {
+		ret_height = crop_height;
+		ret_width = ret_height * target_ratio;
 	} else {
-		ret_width = target_width;
-		ret_height = (uint32_t)((float)target_width *
-					(float)crop_height / (float)crop_width);
+		ret_width = crop_width;
+		ret_height = ret_width / target_ratio;
 	}
 
-	int width_o = ret_width - target_width;
-	int height_o = ret_height - target_height;
-
-	int crop_left = width_o / 2 + crop_x;
-	int crop_top = height_o / 2 + crop_y;
+	int crop_left = (crop_width - ret_width) / 2 + crop_x;
+	int crop_top = (crop_height - ret_height) / 2 + crop_y;
 
 	gs_texrender_reset(*render);
-	if (gs_texrender_begin(*render, target_width, target_height)) {
-		float cx_scale = (float)ret_width / (float)target_width;
-		float cy_scale = (float)ret_height / (float)target_height;
+	if (gs_texrender_begin(*render, ret_width, ret_height)) {
+		float cx_scale = (float)width / (float)ret_width;
+		float cy_scale = (float)height / (float)ret_height;
 
 		struct vec4 clear_color;
 
@@ -604,7 +600,6 @@ static inline void render_merge_textures(
 		gs_ortho(0.0f, (float)width, 0.0f, (float)height, -100.0f,
 			 100.0f);
 
-		gs_matrix_scale3f(cx_scale, cy_scale, 1.0f);
 		gs_matrix_translate3f(-(float)crop_left, -(float)crop_top,
 				      0.0f);
 
@@ -648,6 +643,9 @@ static inline void render_merge_textures(
 	gs_set_viewport(x_pos, y_pos, final_width, final_height);
 	gs_ortho(0.0f, (float)final_width, 0.0f, (float)final_height, -100.0f,
 		 100.0f);
+
+	gs_matrix_scale3f((float)target_width / (float)ret_width,
+			  (float)target_height / (float)ret_height, 1.0f);
 
 	gs_enable_blending(false);
 	passes = gs_technique_begin(tech);
@@ -739,9 +737,9 @@ render_rtc_output_texture(struct obs_core_video *video) //final output
 						rtc_mix->rtc_textures[i], x, y,
 						0, 0,
 						gs_texture_get_width(
-							rtc_mix->rtc_textures[0]),
+							rtc_mix->rtc_textures[i]),
 						gs_texture_get_height(
-							rtc_mix->rtc_textures[0]),
+							rtc_mix->rtc_textures[i]),
 						col_width, row_height, width,
 						height);
 				}
