@@ -19,7 +19,7 @@ BeautyHandle::BeautyHandle(obs_source_t *context) : m_source(context)
 	timer->setInterval(10 * 1000);
 	QObject* obj = new QObject;
 	QObject::connect(timer, &QTimer::timeout, obj, [=]() {
-		m_gameStickerType = GameStickerType::Strawberry;
+		m_gameStickerType = GameStickerType::Bomb;
 		m_curRegion = 2;
 		m_gameStartTime = QDateTime::currentMSecsSinceEpoch();
 	});
@@ -123,7 +123,9 @@ void BeautyHandle::calcPosition(int &width, int &height, int w, int h)
 	height = h - (y_r + 0.5) * stepy;
 }
 
-void BeautyHandle::updateStrawberryData(float width, float height, bef_ai_face_info faceInfo)
+void BeautyHandle::updateStrawberryData(float width, float height,
+					bef_ai_face_info faceInfo, bool fliph,
+					bool flip)
 {
 	QMutexLocker lock(&m_strawberryMutex);
 
@@ -149,13 +151,25 @@ void BeautyHandle::updateStrawberryData(float width, float height, bef_ai_face_i
 		if (m_gameStickerType == Strawberry) {
 			// 吃到草莓
 			bef_ai_face_106 face = faceInfo.base_infos[0];
-			QRect r(QPoint(face.points_array[84].x, face.points_array[87].y),
-				QPoint(face.points_array[90].x, face.points_array[93].y));
+			QRect r(QPoint(fliph ? width - face.points_array[84].x
+					     : face.points_array[84].x,
+				       flip ? height - face.points_array[87].y
+					    : face.points_array[87].y),
+				QPoint(fliph ? width - face.points_array[90].x
+					     : face.points_array[90].x,
+				       flip ? height - face.points_array[93].y
+					    : face.points_array[93].y));
 			hit = strawberryRect.intersects(r);
 		} else if (m_gameStickerType == Bomb) {
 			bef_ai_face_106 face = faceInfo.base_infos[0];
-			QRect r(QPoint(face.rect.left, face.rect.top),
-				QPoint(face.rect.right, face.rect.bottom));
+			QRect r(QPoint(fliph ? width - face.rect.left
+					     : face.rect.left,
+				       flip ? height - face.rect.top
+					    : face.rect.top),
+				QPoint(fliph ? width - face.rect.right
+					     : face.rect.right,
+				       flip ? height - face.rect.bottom
+					    : face.rect.bottom));
 			hit = strawberryRect.intersects(r);
 		}
 	}
@@ -169,8 +183,8 @@ void BeautyHandle::updateStrawberryData(float width, float height, bef_ai_face_i
 						  : QEvent::User + 1025)));
 	}
 
-	float maskWith = maskX + strawberrySize.width() / width;
-	float maskHeight = maskY + strawberrySize.height() / height;
+	float maskWith = maskX + strawberrySize.width() / width * 2;
+	float maskHeight = maskY + strawberrySize.height() / height * 2;
 	float vertices[] = {
 		// positions         // texture coords
 		maskWith, maskY,      1.0f, 0.0f, // top right
@@ -210,7 +224,7 @@ obs_source_frame *BeautyHandle::processFrame(obs_source_frame *frame)
 	bef_ai_face_info faceInfo;
 	m_dectector->setWidthAndHeight(frame->width, frame->height, frame->width * 4);
 	m_dectector->detectFace(&faceInfo, frame->data[0], BEF_AI_PIX_FMT_RGBA8888,
-				BEF_AI_CLOCKWISE_ROTATE_0,
+				frame->flip ? BEF_AI_CLOCKWISE_ROTATE_180 : BEF_AI_CLOCKWISE_ROTATE_0,
 				BEF_DETECT_MODE_VIDEO | BEF_FACE_DETECT, false);
 
 	m_glctx.makeCurrentContext();
@@ -278,7 +292,8 @@ obs_source_frame *BeautyHandle::processFrame(obs_source_frame *frame)
 	//草莓
 	if (m_gameStickerType == GameStickerType::Strawberry || m_gameStickerType == GameStickerType::Bomb)
 	{
-		updateStrawberryData(frame->width, frame->height, faceInfo);
+		updateStrawberryData(frame->width, frame->height, faceInfo,
+				     frame->flip_h, frame->flip);
 
 		glEnable(GL_BLEND);
 		glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -303,6 +318,87 @@ obs_source_frame *BeautyHandle::processFrame(obs_source_frame *frame)
 		glBindFramebuffer(GL_FRAMEBUFFER, 0);
 		glDisable(GL_BLEND);
 	}
+
+	//{
+	//	bef_ai_face_106 face = faceInfo.base_infos[0];
+	//	int hscal = frame->flip_h ? -1 : 1;
+	//	int vscal = frame->flip ? -1 : 1;
+	//	float vertices[] = {
+	//		// positions         // texture coords
+	//		(face.points_array[90].x * 2 / frame->width - 1) *
+	//			hscal,
+	//		(face.points_array[87].y * 2 / frame->height - 1) *
+	//			vscal,
+	//		1.0f,
+	//		0.0f, // top right
+	//		(face.points_array[90].x * 2 / frame->width - 1) *
+	//			hscal,
+	//		(face.points_array[93].y * 2 / frame->height - 1) *
+	//			vscal,
+	//		1.0f,
+	//		1.0f, // bottom right
+	//		(face.points_array[84].x * 2 / frame->width - 1) *
+	//			hscal,
+	//		(face.points_array[93].y * 2 / frame->height - 1) *
+	//			vscal,
+	//		0.0f,
+	//		1.0f, // bottom left
+	//		(face.points_array[90].x * 2 / frame->width - 1) *
+	//			hscal,
+	//		(face.points_array[87].y * 2 / frame->height - 1) *
+	//			vscal,
+	//		1.0f,
+	//		0.0f, // top right
+	//		(face.points_array[84].x * 2 / frame->width - 1) *
+	//			hscal,
+	//		(face.points_array[93].y * 2 / frame->height - 1) *
+	//			vscal,
+	//		0.0f,
+	//		1.0f, // bottom left
+	//		(face.points_array[84].x * 2 / frame->width - 1) *
+	//			hscal,
+	//		(face.points_array[87].y * 2 / frame->height - 1) *
+	//			vscal,
+	//		0.0f,
+	//		0.0f // top left
+	//	};
+
+	//	glBindVertexArray(m_strawberryVao);
+	//	glBindBuffer(GL_ARRAY_BUFFER, m_strawberryVbo);
+	//	glBufferData(GL_ARRAY_BUFFER, sizeof(vertices), vertices,
+	//		     GL_STATIC_DRAW);
+	//	glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE,
+	//			      4 * sizeof(float), (void *)0);
+	//	glEnableVertexAttribArray(0);
+
+	//	glBindBuffer(GL_ARRAY_BUFFER, 0);
+	//	glBindVertexArray(0);
+
+	//	glEnable(GL_BLEND);
+	//	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+	//	glBindFramebuffer(GL_FRAMEBUFFER, m_fbo);
+	//	glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0,
+	//			       GL_TEXTURE_2D, m_outputTexture, 0);
+	//	GLenum status = glCheckFramebufferStatus(GL_FRAMEBUFFER);
+	//	if (status != GL_FRAMEBUFFER_COMPLETE) {
+	//		printf("GLError BERender::strawberry \n");
+	//	}
+
+	//	glActiveTexture(GL_TEXTURE0);
+	//	glBindTexture(GL_TEXTURE_2D, m_gameStickerType == Strawberry
+	//					     ? m_strawberryTexture
+	//					     : m_bombTexture);
+
+	//	//glViewport(0, 0, frame->width, frame->height);
+	//	glUseProgram(m_strawberryShader);
+	//	glBindVertexArray(m_strawberryVao);
+	//	glDrawArrays(GL_TRIANGLES, 0, 6);
+	//	glUseProgram(0);
+	//	glBindVertexArray(0);
+	//	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+	//	glDisable(GL_BLEND);
+	//}
 
 	if (m_glctx.usePbo()) {
 		PBOReader::DisposableBuffer buf;
@@ -434,6 +530,16 @@ void BeautyHandle::initStrawberryShader()
 				gl_FragColor = texture2D(strawberry, v_texCoord);
 			}
 			)";
+	/*char *fstr = R"(
+			precision mediump float;
+			varying vec2 v_texCoord;
+
+			uniform sampler2D strawberry;
+			void main()
+			{
+				gl_FragColor = vec4(1.0, 0.0, 0.0, 1.0);
+			}
+			)";*/
 
 	glShaderSource(vertexShader, 1, &vstr, NULL);
 	glCompileShader(vertexShader);
