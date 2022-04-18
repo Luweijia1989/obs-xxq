@@ -292,6 +292,7 @@ obs_source_frame *BeautyHandle::processFrame(obs_source_frame *frame)
 	//草莓
 	if (m_gameStickerType == GameStickerType::Strawberry || m_gameStickerType == GameStickerType::Bomb)
 	{
+		bool strawberry = m_gameStickerType == Strawberry;
 		updateStrawberryData(frame->width, frame->height, faceInfo,
 				     frame->flip_h, frame->flip);
 
@@ -307,7 +308,7 @@ obs_source_frame *BeautyHandle::processFrame(obs_source_frame *frame)
 		}
 
 		glActiveTexture(GL_TEXTURE0);
-		glBindTexture(GL_TEXTURE_2D, m_gameStickerType == Strawberry ? m_strawberryTexture : m_bombTexture);
+		glBindTexture(GL_TEXTURE_2D, strawberry ? m_strawberryTexture : m_bombTexture);
 		
 		//glViewport(0, 0, frame->width, frame->height);
 		glUseProgram(m_strawberryShader);
