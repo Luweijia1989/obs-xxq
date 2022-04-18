@@ -134,26 +134,22 @@ Item {
         onPlay:
         {
             voicewave.play();
-            console.log("voicewave play");
 		}
         onStop:
         {
             voicewave.stop();
-            console.log("voicewave stop");
         }
 	    onShowPkEffect:
         {
 			faceeffect.visible = true;
 			faceeffect.cacheSource = audioLiveLinkProperties.effect
             faceeffect.play();
-            console.log("faceeffect play");
 		}
         onStopPkEffect:
         {
 			faceeffect.visible = false;
 			faceeffect.cacheSource = "";
             faceeffect.stop();
-            console.log("faceeffect stop");
         }
 	}
 }
