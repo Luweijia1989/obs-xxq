@@ -59,7 +59,7 @@ static const char *obs_scene_signals[] = {
 static inline void signal_item_remove(struct obs_scene_item *item)
 {
 	struct calldata params;
-	uint8_t stack[128];
+	uint8_t stack[512];
 
 	calldata_init_fixed(&params, stack, sizeof(stack));
 	calldata_set_ptr(&params, "item", item);
@@ -344,7 +344,7 @@ static void update_item_transform(struct obs_scene_item *item, bool update_tex)
 	struct vec2 origin;
 	struct vec2 scale;
 	struct calldata params;
-	uint8_t stack[128];
+	uint8_t stack[512];
 
 	if (os_atomic_load_long(&item->defer_update) > 0)
 		return;
@@ -1666,7 +1666,7 @@ static void obs_scene_item_added_signal(obs_scene_t *scene,
 					bool added_by_ungroup)
 {
 	struct calldata params;
-	uint8_t stack[128];
+	uint8_t stack[512];
 	obs_scene_t *target = NULL;
 	obs_source_t *iter;
 	calldata_init_fixed(&params, stack, sizeof(stack));
@@ -1840,7 +1840,7 @@ static obs_sceneitem_t *obs_scene_add_and_signal(obs_scene_t *scene,
 		obs_scene_add_internal(scene, source, insert_after, false);
 
 	struct calldata params;
-	uint8_t stack[128];
+	uint8_t stack[512];
 	calldata_init_fixed(&params, stack, sizeof(stack));
 	calldata_set_ptr(&params, "scene", scene);
 	calldata_set_ptr(&params, "item", item);
@@ -1865,7 +1865,7 @@ obs_sceneitem_t *obs_scene_insert_after(obs_scene_t *scene,
 static void obs_sceneitem_destroy(obs_sceneitem_t *item)
 {
 	struct calldata params;
-	uint8_t stack[128];
+	uint8_t stack[512];
 
 	if (item) {
 		calldata_init_fixed(&params, stack, sizeof(stack));
@@ -1977,7 +1977,7 @@ static void signal_parent(obs_scene_t *parent, const char *command,
 void obs_sceneitem_select(obs_sceneitem_t *item, bool select)
 {
 	struct calldata params;
-	uint8_t stack[128];
+	uint8_t stack[512];
 	const char *command = select ? "item_select" : "item_deselect";
 
 	if (!item || item->selected == select || !item->parent)
@@ -1995,7 +1995,7 @@ void obs_sceneitem_subitem_select(obs_sceneitem_t *group, obs_sceneitem_t *item,
 				  bool select)
 {
 	struct calldata params;
-	uint8_t stack[128];
+	uint8_t stack[512];
 	const char *command = select ? "item_select" : "item_deselect";
 
 	if (!item || item->selected == select || !item->parent)
@@ -2058,7 +2058,7 @@ static inline void signal_reorder(struct obs_scene_item *item)
 {
 	const char *command = NULL;
 	struct calldata params;
-	uint8_t stack[128];
+	uint8_t stack[512];
 
 	command = "reorder";
 
@@ -2264,7 +2264,7 @@ bool obs_sceneitem_visible(const obs_sceneitem_t *item)
 bool obs_sceneitem_set_visible(obs_sceneitem_t *item, bool visible)
 {
 	struct calldata cd;
-	uint8_t stack[256];
+	uint8_t stack[512];
 	struct item_action action = {.visible = visible,
 				     .timestamp = os_gettime_ns()};
 
@@ -2313,7 +2313,7 @@ bool obs_sceneitem_locked(const obs_sceneitem_t *item)
 bool obs_sceneitem_set_locked(obs_sceneitem_t *item, bool lock)
 {
 	struct calldata cd;
-	uint8_t stack[256];
+	uint8_t stack[512];
 
 	if (!item)
 		return false;

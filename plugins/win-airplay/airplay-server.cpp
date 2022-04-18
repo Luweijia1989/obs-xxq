@@ -1022,7 +1022,7 @@ static void WinAirplayCustomCommand(void *data, obs_data_t *cmd)
 		obs_data_release(settings);
 
 		struct calldata data;
-		uint8_t stack[128];
+		uint8_t stack[512];
 		calldata_init_fixed(&data, stack, sizeof(stack));
 		calldata_set_ptr(&data, "source", s->m_source);
 		signal_handler_signal(obs_source_get_signal_handler(s->m_source), "settings_update", &data);

@@ -1,4 +1,4 @@
-﻿/******************************************************************************
+/******************************************************************************
     Copyright (C) 2013-2014 by Hugh Bailey <obs.jim@gmail.com>
 
     This program is free software: you can redistribute it and/or modify
@@ -827,7 +827,7 @@ static inline void obs_source_private_dosignal(struct obs_source *source,
 					       const char *signal_obs)
 {
 	struct calldata data;
-	uint8_t stack[128];
+	uint8_t stack[512];
 
 	calldata_init_fixed(&data, stack, sizeof(stack));
 	calldata_set_ptr(&data, "source", source);
@@ -839,7 +839,7 @@ static inline void obs_source_dosignal(struct obs_source *source,
 				       const char *signal_source)
 {
 	struct calldata data;
-	uint8_t stack[128];
+	uint8_t stack[512];
 
 	calldata_init_fixed(&data, stack, sizeof(stack));
 	calldata_set_ptr(&data, "source", source);

@@ -1919,7 +1919,7 @@ static inline void signal_start(struct obs_output *output)
 static inline void signal_reconnect(struct obs_output *output)
 {
 	struct calldata params;
-	uint8_t stack[128];
+	uint8_t stack[512];
 
 	calldata_init_fixed(&params, stack, sizeof(stack));
 	calldata_set_int(&params, "timeout_sec",

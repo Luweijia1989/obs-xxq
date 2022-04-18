@@ -2315,7 +2315,7 @@ static bool filter_compatible(obs_source_t *source, obs_source_t *filter)
 void obs_source_filter_add(obs_source_t *source, obs_source_t *filter)
 {
 	struct calldata cd;
-	uint8_t stack[128];
+	uint8_t stack[512];
 
 	if (!obs_source_valid(source, "obs_source_filter_add"))
 		return;
@@ -2360,7 +2360,7 @@ static bool obs_source_filter_remove_refless(obs_source_t *source,
 					     obs_source_t *filter)
 {
 	struct calldata cd;
-	uint8_t stack[128];
+	uint8_t stack[512];
 	size_t idx;
 
 	pthread_mutex_lock(&source->filter_mutex);
@@ -3600,7 +3600,7 @@ void obs_source_set_volume(obs_source_t *source, float volume)
 					      .vol = volume};
 
 		struct calldata data;
-		uint8_t stack[128];
+		uint8_t stack[512];
 
 		calldata_init_fixed(&data, stack, sizeof(stack));
 		calldata_set_ptr(&data, "source", source);
@@ -3632,7 +3632,7 @@ void obs_source_set_sync_offset(obs_source_t *source, int64_t offset)
 {
 	if (obs_source_valid(source, "obs_source_set_sync_offset")) {
 		struct calldata data;
-		uint8_t stack[128];
+		uint8_t stack[512];
 
 		calldata_init_fixed(&data, stack, sizeof(stack));
 		calldata_set_ptr(&data, "source", source);
@@ -3881,7 +3881,7 @@ bool obs_source_showing(const obs_source_t *source)
 static inline void signal_flags_updated(obs_source_t *source)
 {
 	struct calldata data;
-	uint8_t stack[128];
+	uint8_t stack[512];
 
 	calldata_init_fixed(&data, stack, sizeof(stack));
 	calldata_set_ptr(&data, "source", source);
@@ -3918,7 +3918,7 @@ uint32_t obs_source_get_flags(const obs_source_t *source)
 void obs_source_set_audio_mixers(obs_source_t *source, uint32_t mixers)
 {
 	struct calldata data;
-	uint8_t stack[128];
+	uint8_t stack[512];
 
 	if (!obs_source_valid(source, "obs_source_set_audio_mixers"))
 		return;
@@ -4093,7 +4093,7 @@ bool obs_source_enabled(const obs_source_t *source)
 void obs_source_set_enabled(obs_source_t *source, bool enabled)
 {
 	struct calldata data;
-	uint8_t stack[128];
+	uint8_t stack[512];
 
 	if (!obs_source_valid(source, "obs_source_set_enabled"))
 		return;
@@ -4116,7 +4116,7 @@ bool obs_source_muted(const obs_source_t *source)
 void obs_source_set_muted(obs_source_t *source, bool muted)
 {
 	struct calldata data;
-	uint8_t stack[128];
+	uint8_t stack[512];
 	struct audio_action action = {.timestamp = os_gettime_ns(),
 				      .type = AUDIO_ACTION_MUTE,
 				      .set = muted};
@@ -4141,7 +4141,7 @@ static void source_signal_push_to_changed(obs_source_t *source,
 					  const char *signal, bool enabled)
 {
 	struct calldata data;
-	uint8_t stack[128];
+	uint8_t stack[512];
 
 	calldata_init_fixed(&data, stack, sizeof(stack));
 	calldata_set_ptr(&data, "source", source);
@@ -4154,7 +4154,7 @@ static void source_signal_push_to_delay(obs_source_t *source,
 					const char *signal, uint64_t delay)
 {
 	struct calldata data;
-	uint8_t stack[128];
+	uint8_t stack[512];
 
 	calldata_init_fixed(&data, stack, sizeof(stack));
 	calldata_set_ptr(&data, "source", source);
@@ -4823,7 +4823,7 @@ void obs_source_signal_event(const obs_source_t *source, obs_data_t *event_data)
 {
 	signal_handler_t *handler = obs_source_get_signal_handler(source);
 	struct calldata cd;
-	uint8_t stack[128];
+	uint8_t stack[512];
 	calldata_init_fixed(&cd, stack, sizeof(stack));
 	calldata_set_ptr(&cd, "source", (obs_source_t *)source);
 	calldata_set_ptr(&cd, "event", event_data);

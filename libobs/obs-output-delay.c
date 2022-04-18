@@ -125,7 +125,7 @@ void process_delay(void *data, struct encoder_packet *packet)
 void obs_output_signal_delay(obs_output_t *output, const char *signal)
 {
 	struct calldata params;
-	uint8_t stack[128];
+	uint8_t stack[512];
 
 	calldata_init_fixed(&params, stack, sizeof(stack));
 	calldata_set_ptr(&params, "output", output);
