@@ -482,6 +482,7 @@ static void obs_rtc_capture_free(void)
 
 	gs_texture_destroy(rtc_mix->rtc_frame_texture);
 	gs_texture_destroy(rtc_mix->rtc_frame_output_texture);
+	gs_texture_destroy(rtc_mix->rtc_frame_mix_output_texture);
 
 	for (size_t c = 0; c < NUM_CHANNELS; c++) {
 		if (rtc_mix->convert_textures_raw[c]) {
@@ -502,6 +503,7 @@ static void obs_rtc_capture_free(void)
 
 	rtc_mix->rtc_frame_texture = NULL;
 	rtc_mix->rtc_frame_output_texture = NULL;
+	rtc_mix->rtc_frame_mix_output_texture = NULL;
 
 	video_frame_destroy(rtc_mix->cache_frame);
 	rtc_mix->cache_frame = NULL;
@@ -3019,6 +3021,13 @@ static bool obs_init_rtc_textures(struct obs_rtc_mix *rtc_mix)
 		GS_RGBA, 1, NULL, GS_RENDER_TARGET);
 
 	if (!rtc_mix->rtc_frame_output_texture)
+		return false;
+
+	rtc_mix->rtc_frame_mix_output_texture =
+		gs_texture_create(obs->video.base_width, obs->video.base_height,
+				  GS_RGBA, 1, NULL, GS_RENDER_TARGET);
+
+	if (!rtc_mix->rtc_frame_mix_output_texture)
 		return false;
 
 	return true;

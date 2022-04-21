@@ -254,6 +254,7 @@ struct obs_rtc_mix {
 	gs_texrender_t *self_texture_render;
 	gs_texture_t *rtc_frame_texture;
 	gs_texture_t *rtc_frame_output_texture;
+	gs_texture_t *rtc_frame_mix_output_texture;
 	bool render_rtc_textures;
 	uint32_t self_crop_x;
 	uint32_t self_crop_y;
