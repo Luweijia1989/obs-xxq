@@ -177,8 +177,6 @@ struct DShowInput {
 	bool flipH = false;
 	bool active = false;
 
-	gs_image_file_t img_ctx;
-
 	video_scaler_t *scaler2RGBA = nullptr;
 	struct video_scale_info conversion = { VIDEO_FORMAT_NONE, 0, 0, VIDEO_RANGE_DEFAULT, VIDEO_CS_DEFAULT };
 	struct video_frame *m_outputCacheFrame = nullptr;
@@ -223,7 +221,6 @@ struct DShowInput {
 	{
 		memset(&audio, 0, sizeof(audio));
 		memset(&frame, 0, sizeof(frame));
-		memset(&img_ctx, 0, sizeof(struct gs_image_file));
 
 		av_log_set_level(AV_LOG_WARNING);
 		av_log_set_callback(ffmpeg_log);
@@ -255,10 +252,6 @@ struct DShowInput {
 
 	inline ~DShowInput()
 	{
-		obs_enter_graphics();
-		gs_image_file_free(&img_ctx);
-		obs_leave_graphics();
-
 		{
 			CriticalScope scope(mutex);
 			actions.resize(1);
@@ -393,7 +386,6 @@ void DShowInput::DShowLoop()
 							state = 2;
 						else {
 							state = 0;
-							obs_source_set_async_last_frame_enable(source, false);
 						}
 					}
 				}
@@ -402,27 +394,12 @@ void DShowInput::DShowLoop()
 			}
 
 			if (state != 0) {
-				if (!img_ctx.loaded) {
-					auto file_path = obs_data_get_string(settings, "file_path");
-					if (strlen(file_path)) {
-						bool guide = obs_data_get_bool(settings, "guide");
-						char path[1024] = {0};
-						sprintf(path, "%s_%s%d.png", file_path, guide ? "gui_" : "", state);
-						gs_image_file_init(&img_ctx, path);
-					}
-				}
-
-				if (img_ctx.loaded) {
-					obs_source_frame frame = {};
-					frame.data[0] = img_ctx.texture_data;
-					frame.linesize[0] = img_ctx.cx * 4;
-					frame.format = VIDEO_FORMAT_BGRA;
-					frame.width = img_ctx.cx;
-					frame.height = img_ctx.cy;
-					frame.timestamp = 0;
-					frame.prev_frame = true;
-
-					obs_source_output_video(source, &frame);
+				auto file_path = obs_data_get_string(settings, "file_path");
+				if (strlen(file_path)) {
+					bool guide = obs_data_get_bool(settings, "guide");
+					char path[1024] = {0};
+					sprintf(path, "%s_%s%d.png", file_path, guide ? "gui_" : "", state);
+					obs_source_set_placeholder_image(source, path);
 				}
 			}
 

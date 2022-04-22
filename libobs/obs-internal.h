@@ -1,4 +1,4 @@
-﻿/******************************************************************************
+/******************************************************************************
     Copyright (C) 2013-2014 by Hugh Bailey <obs.jim@gmail.com>
 
     This program is free software: you can redistribute it and/or modify
@@ -728,6 +728,10 @@ struct obs_source {
 	uint32_t async_convert_width[MAX_AV_PLANES];
 	uint32_t async_convert_height[MAX_AV_PLANES];
 
+	gs_texture_t *async_holder_image;
+	uint32_t placeholder_width;
+	uint32_t placeholder_height;
+
 	/* async video deinterlacing */
 	uint64_t deinterlace_offset;
 	uint64_t deinterlace_frame_ts;
@@ -789,8 +793,6 @@ struct obs_source {
 	enum obs_monitoring_type monitoring_type;
 
 	obs_data_t *private_settings;
-
-	bool async_video_keep_last_frame;
 };
 
 extern struct obs_source_info *get_source_info(const char *id);
