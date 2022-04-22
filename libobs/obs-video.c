@@ -666,9 +666,13 @@ static inline void render_merge_textures(
 static inline gs_texture_t *
 render_rtc_output_texture(struct obs_core_video *video) //final output
 {
+	//rtc_frame_mix_output_texture作为本地混流的输出，尺寸和预览尺寸保持一致1920*1080
+	//普通连麦画布还是之前的output_texture，我们会去改变这个画布尺寸为1440*1080.多人连麦有效区域也是1440*1080，我们画的时候要做偏移
 	struct obs_rtc_mix *rtc_mix = &obs->video.rtc_mix;
 	gs_texture_t *texture = video->render_texture;
-	gs_texture_t *target = video->output_texture;
+	gs_texture_t *target = rtc_mix->mix_type == 0
+				       ? video->output_texture
+				       : rtc_mix->rtc_frame_mix_output_texture;
 	uint32_t width = gs_texture_get_width(target);
 	uint32_t height = gs_texture_get_height(target);
 
@@ -709,9 +713,10 @@ render_rtc_output_texture(struct obs_core_video *video) //final output
 		int col_width = width / cw;
 		int row_height = height / cw;
 
+		int offset = (1920 - 1440) / 2;
 		int ri = 0, ci = 0;
 		for (int i = 0; i < rtc_mix->total_remote_channels; i++) {
-			int x = col_width * ci;
+			int x = col_width * ci + offset;
 			int y = row_height * ri;
 
 			ci++;
@@ -747,7 +752,21 @@ render_rtc_output_texture(struct obs_core_video *video) //final output
 		}
 	}
 
-	return target;
+	if (rtc_mix->mix_type == 0)
+		return target;
+	else {
+		uint32_t mix_width = gs_texture_get_width(
+			rtc_mix->rtc_frame_mix_output_texture);
+		uint32_t mix_height = gs_texture_get_height(
+			rtc_mix->rtc_frame_mix_output_texture);
+		if (mix_width != width || mix_height != height) {
+			render_texture_scale_internal(
+				target, rtc_mix->rtc_frame_mix_output_texture,
+				effect, tech, mix_width, mix_height);
+			return rtc_mix->rtc_frame_mix_output_texture;
+		} else
+			return target;
+	}
 }
 
 static inline gs_texture_t *

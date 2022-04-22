@@ -248,6 +248,7 @@ typedef void (*rtc_frame_output_t)(uint8_t **data, uint32_t *linesize,
 struct obs_rtc_mix {
 	uint32_t total_remote_channels;
 	int video_merge_type;
+	int mix_type;
 	int self_index;
 	gs_texture_t *rtc_textures[NUM_RTC_CHANNEL];
 	gs_texrender_t *rtc_texture_render[NUM_RTC_CHANNEL];

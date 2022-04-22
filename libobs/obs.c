@@ -3094,9 +3094,10 @@ void obs_rtc_capture_end()
 	obs_rtc_capture_free();
 }
 
-void obs_rtc_output_begin()
+void obs_rtc_output_begin(int mixType)
 {
 	struct obs_rtc_mix *rtc_mix = &obs->video.rtc_mix;
+	rtc_mix->mix_type = mixType;
 	os_atomic_set_bool(&rtc_mix->rtc_output_active, true);
 }
 
