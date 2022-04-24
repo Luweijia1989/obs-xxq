@@ -5,13 +5,13 @@ import QtGraphicalEffects 1.0
 
 Item {
     id: root
-    width: 720
+    width: audioLiveLinkProperties.isMuliti? 1440:720
     height: 1080
     x: 0
     y: 0
     Image {
 		id: background
-        width: 720
+        width: audioLiveLinkProperties.isMuliti? 1440:720
 		height: 1080
 		source: audioLiveLinkProperties.path
 		fillMode:Image.PreserveAspectCrop
@@ -30,7 +30,7 @@ Item {
 	  CommonAnimateImage{
       id: voicewave
 	  anchors.left: parent.left
-      anchors.leftMargin: 213
+      anchors.leftMargin: audioLiveLinkProperties.isMuliti?573:213
       anchors.top: parent.top
       anchors.topMargin: 350
       width: 293
@@ -101,7 +101,7 @@ Item {
 	Text {
 	id: anchorname
 		text: audioLiveLinkProperties.name
-	    x: 213
+	    x: audioLiveLinkProperties.isMuliti?573:213
 	    y: 643
 	    width:293
 	    height:58

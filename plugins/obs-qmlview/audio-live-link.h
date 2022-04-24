@@ -8,6 +8,7 @@ class AudioLiveLink : public QmlSourceBase {
 	DEFINE_PROPERTY(QString, path)
 	DEFINE_PROPERTY(QString, name)
 	DEFINE_PROPERTY(QString, wave)
+	DEFINE_PROPERTY(bool, isMuliti)
 public:
 	AudioLiveLink(QObject *parent = nullptr);
 	static void default(obs_data_t *settings);

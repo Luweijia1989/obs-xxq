@@ -31,6 +31,9 @@ static void audio_livelink_source_update(void *data, obs_data_t *settings)
 
 	const char *wavePath = obs_data_get_string(settings, "wavepath");
 	s->setwave(wavePath);
+
+	bool isMulitiLink = obs_data_get_bool(settings, "ismuliti");
+	s->setisMuliti(isMulitiLink);
 	s->baseUpdate(settings);
 }
 
@@ -56,6 +59,7 @@ static void audio_livelink_source_destroy(void *data)
 static void audio_livelink_source_defaults(obs_data_t *settings)
 {
 	QmlSourceBase::baseDefault(settings);
+	obs_data_set_default_bool(settings, "ismuliti", false);
 	obs_data_set_default_int(settings, "width", 720);
 	obs_data_set_default_int(settings, "height", 1080);
 	AudioLiveLink::default(settings);
