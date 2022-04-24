@@ -102,30 +102,6 @@ static enum video_format gs_format_to_video_format(enum gs_color_format format)
 	return VIDEO_FORMAT_NONE;
 }
 
-static void ffmpeg_source_update_image_data(struct ffmpeg_source *s,
-					    uint8_t *data, uint32_t cx,
-					    uint32_t cy,
-					    enum gs_color_format format)
-{
-	s->image_frame.timestamp = 0;
-	s->image_frame.width = cx;
-	s->image_frame.height = cy;
-	s->image_frame.format = gs_format_to_video_format(format);
-	s->image_frame.flip = false;
-	s->image_frame.flip_h = false;
-
-	s->image_frame.data[0] = data;
-	s->image_frame.data[1] = NULL;
-
-	s->image_frame.data[2] = NULL;
-
-	s->image_frame.linesize[0] = cx * 4;
-	s->image_frame.linesize[1] = 0;
-	s->image_frame.linesize[2] = 0;
-	if (s->image_frame.data[0])
-		obs_source_output_video2(s->source, &s->image_frame);
-}
-
 static void ffmpeg_source_update_broadcast_state(struct ffmpeg_source *s,
 						 enum broadcast_state state)
 {
@@ -149,12 +125,7 @@ static void ffmpeg_source_update_broadcast_state(struct ffmpeg_source *s,
 	if (!path)
 		return;
 
-	enum gs_color_format format;
-	uint32_t cx, cy;
-	uint8_t *data = gs_create_texture_file_data(path, &format, &cx, &cy);
-
-	ffmpeg_source_update_image_data(s, data, cx, cy, format);
-	bfree(data);
+	obs_source_set_placeholder_image(s->source, path);
 }
 
 static bool is_local_file_modified(obs_properties_t *props,
