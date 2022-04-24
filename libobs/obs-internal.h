@@ -246,6 +246,7 @@ typedef void (*rtc_frame_output_t)(uint8_t **data, uint32_t *linesize,
 				   uint32_t width, uint32_t height,
 				   void *userdata);
 struct obs_rtc_mix {
+	char rtc_background_image_path[512];
 	uint32_t total_remote_channels;
 	int video_merge_type;
 	int mix_type;
@@ -256,6 +257,7 @@ struct obs_rtc_mix {
 	gs_texture_t *rtc_frame_texture;
 	gs_texture_t *rtc_frame_output_texture;
 	gs_texture_t *rtc_frame_mix_output_texture;
+	gs_texture_t *rtc_background_texture;
 	bool render_rtc_textures;
 	uint32_t self_crop_x;
 	uint32_t self_crop_y;

@@ -663,6 +663,51 @@ static inline void render_merge_textures(
 	gs_viewport_pop();
 }
 
+static void rtc_draw_background_image(gs_effect_t *effect, gs_technique_t *tech)
+{
+	struct obs_rtc_mix *rtc_mix = &obs->video.rtc_mix;
+	if (!rtc_mix->rtc_background_texture)
+		rtc_mix->rtc_background_texture = gs_texture_create_from_file(
+			rtc_mix->rtc_background_image_path);
+
+	if (!rtc_mix->rtc_background_texture)
+		return;
+
+	size_t passes, i;
+	gs_eparam_t *image = gs_effect_get_param_by_name(effect, "image");
+
+	gs_viewport_push();
+	gs_projection_push();
+	gs_matrix_push();
+	gs_matrix_identity();
+
+	uint32_t src_width =
+		gs_texture_get_width(rtc_mix->rtc_background_texture);
+	uint32_t src_height =
+		gs_texture_get_height(rtc_mix->rtc_background_texture);
+
+	gs_effect_set_texture(image, rtc_mix->rtc_background_texture);
+
+	gs_set_viewport(0, 0, src_width, src_height);
+	gs_ortho(0.0f, (float)src_width, 0.0f, (float)src_height, -100.0f,
+		 100.0f);
+
+	gs_enable_blending(false);
+	passes = gs_technique_begin(tech);
+	for (i = 0; i < passes; i++) {
+		gs_technique_begin_pass(tech, i);
+		gs_draw_sprite(rtc_mix->rtc_background_texture, 0, src_width,
+			       src_height);
+		gs_technique_end_pass(tech);
+	}
+	gs_technique_end(tech);
+	gs_enable_blending(true);
+
+	gs_matrix_pop();
+	gs_projection_pop();
+	gs_viewport_pop();
+}
+
 static inline gs_texture_t *
 render_rtc_output_texture(struct obs_core_video *video) //final output
 {
@@ -709,11 +754,14 @@ render_rtc_output_texture(struct obs_core_video *video) //final output
 				      rtc_mix->self_crop_height, 720, 1080,
 				      width, height);
 	} else { // 多人连麦，宫格形式 count当前为4 或者 9
+		rtc_draw_background_image(effect, tech);
+
 		int cw = sqrt(rtc_mix->total_remote_channels);
-		int col_width = width / cw;
+		int col_render_width = 1440;
+		int offset = (1920 - col_render_width) / 2;
+		int col_width = col_render_width / cw;
 		int row_height = height / cw;
 
-		int offset = (1920 - 1440) / 2;
 		int ri = 0, ci = 0;
 		for (int i = 0; i < rtc_mix->total_remote_channels; i++) {
 			int x = col_width * ci + offset;

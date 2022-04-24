@@ -483,6 +483,7 @@ static void obs_rtc_capture_free(void)
 	gs_texture_destroy(rtc_mix->rtc_frame_texture);
 	gs_texture_destroy(rtc_mix->rtc_frame_output_texture);
 	gs_texture_destroy(rtc_mix->rtc_frame_mix_output_texture);
+	gs_texture_destroy(rtc_mix->rtc_background_texture);
 
 	for (size_t c = 0; c < NUM_CHANNELS; c++) {
 		if (rtc_mix->convert_textures_raw[c]) {
@@ -504,6 +505,7 @@ static void obs_rtc_capture_free(void)
 	rtc_mix->rtc_frame_texture = NULL;
 	rtc_mix->rtc_frame_output_texture = NULL;
 	rtc_mix->rtc_frame_mix_output_texture = NULL;
+	rtc_mix->rtc_background_texture = NULL;
 
 	video_frame_destroy(rtc_mix->cache_frame);
 	rtc_mix->cache_frame = NULL;
@@ -3128,10 +3130,14 @@ void obs_rtc_update_frame(int channel, char *data, uint32_t width,
 	obs_leave_graphics();
 }
 
-void obs_rtc_set_merge_info(int type, int count, int self_index)
+void obs_rtc_set_merge_info(int type, int count, int self_index,
+			    char *background_image)
 {
 	struct obs_rtc_mix *rtc_mix = &obs->video.rtc_mix;
 	rtc_mix->total_remote_channels = count;
 	rtc_mix->video_merge_type = type;
 	rtc_mix->self_index = self_index;
+	if (background_image)
+		memcpy(rtc_mix->rtc_background_image_path, background_image,
+		       strlen(background_image));
 }

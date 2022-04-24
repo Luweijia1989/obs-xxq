@@ -2282,7 +2282,8 @@ EXPORT void obs_source_custom_command_xxqsource(int type, obs_data_t *settings);
 //设置本地混流基本信息
 //type 0=>普通连麦 1=>多人连麦 宫格形式
 //count type!=1时忽略 总共宫格数
-EXPORT void obs_rtc_set_merge_info(int type, int count, int self_index);
+EXPORT void obs_rtc_set_merge_info(int type, int count, int self_index,
+				   char *background_image);
 
 EXPORT void obs_rtc_capture_begin(
 	uint32_t self_crop_x, uint32_t self_crop_y, uint32_t self_crop_width,
