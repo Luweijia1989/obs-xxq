@@ -807,11 +807,13 @@ render_rtc_output_texture(struct obs_core_video *video) //final output
 			rtc_mix->rtc_frame_mix_output_texture);
 		uint32_t mix_height = gs_texture_get_height(
 			rtc_mix->rtc_frame_mix_output_texture);
-		if (mix_width != width || mix_height != height) {
+		if (mix_width != video->output_width ||
+		    mix_height != video->output_height) {
 			render_texture_scale_internal(
-				target, rtc_mix->rtc_frame_mix_output_texture,
-				effect, tech, mix_width, mix_height);
-			return rtc_mix->rtc_frame_mix_output_texture;
+				rtc_mix->rtc_frame_mix_output_texture,
+				video->output_texture, effect, tech, mix_width,
+				mix_height);
+			return video->output_texture;
 		} else
 			return target;
 	}
