@@ -30,11 +30,11 @@ Item {
 	  CommonAnimateImage{
       id: voicewave
 	  anchors.left: parent.left
-      anchors.leftMargin: audioLiveLinkProperties.isMuliti?573:213
+      anchors.leftMargin: audioLiveLinkProperties.isMuliti?461:213
       anchors.top: parent.top
-      anchors.topMargin: 350
-      width: 293
-      height: 293
+      anchors.topMargin: audioLiveLinkProperties.isMuliti?215:350
+      width: audioLiveLinkProperties.isMuliti?517:293
+      height: audioLiveLinkProperties.isMuliti?517:293
       suffix: "apng"
       cacheSource: audioLiveLinkProperties.wave
 	  cache: true
@@ -42,18 +42,18 @@ Item {
       playing: false
       Rectangle {
 		  id: avartar
-		  x: 52
-		  y: 52
-		  width: 190
-		  height:190
-		  radius:95
+		  x: audioLiveLinkProperties.isMuliti?97:52
+		  y: audioLiveLinkProperties.isMuliti?97:52
+		  width: audioLiveLinkProperties.isMuliti?324:190
+		  height:audioLiveLinkProperties.isMuliti?324:190
+		  radius: audioLiveLinkProperties.isMuliti?162:95
 		  Rectangle {
 			  id: imgeBg
 			  anchors.left: parent.left
 			  anchors.top: parent.top
 			  width:parent.width
 			  height:parent.height
-			  radius:95
+			  radius: audioLiveLinkProperties.isMuliti?162:95
 			  visible: false
 			  Image {
 				  id: squareavatarImage
@@ -61,7 +61,7 @@ Item {
 				  visible: true
 				  anchors.fill: parent
 				  source:  audioLiveLinkProperties.path
-				  sourceSize: Qt.size(190,190)
+				  sourceSize: audioLiveLinkProperties.isMuliti?Qt.size(324,324):Qt.size(190,190)
 				  antialiasing: true
 			  }
 
@@ -69,7 +69,7 @@ Item {
 			  id: border1
 			  color: "#00000000"
 			  anchors.fill: parent
-			  radius: 95
+			  radius: audioLiveLinkProperties.isMuliti?162:95
 			  visible: true
 			  antialiasing: true
 			  smooth: true
@@ -81,7 +81,7 @@ Item {
 			  id: mask1
 			  color: "black"
 			  anchors.fill: parent
-			  radius: 95
+			  radius: audioLiveLinkProperties.isMuliti?162:95
 			  visible: false
 			  antialiasing: true
 			  smooth: true
@@ -110,6 +110,7 @@ Item {
 		font.pixelSize: 42
 		font.bold: true
 		color:"#FFFFFF"
+		visible: audioLiveLinkProperties.isMuliti?false:true
 		horizontalAlignment: Text.AlignHCenter
         verticalAlignment: Text.AlignVCenter
 }
