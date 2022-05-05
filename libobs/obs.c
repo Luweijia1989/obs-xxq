@@ -3130,6 +3130,21 @@ void obs_rtc_update_frame(int channel, char *data, uint32_t width,
 	obs_leave_graphics();
 }
 
+void obs_rtc_clear_frame(int channel)
+{
+	struct obs_rtc_mix *rtc_mix = &obs->video.rtc_mix;
+	if (!os_atomic_load_bool(&rtc_mix->rtc_output_active))
+		return;
+	if (channel > NUM_RTC_CHANNEL)
+		return;
+	obs_enter_graphics();
+	if (rtc_mix->rtc_textures[channel]) {
+		gs_texture_destroy(rtc_mix->rtc_textures[channel]);
+		rtc_mix->rtc_textures[channel] = NULL;
+	}
+	obs_leave_graphics();
+}
+
 void obs_rtc_set_merge_info(int type, int count, int self_index,
 			    char *background_image)
 {

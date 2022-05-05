@@ -2300,6 +2300,7 @@ EXPORT void obs_rtc_capture_end();
 EXPORT void obs_rtc_output_begin(int mixType);
 EXPORT void obs_rtc_update_frame(int channel, char *data, uint32_t width,
 				 uint32_t height);
+EXPORT void obs_rtc_clear_frame(int channel);
 
 #ifdef __cplusplus
 }
