@@ -737,6 +737,10 @@ struct obs_source {
 	uint32_t async_convert_width[MAX_AV_PLANES];
 	uint32_t async_convert_height[MAX_AV_PLANES];
 
+	gs_texture_t *async_holder_image;
+	uint32_t placeholder_width;
+	uint32_t placeholder_height;
+
 	/* async video deinterlacing */
 	uint64_t deinterlace_offset;
 	uint64_t deinterlace_frame_ts;
@@ -798,8 +802,6 @@ struct obs_source {
 	enum obs_monitoring_type monitoring_type;
 
 	obs_data_t *private_settings;
-
-	bool async_video_keep_last_frame;
 };
 
 extern struct obs_source_info *get_source_info(const char *id);
@@ -836,7 +838,7 @@ static inline void obs_source_private_dosignal(struct obs_source *source,
 					       const char *signal_obs)
 {
 	struct calldata data;
-	uint8_t stack[128];
+	uint8_t stack[512];
 
 	calldata_init_fixed(&data, stack, sizeof(stack));
 	calldata_set_ptr(&data, "source", source);
@@ -848,7 +850,7 @@ static inline void obs_source_dosignal(struct obs_source *source,
 				       const char *signal_source)
 {
 	struct calldata data;
-	uint8_t stack[128];
+	uint8_t stack[512];
 
 	calldata_init_fixed(&data, stack, sizeof(stack));
 	calldata_set_ptr(&data, "source", source);

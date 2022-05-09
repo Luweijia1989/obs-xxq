@@ -71,7 +71,10 @@ beauty_filter_video(void *data, struct obs_source_frame *frame)
 void beauty_custom_command(void *data, obs_data_t *command)
 {
 	BeautyHandle *filter = (BeautyHandle *)data;
-	filter->updateBeautySettings(command);
+	if (obs_data_has_user_value(command, "face_sticker_info"))
+		filter->updateStrawberrySettings(command);
+	else
+		filter->updateBeautySettings(command);
 }
 
 OBS_DECLARE_MODULE()
@@ -200,7 +203,7 @@ std::vector<BYTE> base64_decode(std::string const &encoded_string)
 static void initBDResource(std::string appPath)
 {
 #ifdef DEBUG
-	bef_effect_ai_set_log_to_local_func(logFuncForEffect);
+	//bef_effect_ai_set_log_to_local_func(logFuncForEffect);
 #endif // DEBUG
 
 	beResourceContext = new BEResourceContext;

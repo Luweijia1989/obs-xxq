@@ -4,7 +4,9 @@
 #include <fcntl.h>
 #include <io.h>
 #include <util/platform.h>
-#include "../common-define.h"
+#include "common-define.h"
+#include <QCoreApplication>
+#include <QTimer>
 
 struct server g_s;
 struct stream g_stream;
@@ -77,47 +79,24 @@ err:
 	return false;
 }
 
-void *stdin_read_thread(void *data)
-{
-	uint8_t buf[1024] = {0};
-	while (true) {
-		int read_len =
-			fread(buf, 1, 1024,
-			      stdin); // read 0 means parent has been stopped
-		if (read_len) {
-			if (buf[0] == 1) {
-				g_exit = true;
-				break;
-			}
-		} else {
-			g_exit = true;
-			break;
-		}
-	}
-	return NULL;
-}
-
-static pthread_t create_stdin_thread()
-{
-	pthread_t th;
-	pthread_create(&th, NULL, stdin_read_thread, NULL);
-	return th;
-}
-
 int main(int argv, char *argc[])
 {
-	SetErrorMode(SEM_FAILCRITICALERRORS);
-	_setmode(_fileno(stdin), O_BINARY);
-	freopen("NUL", "w", stderr);
+	QCoreApplication app(argv, argc);
 
 	struct IPCClient *client = NULL;
 	ipc_client_create(&client);
 	send_status(client, MIRROR_STOP);
-	pthread_t stdin_th = create_stdin_thread();
 
 	net_init();
-	while (!g_exit) {
-		Sleep(200);
+
+	MirrorRPC rpc;
+	QTimer t;
+
+	QObject::connect(&rpc, &MirrorRPC::quit, [&t, &app](){
+		t.stop();
+		app.quit();
+	});
+	QObject::connect(&t, &QTimer::timeout, &t, [=](){
 		char *device = android_device();
 		if (device) {
 			if (!is_server_running()) {
@@ -133,13 +112,16 @@ int main(int argv, char *argc[])
 				server_clear();
 			}
 		}
-	}
-	pthread_join(stdin_th, NULL);
+	});
+	t.start(200);
+
+	int ret = app.exec();
+	
 	if (is_server_running())
 		server_clear();
 
 	ipc_client_destroy(&client);
 	os_kill_process("adb.exe");
 	net_cleanup();
-	return 0;
+	return ret;
 }

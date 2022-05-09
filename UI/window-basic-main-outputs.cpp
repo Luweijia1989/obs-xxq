@@ -269,8 +269,12 @@ void SimpleOutput::LoadRecordingPreset_Lossless()
 
 void SimpleOutput::LoadRecordingPreset_h264(const char *encoderId)
 {
+	obs_data_t *settings = obs_data_create();
+	obs_data_set_int(settings, "keyint_sec", 2); // gop
+	obs_data_set_int(settings, "bf", 0);
 	h264Recording = obs_video_encoder_create(
-		encoderId, "simple_h264_recording", nullptr, nullptr);
+		encoderId, "simple_h264_recording", settings, nullptr);
+	obs_data_release(settings);
 	if (!h264Recording)
 		throw "Failed to create h264 recording encoder (simple output)";
 	obs_encoder_release(h264Recording);

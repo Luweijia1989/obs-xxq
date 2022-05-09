@@ -250,7 +250,6 @@ struct obs_source_frame {
 	/* used internally by libobs */
 	volatile long refs;
 	bool prev_frame;
-	bool has_shown;
 };
 
 struct obs_source_frame2 {
@@ -1212,9 +1211,6 @@ EXPORT void obs_source_draw(gs_texture_t *image, int x, int y, uint32_t cx,
  * desired for non-YUV video formats.
  */
 
-EXPORT void obs_source_set_async_last_frame_enable(obs_source_t *source,
-						   bool enable);
-
 EXPORT void obs_source_output_video(obs_source_t *source,
 				    const struct obs_source_frame *frame);
 EXPORT void obs_source_output_video2(obs_source_t *source,
@@ -1376,6 +1372,11 @@ EXPORT void obs_source_preview_click(const obs_source_t *source, float xPos,
 				     float yPos);
 
 EXPORT void obs_source_extra_draw(const obs_source_t *source);
+
+/*
+image holder used when a source is async video and there is no video frame current
+*/
+EXPORT void obs_source_set_placeholder_image(obs_source_t *source, char *image_path);
 
 /* ------------------------------------------------------------------------- */
 /* Transition-specific functions */

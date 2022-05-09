@@ -17,6 +17,7 @@
 #include <graphics/image-file.h>
 #include <QObject>
 #include <QMap>
+#include <QProcess>
 
 #include "dxva2_decoder.h"
 #include "dxva2_renderer.h"
@@ -45,6 +46,7 @@ struct VideoInfo {
 };
 
 class QTimer;
+class MirrorRPC;
 class ScreenMirrorServer {
 public:
 	enum MirrorBackEnd {
@@ -71,7 +73,6 @@ public:
 
 	static void pipeCallback(void *param, uint8_t *data, size_t size);
 	static void *CreateWinAirplay(obs_data_t *settings, obs_source_t *source);
-	static void *audio_tick_thread(void *data);
 	int m_width = 0;
 	int m_height = 0;
 	obs_source_t *m_source = nullptr;
@@ -97,8 +98,9 @@ private:
 	bool canProcessMediaData();
 	void releaseRenderTexture();
 
+	void resetAudioState(bool clearAudioInfo = false);
+
 private:
-	std::thread m_audioLoopThread;
 	media_audio_info m_audioInfo;
 	bool m_stop = false;
 
@@ -113,6 +115,8 @@ private:
 	int64_t m_firstVideoPTS = LLONG_MAX;
 	int64_t m_audioExtraOffset = LLONG_MAX;
 	int64_t m_videoExtraOffset = LLONG_MAX;
+	int64_t m_lastAudioPts = LLONG_MAX;
+	int64_t m_fixAudioOffset = LLONG_MAX;
 	pthread_mutex_t m_ptsMutex;
 
 	std::map<uint32_t, VideoInfo> m_videoInfos;
@@ -120,7 +124,7 @@ private:
 	uint32_t m_lastVideoInfoIndex = 0;
 
 	struct IPCServer *m_ipcServer = nullptr;
-	os_process_pipe_t *process = nullptr;
+	QProcess m_backendProcess;
 	circlebuf m_avBuffer;
 	MirrorBackEnd m_backend = None;
 	MirrorBackEnd m_lastStopType = None;
@@ -140,4 +144,6 @@ private:
 
 	QObject *m_timerHelperObject = nullptr;
 	QTimer *m_helperTimer = nullptr;
+
+	MirrorRPC *m_commandIPC = nullptr;
 };

@@ -1,5 +1,11 @@
 project(beauty-filter)
 
+if(CMAKE_SIZEOF_VOID_P EQUAL 8)
+	set(_bit_suffix "x64")
+else()
+	set(_bit_suffix "x86")
+endif()
+
 find_package(FFmpeg REQUIRED COMPONENTS avutil swscale)
 find_package(Qt5Widgets REQUIRED)
 find_package(Qt5Network REQUIRED)
@@ -43,10 +49,10 @@ target_link_libraries(beauty-filter
 	Qt5::Widgets
 	Qt5::Network
 	libobs
-	"${PROJECT_SOURCE_DIR}/bytedance/libs/effect.lib"
-	"${PROJECT_SOURCE_DIR}/bytedance/libs/pthreadVC2.lib"
-	debug ${PROJECT_SOURCE_DIR}/bytedance/angle_dynamic/x86/Debug/dynamic_angle.lib
-	optimized ${PROJECT_SOURCE_DIR}/bytedance/angle_dynamic/x86/Release/dynamic_angle.lib
+	"${PROJECT_SOURCE_DIR}/bytedance/libs/${_bit_suffix}/effect.lib"
+	"${PROJECT_SOURCE_DIR}/bytedance/libs/${_bit_suffix}/pthreadVC2.lib"
+	debug ${PROJECT_SOURCE_DIR}/bytedance/angle_dynamic/${_bit_suffix}/Debug/dynamic_angle.lib
+	optimized ${PROJECT_SOURCE_DIR}/bytedance/angle_dynamic/${_bit_suffix}/Release/dynamic_angle.lib
 	${FFMPEG_LIBRARIES})
 
 install_obs_plugin(beauty-filter data)

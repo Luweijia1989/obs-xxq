@@ -1,82 +1,35 @@
 project(rtmp-server)
+cmake_minimum_required(VERSION 3.1.3)
 
-if(APPLE)
-	set(_bit_suffix "")
-elseif(CMAKE_SIZEOF_VOID_P EQUAL 8)
+if(CMAKE_SIZEOF_VOID_P EQUAL 8)
 	set(_bit_suffix "64bit/")
+	set(_lib_bit_suffix "x64")
 else()
 	set(_bit_suffix "32bit/")
+	set(_lib_bit_suffix "x86")
 endif()
 
-add_definitions(-D__x86_64__)
-add_definitions(-D_MBCS)
+set(CMAKE_CXX_STANDARD 11)
 
-file(GLOB_RECURSE rtmp-server_SRC ${PROJECT_SOURCE_DIR} 
-	src/app/*.cpp 
-	src/core/*.cpp 
-	src/kernel/*.cpp 
-	src/main/*.cpp 
-	src/protocol/*.cpp 
-	win/src/*.cpp
-	win/src/*.c
-)
- 
-file(GLOB_RECURSE rtmp-server_HEADER ${PROJECT_SOURCE_DIR} 
-	src/app/*.hpp 
-	src/core/*.hpp 
-	src/kernel/*.hpp 
-	src/protocol/*.hpp 
-	win/src/*.h
-	win/inc/*.h
-	win/inc/*.hpp
-	win/inc/arpa/*.h
-	win/inc/netinet/*.h
-	win/inc/sys/*.h
-)
+set(MediaKit_Root ${PROJECT_SOURCE_DIR}/src)
+set(ToolKit_Root ${PROJECT_SOURCE_DIR}/third-party/ZLToolKit/src)
 
+INCLUDE_DIRECTORIES(${MediaKit_Root})
+INCLUDE_DIRECTORIES(${ToolKit_Root})
+INCLUDE_DIRECTORIES(${PROJECT_SOURCE_DIR}/third-party/include)
 
-include_directories(
-	${PROJECT_SOURCE_DIR}/lib/http-parser-2.1
-	${PROJECT_SOURCE_DIR}/lib/openssl/include
-	${PROJECT_SOURCE_DIR}/lib/st
-	${PROJECT_SOURCE_DIR}/lib/fdk-aac
-	${PROJECT_SOURCE_DIR}/src/protocol
-	${PROJECT_SOURCE_DIR}/src/kernel
-	${PROJECT_SOURCE_DIR}/src/app
-	${PROJECT_SOURCE_DIR}/src/core
-	${PROJECT_SOURCE_DIR}/src/libs
-	${PROJECT_SOURCE_DIR}/src/utest
-	${PROJECT_SOURCE_DIR}/win/inc
-	${PROJECT_SOURCE_DIR}/../
-)
+set(VS_FALGS "/wd4819")
 
+file(GLOB MediaKit_src_list ${MediaKit_Root}/*.cpp ${MediaKit_Root}/*/*.cpp ${MediaKit_Root}/*/*.h ${MediaKit_Root}/*/*.c)
+file(GLOB ToolKit_src_list ${ToolKit_Root}/*/*.cpp ${ToolKit_Root}/*/*.h ${ToolKit_Root}/*/*.c)
 
-set(rtmp-server_extra_SOURCES
-	../ipc.c
-)
-			 
-set(rtmp-server_extra_HEADERS
-	../ipc.h
-)
+add_definitions(-DWIN32_LEAN_AND_MEAN -DMP4V2_NO_STDINT_DEFS -D_CRT_SECURE_NO_WARNINGS -D_WINSOCK_DEPRECATED_NO_WARNINGS)
 
-add_executable(rtmp-server
-	${rtmp-server_SRC} 
-	${rtmp-server_HEADER}
-	${rtmp-server_extra_SOURCES} 
-	${rtmp-server_extra_HEADERS})
+add_executable(rtmp-server ${MediaKit_src_list} ${ToolKit_src_list})
 
 target_link_libraries(rtmp-server
-	libobs
-	Ws2_32
-	w32-pthreads
-	debug ${PROJECT_SOURCE_DIR}/lib/st.lib
-	optimized ${PROJECT_SOURCE_DIR}/lib/stR.lib
-	debug ${PROJECT_SOURCE_DIR}/lib/fdk-aac.lib
-	optimized ${PROJECT_SOURCE_DIR}/lib/fdk-aacR.lib
-	${PROJECT_SOURCE_DIR}/lib/http-parser.lib
-	${PROJECT_SOURCE_DIR}/lib/libeay32.lib
-	${PROJECT_SOURCE_DIR}/lib/ssleay32.lib
-	legacy_stdio_definitions
-)
-	 
+	debug ${PROJECT_SOURCE_DIR}/third-party/lib/${_lib_bit_suffix}/debug/fdk-aac.lib
+	optimized ${PROJECT_SOURCE_DIR}/third-party/lib/${_lib_bit_suffix}/relwithdebinfo/fdk-aac.lib
+	mirror-ipc)
+
 install_obs_core(rtmp-server)

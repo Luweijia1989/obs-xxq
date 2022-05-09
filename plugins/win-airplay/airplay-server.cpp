@@ -15,10 +15,11 @@
 #include <QRegularExpression>
 #include <QMessageBox>
 #include <QApplication>
+#include "common-define.h"
 
 using namespace std;
 
-#define DRIVER_EXE "driver-tool.exe"
+#define DRIVER_EXE "ios-qtvusb-mirror.exe"
 #define AIRPLAY_EXE "airplay-server.exe"
 #define ANDROID_USB_EXE "android-usb-mirror.exe"
 #define ANDROID_AOA_EXE "android-aoa-server.exe"
@@ -137,6 +138,8 @@ ScreenMirrorServer::ScreenMirrorServer(obs_source_t *source, int type)
 	: m_source(source),
 	  if2((gs_image_file2_t *)bzalloc(sizeof(gs_image_file2_t)))
 {
+	m_commandIPC = new MirrorRPC;
+	
 	closeWindowsFireWall();
 
 	m_timerHelperObject = new QObject;
@@ -163,22 +166,18 @@ ScreenMirrorServer::ScreenMirrorServer(obs_source_t *source, int type)
 	m_renderer->Init();
 
 	m_stop = false;
-	m_audioLoopThread =
-		std::thread(ScreenMirrorServer::audio_tick_thread, this);
-	m_audioLoopThread.detach();
 
 	changeBackendType(type);
 }
 
 ScreenMirrorServer::~ScreenMirrorServer()
 {
+	m_stop = true;
+
 	mirrorServerDestroy();
 
+	delete m_commandIPC;
 	delete m_timerHelperObject;
-
-	m_stop = true;
-	if (m_audioLoopThread.joinable())
-		m_audioLoopThread.join();
 
 	obs_enter_graphics();
 	gs_image_file2_free(if2);
@@ -242,27 +241,23 @@ void ScreenMirrorServer::pipeCallback(void *param, uint8_t *data, size_t size)
 
 void ScreenMirrorServer::mirrorServerSetup()
 {
-	if (process)
+	if (m_backendProcess.state() == QProcess::Running)
 		return;
 
 	os_kill_process(m_backendProcessName.toStdString().c_str());
 	ipc_server_create(&m_ipcServer, ScreenMirrorServer::pipeCallback, this);
 
-	struct dstr cmd;
-	dstr_init_move_array(&cmd, os_get_executable_path_ptr(m_backendProcessName.toStdString().c_str()));
-	dstr_insert_ch(&cmd, 0, '\"');
-	dstr_cat(&cmd, "\" \"");
-	process = os_process_pipe_create(cmd.array, "w");
-	dstr_free(&cmd);
+	auto path = QString("\"%1/%2\"").arg(QApplication::applicationDirPath()).arg(m_backendProcessName);
+	m_backendProcess.start(path);
+	m_backendProcess.waitForStarted();
 }
 
 void ScreenMirrorServer::mirrorServerDestroy()
 {
-	if (process) {
-		uint8_t data[1] = {1};
-		os_process_pipe_write(process, data, 1);
-		os_process_pipe_destroy_timeout(process, 1500);
-		process = NULL;
+	if (m_backendProcess.state() == QProcess::Running) {
+		m_commandIPC->requestQuit();
+		if (!m_backendProcess.waitForFinished(1500))
+			os_kill_process(m_backendProcessName.toStdString().c_str());
 	}
 
 	if (m_ipcServer)
@@ -469,8 +464,54 @@ void ScreenMirrorServer::handleMirrorStatus(int status)
 	});
 }
 
+static void sendToObs(std::list<AudioFrame> *frames, obs_source_t *source, media_audio_info *audioInfo) {
+	if (frames->size() <= 0
+		|| !audioInfo->samples_per_sec
+		|| audioInfo->format == AUDIO_FORMAT_UNKNOWN
+		|| audioInfo->speakers == SPEAKERS_UNKNOWN)
+		return;
+	AudioFrame &frame = frames->front();
+	obs_source_audio audio;
+	audio.format = audioInfo->format;
+	audio.samples_per_sec = audioInfo->samples_per_sec;
+	audio.speakers = audioInfo->speakers;
+	audio.frames = frame.data_len / (audioInfo->speakers * sizeof(short));
+	audio.timestamp = os_gettime_ns();
+	audio.data[0] = frame.data;
+	obs_source_output_audio(source, &audio);
+
+	free(frame.data);
+	frames->pop_front();
+}
+
 bool ScreenMirrorServer::handleMediaData()
 {
+	pthread_mutex_lock(&m_audioDataMutex);
+	while (true) {
+		if (canProcessMediaData() && m_audioFrames.size() > 0) {
+			int64_t pts = m_audioFrames.front().pts;
+			if (pts > 0) {
+				int64_t now_ms = (int64_t)os_gettime_ns() / 1000000;
+
+				if (m_audioOffset == LLONG_MAX) {
+					m_audioOffset = now_ms - pts + m_audioExtraOffset;
+				}
+
+				dropAudioFrame(now_ms);
+
+				int64_t target_pts = m_audioFrames.front().pts + m_audioOffset + m_extraDelay;
+				if (target_pts <= now_ms) {
+					sendToObs(&m_audioFrames, m_source, &m_audioInfo);
+				} else
+					break;
+			} else {
+				sendToObs(&m_audioFrames, m_source, &m_audioInfo);
+			}
+		} else
+			break;
+	}
+	pthread_mutex_unlock(&m_audioDataMutex);
+
 	static size_t max_packet_size = 1024 * 1024 * 10;
 
 	size_t header_size = sizeof(struct av_packet_info);
@@ -507,7 +548,10 @@ bool ScreenMirrorServer::handleMediaData()
 	if (header_info.type == FFM_MIRROR_STATUS) {
 		int status = -1;
 		circlebuf_pop_front(&m_avBuffer, &status, sizeof(int));
-		handleMirrorStatus(status);
+		if (status == MIRROR_AUDIO_SESSION_START) {
+			resetAudioState();
+		} else
+			handleMirrorStatus(status);
 	} else if (header_info.type == FFM_MEDIA_VIDEO_INFO) {
 		struct media_video_info info;
 		memset(&info, 0, req_size);
@@ -542,6 +586,24 @@ bool ScreenMirrorServer::handleMediaData()
 	return true;
 }
 
+void ScreenMirrorServer::resetAudioState(bool clearAudioInfo)
+{
+	pthread_mutex_lock(&m_audioDataMutex);
+	m_audioOffset = LLONG_MAX;
+	for (auto iter = m_audioFrames.begin(); iter != m_audioFrames.end();
+	     iter++) {
+		AudioFrame &f = *iter;
+		free(f.data);
+	}
+	m_audioFrames.clear();
+	if (clearAudioInfo)
+		memset(&m_audioInfo, 0, sizeof(media_audio_info));
+	m_lastAudioPts = LLONG_MAX;
+	m_fixAudioOffset = LLONG_MAX;
+
+	pthread_mutex_unlock(&m_audioDataMutex);
+}
+
 void ScreenMirrorServer::resetState()
 {
 	pthread_mutex_lock(&m_videoDataMutex);
@@ -562,16 +624,7 @@ void ScreenMirrorServer::resetState()
 	m_videoInfos.clear();
 	pthread_mutex_unlock(&m_videoDataMutex);
 
-	pthread_mutex_lock(&m_audioDataMutex);
-	m_audioOffset = LLONG_MAX;
-	for (auto iter = m_audioFrames.begin(); iter != m_audioFrames.end();
-	     iter++) {
-		AudioFrame &f = *iter;
-		free(f.data);
-	}
-	m_audioFrames.clear();
-	memset(&m_audioInfo, 0, sizeof(media_audio_info));
-	pthread_mutex_unlock(&m_audioDataMutex);
+	resetAudioState(true);
 
 	pthread_mutex_lock(&m_ptsMutex);
 	if (m_backend == ANDROID_WIRELESS || m_backend == IOS_WIRELESS)
@@ -686,63 +739,12 @@ void ScreenMirrorServer::dropAudioFrame(int64_t now_ms)
 		auto p1ts = p1 + m_audioOffset + m_extraDelay;
 		auto p2ts = p2 + m_audioOffset + m_extraDelay;
 
-		if (p1ts < now_ms && p2ts < now_ms && now_ms - p2ts > 60) {
+		if (p1ts < now_ms && p2ts < now_ms && now_ms - p2ts > 150) {
 			free(m_audioFrames.front().data);
 			m_audioFrames.pop_front();
 		} else
 			break;
 	}
-}
-
-void *ScreenMirrorServer::audio_tick_thread(void *data)
-{
-	auto func = [](std::list<AudioFrame> *frames, obs_source_t *source, media_audio_info *audioInfo) {
-		if (frames->size() <= 0
-		    || !audioInfo->samples_per_sec
-		    || audioInfo->format == AUDIO_FORMAT_UNKNOWN
-		    || audioInfo->speakers == SPEAKERS_UNKNOWN)
-			return;
-		AudioFrame &frame = frames->front();
-		obs_source_audio audio;
-		audio.format = audioInfo->format;
-		audio.samples_per_sec = audioInfo->samples_per_sec;
-		audio.speakers = audioInfo->speakers;
-		audio.frames = frame.data_len / (audioInfo->speakers * sizeof(short));
-		audio.timestamp = os_gettime_ns();
-		audio.data[0] = frame.data;
-		obs_source_output_audio(source, &audio);
-
-		free(frame.data);
-		frames->pop_front();
-	};
-
-	ScreenMirrorServer *s = (ScreenMirrorServer *)data;
-	while (!s->m_stop) {
-		pthread_mutex_lock(&s->m_audioDataMutex);
-		if (s->canProcessMediaData() && s->m_audioFrames.size() > 0) {
-			int64_t pts = s->m_audioFrames.front().pts;
-			if (pts > 0) {
-				int64_t now_ms = (int64_t)os_gettime_ns() / 1000000;
-
-				if (s->m_audioOffset == LLONG_MAX) {
-					s->m_audioOffset = now_ms - pts + s->m_audioExtraOffset; 
-				}
-
-				s->dropAudioFrame(now_ms);
-
-				int64_t target_pts = s->m_audioFrames.front().pts + s->m_audioOffset + s->m_extraDelay;
-				if (target_pts <= now_ms) {
-					func(&s->m_audioFrames, s->m_source, &s->m_audioInfo);
-				}
-			} else {
-				func(&s->m_audioFrames, s->m_source, &s->m_audioInfo);
-			}
-		}
-		pthread_mutex_unlock(&s->m_audioDataMutex);
-		os_sleep_ms(8);
-	}
-
-	return NULL;
 }
 
 void ScreenMirrorServer::outputAudio(uint8_t *data, size_t data_len, int64_t pts, int serial)
@@ -754,7 +756,25 @@ void ScreenMirrorServer::outputAudio(uint8_t *data, size_t data_len, int64_t pts
 
 	pts = pts / 1000000;
 	pthread_mutex_lock(&m_audioDataMutex);
+	//这边的pts修正逻辑只有ios镜像投屏才会走到
+	if (m_lastAudioPts == LLONG_MAX) {
+		m_lastAudioPts = pts;
+	} else {
+		if (m_fixAudioOffset != LLONG_MAX) {
+			pts = pts - m_fixAudioOffset;
+		} else {
+			int64_t frameDuration = data_len * 1000 / (m_audioInfo.samples_per_sec * 4); //发过来的pcm都是16bit 双声道
+			if (pts - m_lastAudioPts > 3600 * 24) {//如果相邻时间戳的值相差太大，需要修正
+				m_fixAudioOffset = pts - m_lastAudioPts - frameDuration;
+				pts = pts - m_fixAudioOffset;
+			}
+		}
+	}
+
 	m_audioFrames.push_back({data, data_len, pts, serial});
+
+	m_lastAudioPts = pts;
+
 	pthread_mutex_unlock(&m_audioDataMutex);
 }
 
@@ -1002,7 +1022,7 @@ static void WinAirplayCustomCommand(void *data, obs_data_t *cmd)
 		obs_data_release(settings);
 
 		struct calldata data;
-		uint8_t stack[128];
+		uint8_t stack[512];
 		calldata_init_fixed(&data, stack, sizeof(stack));
 		calldata_set_ptr(&data, "source", s->m_source);
 		signal_handler_signal(obs_source_get_signal_handler(s->m_source), "settings_update", &data);

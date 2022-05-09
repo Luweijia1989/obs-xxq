@@ -354,8 +354,6 @@ obs_source_create_internal(const char *id, const char *name,
 			isprivate = true;
 	}
 
-	source->async_video_keep_last_frame =
-		obs_data_get_bool(settings, "keep_last_frame");
 	source->mute_unmute_key = OBS_INVALID_HOTKEY_PAIR_ID;
 	source->push_to_mute_key = OBS_INVALID_HOTKEY_ID;
 	source->push_to_talk_key = OBS_INVALID_HOTKEY_ID;
@@ -640,6 +638,8 @@ void obs_source_destroy(struct obs_source *source)
 	}
 	if (source->filter_texrender)
 		gs_texrender_destroy(source->filter_texrender);
+	if (source->async_holder_image)
+		gs_texture_destroy(source->async_holder_image);
 	gs_leave_context();
 
 	for (i = 0; i < MAX_AV_PLANES; i++)
@@ -891,8 +891,6 @@ void obs_source_update(obs_source_t *source, obs_data_t *settings)
 
 	if (settings)
 		obs_data_apply(source->context.settings, settings);
-
-	source->async_video_keep_last_frame = obs_data_get_bool(settings, "keep_last_frame");
 
 	if (source->info.output_flags & OBS_SOURCE_VIDEO) {
 		source->defer_update = true;
@@ -2005,6 +2003,41 @@ static void obs_source_draw_async_texture(struct obs_source *source)
 	}
 }
 
+static void obs_source_draw_holder_image(struct obs_source *source)
+{
+	if (!source->async_holder_image)
+		return;
+
+	gs_effect_t *effect = gs_get_effect();
+	bool def_draw = (!effect);
+	gs_technique_t *tech = NULL;
+
+	if (def_draw) {
+		effect = obs_get_base_effect(OBS_EFFECT_DEFAULT);
+		tech = gs_effect_get_technique(effect, "Draw");
+		gs_technique_begin(tech);
+		gs_technique_begin_pass(tech, 0);
+	}
+
+	gs_texture_t *tex = source->async_holder_image;
+	gs_eparam_t *param;
+
+	param = gs_effect_get_param_by_name(effect, "image");
+	gs_effect_set_texture(param, tex);
+
+	uint32_t flag = 0;
+	if (source->async_flip)
+		flag |= GS_FLIP_V;
+	if (source->async_flip_h)
+		flag |= GS_FLIP_U;
+	gs_draw_sprite(tex, flag, 0, 0);
+
+	if (def_draw) {
+		gs_technique_end_pass(tech);
+		gs_technique_end(tech);
+	}
+}
+
 static void recreate_async_texture(obs_source_t *source,
 				   enum gs_color_format format)
 {
@@ -2062,6 +2095,8 @@ static inline void obs_source_render_async_video(obs_source_t *source)
 {
 	if (source->async_textures[0] && source->async_active)
 		obs_source_draw_async_texture(source);
+	else if (source->async_holder_image)
+		obs_source_draw_holder_image(source);
 }
 
 static inline void obs_source_render_filters(obs_source_t *source)
@@ -2200,7 +2235,10 @@ static uint32_t get_base_width(const obs_source_t *source)
 		return get_base_width(source->filter_target);
 	}
 
-	return source->async_active ? source->async_width : 0;
+	if (source->async_active)
+		return source->async_width;
+	else
+		return source->placeholder_width;
 }
 
 static uint32_t get_base_height(const obs_source_t *source)
@@ -2218,7 +2256,10 @@ static uint32_t get_base_height(const obs_source_t *source)
 		return get_base_height(source->filter_target);
 	}
 
-	return source->async_active ? source->async_height : 0;
+	if (source->async_active)
+		return source->async_height;
+	else
+		return source->placeholder_height;
 }
 
 static uint32_t get_recurse_width(obs_source_t *source)
@@ -2315,7 +2356,7 @@ static bool filter_compatible(obs_source_t *source, obs_source_t *filter)
 void obs_source_filter_add(obs_source_t *source, obs_source_t *filter)
 {
 	struct calldata cd;
-	uint8_t stack[128];
+	uint8_t stack[512];
 
 	if (!obs_source_valid(source, "obs_source_filter_add"))
 		return;
@@ -2360,7 +2401,7 @@ static bool obs_source_filter_remove_refless(obs_source_t *source,
 					     obs_source_t *filter)
 {
 	struct calldata cd;
-	uint8_t stack[128];
+	uint8_t stack[512];
 	size_t idx;
 
 	pthread_mutex_lock(&source->filter_mutex);
@@ -2785,12 +2826,6 @@ obs_source_output_video_internal(obs_source_t *source,
 			source->async_active = true;
 		}
 	}
-	pthread_mutex_unlock(&source->async_mutex);
-}
-
-void obs_source_set_async_last_frame_enable(obs_source_t *source, bool enable) {
-	pthread_mutex_lock(&source->async_mutex);
-	source->async_video_keep_last_frame = enable;
 	pthread_mutex_unlock(&source->async_mutex);
 }
 
@@ -3271,20 +3306,6 @@ static inline struct obs_source_frame *get_closest_frame(obs_source_t *source,
 	if (!source->async_frames.num)
 		return NULL;
 
-	if (source->async_video_keep_last_frame) {
-		struct obs_source_frame *frame = source->async_frames.array[0];
-		if (source->async_frames.num == 1)
-			return frame;
-		else {
-			if (frame->has_shown) {
-				da_erase(source->async_frames, 0);
-				remove_async_frame(source, frame);
-				frame->has_shown = false;
-				return get_closest_frame(source, sys_time);
-			}
-		}
-	}
-
 	if (!source->last_frame_ts || ready_async_frame(source, sys_time)) {
 		struct obs_source_frame *frame = source->async_frames.array[0];
 		da_erase(source->async_frames, 0);
@@ -3317,7 +3338,6 @@ struct obs_source_frame *obs_source_get_frame(obs_source_t *source)
 	source->cur_async_frame = NULL;
 
 	if (frame) {
-		frame->has_shown = true;
 		os_atomic_inc_long(&frame->refs);
 	}
 
@@ -3600,7 +3620,7 @@ void obs_source_set_volume(obs_source_t *source, float volume)
 					      .vol = volume};
 
 		struct calldata data;
-		uint8_t stack[128];
+		uint8_t stack[512];
 
 		calldata_init_fixed(&data, stack, sizeof(stack));
 		calldata_set_ptr(&data, "source", source);
@@ -3632,7 +3652,7 @@ void obs_source_set_sync_offset(obs_source_t *source, int64_t offset)
 {
 	if (obs_source_valid(source, "obs_source_set_sync_offset")) {
 		struct calldata data;
-		uint8_t stack[128];
+		uint8_t stack[512];
 
 		calldata_init_fixed(&data, stack, sizeof(stack));
 		calldata_set_ptr(&data, "source", source);
@@ -3881,7 +3901,7 @@ bool obs_source_showing(const obs_source_t *source)
 static inline void signal_flags_updated(obs_source_t *source)
 {
 	struct calldata data;
-	uint8_t stack[128];
+	uint8_t stack[512];
 
 	calldata_init_fixed(&data, stack, sizeof(stack));
 	calldata_set_ptr(&data, "source", source);
@@ -3918,7 +3938,7 @@ uint32_t obs_source_get_flags(const obs_source_t *source)
 void obs_source_set_audio_mixers(obs_source_t *source, uint32_t mixers)
 {
 	struct calldata data;
-	uint8_t stack[128];
+	uint8_t stack[512];
 
 	if (!obs_source_valid(source, "obs_source_set_audio_mixers"))
 		return;
@@ -4093,7 +4113,7 @@ bool obs_source_enabled(const obs_source_t *source)
 void obs_source_set_enabled(obs_source_t *source, bool enabled)
 {
 	struct calldata data;
-	uint8_t stack[128];
+	uint8_t stack[512];
 
 	if (!obs_source_valid(source, "obs_source_set_enabled"))
 		return;
@@ -4116,7 +4136,7 @@ bool obs_source_muted(const obs_source_t *source)
 void obs_source_set_muted(obs_source_t *source, bool muted)
 {
 	struct calldata data;
-	uint8_t stack[128];
+	uint8_t stack[512];
 	struct audio_action action = {.timestamp = os_gettime_ns(),
 				      .type = AUDIO_ACTION_MUTE,
 				      .set = muted};
@@ -4141,7 +4161,7 @@ static void source_signal_push_to_changed(obs_source_t *source,
 					  const char *signal, bool enabled)
 {
 	struct calldata data;
-	uint8_t stack[128];
+	uint8_t stack[512];
 
 	calldata_init_fixed(&data, stack, sizeof(stack));
 	calldata_set_ptr(&data, "source", source);
@@ -4154,7 +4174,7 @@ static void source_signal_push_to_delay(obs_source_t *source,
 					const char *signal, uint64_t delay)
 {
 	struct calldata data;
-	uint8_t stack[128];
+	uint8_t stack[512];
 
 	calldata_init_fixed(&data, stack, sizeof(stack));
 	calldata_set_ptr(&data, "source", source);
@@ -4823,7 +4843,7 @@ void obs_source_signal_event(const obs_source_t *source, obs_data_t *event_data)
 {
 	signal_handler_t *handler = obs_source_get_signal_handler(source);
 	struct calldata cd;
-	uint8_t stack[128];
+	uint8_t stack[512];
 	calldata_init_fixed(&cd, stack, sizeof(stack));
 	calldata_set_ptr(&cd, "source", (obs_source_t *)source);
 	calldata_set_ptr(&cd, "event", event_data);
@@ -4894,4 +4914,18 @@ void obs_source_draw_videoframe(obs_source_t *source)
 	if (source->async_active && source->async_texrender &&
 	    gs_texrender_get_texture(source->async_texrender))
 		obs_source_draw_async_texture(source);
+}
+
+void obs_source_set_placeholder_image(obs_source_t *source, char *image_path)
+{
+	gs_enter_context(obs->video.graphics);
+	if (source->async_holder_image)
+		gs_texture_destroy(source->async_holder_image);
+
+	source->async_holder_image = gs_texture_create_from_file(image_path);
+	source->placeholder_width =
+		gs_texture_get_width(source->async_holder_image);
+	source->placeholder_height =
+		gs_texture_get_height(source->async_holder_image);
+	gs_leave_context();
 }
