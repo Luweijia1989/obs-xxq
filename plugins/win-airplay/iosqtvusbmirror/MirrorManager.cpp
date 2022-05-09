@@ -172,6 +172,7 @@ MirrorManager::MirrorManager()
 	};
 
 	usb_init();
+	usb_set_debug(0);
 	m_pktbuf = (unsigned char *)malloc(DEV_MRU);
 	m_pairBlockEvent = new QEventLoop(this);
 	m_usbDataBlockEvent = new QEventLoop(this);
