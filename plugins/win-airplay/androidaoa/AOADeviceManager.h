@@ -129,11 +129,10 @@ private:
 	QWaitCondition m_waitCondition;
 
 	circlebuf m_mediaDataBuffer;
-	struct IPCClient *client = NULL;
+	struct IPCClient *m_client = nullptr;
 	uint8_t *m_cacheBuffer = nullptr;
 	size_t m_cacheBufferSize = 0;
 
-	IPCClient *m_client = nullptr;
 	QSet<int> m_vids;
 	QFile h264;
 };

@@ -104,6 +104,8 @@ private:
 	media_audio_info m_audioInfo;
 	bool m_stop = false;
 
+	bool m_audioInfoReceived = false;
+	bool m_videoInfoReceived = false;
 	std::list<VideoFrame> m_videoFrames;
 	std::list<AudioFrame> m_audioFrames;
 	pthread_mutex_t m_videoDataMutex;

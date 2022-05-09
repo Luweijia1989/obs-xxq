@@ -548,6 +548,11 @@ bool ScreenMirrorServer::handleMediaData()
 	if (header_info.type == FFM_MIRROR_STATUS) {
 		int status = -1;
 		circlebuf_pop_front(&m_avBuffer, &status, sizeof(int));
+		if (status == MIRROR_START) {
+			m_audioInfoReceived = false;
+			m_videoInfoReceived = false;
+		}
+
 		if (status == MIRROR_AUDIO_SESSION_START) {
 			resetAudioState();
 		} else
@@ -558,6 +563,8 @@ bool ScreenMirrorServer::handleMediaData()
 		circlebuf_pop_front(&m_avBuffer, &info, req_size);
 		if (info.video_extra_len == 0)
 			return true;
+
+		m_videoInfoReceived = true;
 
 		pthread_mutex_lock(&m_videoDataMutex);
 		auto cache = (uint8_t *)malloc(info.video_extra_len);
@@ -572,16 +579,25 @@ bool ScreenMirrorServer::handleMediaData()
 
 		handleMirrorStatus(OBS_SOURCE_MIRROR_OUTPUT);
 	} else if (header_info.type == FFM_MEDIA_AUDIO_INFO) {
+		m_audioInfoReceived = true;
+
 		pthread_mutex_lock(&m_audioDataMutex);
 		circlebuf_pop_front(&m_avBuffer, &m_audioInfo, req_size);
 		pthread_mutex_unlock(&m_audioDataMutex);
 	} else {
 		uint8_t *temp_buf = (uint8_t *)calloc(1, req_size);
 		circlebuf_pop_front(&m_avBuffer, temp_buf, req_size);
-		if (header_info.type == FFM_PACKET_AUDIO)
-			outputAudio(temp_buf, req_size, header_info.pts, header_info.serial);
-		else
-			outputVideo(temp_buf, req_size, header_info.pts);
+		if (header_info.type == FFM_PACKET_AUDIO) {
+			if (m_audioInfoReceived)
+				outputAudio(temp_buf, req_size, header_info.pts, header_info.serial);
+			else
+				free(temp_buf);
+		} else {
+			if (m_videoInfoReceived)
+				outputVideo(temp_buf, req_size, header_info.pts);
+			else
+				free(temp_buf);
+		}
 	}
 	return true;
 }
