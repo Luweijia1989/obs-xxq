@@ -241,23 +241,23 @@ void ScreenMirrorServer::pipeCallback(void *param, uint8_t *data, size_t size)
 
 void ScreenMirrorServer::mirrorServerSetup()
 {
-	if (m_backendProcess.state() == QProcess::Running)
-		return;
-
 	os_kill_process(m_backendProcessName.toStdString().c_str());
 	ipc_server_create(&m_ipcServer, ScreenMirrorServer::pipeCallback, this);
 
-	auto path = QString("\"%1/%2\"").arg(QApplication::applicationDirPath()).arg(m_backendProcessName);
-	m_backendProcess.start(path);
-	m_backendProcess.waitForStarted();
+	struct dstr cmd;
+	dstr_init_move_array(&cmd, os_get_executable_path_ptr(m_backendProcessName.toStdString().c_str()));
+	dstr_insert_ch(&cmd, 0, '\"');
+	dstr_cat(&cmd, "\" \"");
+	process = os_process_pipe_create(cmd.array, "w");
+	dstr_free(&cmd);
 }
 
 void ScreenMirrorServer::mirrorServerDestroy()
 {
-	if (m_backendProcess.state() == QProcess::Running) {
+	if (process) {
 		m_commandIPC->requestQuit();
-		if (!m_backendProcess.waitForFinished(1500))
-			os_kill_process(m_backendProcessName.toStdString().c_str());
+		os_process_pipe_destroy_timeout(process, 1500);
+		process = NULL;
 	}
 
 	if (m_ipcServer)
