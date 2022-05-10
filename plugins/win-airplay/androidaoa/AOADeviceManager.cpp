@@ -64,7 +64,6 @@ AOADeviceManager::AOADeviceManager()
 		&AOADeviceManager::installError);
 
 	circlebuf_init(&m_mediaDataBuffer);
-	ipc_client_create(&client);
 
 	//h264.setFileName("E:\\android.h264");
 	//h264.open(QFile::ReadWrite);
@@ -75,7 +74,6 @@ AOADeviceManager::~AOADeviceManager()
 	disconnectDevice();
 
 	circlebuf_free(&m_mediaDataBuffer);
-	ipc_client_destroy(&client);
 	if (m_cacheBuffer)
 		free(m_cacheBuffer);
 
@@ -379,7 +377,7 @@ bool AOADeviceManager::handleMediaData()
 			struct media_video_info info;
 			info.video_extra_len = pktSize;
 			memcpy(info.video_extra, m_cacheBuffer, pktSize);
-			ipc_client_write_2(client, &pack_info,
+			ipc_client_write_2(m_client, &pack_info,
 					   sizeof(struct av_packet_info), &info,
 					   sizeof(struct media_video_info), INFINITE);
 
@@ -391,7 +389,7 @@ bool AOADeviceManager::handleMediaData()
 			struct av_packet_info audio_pack_info = {0};
 			audio_pack_info.size = sizeof(struct media_audio_info);
 			audio_pack_info.type = FFM_MEDIA_AUDIO_INFO;
-			ipc_client_write_2(client, &audio_pack_info,
+			ipc_client_write_2(m_client, &audio_pack_info,
 					   sizeof(struct av_packet_info), &audio_info,
 					   sizeof(struct media_audio_info),
 					   INFINITE);
@@ -400,7 +398,7 @@ bool AOADeviceManager::handleMediaData()
 			pack_info.size = pktSize;
 			pack_info.type = FFM_PACKET_VIDEO;
 			pack_info.pts = pts * 1000000;
-			ipc_client_write_2(client, &pack_info,
+			ipc_client_write_2(m_client, &pack_info,
 					   sizeof(struct av_packet_info),
 					   m_cacheBuffer, pack_info.size,
 					   INFINITE);
@@ -410,7 +408,7 @@ bool AOADeviceManager::handleMediaData()
 		pack_info.size = pktSize;
 		pack_info.type = FFM_PACKET_AUDIO;
 		pack_info.pts = pts * 1000000;
-		ipc_client_write_2(client, &pack_info,
+		ipc_client_write_2(m_client, &pack_info,
 				   sizeof(struct av_packet_info), m_cacheBuffer,
 				   pack_info.size, INFINITE);
 	}

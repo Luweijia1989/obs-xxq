@@ -104,6 +104,8 @@ private:
 	media_audio_info m_audioInfo;
 	bool m_stop = false;
 
+	bool m_audioInfoReceived = false;
+	bool m_videoInfoReceived = false;
 	std::list<VideoFrame> m_videoFrames;
 	std::list<AudioFrame> m_audioFrames;
 	pthread_mutex_t m_videoDataMutex;
@@ -124,7 +126,6 @@ private:
 	uint32_t m_lastVideoInfoIndex = 0;
 
 	struct IPCServer *m_ipcServer = nullptr;
-	QProcess m_backendProcess;
 	circlebuf m_avBuffer;
 	MirrorBackEnd m_backend = None;
 	MirrorBackEnd m_lastStopType = None;
@@ -146,4 +147,6 @@ private:
 	QTimer *m_helperTimer = nullptr;
 
 	MirrorRPC *m_commandIPC = nullptr;
+
+	os_process_pipe_t *process = nullptr;
 };

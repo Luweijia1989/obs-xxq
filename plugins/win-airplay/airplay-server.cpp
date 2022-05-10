@@ -241,23 +241,23 @@ void ScreenMirrorServer::pipeCallback(void *param, uint8_t *data, size_t size)
 
 void ScreenMirrorServer::mirrorServerSetup()
 {
-	if (m_backendProcess.state() == QProcess::Running)
-		return;
-
 	os_kill_process(m_backendProcessName.toStdString().c_str());
 	ipc_server_create(&m_ipcServer, ScreenMirrorServer::pipeCallback, this);
 
-	auto path = QString("\"%1/%2\"").arg(QApplication::applicationDirPath()).arg(m_backendProcessName);
-	m_backendProcess.start(path);
-	m_backendProcess.waitForStarted();
+	struct dstr cmd;
+	dstr_init_move_array(&cmd, os_get_executable_path_ptr(m_backendProcessName.toStdString().c_str()));
+	dstr_insert_ch(&cmd, 0, '\"');
+	dstr_cat(&cmd, "\" \"");
+	process = os_process_pipe_create(cmd.array, "w");
+	dstr_free(&cmd);
 }
 
 void ScreenMirrorServer::mirrorServerDestroy()
 {
-	if (m_backendProcess.state() == QProcess::Running) {
+	if (process) {
 		m_commandIPC->requestQuit();
-		if (!m_backendProcess.waitForFinished(1500))
-			os_kill_process(m_backendProcessName.toStdString().c_str());
+		os_process_pipe_destroy_timeout(process, 1500);
+		process = NULL;
 	}
 
 	if (m_ipcServer)
@@ -548,6 +548,11 @@ bool ScreenMirrorServer::handleMediaData()
 	if (header_info.type == FFM_MIRROR_STATUS) {
 		int status = -1;
 		circlebuf_pop_front(&m_avBuffer, &status, sizeof(int));
+		if (status == MIRROR_START) {
+			m_audioInfoReceived = false;
+			m_videoInfoReceived = false;
+		}
+
 		if (status == MIRROR_AUDIO_SESSION_START) {
 			resetAudioState();
 		} else
@@ -558,6 +563,8 @@ bool ScreenMirrorServer::handleMediaData()
 		circlebuf_pop_front(&m_avBuffer, &info, req_size);
 		if (info.video_extra_len == 0)
 			return true;
+
+		m_videoInfoReceived = true;
 
 		pthread_mutex_lock(&m_videoDataMutex);
 		auto cache = (uint8_t *)malloc(info.video_extra_len);
@@ -572,16 +579,25 @@ bool ScreenMirrorServer::handleMediaData()
 
 		handleMirrorStatus(OBS_SOURCE_MIRROR_OUTPUT);
 	} else if (header_info.type == FFM_MEDIA_AUDIO_INFO) {
+		m_audioInfoReceived = true;
+
 		pthread_mutex_lock(&m_audioDataMutex);
 		circlebuf_pop_front(&m_avBuffer, &m_audioInfo, req_size);
 		pthread_mutex_unlock(&m_audioDataMutex);
 	} else {
 		uint8_t *temp_buf = (uint8_t *)calloc(1, req_size);
 		circlebuf_pop_front(&m_avBuffer, temp_buf, req_size);
-		if (header_info.type == FFM_PACKET_AUDIO)
-			outputAudio(temp_buf, req_size, header_info.pts, header_info.serial);
-		else
-			outputVideo(temp_buf, req_size, header_info.pts);
+		if (header_info.type == FFM_PACKET_AUDIO) {
+			if (m_audioInfoReceived)
+				outputAudio(temp_buf, req_size, header_info.pts, header_info.serial);
+			else
+				free(temp_buf);
+		} else {
+			if (m_videoInfoReceived)
+				outputVideo(temp_buf, req_size, header_info.pts);
+			else
+				free(temp_buf);
+		}
 	}
 	return true;
 }

@@ -172,6 +172,7 @@ MirrorManager::MirrorManager()
 	};
 
 	usb_init();
+	usb_set_debug(0);
 	m_pktbuf = (unsigned char *)malloc(DEV_MRU);
 	m_pairBlockEvent = new QEventLoop(this);
 	m_usbDataBlockEvent = new QEventLoop(this);
@@ -1636,11 +1637,14 @@ bool MirrorManager::readDataFromSSL(ConnectionInfo *conn, void *dst, size_t size
 	if (!m_connections.contains(conn))
 		return ret;
 
+	if (!conn->ssl_data)
+		return ret;
+
 	QEventLoop block;
 	auto read = [=, &block, &ret](){
 		QMutexLocker locker(&conn->deleteMutex);
-		if (!conn->ssl_data)
-			return;
+
+		QThread::msleep(10);
 
 		uint32_t received = 0;
 		int do_select = 1;
