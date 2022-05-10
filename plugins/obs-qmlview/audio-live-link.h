@@ -18,4 +18,5 @@ signals:
 	void stop();
 	void showPkEffect();
 	void stopPkEffect();
+	void link();
 };

@@ -92,6 +92,8 @@ static void audioLiveLinkCommand(void *data, obs_data_t *cmd)
 		emit s->showPkEffect();
 	} else if (strcmp("stoppkface", cmdType) == 0 && s) {
 		emit s->stopPkEffect();
+	} else if (strcmp("startLink", cmdType) == 0 && s) {
+		emit s->link();
 	}
 }
 
