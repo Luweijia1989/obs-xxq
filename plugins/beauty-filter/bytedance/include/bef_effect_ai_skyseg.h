@@ -1,4 +1,4 @@
-﻿//
+//
 //  bef_effect_ai_skyseg.h
 //  effect-sdk
 //

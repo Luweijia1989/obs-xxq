@@ -1,4 +1,4 @@
-﻿#ifndef _BEF_EFFECT_AI_AUTHMSG_H_
+#ifndef _BEF_EFFECT_AI_AUTHMSG_H_
 #define _BEF_EFFECT_AI_AUTHMSG_H_
 
 

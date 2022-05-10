@@ -1,4 +1,4 @@
-﻿// Copyright (C) 2019 Beijing Bytedance Network Technology Co., Ltd.
+// Copyright (C) 2019 Beijing Bytedance Network Technology Co., Ltd.
 #ifndef _BEF_EFFECT_FACE_ATTRIBUTE_H_
 #define _BEF_EFFECT_FACE_ATTRIBUTE_H_
 

@@ -1,4 +1,4 @@
-﻿// Copyright (C) 2019 Beijing Bytedance Network Technology Co., Ltd.
+// Copyright (C) 2019 Beijing Bytedance Network Technology Co., Ltd.
 #ifndef bef_effect_ai_api_h
 #define bef_effect_ai_api_h
 
