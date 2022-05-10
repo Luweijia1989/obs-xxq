@@ -1,4 +1,4 @@
-﻿#ifndef BEF_EFFECT_AI_STUDENT_ID_OCR_H
+#ifndef BEF_EFFECT_AI_STUDENT_ID_OCR_H
 #define BEF_EFFECT_AI_STUDENT_ID_OCR_H
 
 #if defined(__ANDROID__) || defined(TARGET_OS_ANDROID)

@@ -1,4 +1,4 @@
-﻿//
+//
 //  bef_msg_delegate_manager.h
 //  byted-effect-sdk
 //

@@ -1,4 +1,4 @@
-﻿// Copyright (C) 2019 Beijing Bytedance Network Technology Co., Ltd.
+// Copyright (C) 2019 Beijing Bytedance Network Technology Co., Ltd.
 
 #ifndef BEF_EFFECT_AI_GAZE_ESTIMATION_H
 #define BEF_EFFECT_AI_GAZE_ESTIMATION_H

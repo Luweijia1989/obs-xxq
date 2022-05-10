@@ -1,4 +1,4 @@
-﻿//
+//
 //  bef_effect_ai_message_define.h
 //  effect-sdk
 //

@@ -1,4 +1,4 @@
-﻿//
+//
 //  bef_effect_ai_animoji.h
 //  effect-sdk
 //

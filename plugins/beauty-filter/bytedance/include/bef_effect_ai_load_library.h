@@ -1,4 +1,4 @@
-﻿#ifndef BEF_EFFECT_AI_LOAD_LIBRARY_H
+#ifndef BEF_EFFECT_AI_LOAD_LIBRARY_H
 #define BEF_EFFECT_AI_LOAD_LIBRARY_H
 
 #include "bef_effect_ai_public_define.h"

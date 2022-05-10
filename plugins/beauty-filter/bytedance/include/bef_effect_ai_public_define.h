@@ -1,4 +1,4 @@
-﻿// Copyright (C) 2019 Beijing Bytedance Network Technology Co., Ltd.
+// Copyright (C) 2019 Beijing Bytedance Network Technology Co., Ltd.
 #ifndef EFFECT_SDK_BEF_EFFECT_AI_PUBLIC_DEFINE_H
 #define EFFECT_SDK_BEF_EFFECT_AI_PUBLIC_DEFINE_H
 

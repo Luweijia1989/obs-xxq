@@ -1,4 +1,4 @@
-﻿#ifndef _BEF_EFFECT_FACE_VREIFY_AI_H_
+#ifndef _BEF_EFFECT_FACE_VREIFY_AI_H_
 #define _BEF_EFFECT_FACE_VREIFY_AI_H_
 
 #if defined(__ANDROID__) || defined(TARGET_OS_ANDROID)
