@@ -127,5 +127,25 @@ Item {
             voicewave.stop();
             console.log("voicewave stop");
         }
+		onLink:
+		{
+			if(audioLiveLinkProperties.isMuliti)
+			{
+				voicewave.anchors.leftMargin = 375;
+				voicewave.anchors.topMargin = 130;
+				voicewave.width = 690;
+				voicewave.height = 690;
+				avartar.x = 130;
+				avartar.y = 130;
+				avartar.width = 430;
+				avartar.height = 430;
+				avartar.radius = 215;
+				imgeBg.radius = 215;
+				squareavatarImage.sourceSize.width = 430;
+				squareavatarImage.sourceSize.width = 430;
+				border1.radius = 215;
+				mask1.radius = 215;
+			}
+		}
 	}
 }

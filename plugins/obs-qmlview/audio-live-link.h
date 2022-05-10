@@ -15,4 +15,5 @@ public:
 signals:
 	void play();
 	void stop();
+	void link();
 };

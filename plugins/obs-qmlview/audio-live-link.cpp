@@ -82,6 +82,8 @@ static void audioLiveLinkCommand(void *data, obs_data_t *cmd)
 		emit s->play();
 	} else if (strcmp("stop", cmdType) == 0 && s) {
 		emit s->stop();
+	} else if (strcmp("startLink", cmdType) == 0 && s) {
+		emit s->link();
 	}
 }
 
