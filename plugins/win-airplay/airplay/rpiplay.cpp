@@ -71,7 +71,6 @@ static raop_t *raop = NULL;
 static logger_t *render_logger = NULL;
 static IPCClient *ipc_client = NULL;
 static HANDLE_AACDECODER aacdecoder_handler;
-static FILE *log_file;
 
 static HANDLE_AACDECODER create_fdk_aac_decoder()
 {
@@ -383,93 +382,14 @@ std::string get_host_name()
 	return ret;
 }
 
-void createDir(QString path) {
-	QDir dir(path);
-	if (!dir.exists(path))
-		dir.mkdir(path);
-};
-
-QString get_dump_path()
-{
-	QString path = QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation);
-	createDir(path);
-
-	path += "/dump";
-	createDir(path);
-
-	path += "/airplay_" + QDateTime::currentDateTime().toString("yyyyMMdd-hhmmss") + ".dmp";
-	return path;
-}
-
-QString get_log_path()
-{
-	QString path = QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation);
-	createDir(path);
-
-	path += "/logs";
-	createDir(path);
-
-	path += "/airplay_" + QDateTime::currentDateTime().toString("yyyyMMdd-hhmmss") + ".log";
-	return path;
-}
-
-LONG CALLBACK crash_handler(PEXCEPTION_POINTERS exception)
-{
-	static bool inside_handler = false;
-
-	/* don't use if a debugger is present */
-	if (IsDebuggerPresent())
-		return EXCEPTION_CONTINUE_SEARCH;
-
-	if (inside_handler)
-		return EXCEPTION_CONTINUE_SEARCH;
-
-	inside_handler = true;
-
-	QString path = get_dump_path();
-	HANDLE file = CreateFile(path.toStdWString().c_str(), GENERIC_WRITE, 0,
-				 NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL,
-				 NULL);
-
-	if (file != INVALID_HANDLE_VALUE) {
-		MINIDUMP_EXCEPTION_INFORMATION di;
-		di.ExceptionPointers = exception;
-		di.ThreadId = GetCurrentThreadId();
-		di.ClientPointers = TRUE;
-
-		BOOL ret = MiniDumpWriteDump(GetCurrentProcess(),
-					     GetCurrentProcessId(), file,
-					     MiniDumpNormal, &di, NULL, NULL);
-		CloseHandle(file);
-	}
-
-	inside_handler = false;
-	return EXCEPTION_EXECUTE_HANDLER;
-}
-
-static void qtMessageOutput(QtMsgType type, const QMessageLogContext &context, const QString &msg)
-{
-    QByteArray localMsg = msg.toUtf8();
-    fwrite(localMsg.data(), 1, localMsg.size(), log_file);
-    fwrite("\n", 1, 1, log_file);
-    fflush(log_file);
-}
-
 int main(int argc, char *argv[]) {
-    SetUnhandledExceptionFilter(crash_handler);
-
     QCoreApplication app(argc, argv);
     app.setApplicationName("yuerlive");
-
-    qInstallMessageHandler(qtMessageOutput);
 
     MirrorRPC rpc;
     QObject::connect(&rpc, &MirrorRPC::quit, &app, &QCoreApplication::quit);
 
     bonjourCheckInstall();
-
-    
-    log_file = fopen(get_log_path().toStdString().c_str(), "w");
 
     aacdecoder_handler = create_fdk_aac_decoder();
     ipc_client_create(&ipc_client);
@@ -495,7 +415,6 @@ int main(int argc, char *argv[]) {
 
     ipc_client_destroy(&ipc_client);
     close_fdk_aac_decoder(aacdecoder_handler);
-    fclose(log_file);
 }
 
 // Server callbacks
