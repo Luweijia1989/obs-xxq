@@ -199,7 +199,7 @@ class ObsXXQConan(ConanFile):
         self.copy("*.*", dst="plugins/data/obs-plugins/enc-amf", src="plugins/enc-amf/resources", keep_path=True)
         
         if self.settings.build_type!="Debug":
-            os.system("cd signtool && python sign.py " + self.package_folder)
+            os.system("cd signtool && python sign_x64.py " + self.package_folder)
 
     def package_info(self):
         self.cpp_info.libs = ["obs"]
