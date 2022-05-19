@@ -81,6 +81,8 @@ err:
 
 int main(int argv, char *argc[])
 {
+	freopen("NUL", "w", stderr);
+
 	QCoreApplication app(argv, argc);
 
 	struct IPCClient *client = NULL;

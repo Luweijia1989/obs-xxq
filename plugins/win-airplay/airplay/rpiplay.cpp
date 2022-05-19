@@ -383,6 +383,8 @@ std::string get_host_name()
 }
 
 int main(int argc, char *argv[]) {
+    freopen("NUL", "w", stderr);
+
     QCoreApplication app(argc, argv);
     app.setApplicationName("yuerlive");
 

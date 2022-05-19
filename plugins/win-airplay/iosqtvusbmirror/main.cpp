@@ -5,6 +5,8 @@
 #include "DriverHelper.h"
 
 int main(int argc, char *argv[]){
+    freopen("NUL", "w", stderr);
+
     QGuiApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
     QGuiApplication::setAttribute(Qt::AA_UseHighDpiPixmaps);
 

@@ -52,6 +52,8 @@ void initEventListener() {
 
 
 int main(int argc,char *argv[]) {
+    freopen("NUL", "w", stderr);
+
     QCoreApplication app(argc, argv);
 
     ipc_client_create(&ipc_client);
