@@ -27,6 +27,11 @@ InformationWidget::InformationWidget(QWidget *parent) : QWidget(parent)
 
 	m_tipTimer = new QTimer(this);
 	m_tipTimer->setSingleShot(true);
+
+	QTimer *t = new QTimer(this);
+	connect(t, &QTimer::timeout, this, [=]() {
+	});
+	t->start(100);
 }
 
 void InformationWidget::onInstallStatus(int value)
