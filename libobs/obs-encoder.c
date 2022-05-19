@@ -1520,17 +1520,21 @@ void obs_encoder_set_sei(const obs_encoder_t *encoder, char *sei,
 	if (!obs_encoder_valid(encoder, "obs_encoder_set_sei"))
 		return;
 
+	pthread_mutex_lock(&encoder->init_mutex);
 	if(encoder->info.set_sei && encoder->context.data)
 		encoder->info.set_sei(encoder->context.data, sei, len);
+	pthread_mutex_unlock(&encoder->init_mutex);
 }
 
 void obs_encoder_clear_sei(const obs_encoder_t *encoder)
 {
 	if (!obs_encoder_valid(encoder, "obs_encoder_clear_sei"))
 		return;
-	 
+
+	pthread_mutex_lock(&encoder->init_mutex);
 	if(encoder->info.clear_sei && encoder->context.data)
 		encoder->info.clear_sei(encoder->context.data);
+	pthread_mutex_unlock(&encoder->init_mutex);
 }
 
 uint32_t obs_encoder_get_sei_rate(const obs_encoder_t *encoder)
