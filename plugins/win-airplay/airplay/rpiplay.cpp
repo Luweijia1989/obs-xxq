@@ -410,13 +410,15 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    app.exec();
+    auto ret = app.exec();
 
     qDebug("Stopping...");
     stop_server();
 
     ipc_client_destroy(&ipc_client);
     close_fdk_aac_decoder(aacdecoder_handler);
+
+    return ret;
 }
 
 // Server callbacks
