@@ -93,12 +93,6 @@ Item {
                             font.underline: rankProperties.underline
                             font.italic: rankProperties.italic
                             font.strikeout: rankProperties.strikeout
-
-                            Image {
-                                source: diamondImage
-                                anchors.verticalCenter: parent.verticalCenter
-                                anchors.left: parent.left
-                            }
                         }
                     }
                 }

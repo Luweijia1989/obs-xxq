@@ -156,14 +156,6 @@ Item {
                             visible: rankProperties.hasDiamond
                             font.bold: diamondBold
                             font.italic: italicc
-
-                            Image {
-                                source: diamondImage
-                                anchors.verticalCenter: parent.verticalCenter
-                                anchors.right: parent.right
-								width:18
-								height:26
-                            }
                         }
                     }
                 }
