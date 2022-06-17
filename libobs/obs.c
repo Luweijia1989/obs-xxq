@@ -461,6 +461,8 @@ static void obs_rtc_capture_free(void)
 	struct obs_core_video *video = &obs->video;
 	struct obs_rtc_mix *rtc_mix = &obs->video.rtc_mix;
 
+	da_free(rtc_mix->rtc_frame_render_info.frame_infos);
+
 	rtc_mix->output_cb = NULL;
 
 	for (size_t c = 0; c < NUM_CHANNELS; c++) {
@@ -3145,13 +3147,27 @@ void obs_rtc_clear_frame(int channel)
 	obs_leave_graphics();
 }
 
-void obs_rtc_set_merge_info(int type, int count, int self_index,
-			    char *background_image)
+void obs_rtc_set_merge_info(int self_index, obs_data_t *merge_info, char *background_image)
 {
 	struct obs_rtc_mix *rtc_mix = &obs->video.rtc_mix;
-	rtc_mix->total_remote_channels = count;
-	rtc_mix->video_merge_type = type;
-	rtc_mix->self_index = self_index;
+	da_free(rtc_mix->rtc_frame_render_info.frame_infos);
+	rtc_mix->rtc_frame_render_info.canvas_width = obs_data_get_int(merge_info, "width");
+	rtc_mix->rtc_frame_render_info.canvas_height = obs_data_get_int(merge_info, "height");
+	rtc_mix->rtc_frame_render_info.self_index = self_index;
+	struct obs_data_array_t *array = obs_data_get_array(merge_info, "frame_position");
+	for (size_t i = 0; i < obs_data_array_count(array); i++)
+	{
+		struct obs_data_t *item = obs_data_array_item(array, i);
+		struct obs_each_frame_render_info info;
+		info.index = obs_data_get_int(item, "index");
+		info.x = obs_data_get_int(item, "x");
+		info.y = obs_data_get_int(item, "y");
+		info.width = obs_data_get_int(item, "width");
+		info.height = obs_data_get_int(item, "height");
+		da_push_back(rtc_mix->rtc_frame_render_info.frame_infos, &info);
+		obs_data_release(item);
+	}
+	obs_data_array_release(array);
 	if (background_image)
 		memcpy(rtc_mix->rtc_background_image_path, background_image,
 		       strlen(background_image));

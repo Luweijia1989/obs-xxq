@@ -666,6 +666,9 @@ static inline void render_merge_textures(
 static void rtc_draw_background_image(gs_effect_t *effect, gs_technique_t *tech)
 {
 	struct obs_rtc_mix *rtc_mix = &obs->video.rtc_mix;
+	if (strlen(rtc_mix->rtc_background_image_path) == 0)
+		return;
+
 	if (!rtc_mix->rtc_background_texture)
 		rtc_mix->rtc_background_texture = gs_texture_create_from_file(
 			rtc_mix->rtc_background_image_path);
@@ -736,66 +739,45 @@ render_rtc_output_texture(struct obs_core_video *video) //final output
 	vec4_zero(&clear_color);
 	gs_clear(GS_CLEAR_COLOR, &clear_color, 0.0f, 0);
 
-	// type == 0 普通连麦，两个人各一半
-	if (rtc_mix->video_merge_type == 0) {
-		if (rtc_mix->rtc_textures[0]) {
+	rtc_draw_background_image(effect, tech);
+	int x_offset = (width - rtc_mix->rtc_frame_render_info.canvas_width) / 2;
+	int y_offset = (height - rtc_mix->rtc_frame_render_info.canvas_height) / 2;
+	for (size_t i = 0; i < rtc_mix->rtc_frame_render_info.frame_infos.num; i++) {
+		struct obs_each_frame_render_info *frame_info;
+		frame_info = rtc_mix->rtc_frame_render_info.frame_infos.array + i;
+		if (frame_info->index == rtc_mix->rtc_frame_render_info.self_index) {
 			render_merge_textures(
-				&rtc_mix->rtc_texture_render[0], effect, tech,
-				rtc_mix->rtc_textures[0], 720, 0, 0, 0,
-				gs_texture_get_width(rtc_mix->rtc_textures[0]),
-				gs_texture_get_height(rtc_mix->rtc_textures[0]),
-				720, 1080, width, height);
-		}
-		//two
-		render_merge_textures(&rtc_mix->self_texture_render, effect,
-				      tech, texture, 0, 0, rtc_mix->self_crop_x,
-				      rtc_mix->self_crop_y,
-				      rtc_mix->self_crop_width,
-				      rtc_mix->self_crop_height, 720, 1080,
-				      width, height);
-	} else { // 多人连麦，宫格形式 count当前为4 或者 9
-		rtc_draw_background_image(effect, tech);
-
-		int cw = sqrt(rtc_mix->total_remote_channels);
-		int col_render_width = 1440;
-		int offset = (1920 - col_render_width) / 2;
-		int col_width = col_render_width / cw;
-		int row_height = height / cw;
-
-		int ri = 0, ci = 0;
-		for (int i = 0; i < rtc_mix->total_remote_channels; i++) {
-			int x = col_width * ci + offset;
-			int y = row_height * ri;
-
-			ci++;
-			if (ci >= cw) {
-				ci = 0;
-				ri++;
-			}
-
-			if (rtc_mix->self_index == i) {
+				&rtc_mix->self_texture_render,
+				effect,
+				tech,
+				texture,
+				frame_info->x + x_offset,
+				frame_info->y + y_offset,
+				rtc_mix->self_crop_x,
+				rtc_mix->self_crop_y,
+				rtc_mix->self_crop_width,
+				rtc_mix->self_crop_height,
+				frame_info->width,
+				frame_info->height,
+				width,
+				height);
+		} else {
+			if (rtc_mix->rtc_textures[frame_info->index]) {
 				render_merge_textures(
-					&rtc_mix->self_texture_render, effect,
-					tech, texture, x, y,
-					rtc_mix->self_crop_x,
-					rtc_mix->self_crop_y,
-					rtc_mix->self_crop_width,
-					rtc_mix->self_crop_height, col_width,
-					row_height, width, height);
-			} else {
-				if (rtc_mix->rtc_textures[i]) {
-					render_merge_textures(
-						&rtc_mix->rtc_texture_render[i],
-						effect, tech,
-						rtc_mix->rtc_textures[i], x, y,
-						0, 0,
-						gs_texture_get_width(
-							rtc_mix->rtc_textures[i]),
-						gs_texture_get_height(
-							rtc_mix->rtc_textures[i]),
-						col_width, row_height, width,
-						height);
-				}
+					&rtc_mix->rtc_texture_render[frame_info->index],
+					effect,
+					tech,
+					rtc_mix->rtc_textures[frame_info->index],
+					frame_info->x + x_offset,
+					frame_info->y + y_offset,
+					0,
+					0,
+					gs_texture_get_width(rtc_mix->rtc_textures[frame_info->index]),
+					gs_texture_get_height(rtc_mix->rtc_textures[frame_info->index]),
+					frame_info->width,
+					frame_info->height,
+					width,
+					height);
 			}
 		}
 	}

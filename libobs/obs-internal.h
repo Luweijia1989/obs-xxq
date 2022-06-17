@@ -242,15 +242,27 @@ struct obs_task_info {
 	void *param;
 };
 
+struct obs_each_frame_render_info {
+	uint32_t index;
+	int x;
+	int y;
+	uint32_t width;
+	uint32_t height;
+};
+
+struct obs_frame_render_info {
+	uint32_t canvas_width;
+	uint32_t canvas_height;
+	uint32_t self_index;
+	DARRAY(struct obs_each_frame_render_info) frame_infos;
+};
 typedef void (*rtc_frame_output_t)(uint8_t **data, uint32_t *linesize,
 				   uint32_t width, uint32_t height,
 				   void *userdata);
 struct obs_rtc_mix {
 	char rtc_background_image_path[512];
-	uint32_t total_remote_channels;
-	int video_merge_type;
 	int mix_type;
-	int self_index;
+	struct obs_frame_render_info rtc_frame_render_info;
 	gs_texture_t *rtc_textures[NUM_RTC_CHANNEL];
 	gs_texrender_t *rtc_texture_render[NUM_RTC_CHANNEL];
 	gs_texrender_t *self_texture_render;
