@@ -1376,7 +1376,8 @@ EXPORT void obs_source_extra_draw(const obs_source_t *source);
 /*
 image holder used when a source is async video and there is no video frame current
 */
-EXPORT void obs_source_set_placeholder_image(obs_source_t *source, char *image_path);
+EXPORT void obs_source_set_placeholder_image(obs_source_t *source,
+					     char *image_path);
 
 /* ------------------------------------------------------------------------- */
 /* Transition-specific functions */
@@ -2280,10 +2281,18 @@ EXPORT void obs_source_destroy_xxqsource(int type);
 
 EXPORT void obs_source_custom_command_xxqsource(int type, obs_data_t *settings);
 
+EXPORT void
+obs_add_raw_audio_callback(const struct audio_convert_info *conversion,
+			   audio_output_callback_t callback, void *param);
+
+EXPORT void obs_remove_raw_audio_callback(audio_output_callback_t callback,
+					  void *param);
+
 //设置本地混流基本信息
 //type 0=>普通连麦 1=>多人连麦 宫格形式
 //count type!=1时忽略 总共宫格数
-EXPORT void obs_rtc_set_merge_info(int self_index, obs_data_t *merge_info, char *background_image);
+EXPORT void obs_rtc_set_merge_info(int self_index, obs_data_t *merge_info,
+				   char *background_image);
 
 EXPORT void obs_rtc_capture_begin(
 	uint32_t self_crop_x, uint32_t self_crop_y, uint32_t self_crop_width,

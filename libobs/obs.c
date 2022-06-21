@@ -3147,16 +3147,19 @@ void obs_rtc_clear_frame(int channel)
 	obs_leave_graphics();
 }
 
-void obs_rtc_set_merge_info(int self_index, obs_data_t *merge_info, char *background_image)
+void obs_rtc_set_merge_info(int self_index, obs_data_t *merge_info,
+			    char *background_image)
 {
 	struct obs_rtc_mix *rtc_mix = &obs->video.rtc_mix;
 	da_free(rtc_mix->rtc_frame_render_info.frame_infos);
-	rtc_mix->rtc_frame_render_info.canvas_width = obs_data_get_int(merge_info, "width");
-	rtc_mix->rtc_frame_render_info.canvas_height = obs_data_get_int(merge_info, "height");
+	rtc_mix->rtc_frame_render_info.canvas_width =
+		obs_data_get_int(merge_info, "width");
+	rtc_mix->rtc_frame_render_info.canvas_height =
+		obs_data_get_int(merge_info, "height");
 	rtc_mix->rtc_frame_render_info.self_index = self_index;
-	struct obs_data_array_t *array = obs_data_get_array(merge_info, "frame_position");
-	for (size_t i = 0; i < obs_data_array_count(array); i++)
-	{
+	struct obs_data_array_t *array =
+		obs_data_get_array(merge_info, "frame_position");
+	for (size_t i = 0; i < obs_data_array_count(array); i++) {
 		struct obs_data_t *item = obs_data_array_item(array, i);
 		struct obs_each_frame_render_info info;
 		info.index = obs_data_get_int(item, "index");
@@ -3171,4 +3174,24 @@ void obs_rtc_set_merge_info(int self_index, obs_data_t *merge_info, char *backgr
 	if (background_image)
 		memcpy(rtc_mix->rtc_background_image_path, background_image,
 		       strlen(background_image));
+}
+
+void obs_add_raw_audio_callback(const struct audio_convert_info *conversion,
+				audio_output_callback_t callback, void *param)
+{
+	audio_t *audio = obs->audio.audio;
+	if (!audio)
+		return;
+
+	audio_output_connect(audio, 0, conversion, callback, param);
+}
+
+void obs_remove_raw_audio_callback(audio_output_callback_t callback,
+				   void *param)
+{
+	audio_t *audio = obs->audio.audio;
+	if (!audio)
+		return;
+
+	audio_output_disconnect(audio, 0, callback, param);
 }
