@@ -245,20 +245,20 @@ Item {
 				}
 				else
 				{
-					voicewave.anchors.leftMargin = 313;
-					voicewave.anchors.topMargin = 108;
-					voicewave.width = 576;
-					voicewave.height = 576;
-					avartar.x = 108;
-					avartar.y = 108;
-					avartar.width = 360;
-					avartar.height = 360;
-					avartar.radius = 180;
-					imgeBg.radius = 180;
-					squareavatarImage.sourceSize.width = 360;
-					squareavatarImage.sourceSize.width = 360;
-					border1.radius = 180;
-					mask1.radius = 180;
+					voicewave.anchors.leftMargin = 250;
+					voicewave.anchors.topMargin = 192;
+					voicewave.width = 699;
+					voicewave.height = 699;
+					avartar.x = 133;
+					avartar.y = 133;
+					avartar.width = 436;
+					avartar.height = 436;
+					avartar.radius = 218;
+					imgeBg.radius = 218;
+					squareavatarImage.sourceSize.width = 436;
+					squareavatarImage.sourceSize.width = 436;
+					border1.radius = 218;
+					mask1.radius = 218;
 				}
 			}
 		}
