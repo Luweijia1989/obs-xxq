@@ -1,4 +1,4 @@
-/******************************************************************************
+﻿/******************************************************************************
     Copyright (C) 2013-2014 by Hugh Bailey <obs.jim@gmail.com>
 
     This program is free software: you can redistribute it and/or modify
@@ -3171,6 +3171,8 @@ void obs_rtc_set_merge_info(int self_index, obs_data_t *merge_info,
 		obs_data_release(item);
 	}
 	obs_data_array_release(array);
+	memset(rtc_mix->rtc_background_image_path, 0,
+	       sizeof(rtc_mix->rtc_background_image_path));
 	if (background_image)
 		memcpy(rtc_mix->rtc_background_image_path, background_image,
 		       strlen(background_image));
