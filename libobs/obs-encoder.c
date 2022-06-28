@@ -64,6 +64,7 @@ static bool init_encoder(struct obs_encoder *encoder, const char *name,
 	pthread_mutex_init_value(&encoder->callbacks_mutex);
 	pthread_mutex_init_value(&encoder->outputs_mutex);
 	pthread_mutex_init_value(&encoder->pause.mutex);
+	pthread_mutex_init_value(&encoder->sei_mutex);
 
 	if (pthread_mutexattr_init(&attr) != 0)
 		return false;
@@ -79,6 +80,8 @@ static bool init_encoder(struct obs_encoder *encoder, const char *name,
 	if (pthread_mutex_init(&encoder->outputs_mutex, NULL) != 0)
 		return false;
 	if (pthread_mutex_init(&encoder->pause.mutex, NULL) != 0)
+		return false;
+	if (pthread_mutex_init(&encoder->sei_mutex, NULL) != 0)
 		return false;
 
 	if (encoder->orig_info.get_defaults) {
@@ -104,6 +107,7 @@ create_encoder(const char *id, enum obs_encoder_type type, const char *name,
 		return NULL;
 
 	encoder = bzalloc(sizeof(struct obs_encoder));
+	encoder->custom_sei = bzalloc(sizeof(uint8_t) * 1024 * 100);
 	encoder->mixer_idx = mixer_idx;
 
 	if (!ei) {
@@ -288,9 +292,12 @@ static void obs_encoder_actually_destroy(obs_encoder_t *encoder)
 		pthread_mutex_destroy(&encoder->callbacks_mutex);
 		pthread_mutex_destroy(&encoder->outputs_mutex);
 		pthread_mutex_destroy(&encoder->pause.mutex);
+		pthread_mutex_destroy(&encoder->sei_mutex);
 		obs_context_data_free(&encoder->context);
 		if (encoder->owns_info_id)
 			bfree((void *)encoder->info.id);
+		if (encoder->custom_sei)
+			bfree((void *)encoder->custom_sei);
 		bfree(encoder);
 	}
 }
@@ -624,7 +631,7 @@ void obs_encoder_start(obs_encoder_t *encoder,
 		return;
 	if (!obs_ptr_valid(new_packet, "obs_encoder_start"))
 		return;
-	
+
 	pthread_mutex_lock(&encoder->init_mutex);
 	obs_encoder_start_internal(encoder, new_packet, param);
 	pthread_mutex_unlock(&encoder->init_mutex);
@@ -1055,8 +1062,7 @@ static void receive_video(void *param, struct video_data *frame)
 		}
 	}
 
-	if (video_pause_check(&encoder->pause, frame->timestamp))
-	{
+	if (video_pause_check(&encoder->pause, frame->timestamp)) {
 		encoder->cur_pts += encoder->timebase_num;
 		goto wait_for_audio;
 	}
@@ -1514,27 +1520,46 @@ bool obs_encoder_paused(const obs_encoder_t *encoder)
 		       : false;
 }
 
-void obs_encoder_set_sei(const obs_encoder_t *encoder, char *sei,
-				 int len)
+void obs_encoder_set_sei(obs_encoder_t *encoder, char *sei, int len)
 {
+	if (len > 1024 * 100) {
+		blog(LOG_ERROR, "obs_encoder_set_sei error, sei size to big, size is: %d", len);
+		return;
+	}
 	if (!obs_encoder_valid(encoder, "obs_encoder_set_sei"))
 		return;
 
-	pthread_mutex_lock(&encoder->init_mutex);
-	if(encoder->info.set_sei && encoder->context.data)
-		encoder->info.set_sei(encoder->context.data, sei, len);
-	pthread_mutex_unlock(&encoder->init_mutex);
+	pthread_mutex_lock(&encoder->sei_mutex);
+	memcpy(encoder->custom_sei, sei, len);
+	encoder->custom_sei_size = len;
+	pthread_mutex_unlock(&encoder->sei_mutex);
 }
 
-void obs_encoder_clear_sei(const obs_encoder_t *encoder)
+void obs_encoder_clear_sei(obs_encoder_t *encoder)
 {
 	if (!obs_encoder_valid(encoder, "obs_encoder_clear_sei"))
 		return;
 
-	pthread_mutex_lock(&encoder->init_mutex);
-	if(encoder->info.clear_sei && encoder->context.data)
-		encoder->info.clear_sei(encoder->context.data);
-	pthread_mutex_unlock(&encoder->init_mutex);
+	pthread_mutex_lock(&encoder->sei_mutex);
+	memset(encoder->custom_sei, 0, encoder->custom_sei_size);
+	encoder->custom_sei_size = 0;
+	pthread_mutex_unlock(&encoder->sei_mutex);
+}
+
+bool obs_encoder_get_sei(obs_encoder_t *encoder, uint8_t *sei, int *sei_len)
+{
+	bool got_sei = false;
+	if (++encoder->sei_counting % encoder->sei_rate == 0) {
+		pthread_mutex_lock(&encoder->sei_mutex);
+		if (encoder->custom_sei_size > 0) {
+			memcpy(sei, encoder->custom_sei, encoder->custom_sei_size);
+			*sei_len = encoder->custom_sei;
+			got_sei = true;
+		}
+		pthread_mutex_unlock(&encoder->sei_mutex);
+	}
+
+	return got_sei;
 }
 
 uint32_t obs_encoder_get_sei_rate(const obs_encoder_t *encoder)
