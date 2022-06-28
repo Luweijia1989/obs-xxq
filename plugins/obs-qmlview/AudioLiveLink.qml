@@ -229,7 +229,7 @@ Item {
 				if(audioLiveLinkProperties.multiCount === 4)
 				{
 					voicewave.anchors.leftMargin = 331;
-					voicewave.anchors.topMargin = 130;
+					voicewave.anchors.topMargin = 97;
 					voicewave.width = 778;
 					voicewave.height = 778;
 					avartar.x = 187;
@@ -246,7 +246,7 @@ Item {
 				else
 				{
 					voicewave.anchors.leftMargin = 210;
-					voicewave.anchors.topMargin = 108;
+					voicewave.anchors.topMargin = 97;
 					voicewave.width = 780;
 					voicewave.height = 780;
 					avartar.x = 192;
