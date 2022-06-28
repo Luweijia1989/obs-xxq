@@ -1170,6 +1170,10 @@ struct obs_encoder {
 	const char *profile_encoder_encode_name;
 
 	uint32_t sei_rate;
+	pthread_mutex_t sei_mutex;
+	uint8_t *custom_sei;
+	size_t custom_sei_size;
+	uint64_t sei_counting;
 };
 
 extern struct obs_encoder_info *find_encoder(const char *id);

@@ -89,10 +89,6 @@ struct obs_qsv {
 	uint8_t *extra_data;
 	uint8_t *sei;
 
-	uint8_t *custom_sei;
-	size_t custom_sei_size;
-	uint64_t sei_counting;
-
 	size_t extra_data_size;
 	size_t sei_size;
 
@@ -140,7 +136,6 @@ static void obs_qsv_destroy(void *data)
 		os_end_high_performance(obsqsv->performance_token);
 		clear_data(obsqsv);
 		da_free(obsqsv->packet_data);
-		bfree(obsqsv->custom_sei);
 		bfree(obsqsv);
 	}
 }
@@ -503,7 +498,6 @@ static void *obs_qsv_create(obs_data_t *settings, obs_encoder_t *encoder)
 
 	struct obs_qsv *obsqsv = bzalloc(sizeof(struct obs_qsv));
 	obsqsv->encoder = encoder;
-	obsqsv->custom_sei = bzalloc(sizeof(uint8_t) * 1024 * 100);
 
 	if (update_settings(obsqsv, settings)) {
 		EnterCriticalSection(&g_QsvCs);
@@ -642,12 +636,11 @@ static void parse_packet(struct obs_qsv *obsqsv, struct encoder_packet *packet,
 	da_push_back_array(obsqsv->packet_data, &pBS->Data[pBS->DataOffset],
 			   pBS->DataLength);
 
-	uint32_t rate = obs_encoder_get_sei_rate(obsqsv->encoder);
-	if (++obsqsv->sei_counting % rate == 0) {
-		if (obsqsv->custom_sei_size > 0)
-			da_push_back_array(obsqsv->packet_data,
-					   obsqsv->custom_sei,
-					   obsqsv->custom_sei_size);
+	uint8_t sei_buf[102400] = {0};
+	int sei_len = 0;
+	bool got_sei = obs_encoder_get_sei(obsqsv->encoder, sei_buf, &sei_len);
+	if (got_sei) {
+		da_push_back_array(obsqsv->packet_data, sei_buf, sei_len);
 	}
 
 	packet->data = obsqsv->packet_data.array;
@@ -774,20 +767,6 @@ static bool obs_qsv_encode(void *data, struct encoder_frame *frame,
 	return true;
 }
 
-static void obs_qsv_set_sei(void *data, char *sei, int len)
-{
-	struct obs_qsv *obsqsv = data;
-	obsqsv->custom_sei_size = len > 102400 ? 102400 : len;
-	memcpy(obsqsv->custom_sei, sei, obsqsv->custom_sei_size);
-}
-
-static void obs_qsv_clear_sei(void *data)
-{
-	struct obs_qsv *obsqsv = data;
-	memset(obsqsv->custom_sei, 0, obsqsv->custom_sei_size);
-	obsqsv->custom_sei_size = 0;
-}
-
 struct obs_encoder_info obs_qsv_encoder = {
 	.id = "obs_qsv11",
 	.type = OBS_ENCODER_VIDEO,
@@ -803,6 +782,4 @@ struct obs_encoder_info obs_qsv_encoder = {
 	.get_sei_data = obs_qsv_sei,
 	.get_video_info = obs_qsv_video_info,
 	.caps = OBS_ENCODER_CAP_DYN_BITRATE,
-	.set_sei = obs_qsv_set_sei,
-	.clear_sei = obs_qsv_clear_sei,
 };

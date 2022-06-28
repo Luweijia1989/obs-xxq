@@ -53,10 +53,6 @@ struct obs_x264 {
 	size_t extra_data_size;
 	size_t sei_size;
 
-	uint8_t *custom_sei;
-	size_t custom_sei_size;
-	uint64_t sei_counting;
-
 	os_performance_token_t *performance_token;
 };
 
@@ -90,7 +86,6 @@ static void obs_x264_destroy(void *data)
 		os_end_high_performance(obsx264->performance_token);
 		clear_data(obsx264);
 		da_free(obsx264->packet_data);
-		bfree(obsx264->custom_sei);
 		bfree(obsx264);
 	}
 }
@@ -637,7 +632,6 @@ static void *obs_x264_create(obs_data_t *settings, obs_encoder_t *encoder)
 {
 	struct obs_x264 *obsx264 = bzalloc(sizeof(struct obs_x264));
 	obsx264->encoder = encoder;
-	obsx264->custom_sei = bzalloc(sizeof(uint8_t) * 1024 * 100);
 
 	if (update_settings(obsx264, settings, false)) {
 		obsx264->context = x264_encoder_open(&obsx264->params);
@@ -676,12 +670,11 @@ static void parse_packet(struct obs_x264 *obsx264,
 				   nal->i_payload);
 	}
 
-	uint32_t rate = obs_encoder_get_sei_rate(obsx264->encoder);
-	if (++obsx264->sei_counting % rate == 0) {
-		if (obsx264->custom_sei_size > 0)
-			da_push_back_array(obsx264->packet_data,
-					   obsx264->custom_sei,
-					   obsx264->custom_sei_size);
+	uint8_t sei_buf[102400] = {0};
+	int sei_len = 0;
+	bool got_sei = obs_encoder_get_sei(obsx264->encoder, sei_buf, &sei_len);
+	if (got_sei) {
+		da_push_back_array(obsx264->packet_data, sei_buf, sei_len);
 	}
 
 	packet->data = obsx264->packet_data.array;
@@ -787,20 +780,6 @@ static void obs_x264_video_info(void *data, struct video_scale_info *info)
 	info->format = pref_format;
 }
 
-static void obs_x264_set_sei(void *data, char *sei, int len)
-{
-	struct obs_x264 *obsx264 = data;
-	obsx264->custom_sei_size = len > 102400 ? 102400 : len;
-	memcpy(obsx264->custom_sei, sei, obsx264->custom_sei_size);
-}
-
-static void obs_x264_clear_sei(void *data)
-{
-	struct obs_x264 *obsx264 = data;
-	memset(obsx264->custom_sei, 0, obsx264->custom_sei_size);
-	obsx264->custom_sei_size = 0;
-}
-
 struct obs_encoder_info obs_x264_encoder = {
 	.id = "obs_x264",
 	.type = OBS_ENCODER_VIDEO,
@@ -816,6 +795,4 @@ struct obs_encoder_info obs_x264_encoder = {
 	.get_sei_data = obs_x264_sei,
 	.get_video_info = obs_x264_video_info,
 	.caps = OBS_ENCODER_CAP_DYN_BITRATE,
-	.set_sei = obs_x264_set_sei,
-	.clear_sei = obs_x264_clear_sei,
 };
