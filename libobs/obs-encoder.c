@@ -1553,7 +1553,7 @@ bool obs_encoder_get_sei(obs_encoder_t *encoder, uint8_t *sei, int *sei_len)
 		pthread_mutex_lock(&encoder->sei_mutex);
 		if (encoder->custom_sei_size > 0) {
 			memcpy(sei, encoder->custom_sei, encoder->custom_sei_size);
-			*sei_len = encoder->custom_sei_size;
+			*sei_len = (int)encoder->custom_sei_size;
 			got_sei = true;
 		}
 		pthread_mutex_unlock(&encoder->sei_mutex);
