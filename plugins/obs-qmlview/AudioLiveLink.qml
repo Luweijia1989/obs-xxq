@@ -228,37 +228,37 @@ Item {
 			{
 				if(audioLiveLinkProperties.multiCount === 4)
 				{
-					voicewave.anchors.leftMargin = 375;
+					voicewave.anchors.leftMargin = 331;
 					voicewave.anchors.topMargin = 130;
-					voicewave.width = 690;
-					voicewave.height = 690;
-					avartar.x = 130;
-					avartar.y = 130;
-					avartar.width = 430;
-					avartar.height = 430;
-					avartar.radius = 215;
-					imgeBg.radius = 215;
-					squareavatarImage.sourceSize.width = 430;
-					squareavatarImage.sourceSize.width = 430;
-					border1.radius = 215;
-					mask1.radius = 215;
+					voicewave.width = 778;
+					voicewave.height = 778;
+					avartar.x = 187;
+					avartar.y = 187;
+					avartar.width = 404;
+					avartar.height = 404;
+					avartar.radius = 202;
+					imgeBg.radius = 202;
+					squareavatarImage.sourceSize.width = 404;
+					squareavatarImage.sourceSize.width = 404;
+					border1.radius = 202;
+					mask1.radius = 202;
 				}
 				else
 				{
-					voicewave.anchors.leftMargin = 250;
-					voicewave.anchors.topMargin = 192;
-					voicewave.width = 699;
-					voicewave.height = 699;
-					avartar.x = 133;
-					avartar.y = 133;
-					avartar.width = 436;
-					avartar.height = 436;
-					avartar.radius = 218;
-					imgeBg.radius = 218;
-					squareavatarImage.sourceSize.width = 436;
-					squareavatarImage.sourceSize.width = 436;
-					border1.radius = 218;
-					mask1.radius = 218;
+					voicewave.anchors.leftMargin = 210;
+					voicewave.anchors.topMargin = 108;
+					voicewave.width = 780;
+					voicewave.height = 780;
+					avartar.x = 192;
+					avartar.y = 192;
+					avartar.width = 396;
+					avartar.height = 396;
+					avartar.radius = 198;
+					imgeBg.radius = 198;
+					squareavatarImage.sourceSize.width = 396;
+					squareavatarImage.sourceSize.width = 396;
+					border1.radius = 198;
+					mask1.radius = 198;
 				}
 			}
 		}
