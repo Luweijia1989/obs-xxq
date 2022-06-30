@@ -40,3 +40,6 @@ for file in glob.glob(os.path.join(sys.argv[1]+'/plugins/data/obs-plugins/enc-am
     if filename not in excludeSet:
         print("signed: "+file)
         sign(file)
+        
+sign(sys.argv[1]+'/plugins/data/obs-plugins/win-capture/graphics-hook64.dll')
+sign(sys.argv[1]+'/plugins/data/obs-plugins/win-capture/graphics-hook32.dll')
