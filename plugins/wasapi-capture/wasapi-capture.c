@@ -945,19 +945,11 @@ static bool start_capture(struct wasapi_capture *gc)
 {
 	debug("Starting capture");
 
-	if (gc->global_hook_info->type == CAPTURE_TYPE_MEMORY) {
-		if (!init_shmem_capture(gc)) {
-			return false;
-		}
-
-		info("memory capture successful");
-	} else {
-		if (!init_shtex_capture(gc)) {
-			return false;
-		}
-
-		info("shared texture capture successful");
+	if (!init_shmem_capture(gc)) {
+		return false;
 	}
+
+	info("memory capture successful");
 
 	return true;
 }
@@ -970,7 +962,7 @@ static inline bool capture_valid(struct wasapi_capture *gc)
 static void wasapi_capture_tick(void *data, float seconds)
 {
 	struct wasapi_capture *gc = data;
-	
+
 	if (!obs_source_showing(gc->source)) {
 		if (gc->showing) {
 			if (gc->active)
