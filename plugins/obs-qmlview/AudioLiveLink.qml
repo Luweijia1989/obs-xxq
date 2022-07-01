@@ -241,7 +241,7 @@ Item {
 					squareavatarImage.sourceSize.width = 404;
 					squareavatarImage.sourceSize.width = 404;
 					border1.radius = 202;
-					border1.border.width = 9;
+					border1.border.width = 8;
 					mask1.radius = 202;
 				}
 				else
@@ -259,7 +259,7 @@ Item {
 					squareavatarImage.sourceSize.width = 396;
 					squareavatarImage.sourceSize.width = 396;
 					border1.radius = 198;
-					border1.border.width = 11;
+					border1.border.width = 9;
 					mask1.radius = 198;
 				}
 			}
