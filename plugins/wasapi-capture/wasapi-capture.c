@@ -46,7 +46,6 @@ struct wasapi_capture {
 	HWND next_window;
 	HWND window;
 	float retry_time;
-	float fps_reset_time;
 	float retry_interval;
 
 	struct dstr title;
@@ -569,6 +568,48 @@ cleanup:
 	return success;
 }
 
+static const char *blacklisted_exes[] = {
+	"explorer",
+	"steam",
+	"battle.net",
+	"galaxyclient",
+	"skype",
+	"uplay",
+	"origin",
+	"devenv",
+	"taskmgr",
+	"chrome",
+	"discord",
+	"firefox",
+	"systemsettings",
+	"applicationframehost",
+	"cmd",
+	"shellexperiencehost",
+	"winstore.app",
+	"searchui",
+	"lockapp",
+	"windowsinternal.composableshell.experiences.textinput.inputapp",
+	NULL,
+};
+
+static bool is_blacklisted_exe(const char *exe)
+{
+	char cur_exe[MAX_PATH];
+
+	if (!exe)
+		return false;
+
+	for (const char **vals = blacklisted_exes; *vals; vals++) {
+		strcpy(cur_exe, *vals);
+		strcat(cur_exe, ".exe");
+
+		if (strcmpi(cur_exe, exe) == 0)
+			return true;
+	}
+
+	return false;
+}
+
 static bool target_suspended(struct wasapi_capture *gc)
 {
 	return thread_is_suspended(gc->process_id, gc->thread_id);
@@ -929,32 +970,7 @@ static inline bool capture_valid(struct wasapi_capture *gc)
 static void wasapi_capture_tick(void *data, float seconds)
 {
 	struct wasapi_capture *gc = data;
-	bool deactivate = os_atomic_set_bool(&gc->deactivate_hook, false);
-	bool activate_now = os_atomic_set_bool(&gc->activate_hook_now, false);
-
-	if (activate_now) {
-		HWND hwnd = (HWND)(uintptr_t)os_atomic_load_long(
-			&gc->hotkey_window);
-
-		if (is_uwp_window(hwnd))
-			hwnd = get_uwp_actual_window(hwnd);
-
-		if (get_window_exe(&gc->executable, hwnd)) {
-			get_window_title(&gc->title, hwnd);
-			get_window_class(&gc->class, hwnd);
-
-			gc->priority = WINDOW_PRIORITY_CLASS;
-			gc->retry_time = 10.0f * hook_rate_to_float(
-							 gc->config.hook_rate);
-			gc->activate_hook = true;
-		} else {
-			deactivate = false;
-			activate_now = false;
-		}
-	} else if (deactivate) {
-		gc->activate_hook = false;
-	}
-
+	
 	if (!obs_source_showing(gc->source)) {
 		if (gc->showing) {
 			if (gc->active)
@@ -964,15 +980,11 @@ static void wasapi_capture_tick(void *data, float seconds)
 		return;
 
 	} else if (!gc->showing) {
-		gc->retry_time =
-			10.0f * hook_rate_to_float(gc->config.hook_rate);
+		gc->retry_time = 10.0f;
 	}
 
 	if (gc->hook_stop && object_signalled(gc->hook_stop)) {
 		debug("hook stop signal received");
-		stop_capture(gc);
-	}
-	if (gc->active && deactivate) {
 		stop_capture(gc);
 	}
 
@@ -991,9 +1003,7 @@ static void wasapi_capture_tick(void *data, float seconds)
 			gc->error_acquiring = true;
 
 		} else if (!gc->capturing) {
-			gc->retry_interval =
-				ERROR_RETRY_INTERVAL *
-				hook_rate_to_float(gc->config.hook_rate);
+			gc->retry_interval = ERROR_RETRY_INTERVAL;
 			stop_capture(gc);
 		}
 	}
@@ -1008,9 +1018,7 @@ static void wasapi_capture_tick(void *data, float seconds)
 			debug("init_capture_data failed");
 
 		if (result != CAPTURE_RETRY && !gc->capturing) {
-			gc->retry_interval =
-				ERROR_RETRY_INTERVAL *
-				hook_rate_to_float(gc->config.hook_rate);
+			gc->retry_interval = ERROR_RETRY_INTERVAL;
 			stop_capture(gc);
 		}
 	}
@@ -1020,8 +1028,7 @@ static void wasapi_capture_tick(void *data, float seconds)
 	if (!gc->active) {
 		if (!gc->error_acquiring &&
 		    gc->retry_time > gc->retry_interval) {
-			if (gc->config.mode == CAPTURE_MODE_ANY ||
-			    gc->activate_hook) {
+			if (gc->activate_hook) {
 				try_hook(gc);
 				gc->retry_time = 0.0f;
 			}
@@ -1036,19 +1043,6 @@ static void wasapi_capture_tick(void *data, float seconds)
 				obs_enter_graphics();
 				gc->copy_texture(gc);
 				obs_leave_graphics();
-			}
-
-			if (gc->config.cursor) {
-				check_foreground_window(gc, seconds);
-				obs_enter_graphics();
-				cursor_capture(&gc->cursor_data);
-				obs_leave_graphics();
-			}
-
-			gc->fps_reset_time += seconds;
-			if (gc->fps_reset_time >= gc->retry_interval) {
-				reset_frame_interval(gc);
-				gc->fps_reset_time = 0.0f;
 			}
 		}
 	}
@@ -1065,9 +1059,62 @@ static const char *wasapi_capture_name(void *unused)
 
 static void wasapi_capture_defaults(obs_data_t *settings) {}
 
+static bool window_not_blacklisted(const char *title, const char *class,
+				   const char *exe)
+{
+	UNUSED_PARAMETER(title);
+	UNUSED_PARAMETER(class);
+
+	return !is_blacklisted_exe(exe);
+}
+
+static bool window_changed_callback(obs_properties_t *ppts, obs_property_t *p,
+				    obs_data_t *settings)
+{
+	const char *cur_val;
+	bool match = false;
+	size_t i = 0;
+
+	cur_val = obs_data_get_string(settings, SETTING_CAPTURE_WINDOW);
+	if (!cur_val) {
+		return false;
+	}
+
+	for (;;) {
+		const char *val = obs_property_list_item_string(p, i++);
+		if (!val)
+			break;
+
+		if (strcmp(val, cur_val) == 0) {
+			match = true;
+			break;
+		}
+	}
+
+	if (cur_val && *cur_val && !match) {
+		insert_preserved_val(p, cur_val);
+		return true;
+	}
+
+	UNUSED_PARAMETER(ppts);
+	return false;
+}
+
 static obs_properties_t *wasapi_capture_properties(void *data)
 {
-	return NULL;
+	obs_properties_t *ppts = obs_properties_create();
+	obs_property_t *p;
+
+	p = obs_properties_add_list(ppts, SETTING_CAPTURE_WINDOW, "Window",
+				    OBS_COMBO_TYPE_LIST,
+				    OBS_COMBO_FORMAT_STRING);
+	obs_property_list_add_string(p, "", "");
+	fill_window_list(p, INCLUDE_MINIMIZED, window_not_blacklisted);
+
+	obs_property_set_modified_callback(p, window_changed_callback);
+
+	UNUSED_PARAMETER(data);
+	return ppts;
 }
 
 struct obs_source_info wasapi_capture_info = {

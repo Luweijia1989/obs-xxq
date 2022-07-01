@@ -23,5 +23,5 @@ target_link_libraries(wasapi-capture
 	ipc-util
 	psapi)
 
-install_obs_plugin_with_data(wasapi-capture data)
+install_obs_plugin(wasapi-capture data)
 
