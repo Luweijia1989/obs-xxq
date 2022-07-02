@@ -38,9 +38,11 @@ struct wasapi_capture {
 	struct wasapi_capture_config config;
 
 	HANDLE injector_process;
-	uint32_t cx;
-	uint32_t cy;
-	uint32_t pitch;
+
+	enum speaker_layout speakers;
+	enum audio_format format;
+	uint32_t samples_per_sec;
+
 	DWORD process_id;
 	DWORD thread_id;
 	HWND next_window;
@@ -622,15 +624,8 @@ static bool init_hook(struct wasapi_capture *gc)
 	struct dstr exe = {0};
 	bool blacklisted_process = false;
 
-	if (gc->config.mode == CAPTURE_MODE_ANY) {
-		if (get_window_exe(&exe, gc->next_window)) {
-			info("attempting to hook fullscreen process: %s",
-			     exe.array);
-		}
-	} else {
-		if (get_window_exe(&exe, gc->next_window)) {
-			info("attempting to hook process: %s", exe.array);
-		}
+	if (get_window_exe(&exe, gc->next_window)) {
+		info("attempting to hook process: %s", exe.array);
 	}
 
 	blacklisted_process = is_blacklisted_exe(exe.array);
@@ -708,8 +703,7 @@ static void setup_window(struct wasapi_capture *gc, HWND window)
 	 * (such as steam) need a little bit of time to load.  ultimately this
 	 * helps prevent crashes */
 	if (gc->wait_for_target_startup) {
-		gc->retry_interval =
-			3.0f * hook_rate_to_float(gc->config.hook_rate);
+		gc->retry_interval = 3.0f;
 		gc->wait_for_target_startup = false;
 	} else {
 		gc->next_window = window;
@@ -822,9 +816,9 @@ enum capture_result { CAPTURE_FAIL, CAPTURE_RETRY, CAPTURE_SUCCESS };
 
 static inline enum capture_result init_capture_data(struct wasapi_capture *gc)
 {
-	gc->cx = gc->global_hook_info->cx;
-	gc->cy = gc->global_hook_info->cy;
-	gc->pitch = gc->global_hook_info->pitch;
+	gc->samples_per_sec = gc->global_hook_info->samples_per_sec;
+	gc->speakers = gc->global_hook_info->speakers;
+	gc->format = gc->global_hook_info->format;
 
 	if (gc->data) {
 		UnmapViewOfFile(gc->data);
@@ -833,8 +827,8 @@ static inline enum capture_result init_capture_data(struct wasapi_capture *gc)
 
 	CloseHandle(gc->hook_data_map);
 
-	gc->hook_data_map = open_map_plus_id(gc, SHMEM_TEXTURE,
-					     gc->global_hook_info->map_id);
+	gc->hook_data_map =
+		open_map_plus_id(gc, SHMEM_AUDIO, gc->global_hook_info->map_id);
 	if (!gc->hook_data_map) {
 		DWORD error = GetLastError();
 		if (error == 2) {

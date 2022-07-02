@@ -21,7 +21,7 @@
 #define MUTEX_TEXTURE2 L"CaptureHook_TextureMutex2"
 
 #define SHMEM_HOOK_INFO L"CaptureHook_HookInfo"
-#define SHMEM_TEXTURE L"CaptureHook_Texture"
+#define SHMEM_AUDIO L"CaptureHook_Audio"
 
 #define PIPE_NAME "CaptureHook_Pipe"
 
@@ -35,7 +35,12 @@ struct shmem_data {
 
 struct hook_info {
 	/* capture info */
-	int sample_rate;
+	enum speaker_layout speakers;
+	enum audio_format format;
+	uint32_t samples_per_sec;
+
+	uint32_t map_id;
+	uint32_t map_size;
 };
 
 #pragma pack(pop)
