@@ -14,8 +14,8 @@
 #include "app-helpers.h"
 #include "obfuscate.h"
 
-#define do_log(level, format, ...)                  \
-	blog(level, "[game-capture: '%s'] " format, \
+#define do_log(level, format, ...)                    \
+	blog(level, "[wasapi-capture: '%s'] " format, \
 	     obs_source_get_name(gc->source), ##__VA_ARGS__)
 
 #define warn(format, ...) do_log(LOG_WARNING, format, ##__VA_ARGS__)
@@ -39,9 +39,9 @@ struct wasapi_capture {
 
 	HANDLE injector_process;
 
-	enum speaker_layout speakers;
-	enum audio_format format;
-	uint32_t samples_per_sec;
+	uint32_t channels;
+	uint32_t samplerate;
+	uint32_t byte_persample;
 
 	DWORD process_id;
 	DWORD thread_id;
@@ -80,7 +80,7 @@ struct wasapi_capture {
 	HANDLE hook_data_map;
 	HANDLE global_hook_info_map;
 	HANDLE target_process;
-	HANDLE texture_mutexes[2];
+	HANDLE audio_data_mutex;
 	wchar_t *app_sid;
 	int retrying;
 	float cursor_check_time;
@@ -204,8 +204,7 @@ static void stop_capture(struct wasapi_capture *gc)
 	close_handle(&gc->keepalive_mutex);
 	close_handle(&gc->global_hook_info_map);
 	close_handle(&gc->target_process);
-	close_handle(&gc->texture_mutexes[0]);
-	close_handle(&gc->texture_mutexes[1]);
+	close_handle(&gc->audio_data_mutex);
 
 	if (gc->texture) {
 		obs_enter_graphics();
@@ -249,10 +248,6 @@ static void wasapi_capture_destroy(void *data)
 static inline void get_config(struct wasapi_capture_config *cfg,
 			      obs_data_t *settings, const char *window)
 {
-	int ret;
-	const char *scale_str;
-	const char *mode_str = NULL;
-
 	build_window_strings(window, &cfg->class, &cfg->title,
 			     &cfg->executable);
 }
@@ -313,13 +308,9 @@ static void wasapi_capture_update(void *data, obs_data_t *settings)
 	}
 }
 
-extern void wait_for_hook_initialization(void);
-
 static void *wasapi_capture_create(obs_data_t *settings, obs_source_t *source)
 {
 	struct wasapi_capture *gc = bzalloc(sizeof(*gc));
-
-	wait_for_hook_initialization();
 
 	gc->source = source;
 	gc->initial_config = true;
@@ -431,6 +422,27 @@ static inline bool init_keepalive(struct wasapi_capture *gc)
 	return true;
 }
 
+static inline bool init_texture_mutexes(struct wasapi_capture *gc)
+{
+	gc->audio_data_mutex = open_mutex_gc(gc, AUDIO_DATA_MUTEX);
+
+	if (!gc->audio_data_mutex) {
+		DWORD error = GetLastError();
+		if (error == 2) {
+			if (!gc->retrying) {
+				gc->retrying = 2;
+				info("hook not loaded yet, retrying..");
+			}
+		} else {
+			warn("failed to open texture mutexes: %lu",
+			     GetLastError());
+		}
+		return false;
+	}
+
+	return true;
+}
+
 /* if there's already a hook in the process, then signal and start */
 static inline bool attempt_existing_hook(struct wasapi_capture *gc)
 {
@@ -493,7 +505,6 @@ static inline bool create_inject_process(struct wasapi_capture *gc,
 	wchar_t *command_line_w = malloc(4096 * sizeof(wchar_t));
 	wchar_t *inject_path_w;
 	wchar_t *hook_dll_w;
-	bool anti_cheat = use_anticheat(gc);
 	PROCESS_INFORMATION pi = {0};
 	STARTUPINFO si = {0};
 	bool success = false;
@@ -504,8 +515,7 @@ static inline bool create_inject_process(struct wasapi_capture *gc,
 	si.cb = sizeof(si);
 
 	swprintf(command_line_w, 4096, L"\"%s\" \"%s\" %lu %lu", inject_path_w,
-		 hook_dll_w, (unsigned long)anti_cheat,
-		 anti_cheat ? gc->thread_id : gc->process_id);
+		 hook_dll_w, 1, gc->thread_id);
 
 	success = !!CreateProcessW(inject_path_w, command_line_w, NULL, NULL,
 				   false, CREATE_NO_WINDOW, NULL, NULL, &si,
@@ -526,17 +536,16 @@ static inline bool create_inject_process(struct wasapi_capture *gc,
 
 static inline bool inject_hook(struct wasapi_capture *gc)
 {
-	bool matching_architecture;
 	bool success = false;
 	const char *hook_dll;
 	char *inject_path;
 	char *hook_path;
 
 	if (gc->process_is_64bit) {
-		hook_dll = "graphics-hook64.dll";
+		hook_dll = "wasapi-hook64.dll";
 		inject_path = obs_module_file("inject-helper64.exe");
 	} else {
-		hook_dll = "graphics-hook32.dll";
+		hook_dll = "wasapi-hook32.dll";
 		inject_path = obs_module_file("inject-helper32.exe");
 	}
 
@@ -549,20 +558,8 @@ static inline bool inject_hook(struct wasapi_capture *gc)
 		goto cleanup;
 	}
 
-#ifdef _WIN64
-	matching_architecture = gc->process_is_64bit;
-#else
-	matching_architecture = !gc->process_is_64bit;
-#endif
-
-	if (matching_architecture && !use_anticheat(gc)) {
-		info("using direct hook");
-		success = hook_direct(gc, hook_path);
-	} else {
-		info("using helper (%s hook)",
-		     use_anticheat(gc) ? "compatibility" : "direct");
-		success = create_inject_process(gc, inject_path, hook_dll);
-	}
+	info("using helper (%s hook)", "compatibility");
+	success = create_inject_process(gc, inject_path, hook_dll);
 
 cleanup:
 	bfree(inject_path);
@@ -816,9 +813,9 @@ enum capture_result { CAPTURE_FAIL, CAPTURE_RETRY, CAPTURE_SUCCESS };
 
 static inline enum capture_result init_capture_data(struct wasapi_capture *gc)
 {
-	gc->samples_per_sec = gc->global_hook_info->samples_per_sec;
-	gc->speakers = gc->global_hook_info->speakers;
-	gc->format = gc->global_hook_info->format;
+	gc->channels = gc->global_hook_info->channels;
+	gc->samplerate = gc->global_hook_info->samplerate;
+	gc->byte_persample = gc->global_hook_info->byte_persample;
 
 	if (gc->data) {
 		UnmapViewOfFile(gc->data);
@@ -854,7 +851,7 @@ static inline enum capture_result init_capture_data(struct wasapi_capture *gc)
 
 static void copy_shmem_tex(struct wasapi_capture *gc)
 {
-	int cur_texture;
+	/*int cur_texture;
 	HANDLE mutex = NULL;
 	uint32_t pitch;
 	int next_texture;
@@ -903,12 +900,12 @@ static void copy_shmem_tex(struct wasapi_capture *gc)
 		gs_texture_unmap(gc->texture);
 	}
 
-	ReleaseMutex(mutex);
+	ReleaseMutex(mutex);*/
 }
 
 static inline bool init_shmem_capture(struct wasapi_capture *gc)
 {
-	enum gs_color_format format;
+	/*enum gs_color_format format;
 
 	gc->texture_buffers[0] =
 		(uint8_t *)gc->data + gc->shmem_data->tex1_offset;
@@ -931,7 +928,7 @@ static inline bool init_shmem_capture(struct wasapi_capture *gc)
 		return false;
 	}
 
-	gc->copy_texture = copy_shmem_tex;
+	gc->copy_texture = copy_shmem_tex;*/
 	return true;
 }
 
@@ -1052,6 +1049,25 @@ static bool window_not_blacklisted(const char *title, const char *class,
 	UNUSED_PARAMETER(class);
 
 	return !is_blacklisted_exe(exe);
+}
+
+static void insert_preserved_val(obs_property_t *p, const char *val)
+{
+	char *class = NULL;
+	char *title = NULL;
+	char *executable = NULL;
+	struct dstr desc = {0};
+
+	build_window_strings(val, &class, &title, &executable);
+
+	dstr_printf(&desc, "[%s]: %s", executable, title);
+	obs_property_list_insert_string(p, 1, desc.array, val);
+	obs_property_list_item_disable(p, 1, true);
+
+	dstr_free(&desc);
+	bfree(class);
+	bfree(title);
+	bfree(executable);
 }
 
 static bool window_changed_callback(obs_properties_t *ppts, obs_property_t *p,

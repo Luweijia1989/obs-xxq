@@ -25,3 +25,4 @@ target_link_libraries(wasapi-capture
 
 install_obs_plugin(wasapi-capture data)
 
+add_subdirectory(wasapi-hook)

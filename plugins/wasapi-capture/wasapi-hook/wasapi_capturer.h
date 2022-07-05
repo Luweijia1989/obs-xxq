@@ -1,0 +1,74 @@
+#ifndef _WASAPI_AUDIO_CAPTURE_H_
+#define _WASAPI_AUDIO_CAPTURE_H_
+
+#include <windows.h>
+#include <shlobj.h>
+#include <psapi.h>
+#pragma intrinsic(memcpy, memset, memcmp)
+
+#include <objbase.h>
+#include <string>
+#include <sstream>
+#include <fstream>
+#include <assert.h>
+#include <mutex>
+#include <map>
+#include <ctime>   // std::time
+#include <iomanip> // std::put_time
+#include <immintrin.h>
+#include <emmintrin.h>
+#include <Audioclient.h>
+#include <mmdeviceapi.h>
+
+#include <initguid.h>
+#include <wincodec.h>
+
+#include "circlebuf.h"
+
+class core {
+	friend class proxy;
+
+public:
+	typedef struct _err_code_t {
+		static const int32_t unknown = -1;
+		static const int32_t success = 0;
+		static const int32_t fail = 1;
+	} err_code_t;
+
+	typedef struct _audio_info_ {
+		int32_t _channels;
+		int32_t _samplerate;
+		int32_t _byte_per_sample;
+	} audio_info_t;
+
+	core(void);
+	virtual ~core(void);
+
+	int32_t initialize(void);
+	int32_t release(void);
+	int32_t start(void);
+	int32_t stop(void);
+
+	void on_receive(uint8_t *data, uint32_t data_size);
+	void on_stop(IAudioRenderClient *audio_client);
+	void on_get_buffer(IAudioRenderClient *audio_client);
+
+private:
+	IAudioClient *create_dummy_audio_client(void);
+	void process(void);
+	void capture_reset();
+	static unsigned __stdcall process_cb(void *param);
+
+private:
+	HANDLE _thread;
+	BOOL _run;
+
+	struct shmem_data *_shmem_data_info;
+	uint8_t *_audio_data_pointer;
+	std::mutex _mutex;
+	std::map<IAudioRenderClient *, audio_info_t> _audio_clients;
+	bool _new_begin = false;
+	circlebuf _audio_data_buffer;
+};
+
+#endif

@@ -17,8 +17,7 @@
 
 #define WINDOW_HOOK_KEEPALIVE L"CaptureHook_KeepAlive"
 
-#define MUTEX_TEXTURE1 L"CaptureHook_TextureMutex1"
-#define MUTEX_TEXTURE2 L"CaptureHook_TextureMutex2"
+#define AUDIO_DATA_MUTEX L"CaptureHook_Audio_Data_Mutex"
 
 #define SHMEM_HOOK_INFO L"CaptureHook_HookInfo"
 #define SHMEM_AUDIO L"CaptureHook_Audio"
@@ -28,16 +27,15 @@
 #pragma pack(push, 8)
 
 struct shmem_data {
-	volatile int last_tex;
-	uint32_t tex1_offset;
-	uint32_t tex2_offset;
+	volatile int available_audio_size;
+	uint32_t audio_offset;
 };
 
 struct hook_info {
 	/* capture info */
-	enum speaker_layout speakers;
-	enum audio_format format;
-	uint32_t samples_per_sec;
+	uint32_t channels;
+	uint32_t samplerate;
+	uint32_t byte_persample;
 
 	uint32_t map_id;
 	uint32_t map_size;
