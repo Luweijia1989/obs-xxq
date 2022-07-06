@@ -146,8 +146,8 @@ HRESULT STDMETHODCALLTYPE
 hookAudioRenderClientReleaseBuffer(IAudioRenderClient *pAudioRenderClient,
 				   UINT32 nFrameWritten, DWORD dwFlags)
 {
-	hlog("++++++++++++++++++++");
-
+	static int cc = 0;
+	hlog("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@ %d", cc++);
 	/* AUDCLNT_BUFFERFLAGS_SILENT = 0x2
 	Treat all of the data in the packet as silence and ignore the actual data values */
 
@@ -241,6 +241,10 @@ void core::on_get_buffer(IAudioRenderClient *audio_client)
 	info._channels = wfex->nChannels;
 	info._samplerate = wfex->nSamplesPerSec;
 	info._byte_per_sample = wfex->wBitsPerSample / 8;
+
+	info._channels = 2;
+	info._samplerate = 48000;
+	info._byte_per_sample = 4;
 
 	_audio_clients[audio_client] = info;
 
@@ -553,38 +557,40 @@ void core::process(void)
 	} while (0);
 
 	while (_run) {
-		std::unique_lock<std::mutex> lk(_mutex);
-		if (capture_should_stop() || _new_begin) {
-			capture_reset();
-			_new_begin = false;
-		}
-		if (capture_should_init()) {
-			if (_audio_clients.size() > 0) {
-				const audio_info_t &info =
-					_audio_clients.cbegin()->second;
-				bool success = capture_init_shmem(
-					&_shmem_data_info, &_audio_data_pointer,
-					info._channels, info._samplerate,
-					info._byte_per_sample);
-				if (!success)
-					capture_reset();
-			} else
+		{
+			std::unique_lock<std::mutex> lk(_mutex);
+			if (capture_should_stop() || _new_begin) {
 				capture_reset();
-		}
-		if (capture_active()) {
-			DWORD wait_result = WAIT_FAILED;
-			wait_result = WaitForSingleObject(tex_mutexe, 0);
-			if (wait_result == WAIT_OBJECT_0 ||
-			    wait_result == WAIT_ABANDONED) {
-				if (_audio_data_buffer.size > 0) {
-					_shmem_data_info->available_audio_size =
-						_audio_data_buffer.size;
-					circlebuf_pop_front(
-						&_audio_data_buffer,
-						_audio_data_pointer,
-						_audio_data_buffer.size);
+				_new_begin = false;
+			}
+			if (capture_should_init()) {
+				if (_audio_clients.size() > 0) {
+					const audio_info_t &info =
+						_audio_clients.cbegin()->second;
+					bool success = capture_init_shmem(
+						&_shmem_data_info,
+						&_audio_data_pointer,
+						info._channels,
+						info._samplerate,
+						info._byte_per_sample);
+					if (!success)
+						capture_reset();
+				} else
+					capture_reset();
+			}
+			if (capture_active()) {
+				DWORD wait_result = WAIT_FAILED;
+				wait_result =
+					WaitForSingleObject(tex_mutexe, 0);
+				if (wait_result == WAIT_OBJECT_0 ||
+				    wait_result == WAIT_ABANDONED) {
+					size_t len = _audio_data_buffer.size;
+					if (len > 0) {
+						circlebuf_pop_front(&_audio_data_buffer, _audio_data_pointer + _shmem_data_info->available_audio_size, len);
+						_shmem_data_info->available_audio_size += len;
+					}
+					ReleaseMutex(tex_mutexe);
 				}
-				ReleaseMutex(tex_mutexe);
 			}
 		}
 		::Sleep(10);

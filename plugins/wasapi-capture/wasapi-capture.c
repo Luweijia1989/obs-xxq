@@ -27,6 +27,8 @@
 #define DEFAULT_RETRY_INTERVAL 2.0f
 #define ERROR_RETRY_INTERVAL 4.0f
 
+FILE *ff;
+
 struct wasapi_capture_config {
 	char *title;
 	char *class;
@@ -88,14 +90,11 @@ struct wasapi_capture {
 	union {
 		struct {
 			struct shmem_data *shmem_data;
-			uint8_t *texture_buffers[2];
+			uint8_t *audio_data_buffer;
 		};
 
-		struct shtex_data *shtex_data;
 		void *data;
 	};
-
-	void (*copy_texture)(struct wasapi_capture *);
 };
 
 static inline HANDLE open_mutex_plus_id(struct wasapi_capture *gc,
@@ -216,13 +215,17 @@ static void stop_capture(struct wasapi_capture *gc)
 	if (gc->active)
 		info("capture stopped");
 
-	gc->copy_texture = NULL;
 	gc->wait_for_target_startup = false;
 	gc->active = false;
 	gc->capturing = false;
 
 	if (gc->retrying)
 		gc->retrying--;
+
+	if (ff) {
+		fclose(ff);
+		ff = NULL;
+	}
 }
 
 static inline void free_config(struct wasapi_capture_config *config)
@@ -851,84 +854,36 @@ static inline enum capture_result init_capture_data(struct wasapi_capture *gc)
 
 static void copy_shmem_tex(struct wasapi_capture *gc)
 {
-	/*int cur_texture;
+	int audio_size = 0;
 	HANDLE mutex = NULL;
-	uint32_t pitch;
-	int next_texture;
-	uint8_t *data;
 
 	if (!gc->shmem_data)
 		return;
 
-	cur_texture = gc->shmem_data->last_tex;
+	if (object_signalled(gc->audio_data_mutex)) {
 
-	if (cur_texture < 0 || cur_texture > 1)
-		return;
+		audio_size = gc->shmem_data->available_audio_size;
 
-	next_texture = cur_texture == 1 ? 0 : 1;
+		if (audio_size > 0) {
+			static int64_t dd = 0;
+			dd += audio_size;
+			blog(LOG_DEBUG, "66666666666666666666666666666 %lld",
+			     dd);
+			fwrite(gc->audio_data_buffer, 1, audio_size, ff);
+			fflush(ff);
 
-	if (object_signalled(gc->texture_mutexes[cur_texture])) {
-		mutex = gc->texture_mutexes[cur_texture];
-
-	} else if (object_signalled(gc->texture_mutexes[next_texture])) {
-		mutex = gc->texture_mutexes[next_texture];
-		cur_texture = next_texture;
-
-	} else {
-		return;
-	}
-
-	if (gs_texture_map(gc->texture, &data, &pitch)) {
-		if (gc->convert_16bit) {
-			copy_16bit_tex(gc, cur_texture, data, pitch);
-
-		} else if (pitch == gc->pitch) {
-			memcpy(data, gc->texture_buffers[cur_texture],
-			       pitch * gc->cy);
-		} else {
-			uint8_t *input = gc->texture_buffers[cur_texture];
-			uint32_t best_pitch = pitch < gc->pitch ? pitch
-								: gc->pitch;
-
-			for (uint32_t y = 0; y < gc->cy; y++) {
-				uint8_t *line_in = input + gc->pitch * y;
-				uint8_t *line_out = data + pitch * y;
-				memcpy(line_out, line_in, best_pitch);
-			}
+			gc->shmem_data->available_audio_size = 0;
 		}
 
-		gs_texture_unmap(gc->texture);
+		ReleaseMutex(gc->audio_data_mutex);
 	}
-
-	ReleaseMutex(mutex);*/
 }
 
 static inline bool init_shmem_capture(struct wasapi_capture *gc)
 {
-	/*enum gs_color_format format;
-
-	gc->texture_buffers[0] =
-		(uint8_t *)gc->data + gc->shmem_data->tex1_offset;
-	gc->texture_buffers[1] =
-		(uint8_t *)gc->data + gc->shmem_data->tex2_offset;
-
-	gc->convert_16bit = is_16bit_format(gc->global_hook_info->format);
-	format = gc->convert_16bit
-			 ? GS_BGRA
-			 : convert_format(gc->global_hook_info->format);
-
-	obs_enter_graphics();
-	gs_texture_destroy(gc->texture);
-	gc->texture =
-		gs_texture_create(gc->cx, gc->cy, format, 1, NULL, GS_DYNAMIC);
-	obs_leave_graphics();
-
-	if (!gc->texture) {
-		warn("init_shmem_capture: failed to create texture");
-		return false;
-	}
-
-	gc->copy_texture = copy_shmem_tex;*/
+	ff = fopen("D:\\ccc.pcm", "wb");
+	gc->audio_data_buffer =
+		(uint8_t *)gc->data + gc->shmem_data->audio_offset;
 	return true;
 }
 
@@ -1022,11 +977,7 @@ static void wasapi_capture_tick(void *data, float seconds)
 			     "terminating capture");
 			stop_capture(gc);
 		} else {
-			if (gc->copy_texture) {
-				obs_enter_graphics();
-				gc->copy_texture(gc);
-				obs_leave_graphics();
-			}
+			copy_shmem_tex(gc);
 		}
 	}
 

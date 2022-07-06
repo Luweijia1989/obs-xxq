@@ -121,8 +121,8 @@ proxy::proxy(void)
 
 	_wave_format.nChannels = 2;
 	_wave_format.nSamplesPerSec = 48000;
-	_wave_format.wBitsPerSample = 16;
-	_wave_format.nBlockAlign = 4;
+	_wave_format.wBitsPerSample = 32;
+	_wave_format.nBlockAlign = 8;
 	_avx2_support = Util::can_use_intel_core_4th_gen_features() > 0 ? TRUE
 									: FALSE;
 }

@@ -367,7 +367,7 @@ bool capture_init_shmem(struct shmem_data **data, uint8_t **data_pointer,
 
 	(*data)->available_audio_size = 0;
 	(*data)->audio_offset = align_pos;
-	*data_pointer = (uint8_t *)data + align_pos;
+	*data_pointer = (uint8_t *)shmem_info + align_pos;
 
 	global_hook_info->byte_persample = byte_persample;
 	global_hook_info->channels = channels;
