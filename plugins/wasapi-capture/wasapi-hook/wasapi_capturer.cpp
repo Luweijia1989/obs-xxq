@@ -251,7 +251,8 @@ void core::on_get_buffer(IAudioRenderClient *audio_client)
 void core::on_receive(uint8_t *data, uint32_t data_size)
 {
 	std::unique_lock<std::mutex> lk(_mutex);
-	circlebuf_push_back(&_audio_data_buffer, data, data_size);
+	if (capture_active())
+		circlebuf_push_back(&_audio_data_buffer, data, data_size);
 }
 
 #if 0
