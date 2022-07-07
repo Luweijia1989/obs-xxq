@@ -238,6 +238,13 @@ static bool obs_init_textures(struct obs_video_info *ovi)
 	if (!video->render_texture)
 		return false;
 
+	video->render_invisible_texture =
+		gs_texture_create(ovi->base_width, ovi->base_height, GS_RGBA, 1,
+				  NULL, GS_RENDER_TARGET);
+
+	if (!video->render_invisible_texture)
+		return false;
+
 	video->output_texture = gs_texture_create(ovi->output_width,
 						  ovi->output_height, GS_RGBA,
 						  1, NULL, GS_RENDER_TARGET);
@@ -564,6 +571,7 @@ static void obs_free_video(void)
 		}
 
 		gs_texture_destroy(video->render_texture);
+		gs_texture_destroy(video->render_invisible_texture);
 
 		for (size_t c = 0; c < NUM_CHANNELS; c++) {
 			if (video->convert_textures[c]) {
@@ -584,6 +592,7 @@ static void obs_free_video(void)
 
 		gs_texture_destroy(video->output_texture);
 		video->render_texture = NULL;
+		video->render_invisible_texture = NULL;
 		video->output_texture = NULL;
 
 		gs_leave_context();
@@ -2806,6 +2815,7 @@ bool obs_nv12_tex_active(void)
 void obs_source_create_xxqsource(int type /*1=privacy 2=leave*/,
 				 obs_data_t *settings)
 {
+	obs_enter_graphics();
 	struct obs_core_data *data = &obs->data;
 	if (type == 3) {
 		if (!data->h5_source) {
@@ -2830,6 +2840,7 @@ void obs_source_create_xxqsource(int type /*1=privacy 2=leave*/,
 			"audio_livelink_source", AUDIOLINK_ID, settings);
 		obs_source_activate(data->audiolivelink_source, MAIN_VIEW);
 	}
+	obs_leave_graphics();
 }
 
 void obs_source_update_xxqsource(int type /*1=privacy 2=leave*/,
@@ -2856,6 +2867,7 @@ void obs_source_update_xxqsource(int type /*1=privacy 2=leave*/,
 
 void obs_source_destroy_xxqsource(int type)
 {
+	obs_enter_graphics();
 	struct obs_core_data *data = &obs->data;
 	if (type == 3) {
 		obs_source_release(data->h5_source);
@@ -2870,6 +2882,7 @@ void obs_source_destroy_xxqsource(int type)
 		obs_source_release(data->audiolivelink_source);
 		data->audiolivelink_source = NULL;
 	}
+	obs_leave_graphics();
 }
 
 void obs_source_custom_command_xxqsource(int type, obs_data_t *settings)

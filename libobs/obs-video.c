@@ -273,7 +273,7 @@ render_texture_scale_internal(gs_texture_t *texture, gs_texture_t *target,
 static const char *render_output_texture_name = "render_output_texture";
 static inline gs_texture_t *render_output_texture(struct obs_core_video *video)
 {
-	gs_texture_t *texture = video->render_texture;
+	gs_texture_t *texture = video->render_invisible_texture;
 	gs_texture_t *target = video->output_texture;
 	uint32_t width = gs_texture_get_width(target);
 	uint32_t height = gs_texture_get_height(target);
@@ -710,7 +710,7 @@ render_rtc_output_texture(struct obs_core_video *video) //final output
 	//rtc_frame_mix_output_texture作为本地混流的输出，尺寸和预览尺寸保持一致1920*1080
 	//普通连麦画布还是之前的output_texture，我们会去改变这个画布尺寸为1440*1080.多人连麦有效区域也是1440*1080，我们画的时候要做偏移
 	struct obs_rtc_mix *rtc_mix = &obs->video.rtc_mix;
-	gs_texture_t *texture = video->render_texture;
+	gs_texture_t *texture = video->render_invisible_texture;
 	gs_texture_t *target = rtc_mix->mix_type == 0
 				       ? video->output_texture
 				       : rtc_mix->rtc_frame_mix_output_texture;
@@ -799,7 +799,7 @@ render_rtc_frame_texture(struct obs_core_video *video,
 			 struct obs_rtc_mix *rtc_mix)
 {
 	gs_texture_t *ret = rtc_mix->rtc_frame_texture;
-	gs_texture_t *texture = video->render_texture;
+	gs_texture_t *texture = video->render_invisible_texture;
 	gs_texture_t *target = rtc_mix->rtc_frame_texture;
 
 	gs_effect_t *effect = video->default_effect;
@@ -1029,6 +1029,11 @@ static inline void render_video(struct obs_core_video *video, bool raw_active,
 	gs_set_cull_mode(GS_NEITHER);
 
 	render_main_texture(video, output_order);
+	gs_copy_texture(video->render_invisible_texture, video->render_texture);
+	if (obs->data.audiolivelink_source) {
+		gs_set_render_target(video->render_invisible_texture, NULL);
+		obs_source_default_render(obs->data.audiolivelink_source);
+	}
 
 	struct obs_rtc_mix *rtc_mix = &obs->video.rtc_mix;
 	if (os_atomic_load_bool(&rtc_mix->rtc_frame_active)) {

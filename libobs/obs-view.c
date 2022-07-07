@@ -183,8 +183,5 @@ void obs_view_render(obs_view_t *view, void *output_order)
 	if (core_data->mask_source)
 		obs_source_default_render(core_data->mask_source);
 
-	if (core_data->audiolivelink_source)
-		obs_source_default_render(core_data->audiolivelink_source);
-
 	pthread_mutex_unlock(&view->channels_mutex);
 }
