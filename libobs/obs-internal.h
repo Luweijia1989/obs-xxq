@@ -423,8 +423,6 @@ struct obs_core_data {
 
 	obs_data_t *private_data;
 
-	struct obs_source *privacy_source;
-	struct obs_source *leave_source;
 	struct obs_source *h5_source;
 	struct obs_source *sticker_source;
 	struct obs_source *mask_source;

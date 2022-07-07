@@ -82,13 +82,6 @@ static uint64_t tick_sources(uint64_t cur_time, uint64_t last_time)
 		obs_source_video_tick(cur_source, seconds);
 	}
 
-	if (data->privacy_source) {
-		struct obs_source *cur_source =
-			obs_source_get_ref(data->privacy_source);
-		da_push_back(tick_order, &cur_source);
-		obs_source_video_tick(cur_source, seconds);
-	}
-
 	pthread_mutex_unlock(&data->sources_mutex);
 
 	for (size_t i = 0; i < tick_order.num; i++) {

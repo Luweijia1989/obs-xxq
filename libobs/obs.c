@@ -2807,19 +2807,7 @@ void obs_source_create_xxqsource(int type /*1=privacy 2=leave*/,
 				 obs_data_t *settings)
 {
 	struct obs_core_data *data = &obs->data;
-	if (type == 1) {
-		if (!data->privacy_source) {
-			data->privacy_source = obs_source_create_private(
-				"quickprivate_source", PRIVACY_ID, settings);
-			obs_source_activate(data->privacy_source, MAIN_VIEW);
-		}
-	} else if (type == 2) {
-		if (!data->leave_source) {
-			data->leave_source = obs_source_create_private(
-				"quickleave_source", LEAVING_ID, settings);
-			obs_source_activate(data->leave_source, MAIN_VIEW);
-		}
-	} else if (type == 3) {
+	if (type == 3) {
 		if (!data->h5_source) {
 			data->h5_source = obs_source_create_private(
 				"webcapture_source", H5_ID, settings);
@@ -2849,14 +2837,11 @@ void obs_source_update_xxqsource(int type /*1=privacy 2=leave*/,
 {
 	struct obs_core_data *data = &obs->data;
 	switch (type) {
-	case 1:
-		obs_source_update(data->privacy_source, settings);
-		break;
-	case 2:
-		obs_source_update(data->leave_source, settings);
-		break;
 	case 3:
 		obs_source_update(data->h5_source, settings);
+		break;
+	case 4:
+		obs_source_update(data->sticker_source, settings);
 		break;
 	case 5:
 		obs_source_update(data->mask_source, settings);
@@ -2872,13 +2857,7 @@ void obs_source_update_xxqsource(int type /*1=privacy 2=leave*/,
 void obs_source_destroy_xxqsource(int type)
 {
 	struct obs_core_data *data = &obs->data;
-	if (type == 1) {
-		obs_source_release(data->privacy_source);
-		data->privacy_source = NULL;
-	} else if (type == 2) {
-		obs_source_release(data->leave_source);
-		data->leave_source = NULL;
-	} else if (type == 3) {
+	if (type == 3) {
 		obs_source_release(data->h5_source);
 		data->h5_source = NULL;
 	} else if (type == 4) {
