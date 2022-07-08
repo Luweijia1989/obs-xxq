@@ -20,6 +20,7 @@
 BOOL gRender = FALSE;
 core *gWASAPIAudioCapture = nullptr;
 proxy *gWASAPIAudioCaptureProxy = nullptr;
+std::mutex gMutex;
 
 #ifdef __cplusplus
 extern "C" {
@@ -53,6 +54,7 @@ HRESULT STDMETHODCALLTYPE hookAudioClientInitialize(
 	REFERENCE_TIME hns_periodicity, const WAVEFORMATEX *pFormat,
 	LPCGUID audio_session_guid)
 {
+	std::unique_lock<std::mutex> lk(gMutex);
 	HRESULT hr = realAudioClientInitialize(pAudioClient, share_mode, stream_flags, hns_buffer_duration, hns_periodicity, pFormat, audio_session_guid);
 	gWASAPIAudioCapture->on_init(pAudioClient, pFormat);
 	return hr;
@@ -62,6 +64,7 @@ HRESULT STDMETHODCALLTYPE hookAudioClientIsFormatSupported(
 	IAudioClient *pAudioClient, AUDCLNT_SHAREMODE ShareMode,
 	const WAVEFORMATEX *pFormat, WAVEFORMATEX **ppClosestMatch)
 {
+	std::unique_lock<std::mutex> lk(gMutex);
 	HRESULT hr = realAudioClientIsFormatSupported(pAudioClient, ShareMode, pFormat, ppClosestMatch);
 	return hr;
 }
@@ -69,6 +72,7 @@ HRESULT STDMETHODCALLTYPE hookAudioClientIsFormatSupported(
 HRESULT STDMETHODCALLTYPE hookAudioClientGetMixFormat(
 	IAudioClient *pAudioClient, WAVEFORMATEX **ppDeviceFormat)
 {
+	std::unique_lock<std::mutex> lk(gMutex);
 	HRESULT hr = S_OK;
 	hr = realAudioClientGetMixFormat(pAudioClient, ppDeviceFormat);
 
@@ -77,8 +81,8 @@ HRESULT STDMETHODCALLTYPE hookAudioClientGetMixFormat(
 
 HRESULT STDMETHODCALLTYPE hookAudioClientStop(IAudioClient *pAudioClient)
 {
+	std::unique_lock<std::mutex> lk(gMutex);
 	HRESULT hr = S_OK;
-
 	hr = realAudioClientStop(pAudioClient);
 
 	if (hr == AUDCLNT_E_SERVICE_NOT_RUNNING)
@@ -98,6 +102,7 @@ HRESULT STDMETHODCALLTYPE hookAudioClientStop(IAudioClient *pAudioClient)
 
 HRESULT STDMETHODCALLTYPE hookAudioClientReset(IAudioClient *pAudioClient)
 {
+	std::unique_lock<std::mutex> lk(gMutex);
 	HRESULT hr = S_OK;
 	hr = realAudioClientReset(pAudioClient);
 
@@ -106,6 +111,7 @@ HRESULT STDMETHODCALLTYPE hookAudioClientReset(IAudioClient *pAudioClient)
 
 HRESULT STDMETHODCALLTYPE hookAudioClientGetCurrentPadding(IAudioClient *pAudioClient, UINT32* padding)
 {
+	std::unique_lock<std::mutex> lk(gMutex);
 	HRESULT hr = S_OK;
 	hr = realAudioClientGetCurrentPadding(pAudioClient, padding);
 
@@ -116,6 +122,7 @@ HRESULT STDMETHODCALLTYPE
 hookAudioRenderClientGetBuffer(IAudioRenderClient *pAudioRenderClient,
 			       UINT32 nFrameRequested, BYTE **ppData)
 {
+	std::unique_lock<std::mutex> lk(gMutex);
 	HRESULT hr = realAudioRenderClientGetBuffer(pAudioRenderClient,
 						    nFrameRequested, ppData);
 	gWASAPIAudioCaptureProxy->push_audio_data(pAudioRenderClient, ppData);
@@ -126,6 +133,7 @@ HRESULT STDMETHODCALLTYPE
 hookAudioRenderClientReleaseBuffer(IAudioRenderClient *pAudioRenderClient,
 				   UINT32 nFrameWritten, DWORD dwFlags)
 {
+	std::unique_lock<std::mutex> lk(gMutex);
 	static int cc = 0;
 	hlog("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@ %d", cc++);
 	/* AUDCLNT_BUFFERFLAGS_SILENT = 0x2
@@ -213,14 +221,7 @@ void core::on_init(IAudioClient *audio_client, const WAVEFORMATEX *wfex)
 	info._samplerate = wfex->nSamplesPerSec;
 	info._byte_per_sample = wfex->wBitsPerSample / 8;
 
-	info._channels = 2;
-	info._samplerate = 48000;
-	info._byte_per_sample = 4;
-
 	_audio_clients[audio_client] = info;
-
-	if (!_new_begin && _audio_clients.size() == 1)
-		_new_begin = true;
 }
 
 void core::on_get_current_padding(IAudioClient *audio_client, UINT32 *padding)
@@ -492,9 +493,8 @@ void core::process(void)
 	while (_run) {
 		{
 			std::unique_lock<std::mutex> lk(_mutex);
-			if (capture_should_stop() || _new_begin) {
+			if (capture_should_stop()) {
 				capture_reset();
-				_new_begin = false;
 			}
 			if (capture_should_init()) {
 				if (_audio_clients.size() > 0) {
@@ -568,6 +568,8 @@ void init_var()
 
 void reset_var()
 {
+	std::unique_lock<std::mutex> lk(gMutex);
+
 	gWASAPIAudioCapture->stop();
 	gWASAPIAudioCapture->release();
 	delete gWASAPIAudioCapture;

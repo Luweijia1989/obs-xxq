@@ -68,7 +68,6 @@ private:
 	uint8_t *_audio_data_pointer;
 	std::mutex _mutex;
 	std::map<IAudioClient *, audio_info_t> _audio_clients;
-	bool _new_begin = false;
 	circlebuf _audio_data_buffer;
 };
 
