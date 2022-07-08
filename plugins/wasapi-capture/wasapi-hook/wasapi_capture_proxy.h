@@ -15,6 +15,7 @@ public:
 public:
 	typedef struct _audio_data_pool_t {
 		IAudioRenderClient *render;
+		IAudioClient *audio_client;
 		std::queue<uint8_t *> data;
 		//CRITICAL_SECTION		lock;
 		_audio_data_pool_t(void) : render(nullptr) {}
@@ -42,7 +43,7 @@ public:
 	uint8_t *front_audio_data(IAudioRenderClient *audio_render_client);
 	void pop_audio_data(IAudioRenderClient *audio_render_client);
 	int output_stream_count() const { return _num_output_streams; }
-	void on_audioclient_stopped(IAudioRenderClient *audio_client,
+	void on_audioclient_stopped(IAudioClient *audio_client,
 				    BOOL already_stopped);
 	void on_renderclient_released();
 	std::string AsHumanReadableString(const WAVEFORMATEX *format) const;

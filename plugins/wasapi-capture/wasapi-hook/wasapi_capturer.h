@@ -50,8 +50,9 @@ public:
 	int32_t stop(void);
 
 	void on_receive(uint8_t *data, uint32_t data_size);
-	void on_stop(IAudioRenderClient *audio_client);
-	void on_get_buffer(IAudioRenderClient *audio_client);
+	void on_stop(IAudioClient *audio_client);
+	void on_init(IAudioClient *audio_client, const WAVEFORMATEX *wfex);
+	void on_get_current_padding(IAudioClient *audio_client, UINT32 *padding);
 
 private:
 	IAudioClient *create_dummy_audio_client(void);
@@ -66,7 +67,7 @@ private:
 	struct shmem_data *_shmem_data_info;
 	uint8_t *_audio_data_pointer;
 	std::mutex _mutex;
-	std::map<IAudioRenderClient *, audio_info_t> _audio_clients;
+	std::map<IAudioClient *, audio_info_t> _audio_clients;
 	bool _new_begin = false;
 	circlebuf _audio_data_buffer;
 };

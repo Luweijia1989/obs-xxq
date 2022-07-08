@@ -881,7 +881,7 @@ static void copy_shmem_tex(struct wasapi_capture *gc)
 
 static inline bool init_shmem_capture(struct wasapi_capture *gc)
 {
-	ff = fopen("D:\\ccc.pcm", "wb");
+	ff = fopen("E:\\ccc.pcm", "wb");
 	gc->audio_data_buffer =
 		(uint8_t *)gc->data + gc->shmem_data->audio_offset;
 	return true;

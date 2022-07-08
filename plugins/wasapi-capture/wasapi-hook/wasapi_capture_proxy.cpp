@@ -4,7 +4,7 @@
 // Default maximum number of output streams that can be open simultaneously
 // for all platforms.
 
-#define DEBUG_AUDIO_CAPTURE
+//#define DEBUG_AUDIO_CAPTURE
 #ifdef DEBUG_AUDIO_CAPTURE
 FILE *fp_out_ = nullptr;
 #endif
@@ -443,8 +443,6 @@ void proxy::mix_audio_avx2(uint8_t *buffer_dest, uint8_t *buffer_src,
 
 void proxy::push_audio_data(IAudioRenderClient *key, BYTE **ppdata)
 {
-	_obj->on_get_buffer(key);
-
 	proxy::audio_data_pool_t *pool = nullptr;
 	std::map<IAudioRenderClient *, audio_data_pool_t *>::iterator iter =
 		_render_clients.find(key);
@@ -499,20 +497,17 @@ void proxy::set_audio_capture_proxy_receiver(core *obj)
 	_obj = obj;
 }
 
-void proxy::on_audioclient_stopped(IAudioRenderClient *audio_client,
+void proxy::on_audioclient_stopped(IAudioClient *audio_client,
 				   BOOL already_stopped)
 {
 	if (already_stopped) {
 		BOOL b_found = FALSE;
 		IAudioRenderClient *key = nullptr;
 		proxy::audio_data_pool_t *pool = nullptr;
-		for (std::map<IAudioRenderClient *,
-			      audio_data_pool_t *>::iterator it =
-			     _render_clients.begin();
-		     it != _render_clients.end(); ++it) {
+		for (std::map<IAudioRenderClient *, audio_data_pool_t *>::iterator it = _render_clients.begin(); it != _render_clients.end(); ++it) {
 			key = it->first;
 			pool = it->second;
-			if (pool->render == audio_client) {
+			if (pool->audio_client == audio_client) {
 				pool->render = nullptr;
 				while (!pool->data.empty())
 					pool->data.pop();
