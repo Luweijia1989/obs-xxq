@@ -175,9 +175,11 @@ static inline HANDLE open_process(DWORD desired_access, bool inherit_handle,
 
 static void stop_capture(struct wasapi_capture *gc)
 {
+	info("stop capture called");
 	ipc_pipe_server_free(&gc->pipe);
 
 	if (gc->hook_stop) {
+		info("set hook stop event");
 		SetEvent(gc->hook_stop);
 	}
 	if (gc->global_hook_info) {
@@ -650,16 +652,20 @@ static bool init_hook(struct wasapi_capture *gc)
 	}
 	if (!attempt_existing_hook(gc)) {
 		if (!inject_hook(gc)) {
+			info("inject hook failed");
 			return false;
 		}
 	}
 	if (!init_texture_mutexes(gc)) {
+		info("init audio datex mutex failed");
 		return false;
 	}
 	if (!init_hook_info(gc)) {
+		info("init hook info failed");
 		return false;
 	}
 	if (!init_events(gc)) {
+		info("init events failed");
 		return false;
 	}
 
@@ -779,7 +785,8 @@ static inline bool init_events(struct wasapi_capture *gc)
 			warn("init_events: failed to get hook_stop event: %lu",
 			     GetLastError());
 			return false;
-		}
+		} else
+			object_signalled(gc->hook_stop);
 	}
 
 	if (!gc->hook_init) {
@@ -881,7 +888,7 @@ static void copy_shmem_tex(struct wasapi_capture *gc)
 
 static inline bool init_shmem_capture(struct wasapi_capture *gc)
 {
-	ff = fopen("E:\\ccc.pcm", "wb");
+	ff = fopen("D:\\ccc.pcm", "wb");
 	gc->audio_data_buffer =
 		(uint8_t *)gc->data + gc->shmem_data->audio_offset;
 	return true;
@@ -940,9 +947,6 @@ static void wasapi_capture_tick(void *data, float seconds)
 			warn("inject process failed: %ld", (long)exit_code);
 			gc->error_acquiring = true;
 
-		} else if (!gc->capturing) {
-			gc->retry_interval = ERROR_RETRY_INTERVAL;
-			stop_capture(gc);
 		}
 	}
 

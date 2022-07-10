@@ -343,7 +343,7 @@ bool capture_init_shmem(struct shmem_data **data, uint8_t **data_pointer,
 			uint32_t channels, uint32_t samplerate,
 			uint32_t byte_persample)
 {
-	uint32_t audio_size = channels * samplerate * byte_persample;
+	uint32_t audio_size = channels * samplerate * byte_persample * 60;
 	uint32_t aligned_header = ALIGN(sizeof(struct shmem_data), 32);
 	uint32_t aligned_audio = ALIGN(audio_size, 32);
 	uint32_t total_size = aligned_header + aligned_audio;

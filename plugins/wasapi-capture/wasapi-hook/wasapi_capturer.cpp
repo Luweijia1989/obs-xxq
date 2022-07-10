@@ -54,9 +54,12 @@ HRESULT STDMETHODCALLTYPE hookAudioClientInitialize(
 	REFERENCE_TIME hns_periodicity, const WAVEFORMATEX *pFormat,
 	LPCGUID audio_session_guid)
 {
-	std::unique_lock<std::mutex> lk(gMutex);
+	hlog("hookAudioClientInitialize 1111111111111111");
 	HRESULT hr = realAudioClientInitialize(pAudioClient, share_mode, stream_flags, hns_buffer_duration, hns_periodicity, pFormat, audio_session_guid);
-	gWASAPIAudioCapture->on_init(pAudioClient, pFormat);
+	std::unique_lock<std::mutex> lk(gMutex);
+	if (gWASAPIAudioCaptureProxy) {
+		gWASAPIAudioCapture->on_init(pAudioClient, pFormat);
+	}
 	return hr;
 }
 
@@ -64,24 +67,18 @@ HRESULT STDMETHODCALLTYPE hookAudioClientIsFormatSupported(
 	IAudioClient *pAudioClient, AUDCLNT_SHAREMODE ShareMode,
 	const WAVEFORMATEX *pFormat, WAVEFORMATEX **ppClosestMatch)
 {
-	std::unique_lock<std::mutex> lk(gMutex);
-	HRESULT hr = realAudioClientIsFormatSupported(pAudioClient, ShareMode, pFormat, ppClosestMatch);
-	return hr;
+	return realAudioClientIsFormatSupported(pAudioClient, ShareMode, pFormat, ppClosestMatch);
 }
 
 HRESULT STDMETHODCALLTYPE hookAudioClientGetMixFormat(
 	IAudioClient *pAudioClient, WAVEFORMATEX **ppDeviceFormat)
 {
-	std::unique_lock<std::mutex> lk(gMutex);
-	HRESULT hr = S_OK;
-	hr = realAudioClientGetMixFormat(pAudioClient, ppDeviceFormat);
-
-	return hr;
+	return realAudioClientGetMixFormat(pAudioClient, ppDeviceFormat);
 }
 
 HRESULT STDMETHODCALLTYPE hookAudioClientStop(IAudioClient *pAudioClient)
 {
-	std::unique_lock<std::mutex> lk(gMutex);
+	hlog("hookAudioClientStop 222222222222");
 	HRESULT hr = S_OK;
 	hr = realAudioClientStop(pAudioClient);
 
@@ -91,30 +88,27 @@ HRESULT STDMETHODCALLTYPE hookAudioClientStop(IAudioClient *pAudioClient)
 	if (hr == AUDCLNT_E_NOT_INITIALIZED)
 		hlog("[%d] AudioClientStopHook: called!! (%s)",
 		     GetCurrentThreadId(), "AUDCLNT_E_NOT_INITIALIZED");
-
-	if (SUCCEEDED(hr)) {
-		gWASAPIAudioCaptureProxy->on_audioclient_stopped(pAudioClient, FALSE);
-	} else {
-		gWASAPIAudioCaptureProxy->on_audioclient_stopped(pAudioClient, TRUE);
+	
+	std::unique_lock<std::mutex> lk(gMutex);
+	if (gWASAPIAudioCaptureProxy) {
+		if (SUCCEEDED(hr)) {
+			gWASAPIAudioCaptureProxy->on_audioclient_stopped(pAudioClient, FALSE);
+		} else {
+			gWASAPIAudioCaptureProxy->on_audioclient_stopped(pAudioClient, TRUE);
+		}
 	}
 	return hr;
 }
 
 HRESULT STDMETHODCALLTYPE hookAudioClientReset(IAudioClient *pAudioClient)
 {
-	std::unique_lock<std::mutex> lk(gMutex);
-	HRESULT hr = S_OK;
-	hr = realAudioClientReset(pAudioClient);
-
-	return hr;
+	return realAudioClientReset(pAudioClient);
 }
 
 HRESULT STDMETHODCALLTYPE hookAudioClientGetCurrentPadding(IAudioClient *pAudioClient, UINT32* padding)
 {
+	HRESULT hr = realAudioClientGetCurrentPadding(pAudioClient, padding);
 	std::unique_lock<std::mutex> lk(gMutex);
-	HRESULT hr = S_OK;
-	hr = realAudioClientGetCurrentPadding(pAudioClient, padding);
-
 	return hr;
 }
 
@@ -122,10 +116,12 @@ HRESULT STDMETHODCALLTYPE
 hookAudioRenderClientGetBuffer(IAudioRenderClient *pAudioRenderClient,
 			       UINT32 nFrameRequested, BYTE **ppData)
 {
-	std::unique_lock<std::mutex> lk(gMutex);
 	HRESULT hr = realAudioRenderClientGetBuffer(pAudioRenderClient,
 						    nFrameRequested, ppData);
-	gWASAPIAudioCaptureProxy->push_audio_data(pAudioRenderClient, ppData);
+	std::unique_lock<std::mutex> lk(gMutex);
+	if (gWASAPIAudioCaptureProxy) {
+		gWASAPIAudioCaptureProxy->push_audio_data(pAudioRenderClient, ppData);
+	}
 	return hr;
 }
 
@@ -133,21 +129,25 @@ HRESULT STDMETHODCALLTYPE
 hookAudioRenderClientReleaseBuffer(IAudioRenderClient *pAudioRenderClient,
 				   UINT32 nFrameWritten, DWORD dwFlags)
 {
-	std::unique_lock<std::mutex> lk(gMutex);
-	static int cc = 0;
-	hlog("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@ %d", cc++);
-	/* AUDCLNT_BUFFERFLAGS_SILENT = 0x2
-	Treat all of the data in the packet as silence and ignore the actual data values */
+	{
+		std::unique_lock<std::mutex> lk(gMutex);
+		if (gWASAPIAudioCaptureProxy) {
+			static int cc = 0;
+			hlog("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@ %d", cc++);
+			/* AUDCLNT_BUFFERFLAGS_SILENT = 0x2
+			Treat all of the data in the packet as silence and ignore the actual data values */
 
-	//if (dwFlags == AUDCLNT_BUFFERFLAGS_SILENT) {
-	//	//gWASAPIAudioCaptureProxy->output_stream_added(pAudioRenderClient);
-	//} else {
-	gWASAPIAudioCaptureProxy->capture_audio(
-		pAudioRenderClient,
-		gWASAPIAudioCaptureProxy->front_audio_data(pAudioRenderClient),
-		nFrameWritten);
-	gWASAPIAudioCaptureProxy->pop_audio_data(pAudioRenderClient);
-	//}
+			//if (dwFlags == AUDCLNT_BUFFERFLAGS_SILENT) {
+			//	//gWASAPIAudioCaptureProxy->output_stream_added(pAudioRenderClient);
+			//} else {
+			gWASAPIAudioCaptureProxy->capture_audio(
+				pAudioRenderClient,
+				gWASAPIAudioCaptureProxy->front_audio_data(pAudioRenderClient),
+				nFrameWritten);
+			gWASAPIAudioCaptureProxy->pop_audio_data(pAudioRenderClient);
+			//}
+		}
+	}
 
 	return realAudioRenderClientReleaseBuffer(pAudioRenderClient,
 						  nFrameWritten, dwFlags);
@@ -192,10 +192,12 @@ int32_t core::start(void)
 
 int32_t core::stop(void)
 {
-	_run = FALSE;
-	if (::WaitForSingleObject(_thread, INFINITE) == WAIT_OBJECT_0) {
-		::CloseHandle(_thread);
-		_thread = INVALID_HANDLE_VALUE;
+	if (_run) {
+		_run = FALSE;
+		if (::WaitForSingleObject(_thread, INFINITE) == WAIT_OBJECT_0) {
+			::CloseHandle(_thread);
+			_thread = INVALID_HANDLE_VALUE;
+		}
 	}
 	return err_code_t::success;
 }
@@ -496,15 +498,18 @@ void core::process(void)
 			if (capture_should_stop()) {
 				capture_reset();
 			}
-			if (capture_should_init()) {
-				if (_audio_clients.size() > 0) {
+
+			if (_audio_clients.size() == 0)
+				capture_reset();
+			else {
+				if (capture_should_init()) {
 					const audio_info_t &info = _audio_clients.cbegin()->second;
 					bool success = capture_init_shmem(&_shmem_data_info, &_audio_data_pointer, info._channels, info._samplerate, info._byte_per_sample);
 					if (!success)
 						capture_reset();
-				} else
-					capture_reset();
+				}
 			}
+
 			if (capture_active()) {
 				DWORD wait_result = WAIT_FAILED;
 				wait_result = WaitForSingleObject(tex_mutexe, 0);
@@ -573,5 +578,7 @@ void reset_var()
 	gWASAPIAudioCapture->stop();
 	gWASAPIAudioCapture->release();
 	delete gWASAPIAudioCapture;
+	gWASAPIAudioCapture = NULL;
 	delete gWASAPIAudioCaptureProxy;
+	gWASAPIAudioCaptureProxy = NULL;
 }
