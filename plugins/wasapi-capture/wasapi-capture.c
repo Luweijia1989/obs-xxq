@@ -4,6 +4,7 @@
 #include <util/platform.h>
 #include <util/threading.h>
 #include <util/dstr.h>
+#include <util/util_uint64.h>
 #include <windows.h>
 #include <dxgi.h>
 #include <emmintrin.h>
@@ -26,8 +27,6 @@
 
 #define DEFAULT_RETRY_INTERVAL 2.0f
 #define ERROR_RETRY_INTERVAL 4.0f
-
-FILE *ff;
 
 struct wasapi_capture_config {
 	char *title;
@@ -223,11 +222,6 @@ static void stop_capture(struct wasapi_capture *gc)
 
 	if (gc->retrying)
 		gc->retrying--;
-
-	if (ff) {
-		fclose(ff);
-		ff = NULL;
-	}
 }
 
 static inline void free_config(struct wasapi_capture_config *config)
@@ -872,12 +866,17 @@ static void copy_shmem_tex(struct wasapi_capture *gc)
 		audio_size = gc->shmem_data->available_audio_size;
 
 		if (audio_size > 0) {
-			static int64_t dd = 0;
-			dd += audio_size;
-			blog(LOG_DEBUG, "66666666666666666666666666666 %lld",
-			     dd);
-			fwrite(gc->audio_data_buffer, 1, audio_size, ff);
-			fflush(ff);
+			struct obs_source_audio data = { 0 };
+			data.data[0] = (const uint8_t *)gc->audio_data_buffer;
+			data.frames = (uint32_t)(audio_size/(gc->global_hook_info->channels * gc->global_hook_info->byte_persample));
+			data.speakers = (enum speaker_layout)gc->global_hook_info->channels;
+			data.samples_per_sec = gc->global_hook_info->samplerate;
+			data.format = gc->global_hook_info->format;
+			data.timestamp = os_gettime_ns();
+			data.timestamp -= util_mul_div64(data.frames, 1000000000ULL,
+								 data.samples_per_sec);
+
+			obs_source_output_audio(gc->source, &data);
 
 			gc->shmem_data->available_audio_size = 0;
 		}
@@ -888,7 +887,6 @@ static void copy_shmem_tex(struct wasapi_capture *gc)
 
 static inline bool init_shmem_capture(struct wasapi_capture *gc)
 {
-	ff = fopen("E:\\ccc.pcm", "wb");
 	gc->audio_data_buffer =
 		(uint8_t *)gc->data + gc->shmem_data->audio_offset;
 	return true;

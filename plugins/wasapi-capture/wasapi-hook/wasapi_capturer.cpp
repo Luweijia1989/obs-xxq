@@ -221,6 +221,27 @@ void core::on_init(IAudioClient *audio_client, const WAVEFORMATEX *wfex)
 	info._channels = wfex->nChannels;
 	info._samplerate = wfex->nSamplesPerSec;
 	info._byte_per_sample = wfex->wBitsPerSample / 8;
+
+	info._format = 0;
+	if (bfloat) {
+		if (wfex->wBitsPerSample == 32)
+			info._format = 4;
+	} else {
+		switch (wfex->wBitsPerSample)
+		{
+		case 8:
+			info._format = 1;
+			break;
+		case 16:
+			info._format = 2;
+			break;
+		case 32:
+			info._format = 3;
+			break;
+		default:
+			break;
+		}
+	}
 	
 	IAudioRenderClient *render = NULL;
 	audio_client->GetService(__uuidof(IAudioRenderClient), (void **)&render);
@@ -511,7 +532,7 @@ void core::process(void)
 			else {
 				if (capture_should_init()) {
 					const audio_info_t &info = _audio_clients.cbegin()->second;
-					bool success = capture_init_shmem(&_shmem_data_info, &_audio_data_pointer, info._channels, info._samplerate, info._byte_per_sample);
+					bool success = capture_init_shmem(&_shmem_data_info, &_audio_data_pointer, info._channels, info._samplerate, info._byte_per_sample, info._format);
 					if (!success)
 						capture_reset();
 				}

@@ -36,6 +36,7 @@ struct hook_info {
 	uint32_t channels;
 	uint32_t samplerate;
 	uint32_t byte_persample;
+	uint32_t format;
 
 	uint32_t map_id;
 	uint32_t map_size;

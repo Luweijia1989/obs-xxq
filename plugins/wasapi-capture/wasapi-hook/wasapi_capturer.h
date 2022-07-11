@@ -39,6 +39,7 @@ public:
 		int32_t _channels;
 		int32_t _samplerate;
 		int32_t _byte_per_sample;
+		uint32_t _format;
 	} audio_info_t;
 
 	core(void);

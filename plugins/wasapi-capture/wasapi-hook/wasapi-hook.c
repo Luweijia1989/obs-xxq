@@ -341,7 +341,7 @@ static inline bool init_shared_info(size_t size)
 
 bool capture_init_shmem(struct shmem_data **data, uint8_t **data_pointer,
 			uint32_t channels, uint32_t samplerate,
-			uint32_t byte_persample)
+			uint32_t byte_persample, uint32_t format)
 {
 	uint32_t audio_size = channels * samplerate * byte_persample * 60;
 	uint32_t aligned_header = ALIGN(sizeof(struct shmem_data), 32);
@@ -372,6 +372,7 @@ bool capture_init_shmem(struct shmem_data **data, uint8_t **data_pointer,
 	global_hook_info->byte_persample = byte_persample;
 	global_hook_info->channels = channels;
 	global_hook_info->samplerate = samplerate;
+	global_hook_info->format = format;
 	global_hook_info->map_id = shmem_id_counter;
 	global_hook_info->map_size = total_size;
 
