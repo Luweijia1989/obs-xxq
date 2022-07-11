@@ -79,6 +79,10 @@ HRESULT STDMETHODCALLTYPE hookAudioClientGetMixFormat(
 HRESULT STDMETHODCALLTYPE hookAudioClientStop(IAudioClient *pAudioClient)
 {
 	hlog("hookAudioClientStop 222222222222");
+
+	IAudioRenderClient *render_client = NULL;
+	pAudioClient->GetService(__uuidof(IAudioRenderClient), (void **)&render_client);
+
 	HRESULT hr = S_OK;
 	hr = realAudioClientStop(pAudioClient);
 
@@ -92,9 +96,9 @@ HRESULT STDMETHODCALLTYPE hookAudioClientStop(IAudioClient *pAudioClient)
 	std::unique_lock<std::mutex> lk(gMutex);
 	if (gWASAPIAudioCaptureProxy) {
 		if (SUCCEEDED(hr)) {
-			gWASAPIAudioCaptureProxy->on_audioclient_stopped(pAudioClient, FALSE);
+			gWASAPIAudioCaptureProxy->on_audioclient_stopped(pAudioClient, render_client, FALSE);
 		} else {
-			gWASAPIAudioCaptureProxy->on_audioclient_stopped(pAudioClient, TRUE);
+			gWASAPIAudioCaptureProxy->on_audioclient_stopped(pAudioClient, render_client, TRUE);
 		}
 	}
 	return hr;
@@ -113,11 +117,9 @@ HRESULT STDMETHODCALLTYPE hookAudioClientGetCurrentPadding(IAudioClient *pAudioC
 }
 
 HRESULT STDMETHODCALLTYPE
-hookAudioRenderClientGetBuffer(IAudioRenderClient *pAudioRenderClient,
-			       UINT32 nFrameRequested, BYTE **ppData)
+hookAudioRenderClientGetBuffer(IAudioRenderClient *pAudioRenderClient, UINT32 nFrameRequested, BYTE **ppData)
 {
-	HRESULT hr = realAudioRenderClientGetBuffer(pAudioRenderClient,
-						    nFrameRequested, ppData);
+	HRESULT hr = realAudioRenderClientGetBuffer(pAudioRenderClient, nFrameRequested, ppData);
 	std::unique_lock<std::mutex> lk(gMutex);
 	if (gWASAPIAudioCaptureProxy) {
 		gWASAPIAudioCaptureProxy->push_audio_data(pAudioRenderClient, ppData);
@@ -126,31 +128,19 @@ hookAudioRenderClientGetBuffer(IAudioRenderClient *pAudioRenderClient,
 }
 
 HRESULT STDMETHODCALLTYPE
-hookAudioRenderClientReleaseBuffer(IAudioRenderClient *pAudioRenderClient,
-				   UINT32 nFrameWritten, DWORD dwFlags)
+hookAudioRenderClientReleaseBuffer(IAudioRenderClient *pAudioRenderClient, UINT32 nFrameWritten, DWORD dwFlags)
 {
 	{
 		std::unique_lock<std::mutex> lk(gMutex);
 		if (gWASAPIAudioCaptureProxy) {
 			static int cc = 0;
 			hlog("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@ %d", cc++);
-			/* AUDCLNT_BUFFERFLAGS_SILENT = 0x2
-			Treat all of the data in the packet as silence and ignore the actual data values */
-
-			//if (dwFlags == AUDCLNT_BUFFERFLAGS_SILENT) {
-			//	//gWASAPIAudioCaptureProxy->output_stream_added(pAudioRenderClient);
-			//} else {
-			gWASAPIAudioCaptureProxy->capture_audio(
-				pAudioRenderClient,
-				gWASAPIAudioCaptureProxy->front_audio_data(pAudioRenderClient),
-				nFrameWritten);
+			gWASAPIAudioCaptureProxy->capture_audio(pAudioRenderClient, nFrameWritten, gWASAPIAudioCapture->audio_block_align(pAudioRenderClient), dwFlags == AUDCLNT_BUFFERFLAGS_SILENT);
 			gWASAPIAudioCaptureProxy->pop_audio_data(pAudioRenderClient);
-			//}
 		}
 	}
 
-	return realAudioRenderClientReleaseBuffer(pAudioRenderClient,
-						  nFrameWritten, dwFlags);
+	return realAudioRenderClientReleaseBuffer(pAudioRenderClient, nFrameWritten, dwFlags);
 }
 
 core::core(void) : _thread(INVALID_HANDLE_VALUE), _run(FALSE)
@@ -161,6 +151,10 @@ core::core(void) : _thread(INVALID_HANDLE_VALUE), _run(FALSE)
 core::~core(void)
 {
 	circlebuf_free(&_audio_data_buffer);
+
+	std::unique_lock<std::mutex> lk(_mutex);
+	_audio_clients.clear();
+	_audio_render_blocks.clear();
 }
 
 int32_t core::initialize(void)
@@ -202,6 +196,11 @@ int32_t core::stop(void)
 	return err_code_t::success;
 }
 
+int32_t core::audio_block_align(IAudioRenderClient *render)
+{
+	return _audio_render_blocks[render];
+}
+
 void core::on_init(IAudioClient *audio_client, const WAVEFORMATEX *wfex)
 {
 	std::unique_lock<std::mutex> lk(_mutex);
@@ -222,6 +221,11 @@ void core::on_init(IAudioClient *audio_client, const WAVEFORMATEX *wfex)
 	info._channels = wfex->nChannels;
 	info._samplerate = wfex->nSamplesPerSec;
 	info._byte_per_sample = wfex->wBitsPerSample / 8;
+	
+	IAudioRenderClient *render = NULL;
+	audio_client->GetService(__uuidof(IAudioRenderClient), (void **)&render);
+	if (render)
+		_audio_render_blocks[render] = wfex->nBlockAlign;
 
 	_audio_clients[audio_client] = info;
 }
@@ -256,10 +260,13 @@ SPEAKER_BACK_RIGHT;
 waveFormatPCMEx.SubFormat = KSDATAFORMAT_SUBTYPE_PCM;  // Specify PCM
 #endif
 
-void core::on_stop(IAudioClient *audio_client)
+void core::on_stop(IAudioClient *audio_client, IAudioRenderClient *render)
 {
 	std::unique_lock<std::mutex> lk(_mutex);
 	_audio_clients.erase(audio_client);
+
+	if (_audio_render_blocks.count(render))
+		_audio_render_blocks.erase(render);
 }
 
 IAudioClient *core::create_dummy_audio_client(void)

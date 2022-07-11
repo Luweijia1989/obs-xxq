@@ -119,12 +119,7 @@ proxy::proxy(void)
 	fp_out_ = fopen("E:\\capture.pcm", "wb");
 #endif
 
-	_wave_format.nChannels = 2;
-	_wave_format.nSamplesPerSec = 48000;
-	_wave_format.wBitsPerSample = 32;
-	_wave_format.nBlockAlign = 8;
-	_avx2_support = Util::can_use_intel_core_4th_gen_features() > 0 ? TRUE
-									: FALSE;
+	_avx2_support = Util::can_use_intel_core_4th_gen_features() > 0 ? TRUE : FALSE;
 }
 
 proxy::~proxy(void)
@@ -217,9 +212,17 @@ HRESULT proxy::reset(int32_t bytes_per_buffer)
 	return hr;
 }
 
-void proxy::capture_audio(IAudioRenderClient *audio_render_client,
-			  uint8_t *audio_data, uint32_t num_filled_bytes)
+void proxy::capture_audio(IAudioRenderClient *audio_render_client, uint32_t num_filled_bytes, int32_t block_align, bool slient)
 {
+	uint8_t *audio_data = nullptr;
+	std::map<IAudioRenderClient *, audio_data_pool_t *>::iterator iter = _render_clients.find(audio_render_client);
+	if (iter != _render_clients.end()) {
+		proxy::audio_data_pool_t *pool = iter->second;
+		if (pool) {
+			audio_data = pool->data.front();
+		}
+	}
+
 	uint32_t capture_audio_size = 0;
 	if (!audio_data)
 		return;
@@ -230,18 +233,11 @@ void proxy::capture_audio(IAudioRenderClient *audio_render_client,
 		return;
 	}
 
-	if ((_wave_format.nBlockAlign == 0) ||
-	    (_wave_format.nBlockAlign > 32)) {
-		hlog("%s()_%d : block align = %d", __FUNCTION__, __LINE__,
-		     _wave_format.nBlockAlign);
-		return;
-	}
-
 	std::wostringstream wos;
 	BOOL is_single_stream = FALSE;
 	BOOL mix_done = FALSE;
 
-	capture_audio_size = _wave_format.nBlockAlign * num_filled_bytes;
+	capture_audio_size = block_align * num_filled_bytes;
 
 	if (capture_audio_size > _nbytes_per_buffer) {
 		wos << "[" << GetCurrentThreadId() << "] capture_audio: "
@@ -268,7 +264,7 @@ void proxy::capture_audio(IAudioRenderClient *audio_render_client,
 	if (_caputred_cnt == 1) {
 		_first_render_client = audio_render_client;
 		memset(_audio_data[0], 0, _nbytes_per_buffer);
-		if (audio_data != nullptr)
+		if (audio_data != nullptr && !slient)
 			memcpy(_audio_data[0], audio_data, capture_audio_size);
 	} else if (_caputred_cnt == 2) {
 		// If other render thread comes, mix the audio data and wite to file.
@@ -279,8 +275,8 @@ void proxy::capture_audio(IAudioRenderClient *audio_render_client,
 			    << "[first render=0x" << _first_render_client
 			    << "] _caputred_cnt=" << _caputred_cnt
 			    << " mix_done_=" << mix_done << std::endl;
-			mix_audio(_audio_data[0], audio_data,
-				  capture_audio_size);
+			if (!slient)
+				mix_audio(_audio_data[0], audio_data, capture_audio_size);
 		}
 		// If same render thread comes, write the audio data to sub buffer
 		else {
@@ -292,7 +288,8 @@ void proxy::capture_audio(IAudioRenderClient *audio_render_client,
 			    << " has_sub_buffer_=" << _has_sub_buffer
 			    << std::endl;
 			memset(_audio_data[1], 0, _nbytes_per_buffer);
-			memcpy(_audio_data[1], audio_data, capture_audio_size);
+			if (!slient)
+				memcpy(_audio_data[1], audio_data, capture_audio_size);
 		}
 	}
 	// g_caputred_cnt > 2 and couter was not reset
@@ -303,8 +300,8 @@ void proxy::capture_audio(IAudioRenderClient *audio_render_client,
 			    << "[first render=0x" << _first_render_client
 			    << "] _caputred_cnt=" << _caputred_cnt
 			    << " mix_done_=" << mix_done << std::endl;
-			mix_audio(_audio_data[0], audio_data,
-				  capture_audio_size);
+			if (!slient)
+				mix_audio(_audio_data[0], audio_data, capture_audio_size);
 		} else if (_caputred_cnt == 4) {
 			mix_done = TRUE;
 			wos << "[" << GetCurrentThreadId()
@@ -312,8 +309,8 @@ void proxy::capture_audio(IAudioRenderClient *audio_render_client,
 			    << "[first render=0x" << _first_render_client
 			    << "] _caputred_cnt=" << _caputred_cnt
 			    << " mix_done_=" << mix_done << std::endl;
-			mix_audio(_audio_data[1], audio_data,
-				  capture_audio_size);
+			if (!slient)
+				mix_audio(_audio_data[1], audio_data, capture_audio_size);
 		}
 	} else {
 		// This audio packet is dropped
@@ -344,8 +341,7 @@ void proxy::capture_audio(IAudioRenderClient *audio_render_client,
 		if (_obj) {
 			_obj->on_receive(_audio_data[0], capture_audio_size);
 			if (_has_sub_buffer)
-				_obj->on_receive(_audio_data[1],
-						 capture_audio_size);
+				_obj->on_receive(_audio_data[1], capture_audio_size);
 		}
 
 		// reset count
@@ -444,8 +440,7 @@ void proxy::mix_audio_avx2(uint8_t *buffer_dest, uint8_t *buffer_src,
 void proxy::push_audio_data(IAudioRenderClient *key, BYTE **ppdata)
 {
 	proxy::audio_data_pool_t *pool = nullptr;
-	std::map<IAudioRenderClient *, audio_data_pool_t *>::iterator iter =
-		_render_clients.find(key);
+	std::map<IAudioRenderClient *, audio_data_pool_t *>::iterator iter = _render_clients.find(key);
 	if (iter == _render_clients.end()) {
 		pool = new proxy::audio_data_pool_t();
 		pool->render = key;
@@ -458,26 +453,12 @@ void proxy::push_audio_data(IAudioRenderClient *key, BYTE **ppdata)
 
 void proxy::pop_audio_data(IAudioRenderClient *key)
 {
-	std::map<IAudioRenderClient *, audio_data_pool_t *>::iterator iter =
-		_render_clients.find(key);
+	std::map<IAudioRenderClient *, audio_data_pool_t *>::iterator iter = _render_clients.find(key);
 	if (iter != _render_clients.end()) {
 		proxy::audio_data_pool_t *pool = iter->second;
 		if (pool)
 			pool->data.pop();
 	}
-}
-
-uint8_t *proxy::front_audio_data(IAudioRenderClient *key)
-{
-	uint8_t *value = nullptr;
-	std::map<IAudioRenderClient *, audio_data_pool_t *>::iterator iter =
-		_render_clients.find(key);
-	if (iter != _render_clients.end()) {
-		proxy::audio_data_pool_t *pool = iter->second;
-		if (pool)
-			value = pool->data.front();
-	}
-	return value;
 }
 
 void proxy::output_stream_added(IAudioRenderClient *key)
@@ -497,8 +478,7 @@ void proxy::set_audio_capture_proxy_receiver(core *obj)
 	_obj = obj;
 }
 
-void proxy::on_audioclient_stopped(IAudioClient *audio_client,
-				   BOOL already_stopped)
+void proxy::on_audioclient_stopped(IAudioClient *audio_client, IAudioRenderClient *render_client, BOOL already_stopped)
 {
 	if (already_stopped) {
 		BOOL b_found = FALSE;
@@ -507,7 +487,7 @@ void proxy::on_audioclient_stopped(IAudioClient *audio_client,
 		for (std::map<IAudioRenderClient *, audio_data_pool_t *>::iterator it = _render_clients.begin(); it != _render_clients.end(); ++it) {
 			key = it->first;
 			pool = it->second;
-			if (pool->audio_client == audio_client) {
+			if (pool->render == render_client) {
 				pool->render = nullptr;
 				while (!pool->data.empty())
 					pool->data.pop();
@@ -522,7 +502,7 @@ void proxy::on_audioclient_stopped(IAudioClient *audio_client,
 		}
 	}
 
-	_obj->on_stop(audio_client);
+	_obj->on_stop(audio_client, render_client);
 }
 
 void proxy::on_renderclient_released(void) {}

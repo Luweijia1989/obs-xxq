@@ -15,7 +15,6 @@ public:
 public:
 	typedef struct _audio_data_pool_t {
 		IAudioRenderClient *render;
-		IAudioClient *audio_client;
 		std::queue<uint8_t *> data;
 		//CRITICAL_SECTION		lock;
 		_audio_data_pool_t(void) : render(nullptr) {}
@@ -30,21 +29,14 @@ public:
 	void reset_data(void);
 	HRESULT reset(int32_t bytes_per_buffer);
 
-	void capture_audio(IAudioRenderClient *audio_render_client,
-			   uint8_t *audio_data, uint32_t num_filled_bytes);
-	void mix_audio(uint8_t *buffer_dest, uint8_t *buffer_src,
-		       size_t totoal_frames);
-	void mix_audio_sse2(uint8_t *buffer_dest, uint8_t *buffer_src,
-			    size_t totoal_frames);
-	void mix_audio_avx2(uint8_t *buffer_dest, uint8_t *buffer_src,
-			    size_t totoal_frames);
-	void push_audio_data(IAudioRenderClient *audio_render_client,
-			     BYTE **ppData);
-	uint8_t *front_audio_data(IAudioRenderClient *audio_render_client);
+	void capture_audio(IAudioRenderClient *audio_render_client, uint32_t num_filled_bytes, int32_t block_align, bool slient);
+	void mix_audio(uint8_t *buffer_dest, uint8_t *buffer_src, size_t totoal_frames);
+	void mix_audio_sse2(uint8_t *buffer_dest, uint8_t *buffer_src, size_t totoal_frames);
+	void mix_audio_avx2(uint8_t *buffer_dest, uint8_t *buffer_src, size_t totoal_frames);
+	void push_audio_data(IAudioRenderClient *audio_render_client, BYTE **ppData);
 	void pop_audio_data(IAudioRenderClient *audio_render_client);
 	int output_stream_count() const { return _num_output_streams; }
-	void on_audioclient_stopped(IAudioClient *audio_client,
-				    BOOL already_stopped);
+	void on_audioclient_stopped(IAudioClient *audio_client, IAudioRenderClient *render_client, BOOL already_stopped);
 	void on_renderclient_released();
 	std::string AsHumanReadableString(const WAVEFORMATEX *format) const;
 	void output_stream_added(IAudioRenderClient *audio_render_client);
@@ -82,7 +74,6 @@ private:
 	std::atomic<int32_t> _num_output_streams;
 	std::map<IAudioRenderClient *, audio_data_pool_t *> _render_clients;
 
-	WAVEFORMATEX _wave_format;
 	int32_t _caputred_cnt;
 };
 

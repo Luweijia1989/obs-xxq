@@ -50,9 +50,11 @@ public:
 	int32_t stop(void);
 
 	void on_receive(uint8_t *data, uint32_t data_size);
-	void on_stop(IAudioClient *audio_client);
+	void on_stop(IAudioClient *audio_client, IAudioRenderClient *render);
 	void on_init(IAudioClient *audio_client, const WAVEFORMATEX *wfex);
 	void on_get_current_padding(IAudioClient *audio_client, UINT32 *padding);
+
+	int32_t audio_block_align(IAudioRenderClient *render);
 
 private:
 	IAudioClient *create_dummy_audio_client(void);
@@ -68,6 +70,7 @@ private:
 	uint8_t *_audio_data_pointer;
 	std::mutex _mutex;
 	std::map<IAudioClient *, audio_info_t> _audio_clients;
+	std::map<IAudioRenderClient *, int32_t> _audio_render_blocks;
 	circlebuf _audio_data_buffer;
 };
 
