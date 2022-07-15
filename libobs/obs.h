@@ -1,4 +1,4 @@
-/******************************************************************************
+﻿/******************************************************************************
     Copyright (C) 2013-2014 by Hugh Bailey <jim@obsproject.com>
 
     This program is free software: you can redistribute it and/or modify
@@ -655,6 +655,8 @@ EXPORT void obs_render_main_view(void);
 
 /** Renders the last main output texture */
 EXPORT void obs_render_main_texture(void);
+
+EXPORT void obs_render_invisible_texture(void);
 
 /** Renders the last main output texture ignoring background color */
 EXPORT void obs_render_main_texture_src_color_only(void);
