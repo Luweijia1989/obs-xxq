@@ -1,4 +1,4 @@
-﻿/******************************************************************************
+/******************************************************************************
     Copyright (C) 2013-2014 by Hugh Bailey <obs.jim@gmail.com>
 
     This program is free software: you can redistribute it and/or modify
@@ -1801,7 +1801,7 @@ static void obs_render_main_texture_internal(enum gs_blend_type src_c,
 					     enum gs_blend_type dest_c,
 					     enum gs_blend_type src_a,
 					     enum gs_blend_type dest_a,
-					     bool renderInvisibleTexture)
+					     bool render_invisible_texture)
 {
 	struct obs_core_video *video;
 	gs_texture_t *tex;
@@ -1814,10 +1814,9 @@ static void obs_render_main_texture_internal(enum gs_blend_type src_c,
 	video = &obs->video;
 	if (!video->texture_rendered)
 		return;
-	if (renderInvisibleTexture)
-		tex = video->render_invisible_texture;
-	else
-		tex = video->render_texture;
+
+	tex = render_invisible_texture ? video->render_invisible_texture
+				       : video->render_texture;
 	effect = obs_get_base_effect(OBS_EFFECT_DEFAULT);
 	param = gs_effect_get_param_by_name(effect, "image");
 	gs_effect_set_texture(param, tex);
