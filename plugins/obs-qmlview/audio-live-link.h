@@ -11,6 +11,7 @@ class AudioLiveLink : public QmlSourceBase {
 	DEFINE_PROPERTY(bool, isMuliti)
 	DEFINE_PROPERTY(QString, effect)
 	DEFINE_PROPERTY(int, multiCount)
+	DEFINE_PROPERTY(int, posX)
 public:
 	AudioLiveLink(QObject *parent = nullptr);
 	static void default(obs_data_t *settings);
