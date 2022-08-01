@@ -20,15 +20,17 @@ set(srt-output_HEADERS
 	srt/win/syslog_defs.h
 	srt/win/unistd.h
 	srt-helpers.h
-	amf.h
-	bytes.h
-	flv-mux.h)
+	ts.h
+	bit_stream.h
+	autofree.h
+	buffer.h)
 
 set(srt-output_SOURCES
-	srt-plugins.c
-	srt-output.c
-	amf.c
-	flv-mux.c)
+	srt-plugins.cpp
+	srt-output.cpp
+	ts.cpp
+	bit_stream.cpp
+	buffer.cpp)
 
 add_library(srt-output MODULE
 	${srt-output_HEADERS}
@@ -38,12 +40,8 @@ target_link_libraries(srt-output
 	ws2_32
 	w32-pthreads
 	crypt32
-	debug ${PROJECT_SOURCE_DIR}/srt/lib/${_lib_bit_suffix}/debug/srt_static.lib
-	optimized ${PROJECT_SOURCE_DIR}/srt/lib/${_lib_bit_suffix}/release/srt_static.lib
-	debug ${PROJECT_SOURCE_DIR}/srt/lib/${_lib_bit_suffix}/debug/libssl.lib
-	optimized ${PROJECT_SOURCE_DIR}/srt/lib/${_lib_bit_suffix}/release/libssl.lib
-	debug ${PROJECT_SOURCE_DIR}/srt/lib/${_lib_bit_suffix}/debug/libcrypto.lib
-	optimized ${PROJECT_SOURCE_DIR}/srt/lib/${_lib_bit_suffix}/release/libcrypto.lib)
+	debug ${PROJECT_SOURCE_DIR}/srt/lib/${_lib_bit_suffix}/debug/srt.lib
+	optimized ${PROJECT_SOURCE_DIR}/srt/lib/${_lib_bit_suffix}/release/srt.lib)
 set_target_properties(srt-output PROPERTIES FOLDER "plugins")
 
 install_obs_plugin(srt-output data)
