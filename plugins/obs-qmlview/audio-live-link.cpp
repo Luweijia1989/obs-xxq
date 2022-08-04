@@ -43,6 +43,29 @@ static void audio_livelink_source_update(void *data, obs_data_t *settings)
 
 	int posX = obs_data_get_int(settings, "posX");
 	s->setposX(posX);
+
+	int voiceWaveLeftMargin =
+		obs_data_get_int(settings, "voiceWaveLeftMargin");
+	s->setvoiceWaveLeftMargin(voiceWaveLeftMargin);
+
+	int voiceWaveTopMargin =
+		obs_data_get_int(settings, "voiceWaveTopMargin");
+	s->setvoiceWaveTopMargin(voiceWaveTopMargin);
+
+	int voiceWaveSize = obs_data_get_int(settings, "voiceWaveSize");
+	s->setvoiceWaveSize(voiceWaveSize);
+
+	int avatarPos = obs_data_get_int(settings, "avatarPos");
+	s->setavatarPos(avatarPos);
+
+	int avatarSize = obs_data_get_int(settings, "avatarSize");
+	s->setavatarSize(avatarSize);
+
+	int borderWidth = obs_data_get_int(settings, "borderWidth");
+	s->setborderWidth(borderWidth);
+
+	int backWidth = obs_data_get_int(settings, "backWidth");
+	s->setbackWidth(backWidth);
 	s->baseUpdate(settings);
 }
 
@@ -99,8 +122,6 @@ static void audioLiveLinkCommand(void *data, obs_data_t *cmd)
 		emit s->showPkEffect();
 	} else if (strcmp("stoppkface", cmdType) == 0 && s) {
 		emit s->stopPkEffect();
-	} else if (strcmp("startLink", cmdType) == 0 && s) {
-		emit s->link();
 	}
 }
 
