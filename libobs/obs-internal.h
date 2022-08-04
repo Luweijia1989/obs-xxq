@@ -261,6 +261,7 @@ typedef void (*rtc_frame_output_t)(uint8_t **data, uint32_t *linesize,
 				   void *userdata);
 struct obs_rtc_mix {
 	char rtc_background_image_path[512];
+	char rtc_seat_background_image_path[512];
 	int mix_type;
 	struct obs_frame_render_info rtc_frame_render_info;
 	gs_texture_t *rtc_textures[NUM_RTC_CHANNEL];

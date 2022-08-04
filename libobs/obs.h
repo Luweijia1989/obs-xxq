@@ -2319,8 +2319,7 @@ EXPORT void obs_rtc_update_frame(int channel, char *data, uint32_t width,
 				 uint32_t height);
 EXPORT void obs_rtc_clear_frame(int channel);
 
-EXPORT void obs_rtc_reset_frame(int channel, uint32_t width, uint32_t height,
-			 uint8_t *data);
+EXPORT void obs_rtc_reset_frame(int channel);
 
 #ifdef __cplusplus
 }
