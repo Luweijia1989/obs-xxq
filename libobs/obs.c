@@ -461,7 +461,7 @@ static void stop_video(void)
 	}
 }
 
-static void obs_rtc_capture_free(void)
+void obs_rtc_capture_free(bool freeRender)
 {
 	obs_enter_graphics();
 
@@ -525,13 +525,13 @@ static void obs_rtc_capture_free(void)
 			rtc_mix->rtc_textures[c] = NULL;
 		}
 
-		if (rtc_mix->rtc_texture_render[c]) {
+		if (freeRender && rtc_mix->rtc_texture_render[c]) {
 			gs_texrender_destroy(rtc_mix->rtc_texture_render[c]);
 			rtc_mix->rtc_texture_render[c] = NULL;
 		}
 	}
 
-	if (rtc_mix->self_texture_render) {
+	if (freeRender && rtc_mix->self_texture_render) {
 		gs_texrender_destroy(rtc_mix->self_texture_render);
 		rtc_mix->self_texture_render = NULL;
 	}
@@ -1130,7 +1130,7 @@ void obs_shutdown(void)
 	obs_free_audio();
 	obs_free_data();
 	obs_free_video();
-	obs_rtc_capture_free();
+	obs_rtc_capture_free(true);
 	obs_free_hotkeys();
 	obs_free_graphics();
 	proc_handler_destroy(obs->procs);
@@ -3096,9 +3096,6 @@ void obs_rtc_capture_end()
 {
 	struct obs_rtc_mix *rtc_mix = &obs->video.rtc_mix;
 	os_atomic_set_bool(&rtc_mix->rtc_frame_active, false);
-	os_atomic_set_bool(&rtc_mix->rtc_output_active, false);
-
-	obs_rtc_capture_free();
 }
 
 void obs_rtc_output_begin(int mixType)
@@ -3106,6 +3103,19 @@ void obs_rtc_output_begin(int mixType)
 	struct obs_rtc_mix *rtc_mix = &obs->video.rtc_mix;
 	rtc_mix->mix_type = mixType;
 	os_atomic_set_bool(&rtc_mix->rtc_output_active, true);
+}
+
+void obs_rtc_output_end()
+{
+	struct obs_rtc_mix *rtc_mix = &obs->video.rtc_mix;
+	os_atomic_set_bool(&rtc_mix->rtc_output_active, false);
+}
+
+void obs_rtc_all_end()
+{
+	obs_rtc_capture_end();
+	obs_rtc_output_end();
+	obs_rtc_capture_free(true);
 }
 
 void obs_rtc_update_frame(int channel, char *data, uint32_t width,
@@ -3169,6 +3179,8 @@ void obs_rtc_reset_frame(int channel, uint32_t width, uint32_t height, uint8_t* 
 void obs_rtc_set_merge_info(int self_index, obs_data_t *merge_info,
 			    char *background_image)
 {
+	obs_enter_graphics();
+
 	struct obs_rtc_mix *rtc_mix = &obs->video.rtc_mix;
 	da_free(rtc_mix->rtc_frame_render_info.frame_infos);
 	rtc_mix->rtc_frame_render_info.canvas_width =
@@ -3195,6 +3207,8 @@ void obs_rtc_set_merge_info(int self_index, obs_data_t *merge_info,
 	if (background_image)
 		memcpy(rtc_mix->rtc_background_image_path, background_image,
 		       strlen(background_image));
+
+	obs_leave_graphics();
 }
 
 void obs_add_raw_audio_callback(const struct audio_convert_info *conversion,
