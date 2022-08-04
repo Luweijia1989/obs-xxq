@@ -1192,13 +1192,6 @@ static inline bool add_packet(struct srt_output *stream,
 	return true;
 }
 
-
-static bool add_video_packet(struct srt_output *stream,
-			     struct encoder_packet *packet)
-{
-	return add_packet(stream, packet);
-}
-
 static void srt_output_data(void *data, struct encoder_packet *packet)
 {
 	struct srt_output *stream = (struct srt_output *)data;
@@ -1228,9 +1221,7 @@ static void srt_output_data(void *data, struct encoder_packet *packet)
 	pthread_mutex_lock(&stream->mutex);
 
 	if (!disconnected(stream)) {
-		added_packet = (packet->type == OBS_ENCODER_VIDEO)
-				       ? add_video_packet(stream, &new_packet)
-				       : add_packet(stream, &new_packet);
+		added_packet = add_packet(stream, &new_packet);
 	}
 
 	pthread_mutex_unlock(&stream->mutex);
