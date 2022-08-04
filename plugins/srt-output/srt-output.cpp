@@ -868,15 +868,6 @@ static bool send_packet(struct srt_output *stream,
 		stream->tsContext->encode(&audio, SrsCodecVideoAVC, SrsCodecAudioAAC);
 	}
 
-
-
-	/*uint8_t *data;
-	size_t size;
-
-	bool success = libsrt_write(stream, (char *)data, (int)size);
-
-	bfree(data);*/
-
 	if (is_header)
 		bfree(packet->data);
 	else
@@ -1026,23 +1017,6 @@ static int init_send(struct srt_output *stream)
 
 	os_atomic_set_bool(&stream->active, true);
 
-	/*if (!send_meta_data(stream)) {
-		doLog(LOG_ERROR, "Disconnected while attempting to send metadata");
-		return OBS_OUTPUT_DISCONNECTED;
-	}*/
-
-	/*obs_encoder_t *aencoder = obs_output_get_audio_encoder(context, 1);
-	if (aencoder && !send_additional_meta_data(stream)) {
-		doLog(LOG_ERROR, "Disconnected while attempting to send additional "
-		     "metadata");
-		return OBS_OUTPUT_DISCONNECTED;
-	}*/
-
-	if (obs_output_get_audio_encoder(context, 2) != NULL) {
-		doLog(LOG_ERROR, "Additional audio streams not supported");
-		return OBS_OUTPUT_DISCONNECTED;
-	}
-
 	obs_output_begin_data_capture(stream->output, 0);
 
 	return OBS_OUTPUT_SUCCESS;
@@ -1102,6 +1076,7 @@ static void srt_output_destroy(void *data)
 	srt_epoll_release(stream->srtContext.eid);
 	srt_cleanup();
 
+	bfree(stream->srtContext.streamid);
 	free_packets(stream);
 	dstr_free(&stream->path);
 	os_event_destroy(stream->stop_event);
@@ -1133,7 +1108,7 @@ static void *srt_output_create(obs_data_t *settings, obs_output_t *output)
 	s->rw_timeout = -1;
 	s->recv_buffer_size = -1;
 	s->send_buffer_size = -1;
-	s->maxbw = -1;
+	s->maxbw = 1024 * 1024 * 2;
 	s->pbkeylen = -1;
 	s->mss = -1;
 	s->ffs = -1;
@@ -1145,10 +1120,10 @@ static void *srt_output_create(obs_data_t *settings, obs_output_t *output)
 	s->tlpktdrop = -1;
 	s->nakreport = -1;
 	s->connect_timeout = -1;
-	s->payload_size = -1;
+	s->payload_size = 1316;
 	s->rcvlatency = -1;
 	s->peerlatency = -1;
-	s->sndbuf = -1;
+	s->sndbuf = 1024*1024*10;
 	s->rcvbuf = -1;
 	s->lossmaxttl = -1;
 	s->minversion = -1;
@@ -1181,21 +1156,6 @@ static bool srt_output_start(void *data)
 	os_atomic_set_bool(&stream->connecting, true);
 	return pthread_create(&stream->connect_thread, NULL, connect_thread,
 			      stream) == 0;
-}
-
-static void srt_output_actual_stop(struct srt_output *stream, int code)
-{
-	if (code) {
-		obs_output_signal_stop(stream->output, code);
-	} else {
-		obs_output_end_data_capture(stream->output);
-
-		SRTContext *s = &stream->srtContext;
-		srt_close(s->fd);
-		srt_epoll_release(s->eid);
-	}
-
-	doLog(LOG_INFO, "srt output complete, code:%d\n", code);
 }
 
 static void srt_output_stop(void *data, uint64_t ts)
@@ -1283,7 +1243,8 @@ static void srt_output_data(void *data, struct encoder_packet *packet)
 
 struct obs_output_info srt_output_info = {
 	"srt_output",
-	OBS_OUTPUT_AV | OBS_OUTPUT_ENCODED,
+	OBS_OUTPUT_AV | OBS_OUTPUT_ENCODED | OBS_OUTPUT_SERVICE |
+		OBS_OUTPUT_MULTI_TRACK | OBS_OUTPUT_CAN_PAUSE,
 	srt_output_getname,
 	srt_output_create,
 	srt_output_destroy,
