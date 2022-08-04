@@ -38,9 +38,6 @@ static void audio_livelink_source_update(void *data, obs_data_t *settings)
 	const char *effectPath = obs_data_get_string(settings, "effectpath");
 	s->seteffect(effectPath);
 
-	int multiCount = obs_data_get_int(settings, "multiCount");
-	s->setmultiCount(multiCount);
-
 	int posX = obs_data_get_int(settings, "posX");
 	s->setposX(posX);
 
@@ -92,7 +89,6 @@ static void audio_livelink_source_defaults(obs_data_t *settings)
 {
 	QmlSourceBase::baseDefault(settings);
 	obs_data_set_default_bool(settings, "ismuliti", false);
-	obs_data_set_default_int(settings, "multiCount", 4);
 	obs_data_set_default_int(settings, "width", 720);
 	obs_data_set_default_int(settings, "height", 1080);
 	obs_data_set_default_int(settings, "posX", 0);
