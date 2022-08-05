@@ -703,7 +703,7 @@ bool SimpleOutput::StartStreaming(obs_service_t *service)
 			type = "ftl_output";
 		} else if (url != NULL && strncmp(url, RTMP_PROTOCOL,
 						  strlen(RTMP_PROTOCOL)) != 0) {
-			type = "ffmpeg_mpegts_muxer";
+			type = "srt_output";
 		}
 	}
 

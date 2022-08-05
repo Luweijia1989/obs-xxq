@@ -5,62 +5,63 @@
 #include <util/platform.h>
 #include <util/dstr.h>
 #include <util/circlebuf.h>
-#include "flv-mux.h"
 #include <obs-avc.h>
-#include "srt/srt.h"
-#include "srt/udt.h"
-#include "ts.h"
+#include <srt/srt.h>
+#include <srt/udt.h>
+#include <map>
+
+#include "libmpeg/include/mpeg-ps.h"
+#include "libmpeg/include/mpeg-ts.h"
 
 #define doLog(level, format, ...) \
 	blog(level, "[srt output]:" format, ##__VA_ARGS__)
 
 #define FFMIN(a, b) ((a) > (b) ? (b) : (a))
 
-/**
-* the aac object type, for RTMP sequence header
-* for AudioSpecificConfig, @see aac-mp4a-format-ISO_IEC_14496-3+2001.pdf, page 33
-* for audioObjectType, @see aac-mp4a-format-ISO_IEC_14496-3+2001.pdf, page 23
-*/
-enum SrsAacObjectType
+#define MILLISECOND_DEN 1000
+static int32_t get_ms_time(struct encoder_packet *packet, int64_t val)
 {
-    SrsAacObjectTypeReserved = 0,
-    
-    // Table 1.1 - Audio Object Type definition
-    // @see @see aac-mp4a-format-ISO_IEC_14496-3+2001.pdf, page 23
-    SrsAacObjectTypeAacMain = 1,
-    SrsAacObjectTypeAacLC = 2,
-    SrsAacObjectTypeAacSSR = 3,
-    
-    // AAC HE = LC+SBR
-    SrsAacObjectTypeAacHE = 5,
-    // AAC HEv2 = LC+SBR+PS
-    SrsAacObjectTypeAacHEV2 = 29,
+	return (int32_t)(val * MILLISECOND_DEN / packet->timebase_den);
+}
+
+enum AACObjectType {
+	ObjectTypeReserved = 0,
+
+	// Table 1.1 - Audio Object Type definition
+	// @see @see aac-mp4a-format-ISO_IEC_14496-3+2001.pdf, page 23
+	ObjectTypeAacMain = 1,
+	ObjectTypeAacLC = 2,
+	ObjectTypeAacSSR = 3,
+
+	// AAC HE = LC+SBR
+	ObjectTypeAacHE = 5,
+	// AAC HEv2 = LC+SBR+PS
+	ObjectTypeAacHEV2 = 29,
 };
 
-/**
-* the aac profile, for ADTS(HLS/TS)
-* @see https://github.com/ossrs/srs/issues/310
-*/
-enum SrsAacProfile
-{
-    SrsAacProfileReserved = 3,
-    
-    // @see 7.1 Profiles, aac-iso-13818-7.pdf, page 40
-    SrsAacProfileMain = 0,
-    SrsAacProfileLC = 1,
-    SrsAacProfileSSR = 2,
+enum AACProfile {
+	ProfileReserved = 3,
+
+	// @see 7.1 Profiles, aac-iso-13818-7.pdf, page 40
+	ProfileMain = 0,
+	ProfileLC = 1,
+	ProfileSSR = 2,
 };
 
-SrsAacProfile srs_codec_aac_rtmp2ts(SrsAacObjectType object_type)
+AACProfile srs_codec_aac_rtmp2ts(AACObjectType object_type)
 {
-    switch (object_type) {
-        case SrsAacObjectTypeAacMain: return SrsAacProfileMain;
-        case SrsAacObjectTypeAacHE:
-        case SrsAacObjectTypeAacHEV2:
-        case SrsAacObjectTypeAacLC: return SrsAacProfileLC;
-        case SrsAacObjectTypeAacSSR: return SrsAacProfileSSR;
-        default: return SrsAacProfileReserved;
-    }
+	switch (object_type) {
+	case ObjectTypeAacMain:
+		return ProfileMain;
+	case ObjectTypeAacHE:
+	case ObjectTypeAacHEV2:
+	case ObjectTypeAacLC:
+		return ProfileLC;
+	case ObjectTypeAacSSR:
+		return ProfileSSR;
+	default:
+		return ProfileReserved;
+	}
 }
 
 enum SRTMode {
@@ -72,29 +73,29 @@ enum SRTMode {
 typedef struct SRTContext {
 	SRTSOCKET fd;
 	int eid;
-	int64_t rw_timeout;  //[-1, INT64_MAX]
+	int64_t rw_timeout;   //[-1, INT64_MAX]
 	int recv_buffer_size; //[-1, INT_MAX]
 	int send_buffer_size; //[-1, INT_MAX]
 
 	int64_t maxbw; //[-1, INT64_MAX]
-	int pbkeylen; //[-1, 32]
+	int pbkeylen;  //[-1, 32]
 	char *passphrase;
-	int mss; //[-1, 1500]
-	int ffs; //[-1, INT_MAX]
-	int ipttl; //[-1, 255]
-	int iptos; //[-1, 255]
-	int64_t inputbw; //[-1, INT64_MAX]
-	int oheadbw; //[-1, 100]
-	int64_t latency; //[-1, INT64_MAX]
-	int tlpktdrop; //[-1, 1]
-	int nakreport; //[-1, 1]
+	int mss;                 //[-1, 1500]
+	int ffs;                 //[-1, INT_MAX]
+	int ipttl;               //[-1, 255]
+	int iptos;               //[-1, 255]
+	int64_t inputbw;         //[-1, INT64_MAX]
+	int oheadbw;             //[-1, 100]
+	int64_t latency;         //[-1, INT64_MAX]
+	int tlpktdrop;           //[-1, 1]
+	int nakreport;           //[-1, 1]
 	int64_t connect_timeout; //[-1, INT64_MAX]
-	int payload_size; //[-1, SRT_LIVE_MAX_PAYLOAD_SIZE]
-	int64_t rcvlatency; //[-1, INT64_MAX]
-	int64_t peerlatency; //[-1, INT64_MAX]
+	int payload_size;        //[-1, SRT_LIVE_MAX_PAYLOAD_SIZE]
+	int64_t rcvlatency;      //[-1, INT64_MAX]
+	int64_t peerlatency;     //[-1, INT64_MAX]
 	enum SRTMode mode;
-	int sndbuf; //[-1, INT_MAX]
-	int rcvbuf; //[-1, INT_MAX]
+	int sndbuf;     //[-1, INT_MAX]
+	int rcvbuf;     //[-1, INT_MAX]
 	int lossmaxttl; //[-1, INT_MAX]
 	int minversion; //[-1, INT_MAX]
 	char *streamid;
@@ -108,7 +109,7 @@ struct srt_output {
 	pthread_mutex_t mutex;
 	os_event_t *stop_event;
 	SRTContext srtContext;
-	SrsTsContext *tsContext;
+	void *ts;
 
 	volatile bool active;
 	volatile bool connecting;
@@ -123,7 +124,6 @@ struct srt_output {
 	uint64_t shutdown_timeout_ts;
 	bool got_first_video;
 	int32_t start_dts_offset;
-	bool sent_headers;
 
 	int max_shutdown_time_sec;
 
@@ -141,8 +141,8 @@ size_t srt_strlcpy(char *dst, const char *src, size_t size)
 }
 
 void srt_url_split(char *proto, int proto_size, char *authorization,
-		  int authorization_size, char *hostname, int hostname_size,
-		  int *port_ptr, char *path, int path_size, const char *url)
+		   int authorization_size, char *hostname, int hostname_size,
+		   int *port_ptr, char *path, int path_size, const char *url)
 {
 	const char *p, *ls, *ls2, *at, *at2, *col, *brk;
 
@@ -189,29 +189,29 @@ void srt_url_split(char *proto, int proto_size, char *authorization,
 		at2 = p;
 		while ((at = strchr(p, '@')) && at < ls) {
 			srt_strlcpy(authorization, at2,
-				   FFMIN(authorization_size, at + 1 - at2));
+				    FFMIN(authorization_size, at + 1 - at2));
 			p = at + 1; /* skip '@' */
 		}
 
 		if (*p == '[' && (brk = strchr(p, ']')) && brk < ls) {
 			/* [host]:port */
 			srt_strlcpy(hostname, p + 1,
-				   FFMIN(hostname_size, brk - p));
+				    FFMIN(hostname_size, brk - p));
 			if (brk[1] == ':' && port_ptr)
 				*port_ptr = atoi(brk + 2);
 		} else if ((col = strchr(p, ':')) && col < ls) {
 			srt_strlcpy(hostname, p,
-				   FFMIN(col + 1 - p, hostname_size));
+				    FFMIN(col + 1 - p, hostname_size));
 			if (port_ptr)
 				*port_ptr = atoi(col + 1);
 		} else
 			srt_strlcpy(hostname, p,
-				   FFMIN(ls + 1 - p, hostname_size));
+				    FFMIN(ls + 1 - p, hostname_size));
 	}
 }
 
 static int find_info_tag(char *arg, int arg_size, const char *tag1,
-		     const char *info)
+			 const char *info)
 {
 	const char *p;
 	char tag[128], *q;
@@ -263,7 +263,8 @@ static inline void free_packets(struct srt_output *stream)
 
 	num_packets = num_buffered_packets(stream);
 	if (num_packets)
-		doLog(LOG_INFO, "Freeing %d remaining packets", (int)num_packets);
+		doLog(LOG_INFO, "Freeing %d remaining packets",
+		      (int)num_packets);
 
 	while (stream->packets.size) {
 		struct encoder_packet packet;
@@ -309,42 +310,12 @@ static int libsrt_neterrno()
 static void libsrt_write(void *stream, uint8_t *buf, size_t size)
 {
 	SRTContext *s = &((struct srt_output *)stream)->srtContext;
-	SRT_SOCKSTATUS stt = srt_getsockstate(s->fd);
-	int ret = srt_sendmsg(s->fd, (const char *)buf, size, -1, 0);
-	SRT_SOCKSTATUS st = srt_getsockstate(s->fd);
+	int ret = srt_sendmsg(s->fd, (const char *)buf, (int)size, -1, 0);
 	bool success = (ret != SRT_ERROR);
 	if (!success) {
 		libsrt_neterrno();
 	}
 }
-
-//static bool send_additional_meta_data(struct srt_output *stream)
-//{
-//	uint8_t *meta_data;
-//	size_t meta_data_size;
-//	bool success = true;
-//
-//	flv_additional_meta_data(stream->output, &meta_data, &meta_data_size);
-//	success = libsrt_write(stream, (char *)meta_data,
-//			       (int)meta_data_size);
-//	bfree(meta_data);
-//
-//	return success;
-//}
-
-//static bool send_meta_data(struct srt_output *stream)
-//{
-//	uint8_t *meta_data;
-//	size_t meta_data_size;
-//	bool success = true;
-//
-//	flv_meta_data(stream->output, &meta_data, &meta_data_size, false);
-//	success = libsrt_write(stream, (char *)meta_data,
-//			       (int)meta_data_size);
-//	bfree(meta_data);
-//
-//	return success;
-//}
 
 static int libsrt_setsockopt(int fd, SRT_SOCKOPT optname,
 			     const char *optnamestr, const void *optval,
@@ -388,15 +359,15 @@ static int libsrt_set_options_pre(struct srt_output *stream, int fd)
 	     libsrt_setsockopt(fd, SRTO_MAXBW, "SRTO_MAXBW", &s->maxbw,
 			       sizeof(s->maxbw)) < 0) ||
 	    (s->pbkeylen >= 0 &&
-	     libsrt_setsockopt(fd, SRTO_PBKEYLEN, "SRTO_PBKEYLEN",
-			       &s->pbkeylen, sizeof(s->pbkeylen)) < 0) ||
+	     libsrt_setsockopt(fd, SRTO_PBKEYLEN, "SRTO_PBKEYLEN", &s->pbkeylen,
+			       sizeof(s->pbkeylen)) < 0) ||
 	    (s->passphrase &&
 	     libsrt_setsockopt(fd, SRTO_PASSPHRASE, "SRTO_PASSPHRASE",
 			       s->passphrase, strlen(s->passphrase)) < 0) ||
-	    (s->mss >= 0 && libsrt_setsockopt(fd, SRTO_MSS, "SRTO_MMS",
-					      &s->mss, sizeof(s->mss)) < 0) ||
-	    (s->ffs >= 0 && libsrt_setsockopt(fd, SRTO_FC, "SRTO_FC",
-					      &s->ffs, sizeof(s->ffs)) < 0) ||
+	    (s->mss >= 0 && libsrt_setsockopt(fd, SRTO_MSS, "SRTO_MMS", &s->mss,
+					      sizeof(s->mss)) < 0) ||
+	    (s->ffs >= 0 && libsrt_setsockopt(fd, SRTO_FC, "SRTO_FC", &s->ffs,
+					      sizeof(s->ffs)) < 0) ||
 	    (s->ipttl >= 0 &&
 	     libsrt_setsockopt(fd, SRTO_IPTTL, "SRTO_UPTTL", &s->ipttl,
 			       sizeof(s->ipttl)) < 0) ||
@@ -435,8 +406,8 @@ static int libsrt_set_options_pre(struct srt_output *stream, int fd)
 	     libsrt_setsockopt(fd, SRTO_MINVERSION, "SRTO_MINVERSION",
 			       &s->minversion, sizeof(s->minversion)) < 0) ||
 	    (s->streamid &&
-	     libsrt_setsockopt(fd, SRTO_STREAMID, "SRTO_STREAMID",
-			       s->streamid, strlen(s->streamid)) < 0) ||
+	     libsrt_setsockopt(fd, SRTO_STREAMID, "SRTO_STREAMID", s->streamid,
+			       strlen(s->streamid)) < 0) ||
 	    (s->messageapi >= 0 &&
 	     libsrt_setsockopt(fd, SRTO_MESSAGEAPI, "SRTO_MESSAGEAPI",
 			       &s->messageapi, sizeof(s->messageapi)) < 0) ||
@@ -469,11 +440,9 @@ static int libsrt_network_wait_fd(int eid, int fd, int write)
 	if (srt_epoll_add_usock(eid, fd, &modes) < 0)
 		return libsrt_neterrno();
 	if (write) {
-		ret = srt_epoll_wait(eid, 0, 0, ready, &len, 100, 0, 0,
-				     0, 0);
+		ret = srt_epoll_wait(eid, 0, 0, ready, &len, 100, 0, 0, 0, 0);
 	} else {
-		ret = srt_epoll_wait(eid, ready, &len, 0, 0, 100, 0, 0,
-				     0, 0);
+		ret = srt_epoll_wait(eid, ready, &len, 0, 0, 100, 0, 0, 0, 0);
 	}
 	if (ret < 0) {
 		ret = libsrt_neterrno();
@@ -485,8 +454,8 @@ static int libsrt_network_wait_fd(int eid, int fd, int write)
 	return ret;
 }
 
-static int libsrt_network_wait_fd_timeout(int eid, int fd,
-					  int write, int64_t timeout)
+static int libsrt_network_wait_fd_timeout(int eid, int fd, int write,
+					  int64_t timeout)
 {
 	int ret;
 	int64_t wait_start = 0;
@@ -517,19 +486,20 @@ static int libsrt_listen_connect(int eid, int fd, const struct sockaddr *addr,
 		ret = libsrt_neterrno();
 		switch (ret) {
 		case SRT_EASYNCRCV: {
-			ret = libsrt_network_wait_fd_timeout(eid, fd, 1, timeout);
+			ret = libsrt_network_wait_fd_timeout(eid, fd, 1,
+							     timeout);
 			if (ret < 0)
 				return OBS_OUTPUT_CONNECT_FAILED;
 			ret = srt_getlasterror(NULL);
-			const char* buf = srt_getlasterror_str();
+			const char *buf = srt_getlasterror_str();
 			if (ret != 0) {
 				if (will_try_next)
 					doLog(LOG_WARNING,
-					       "Connection to %s failed (%s), trying next address\n",
-					       uri, buf);
+					      "Connection to %s failed (%s), trying next address\n",
+					      uri, buf);
 				else
 					doLog(LOG_ERROR,
-					       "Connection to %s failed: %s\n",
+					      "Connection to %s failed: %s\n",
 					      uri, buf);
 			}
 			srt_clearlasterror();
@@ -600,13 +570,13 @@ static int libsrt_connect(struct srt_output *stream)
 	s->eid = eid;
 
 	srt_url_split(proto, sizeof(proto), NULL, 0, hostname, sizeof(hostname),
-		     &port, path, sizeof(path), uri);
-	
+		      &port, path, sizeof(path), uri);
+
 	if (port <= 0 || port >= 65536) {
 		doLog(LOG_ERROR, "Port missing in uri\n");
 		return OBS_OUTPUT_CONNECT_FAILED;
 	}
-	
+
 	hints.ai_family = AF_UNSPEC;
 	hints.ai_socktype = SOCK_DGRAM;
 	snprintf(portstr, sizeof(portstr), "%d", port);
@@ -648,9 +618,9 @@ restart:
 			       sizeof(s->send_buffer_size));
 	}
 
-	if ((ret = libsrt_listen_connect(
-		     s->eid, fd, cur_ai->ai_addr, cur_ai->ai_addrlen,
-		     open_timeout, uri, !!cur_ai->ai_next)) < 0) {
+	if ((ret = libsrt_listen_connect(s->eid, fd, cur_ai->ai_addr,
+					 cur_ai->ai_addrlen, open_timeout, uri,
+					 !!cur_ai->ai_next)) < 0) {
 		doLog(LOG_WARNING, "libsrt_listen_connect failed\n");
 		goto fail;
 	}
@@ -700,7 +670,6 @@ static int libsrt_open(struct srt_output *stream)
 	os_atomic_set_bool(&stream->encode_error, false);
 	stream->got_first_video = false;
 
-
 	dstr_copy(&stream->path, obs_service_get_url(service));
 	dstr_depad(&stream->path);
 
@@ -730,28 +699,74 @@ static inline bool can_shutdown_stream(struct srt_output *stream,
 	bool timeout = cur_time >= stream->shutdown_timeout_ts;
 
 	if (timeout)
-		doLog(LOG_INFO, "Stream shutdown timeout reached (%d second(s))",
-		     stream->max_shutdown_time_sec);
+		doLog(LOG_INFO,
+		      "Stream shutdown timeout reached (%d second(s))",
+		      stream->max_shutdown_time_sec);
 
 	return timeout || packet->sys_dts_usec >= (int64_t)stream->stop_ts;
 }
 
-static void srs_avc_insert_aud(SrsSimpleBuffer* payload, bool& aud_inserted)
+static void *ts_alloc(void * /*param*/, size_t bytes)
 {
-    static uint8_t fresh_nalu_header[] = { 0x00, 0x00, 0x00, 0x01 };
-    static uint8_t cont_nalu_header[] = { 0x00, 0x00, 0x01 };
-    
-    if (!aud_inserted) {
-        aud_inserted = true;
-        payload->append((const char*)fresh_nalu_header, 4);
-    } else {
-        payload->append((const char*)cont_nalu_header, 3);
-    }
+	static char s_buffer[188];
+	assert(bytes <= sizeof(s_buffer));
+	return s_buffer;
+}
+
+static void ts_free(void * /*param*/, void * /*packet*/)
+{
+	return;
+}
+
+static int ts_write(void *param, const void *packet, size_t bytes)
+{
+	libsrt_write(param, (uint8_t *)packet, bytes);
+	return 0;
+}
+
+static int ts_stream(void *ts, int codecid, const void *data, size_t bytes)
+{
+	static std::map<int, int> streams;
+	std::map<int, int>::const_iterator it = streams.find(codecid);
+	if (streams.end() != it)
+		return it->second;
+
+	int i = mpeg_ts_add_stream(ts, codecid, data, bytes);
+	streams[codecid] = i;
+	return i;
+}
+
+static int onAVData(void *ts, int codec, const void *data, size_t bytes,
+		    unsigned int pts, unsigned int dts, int flags)
+{
+	static char s_pts[64], s_dts[64];
+	static uint32_t v_pts = 0, v_dts = 0;
+	static uint32_t a_pts = 0, a_dts = 0;
+
+	if (STREAM_AUDIO_AAC == codec) {
+		pts = (a_pts && pts < a_pts) ? a_pts : pts;
+		dts = (a_dts && dts < a_dts) ? a_dts : dts;
+		mpeg_ts_write(ts, ts_stream(ts, codec, NULL, 0), 0, pts * 90,
+			      dts * 90, data, bytes);
+
+		a_pts = pts;
+		a_dts = dts;
+	} else if (STREAM_VIDEO_H264 == codec) {
+		dts = (a_dts && dts < v_dts) ? v_dts : dts;
+		mpeg_ts_write(ts, ts_stream(ts, codec, NULL, 0),
+			      0x01 & flags ? 1 : 0, pts * 90, dts * 90, data,
+			      bytes);
+
+		v_pts = pts;
+		v_dts = dts;
+	}
+
+	return 0;
 }
 
 static bool send_packet(struct srt_output *stream,
-		       struct encoder_packet *packet, bool is_header,
-		       size_t idx)
+			struct encoder_packet *packet, bool is_header,
+			size_t idx)
 {
 	int32_t dts_offset = is_header ? 0 : stream->start_dts_offset;
 
@@ -783,40 +798,34 @@ static bool send_packet(struct srt_output *stream,
 		}
 
 		int64_t offset = packet->pts - packet->dts;
-		int32_t time_ms = get_ms_time(packet, packet->dts) - dts_offset;
+		int32_t pts = get_ms_time(packet, packet->dts) - dts_offset;
+		int32_t dts = pts + get_ms_time(packet, offset);
 
-		SrsTsMessage video;
-		video.dts = time_ms * 90;
-		video.pts = video.dts + get_ms_time(packet, offset) * 90;
-		video.sid = SrsTsPESStreamIdVideoCommon;
-		if (hasKeyFrame)
-			video.write_pcr = true;
-
-		bool aud_inserted = false;
-		static uint8_t default_aud_nalu[] = { 0x09, 0xf0};
-		srs_avc_insert_aud(video.payload, aud_inserted);
-		video.payload->append((const char*)default_aud_nalu, 2);
-
+		std::vector<uint8_t> payload;
 		if (hasKeyFrame && !hasSps) {
 			uint8_t *header;
 			size_t size;
 
 			obs_output_t *context = stream->output;
-			obs_encoder_t *vencoder = obs_output_get_video_encoder(context);
+			obs_encoder_t *vencoder =
+				obs_output_get_video_encoder(context);
 			obs_encoder_get_extra_data(vencoder, &header, &size);
 
-			video.payload->append((const char *)header, size);
+			payload.insert(payload.end(), header, header + size);
 		}
 
-		video.payload->append((const char *)packet->data, packet->size);
+		payload.insert(payload.end(), packet->data,
+			       packet->data + packet->size);
 
-		stream->tsContext->encode(&video, SrsCodecVideoAVC, SrsCodecAudioAAC);
+		onAVData(stream->ts, STREAM_VIDEO_H264, payload.data(),
+			 payload.size(), pts, dts, hasKeyFrame ? 1 : 0);
 	} else if (packet->type == OBS_ENCODER_AUDIO) {
 		uint8_t *header;
 		size_t size;
 
 		obs_output_t *context = stream->output;
-		obs_encoder_t *aencoder = obs_output_get_audio_encoder(context, idx);
+		obs_encoder_t *aencoder =
+			obs_output_get_audio_encoder(context, idx);
 		obs_encoder_get_extra_data(aencoder, &header, &size);
 
 		if (size <= 0)
@@ -824,31 +833,29 @@ static bool send_packet(struct srt_output *stream,
 
 		uint8_t profile_ObjectType = header[0];
 		uint8_t samplingFrequencyIndex = header[1];
-        
+
 		uint8_t aac_channels = (samplingFrequencyIndex >> 3) & 0x0f;
-		samplingFrequencyIndex = ((profile_ObjectType << 1) & 0x0e) | ((samplingFrequencyIndex >> 7) & 0x01);
+		samplingFrequencyIndex = ((profile_ObjectType << 1) & 0x0e) |
+					 ((samplingFrequencyIndex >> 7) & 0x01);
 		profile_ObjectType = (profile_ObjectType >> 3) & 0x1f;
 
 		// set the aac sample rate.
 		uint8_t aac_sample_rate = samplingFrequencyIndex;
 
 		// convert the object type in sequence header to aac profile of ADTS.
-		SrsAacObjectType aac_object = (SrsAacObjectType)profile_ObjectType;
-		if (aac_object == SrsAacObjectTypeReserved) {
+		AACObjectType aac_object = (AACObjectType)profile_ObjectType;
+		if (aac_object == ObjectTypeReserved) {
 			return false;
 		}
 
-		int32_t time_ms = get_ms_time(packet, packet->dts) - dts_offset;
+		int32_t pts = get_ms_time(packet, packet->dts) - dts_offset;
+		int32_t dts = pts;
 		int32_t frame_length = packet->size + 7;
 
-		SrsTsMessage audio;
-		audio.write_pcr = false;
-		audio.dts = audio.pts = audio.start_pts = time_ms * 90;
-		audio.sid = SrsTsPESStreamIdAudioCommon;
-		
-		uint8_t adts_header[7] = {0xff, 0xf9, 0x00, 0x00, 0x00, 0x0f, 0xfc};
+		uint8_t adts_header[7] = {0xff, 0xf9, 0x00, 0x00,
+					  0x00, 0x0f, 0xfc};
 		// profile, 2bits
-		SrsAacProfile aac_profile = srs_codec_aac_rtmp2ts(aac_object);
+		AACProfile aac_profile = srs_codec_aac_rtmp2ts(aac_object);
 		adts_header[2] = (aac_profile << 6) & 0xc0;
 		// sampling_frequency_index 4bits
 		adts_header[2] |= (aac_sample_rate << 2) & 0x3c;
@@ -862,10 +869,13 @@ static bool send_packet(struct srt_output *stream,
 		// adts_buffer_fullness; //11bits
 		adts_header[5] |= 0x1f;
 
-		audio.payload->append((const char*)adts_header, sizeof(adts_header));
-		audio.payload->append((const char*)packet->data, packet->size);
+		std::vector<uint8_t> payload;
+		payload.insert(payload.end(), adts_header, adts_header + 7);
+		payload.insert(payload.end(), packet->data,
+			       packet->data + packet->size);
 
-		stream->tsContext->encode(&audio, SrsCodecVideoAVC, SrsCodecAudioAAC);
+		onAVData(stream->ts, STREAM_AUDIO_AAC, payload.data(),
+			 payload.size(), pts, dts, 0);
 	}
 
 	if (is_header)
@@ -873,62 +883,6 @@ static bool send_packet(struct srt_output *stream,
 	else
 		obs_encoder_packet_release(packet);
 
-	return true;
-}
-
-static bool send_audio_header(struct srt_output *stream, size_t idx,
-			      bool *next)
-{
-	obs_output_t *context = stream->output;
-	obs_encoder_t *aencoder = obs_output_get_audio_encoder(context, idx);
-	uint8_t *header;
-
-	struct encoder_packet packet = {0};
-	packet.type = OBS_ENCODER_AUDIO;
-	packet.timebase_den = 1;
-
-	if (!aencoder) {
-		*next = false;
-		return true;
-	}
-
-	obs_encoder_get_extra_data(aencoder, &header, &packet.size);
-	packet.data = (uint8_t*)bmemdup(header, packet.size);
-	return send_packet(stream, &packet, true, idx) >= 0;
-}
-
-static bool send_video_header(struct srt_output *stream)
-{
-	obs_output_t *context = stream->output;
-	obs_encoder_t *vencoder = obs_output_get_video_encoder(context);
-	uint8_t *header;
-
-	struct encoder_packet packet = {0};
-	packet.type = OBS_ENCODER_VIDEO;
-	packet.timebase_den = 1;
-	packet.keyframe = true;
-
-	obs_encoder_get_extra_data(vencoder, &header, &packet.size);
-	packet.data = (uint8_t*)bmemdup(header, packet.size);
-	return send_packet(stream, &packet, true, 0) >= 0;
-}
-
-static inline bool send_headers(struct srt_output *stream)
-{
-	//size_t i = 0;
-	//bool next = true;
-
-	//if (!send_audio_header(stream, i++, &next))
-	//	return false;
-	//if (!send_video_header(stream))
-	//	return false;
-
-	//while (next) {
-	//	if (!send_audio_header(stream, i++, &next))
-	//		return false;
-	//}
-
-	//stream->sent_headers = true;
 	return true;
 }
 
@@ -951,13 +905,6 @@ static void *send_thread(void *data)
 		if (stopping(stream)) {
 			if (can_shutdown_stream(stream, &packet)) {
 				obs_encoder_packet_release(&packet);
-				break;
-			}
-		}
-
-		if (!stream->sent_headers) {
-			if (!send_headers(stream)) {
-				os_atomic_set_bool(&stream->disconnected, true);
 				break;
 			}
 		}
@@ -994,7 +941,6 @@ static void *send_thread(void *data)
 	free_packets(stream);
 	os_event_reset(stream->stop_event);
 	os_atomic_set_bool(&stream->active, false);
-	stream->sent_headers = false;
 
 	return NULL;
 }
@@ -1007,7 +953,8 @@ static int init_send(struct srt_output *stream)
 	os_sem_destroy(stream->send_sem);
 	os_sem_init(&stream->send_sem, 0);
 
-	int ret = pthread_create(&stream->send_thread, NULL, send_thread, stream);
+	int ret =
+		pthread_create(&stream->send_thread, NULL, send_thread, stream);
 	if (ret != 0) {
 		srt_close(s->fd);
 		srt_epoll_release(s->eid);
@@ -1029,14 +976,13 @@ static void *connect_thread(void *data)
 
 	os_set_thread_name("srt-stream: connect_thread");
 
-	if (!libsrt_open(stream))
-	{
+	if (!libsrt_open(stream)) {
 		obs_output_signal_stop(stream->output, OBS_OUTPUT_BAD_PATH);
 		return NULL;
 	}
 
 	libsrt_connect(stream);
-	
+
 	ret = init_send(stream);
 
 	if (ret != OBS_OUTPUT_SUCCESS) {
@@ -1071,7 +1017,7 @@ static void srt_output_destroy(void *data)
 			pthread_join(stream->send_thread, NULL);
 		}
 	}
-		
+
 	srt_close(stream->srtContext.fd);
 	srt_epoll_release(stream->srtContext.eid);
 	srt_cleanup();
@@ -1084,16 +1030,22 @@ static void srt_output_destroy(void *data)
 	pthread_mutex_destroy(&stream->mutex);
 	circlebuf_free(&stream->packets);
 
-	delete stream->tsContext;
+	mpeg_ts_destroy(stream->ts);
 
 	bfree(stream);
 }
 
 static void *srt_output_create(obs_data_t *settings, obs_output_t *output)
 {
-	struct srt_output *stream = (struct srt_output *)bzalloc(sizeof(struct srt_output));
-	stream->tsContext = new SrsTsContext;
-	stream->tsContext->setWriteCallback(libsrt_write, stream);
+	struct srt_output *stream =
+		(struct srt_output *)bzalloc(sizeof(struct srt_output));
+
+	struct mpeg_ts_func_t tshandler;
+	tshandler.alloc = ts_alloc;
+	tshandler.write = ts_write;
+	tshandler.free = ts_free;
+
+	stream->ts = mpeg_ts_create(&tshandler, stream);
 	stream->output = output;
 	stream->max_shutdown_time_sec = 30;
 	pthread_mutex_init_value(&stream->mutex);
@@ -1123,7 +1075,7 @@ static void *srt_output_create(obs_data_t *settings, obs_output_t *output)
 	s->payload_size = 1316;
 	s->rcvlatency = -1;
 	s->peerlatency = -1;
-	s->sndbuf = 1024*1024*10;
+	s->sndbuf = 1024 * 1024 * 10;
 	s->rcvbuf = -1;
 	s->lossmaxttl = -1;
 	s->minversion = -1;
@@ -1234,8 +1186,7 @@ static void srt_output_data(void *data, struct encoder_packet *packet)
 
 struct obs_output_info srt_output_info = {
 	"srt_output",
-	OBS_OUTPUT_AV | OBS_OUTPUT_ENCODED | OBS_OUTPUT_SERVICE |
-		OBS_OUTPUT_MULTI_TRACK | OBS_OUTPUT_CAN_PAUSE,
+	OBS_OUTPUT_AV | OBS_OUTPUT_ENCODED | OBS_OUTPUT_MULTI_TRACK,
 	srt_output_getname,
 	srt_output_create,
 	srt_output_destroy,
