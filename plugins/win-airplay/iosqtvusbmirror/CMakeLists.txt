@@ -91,5 +91,4 @@ add_custom_command(TARGET ios-qtvusb-mirror POST_BUILD
 		VERBATIM)
 endfunction()
  
-install_dependency("libusb0")
 install_dependency("plist") 

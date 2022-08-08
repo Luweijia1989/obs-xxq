@@ -71,10 +71,6 @@ struct nvenc_data {
 
 	uint8_t *sei;
 	size_t sei_size;
-
-	uint8_t *custom_sei;
-	size_t custom_sei_size;
-	uint64_t sei_counting;
 };
 
 /* ------------------------------------------------------------------------- */
@@ -576,7 +572,6 @@ static void *nvenc_create(obs_data_t *settings, obs_encoder_t *encoder)
 	struct nvenc_data *enc = bzalloc(sizeof(*enc));
 	enc->encoder = encoder;
 	enc->first_packet = true;
-	enc->custom_sei = bzalloc(sizeof(uint8_t) * 1024 * 100);
 
 	/* this encoder requires shared textures, this cannot be used on a
 	 * gpu other than the one OBS is currently running on. */
@@ -657,7 +652,6 @@ static void nvenc_destroy(void *data)
 
 	bfree(enc->header);
 	bfree(enc->sei);
-	bfree(enc->custom_sei);
 	circlebuf_free(&enc->dts_list);
 	da_free(enc->textures);
 	da_free(enc->bitstreams);
@@ -890,12 +884,12 @@ static bool nvenc_encode_tex(void *data, uint32_t handle, int64_t pts,
 		if (enc->bframes)
 			dts -= packet->timebase_num;
 
-		uint32_t rate = obs_encoder_get_sei_rate(enc->encoder);
-		if (++enc->sei_counting % rate == 0) {
-			if (enc->custom_sei_size > 0)
-				da_push_back_array(enc->packet_data,
-						   enc->custom_sei,
-						   enc->custom_sei_size);
+		uint8_t sei_buf[102400] = {0};
+		int sei_len = 0;
+		bool got_sei =
+			obs_encoder_get_sei(enc->encoder, sei_buf, &sei_len);
+		if (got_sei) {
+			da_push_back_array(enc->packet_data, sei_buf, sei_len);
 		}
 
 		*received_packet = true;
@@ -941,20 +935,6 @@ static bool nvenc_sei_data(void *data, uint8_t **sei, size_t *size)
 	return true;
 }
 
-static void nvenc_set_sei(void *data, char *sei, int len)
-{
-	struct nvenc_data *enc = data;
-	enc->custom_sei_size = len > 102400 ? 102400 : len;
-	memcpy(enc->custom_sei, sei, enc->custom_sei_size);
-}
-
-static void nvenc_clear_sei(void *data)
-{
-	struct nvenc_data *enc = data;
-	memset(enc->custom_sei, 0, enc->custom_sei_size);
-	enc->custom_sei_size = 0;
-}
-
 struct obs_encoder_info nvenc_info = {
 	.id = "jim_nvenc",
 	.codec = "h264",
@@ -969,6 +949,4 @@ struct obs_encoder_info nvenc_info = {
 	.get_properties = nvenc_properties,
 	.get_extra_data = nvenc_extra_data,
 	.get_sei_data = nvenc_sei_data,
-	.set_sei = nvenc_set_sei,
-	.clear_sei = nvenc_clear_sei,
 };

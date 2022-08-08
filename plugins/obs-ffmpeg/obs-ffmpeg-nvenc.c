@@ -52,10 +52,6 @@ struct nvenc_encoder {
 	uint8_t *sei;
 	size_t sei_size;
 
-	uint8_t *custom_sei;
-	size_t custom_sei_size;
-	uint64_t sei_counting;
-
 	int height;
 	bool first_packet;
 	bool initialized;
@@ -277,7 +273,6 @@ static void nvenc_destroy(void *data)
 	da_free(enc->buffer);
 	bfree(enc->header);
 	bfree(enc->sei);
-	bfree(enc->custom_sei);
 
 	bfree(enc);
 }
@@ -293,7 +288,6 @@ static void *nvenc_create(obs_data_t *settings, obs_encoder_t *encoder)
 	enc = bzalloc(sizeof(*enc));
 	enc->encoder = encoder;
 	enc->nvenc = avcodec_find_encoder_by_name("h264_nvenc");
-	enc->custom_sei = bzalloc(sizeof(uint8_t) * 1024 * 100);
 	if (!enc->nvenc)
 		enc->nvenc = avcodec_find_encoder_by_name("nvenc_h264");
 	enc->first_packet = true;
@@ -395,11 +389,13 @@ static bool nvenc_encode(void *data, struct encoder_frame *frame,
 			da_copy_array(enc->buffer, av_pkt.data, av_pkt.size);
 		}
 
+		uint8_t sei_buf[102400] = {0};
+		int sei_len = 0;
+		bool got_sei =
+			obs_encoder_get_sei(enc->encoder, sei_buf, &sei_len);
 		uint32_t rate = obs_encoder_get_sei_rate(enc->encoder);
-		if (++enc->sei_counting % rate == 0) {
-			if (enc->custom_sei_size > 0)
-				da_push_back_array(enc->buffer, enc->custom_sei,
-						   enc->custom_sei_size);
+		if (got_sei) {
+			da_push_back_array(enc->buffer, sei_buf, sei_len);
 		}
 
 		packet->pts = av_pkt.pts;
@@ -568,20 +564,6 @@ static bool nvenc_sei_data(void *data, uint8_t **extra_data, size_t *size)
 	return true;
 }
 
-static void nvenc_set_sei(void *data, char *sei, int len)
-{
-	struct nvenc_encoder *enc = data;
-	enc->custom_sei_size = len > 102400 ? 102400 : len;
-	memcpy(enc->custom_sei, sei, enc->custom_sei_size);
-}
-
-static void nvenc_clear_sei(void *data)
-{
-	struct nvenc_encoder *enc = data;
-	memset(enc->custom_sei, 0, enc->custom_sei_size);
-	enc->custom_sei_size = 0;
-}
-
 struct obs_encoder_info nvenc_encoder_info = {
 	.id = "ffmpeg_nvenc",
 	.type = OBS_ENCODER_VIDEO,
@@ -597,6 +579,4 @@ struct obs_encoder_info nvenc_encoder_info = {
 	.get_sei_data = nvenc_sei_data,
 	.get_video_info = nvenc_video_info,
 	.caps = OBS_ENCODER_CAP_DYN_BITRATE,
-	.set_sei = nvenc_set_sei,
-	.clear_sei = nvenc_clear_sei,
 };

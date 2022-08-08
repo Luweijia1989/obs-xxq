@@ -1,4 +1,4 @@
-﻿#include "imageslideshow.h"
+#include "imageslideshow.h"
 #include "renderer.h"
 #include "qmlhelper.h"
 
@@ -226,8 +226,6 @@ OBS_MODULE_USE_DEFAULT_LOCALE("qml-source", "en-US")
 
 //extern struct obs_source_info quicktextslideshow_source_info;
 extern struct obs_source_info quickrank_source_info;
-extern struct obs_source_info quickleave_source_info;
-extern struct obs_source_info quickprivate_source_info;
 extern struct obs_source_info quickaudiowave_source_info;
 extern struct obs_source_info vote_source_info;
 extern struct obs_source_info gifttv_source_info;
@@ -248,8 +246,6 @@ bool obs_module_load(void)
 	//obs_register_source(&quicktextslideshow_source_info);
 	obs_register_source(&quickimageslideshow_source_info);
 	obs_register_source(&quickrank_source_info);
-	obs_register_source(&quickleave_source_info);
-	obs_register_source(&quickprivate_source_info);
 	obs_register_source(&quickaudiowave_source_info);
 	obs_register_source(&vote_source_info);
 	obs_register_source(&gifttv_source_info);

@@ -238,6 +238,13 @@ static bool obs_init_textures(struct obs_video_info *ovi)
 	if (!video->render_texture)
 		return false;
 
+	video->render_invisible_texture =
+		gs_texture_create(ovi->base_width, ovi->base_height, GS_RGBA, 1,
+				  NULL, GS_RENDER_TARGET);
+
+	if (!video->render_invisible_texture)
+		return false;
+
 	video->output_texture = gs_texture_create(ovi->output_width,
 						  ovi->output_height, GS_RGBA,
 						  1, NULL, GS_RENDER_TARGET);
@@ -564,6 +571,7 @@ static void obs_free_video(void)
 		}
 
 		gs_texture_destroy(video->render_texture);
+		gs_texture_destroy(video->render_invisible_texture);
 
 		for (size_t c = 0; c < NUM_CHANNELS; c++) {
 			if (video->convert_textures[c]) {
@@ -584,6 +592,7 @@ static void obs_free_video(void)
 
 		gs_texture_destroy(video->output_texture);
 		video->render_texture = NULL;
+		video->render_invisible_texture = NULL;
 		video->output_texture = NULL;
 
 		gs_leave_context();
@@ -1791,7 +1800,8 @@ void obs_render_main_view(void)
 static void obs_render_main_texture_internal(enum gs_blend_type src_c,
 					     enum gs_blend_type dest_c,
 					     enum gs_blend_type src_a,
-					     enum gs_blend_type dest_a)
+					     enum gs_blend_type dest_a,
+					     bool render_invisible_texture)
 {
 	struct obs_core_video *video;
 	gs_texture_t *tex;
@@ -1805,7 +1815,8 @@ static void obs_render_main_texture_internal(enum gs_blend_type src_c,
 	if (!video->texture_rendered)
 		return;
 
-	tex = video->render_texture;
+	tex = render_invisible_texture ? video->render_invisible_texture
+				       : video->render_texture;
 	effect = obs_get_base_effect(OBS_EFFECT_DEFAULT);
 	param = gs_effect_get_param_by_name(effect, "image");
 	gs_effect_set_texture(param, tex);
@@ -1822,13 +1833,22 @@ static void obs_render_main_texture_internal(enum gs_blend_type src_c,
 void obs_render_main_texture(void)
 {
 	obs_render_main_texture_internal(GS_BLEND_ONE, GS_BLEND_INVSRCALPHA,
-					 GS_BLEND_ONE, GS_BLEND_INVSRCALPHA);
+					 GS_BLEND_ONE, GS_BLEND_INVSRCALPHA,
+					 false);
+}
+
+void obs_render_invisible_texture(void)
+{
+	obs_render_main_texture_internal(GS_BLEND_ONE, GS_BLEND_INVSRCALPHA,
+					 GS_BLEND_ONE, GS_BLEND_INVSRCALPHA,
+					 true);
 }
 
 void obs_render_main_texture_src_color_only(void)
 {
 	obs_render_main_texture_internal(GS_BLEND_ONE, GS_BLEND_ZERO,
-					 GS_BLEND_ONE, GS_BLEND_INVSRCALPHA);
+					 GS_BLEND_ONE, GS_BLEND_INVSRCALPHA,
+					 false);
 }
 
 gs_texture_t *obs_get_main_texture(void)
@@ -2806,20 +2826,9 @@ bool obs_nv12_tex_active(void)
 void obs_source_create_xxqsource(int type /*1=privacy 2=leave*/,
 				 obs_data_t *settings)
 {
+	obs_enter_graphics();
 	struct obs_core_data *data = &obs->data;
-	if (type == 1) {
-		if (!data->privacy_source) {
-			data->privacy_source = obs_source_create_private(
-				"quickprivate_source", PRIVACY_ID, settings);
-			obs_source_activate(data->privacy_source, MAIN_VIEW);
-		}
-	} else if (type == 2) {
-		if (!data->leave_source) {
-			data->leave_source = obs_source_create_private(
-				"quickleave_source", LEAVING_ID, settings);
-			obs_source_activate(data->leave_source, MAIN_VIEW);
-		}
-	} else if (type == 3) {
+	if (type == 3) {
 		if (!data->h5_source) {
 			data->h5_source = obs_source_create_private(
 				"webcapture_source", H5_ID, settings);
@@ -2842,6 +2851,7 @@ void obs_source_create_xxqsource(int type /*1=privacy 2=leave*/,
 			"audio_livelink_source", AUDIOLINK_ID, settings);
 		obs_source_activate(data->audiolivelink_source, MAIN_VIEW);
 	}
+	obs_leave_graphics();
 }
 
 void obs_source_update_xxqsource(int type /*1=privacy 2=leave*/,
@@ -2849,14 +2859,11 @@ void obs_source_update_xxqsource(int type /*1=privacy 2=leave*/,
 {
 	struct obs_core_data *data = &obs->data;
 	switch (type) {
-	case 1:
-		obs_source_update(data->privacy_source, settings);
-		break;
-	case 2:
-		obs_source_update(data->leave_source, settings);
-		break;
 	case 3:
 		obs_source_update(data->h5_source, settings);
+		break;
+	case 4:
+		obs_source_update(data->sticker_source, settings);
 		break;
 	case 5:
 		obs_source_update(data->mask_source, settings);
@@ -2871,14 +2878,9 @@ void obs_source_update_xxqsource(int type /*1=privacy 2=leave*/,
 
 void obs_source_destroy_xxqsource(int type)
 {
+	obs_enter_graphics();
 	struct obs_core_data *data = &obs->data;
-	if (type == 1) {
-		obs_source_release(data->privacy_source);
-		data->privacy_source = NULL;
-	} else if (type == 2) {
-		obs_source_release(data->leave_source);
-		data->leave_source = NULL;
-	} else if (type == 3) {
+	if (type == 3) {
 		obs_source_release(data->h5_source);
 		data->h5_source = NULL;
 	} else if (type == 4) {
@@ -2891,6 +2893,7 @@ void obs_source_destroy_xxqsource(int type)
 		obs_source_release(data->audiolivelink_source);
 		data->audiolivelink_source = NULL;
 	}
+	obs_leave_graphics();
 }
 
 void obs_source_custom_command_xxqsource(int type, obs_data_t *settings)

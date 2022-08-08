@@ -40,6 +40,9 @@ static void audio_livelink_source_update(void *data, obs_data_t *settings)
 
 	int multiCount = obs_data_get_int(settings, "multiCount");
 	s->setmultiCount(multiCount);
+
+	int posX = obs_data_get_int(settings, "posX");
+	s->setposX(posX);
 	s->baseUpdate(settings);
 }
 
@@ -69,6 +72,7 @@ static void audio_livelink_source_defaults(obs_data_t *settings)
 	obs_data_set_default_int(settings, "multiCount", 4);
 	obs_data_set_default_int(settings, "width", 720);
 	obs_data_set_default_int(settings, "height", 1080);
+	obs_data_set_default_int(settings, "posX", 0);
 	AudioLiveLink::default(settings);
 }
 
