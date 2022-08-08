@@ -1184,6 +1184,29 @@ static void srt_output_data(void *data, struct encoder_packet *packet)
 		obs_encoder_packet_release(&new_packet);
 }
 
+static uint64_t srt_total_bytes_sent(void *data)
+{
+	struct srt_output *stream = (struct srt_output *)data;
+	SRTContext *s = &stream->srtContext;
+
+	SRT_TRACEBSTATS info;
+	if (srt_bistats(s->fd, &info, 0, 1) == SRT_SUCCESS)
+		return info.byteSentTotal;
+	
+	return 0;
+}
+
+static int srt_dropped_frames(void *data)
+{
+	struct srt_output *stream = (struct srt_output *)data;
+	SRTContext *s = &stream->srtContext;
+
+	SRT_TRACEBSTATS info;
+	if (srt_bistats(s->fd, &info, 0, 1) == SRT_SUCCESS)
+		return info.byteSndDropTotal;
+	return 0;
+}
+
 struct obs_output_info srt_output_info = {
 	"srt_output",
 	OBS_OUTPUT_AV | OBS_OUTPUT_ENCODED | OBS_OUTPUT_MULTI_TRACK,
@@ -1199,8 +1222,8 @@ struct obs_output_info srt_output_info = {
 	nullptr,
 	nullptr,
 	nullptr,
-	nullptr,
-	nullptr,
+	srt_total_bytes_sent,
+	srt_dropped_frames,
 	nullptr,
 	nullptr,
 	nullptr,
