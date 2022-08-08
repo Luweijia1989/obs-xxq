@@ -73,34 +73,12 @@ enum SRTMode {
 typedef struct SRTContext {
 	SRTSOCKET fd;
 	int eid;
-	int64_t rw_timeout;   //[-1, INT64_MAX]
-	int recv_buffer_size; //[-1, INT_MAX]
-	int send_buffer_size; //[-1, INT_MAX]
 
 	int64_t maxbw; //[-1, INT64_MAX]
-	int pbkeylen;  //[-1, 32]
-	char *passphrase;
-	int mss;                 //[-1, 1500]
-	int ffs;                 //[-1, INT_MAX]
-	int ipttl;               //[-1, 255]
-	int iptos;               //[-1, 255]
-	int64_t inputbw;         //[-1, INT64_MAX]
-	int oheadbw;             //[-1, 100]
-	int64_t latency;         //[-1, INT64_MAX]
-	int tlpktdrop;           //[-1, 1]
-	int nakreport;           //[-1, 1]
-	int64_t connect_timeout; //[-1, INT64_MAX]
 	int payload_size;        //[-1, SRT_LIVE_MAX_PAYLOAD_SIZE]
-	int64_t rcvlatency;      //[-1, INT64_MAX]
-	int64_t peerlatency;     //[-1, INT64_MAX]
 	enum SRTMode mode;
 	int sndbuf;     //[-1, INT_MAX]
-	int rcvbuf;     //[-1, INT_MAX]
-	int lossmaxttl; //[-1, INT_MAX]
-	int minversion; //[-1, INT_MAX]
 	char *streamid;
-	char *smoother;
-	int messageapi; //[-1, 1]
 	SRT_TRANSTYPE transtype;
 } SRTContext;
 
@@ -329,25 +307,10 @@ static int libsrt_setsockopt(int fd, SRT_SOCKOPT optname,
 	return 0;
 }
 
-static int libsrt_getsockopt(int fd, SRT_SOCKOPT optname,
-			     const char *optnamestr, void *optval, int *optlen)
-{
-	if (srt_getsockopt(fd, 0, optname, optval, optlen) < 0) {
-		doLog(LOG_ERROR, "failed to get option %s on socket: %s\n",
-		      optnamestr, srt_getlasterror_str());
-		return -1;
-	}
-	return 0;
-}
-
 static int libsrt_set_options_pre(struct srt_output *stream, int fd)
 {
 	SRTContext *s = &stream->srtContext;
 	int yes = 1;
-	int latency = s->latency / 1000;
-	int rcvlatency = s->rcvlatency / 1000;
-	int peerlatency = s->peerlatency / 1000;
-	int connect_timeout = s->connect_timeout;
 
 	if ((s->mode == SRT_MODE_RENDEZVOUS &&
 	     libsrt_setsockopt(fd, SRTO_RENDEZVOUS, "SRTO_RENDEZVOUS", &yes,
@@ -358,59 +321,12 @@ static int libsrt_set_options_pre(struct srt_output *stream, int fd)
 	    (s->maxbw >= 0 &&
 	     libsrt_setsockopt(fd, SRTO_MAXBW, "SRTO_MAXBW", &s->maxbw,
 			       sizeof(s->maxbw)) < 0) ||
-	    (s->pbkeylen >= 0 &&
-	     libsrt_setsockopt(fd, SRTO_PBKEYLEN, "SRTO_PBKEYLEN", &s->pbkeylen,
-			       sizeof(s->pbkeylen)) < 0) ||
-	    (s->passphrase &&
-	     libsrt_setsockopt(fd, SRTO_PASSPHRASE, "SRTO_PASSPHRASE",
-			       s->passphrase, strlen(s->passphrase)) < 0) ||
-	    (s->mss >= 0 && libsrt_setsockopt(fd, SRTO_MSS, "SRTO_MMS", &s->mss,
-					      sizeof(s->mss)) < 0) ||
-	    (s->ffs >= 0 && libsrt_setsockopt(fd, SRTO_FC, "SRTO_FC", &s->ffs,
-					      sizeof(s->ffs)) < 0) ||
-	    (s->ipttl >= 0 &&
-	     libsrt_setsockopt(fd, SRTO_IPTTL, "SRTO_UPTTL", &s->ipttl,
-			       sizeof(s->ipttl)) < 0) ||
-	    (s->iptos >= 0 &&
-	     libsrt_setsockopt(fd, SRTO_IPTOS, "SRTO_IPTOS", &s->iptos,
-			       sizeof(s->iptos)) < 0) ||
-	    (s->latency >= 0 &&
-	     libsrt_setsockopt(fd, SRTO_LATENCY, "SRTO_LATENCY", &latency,
-			       sizeof(latency)) < 0) ||
-	    (s->rcvlatency >= 0 &&
-	     libsrt_setsockopt(fd, SRTO_RCVLATENCY, "SRTO_RCVLATENCY",
-			       &rcvlatency, sizeof(rcvlatency)) < 0) ||
-	    (s->peerlatency >= 0 &&
-	     libsrt_setsockopt(fd, SRTO_PEERLATENCY, "SRTO_PEERLATENCY",
-			       &peerlatency, sizeof(peerlatency)) < 0) ||
-	    (s->tlpktdrop >= 0 &&
-	     libsrt_setsockopt(fd, SRTO_TLPKTDROP, "SRTO_TLPKDROP",
-			       &s->tlpktdrop, sizeof(s->tlpktdrop)) < 0) ||
-	    (s->nakreport >= 0 &&
-	     libsrt_setsockopt(fd, SRTO_NAKREPORT, "SRTO_NAKREPORT",
-			       &s->nakreport, sizeof(s->nakreport)) < 0) ||
-	    (connect_timeout >= 0 &&
-	     libsrt_setsockopt(fd, SRTO_CONNTIMEO, "SRTO_CONNTIMEO",
-			       &connect_timeout,
-			       sizeof(connect_timeout)) < 0) ||
 	    (s->sndbuf >= 0 &&
 	     libsrt_setsockopt(fd, SRTO_SNDBUF, "SRTO_SNDBUF", &s->sndbuf,
 			       sizeof(s->sndbuf)) < 0) ||
-	    (s->rcvbuf >= 0 &&
-	     libsrt_setsockopt(fd, SRTO_RCVBUF, "SRTO_RCVBUF", &s->rcvbuf,
-			       sizeof(s->rcvbuf)) < 0) ||
-	    (s->lossmaxttl >= 0 &&
-	     libsrt_setsockopt(fd, SRTO_LOSSMAXTTL, "SRTO_LOSSMAXTTL",
-			       &s->lossmaxttl, sizeof(s->lossmaxttl)) < 0) ||
-	    (s->minversion >= 0 &&
-	     libsrt_setsockopt(fd, SRTO_MINVERSION, "SRTO_MINVERSION",
-			       &s->minversion, sizeof(s->minversion)) < 0) ||
 	    (s->streamid &&
 	     libsrt_setsockopt(fd, SRTO_STREAMID, "SRTO_STREAMID", s->streamid,
 			       strlen(s->streamid)) < 0) ||
-	    (s->messageapi >= 0 &&
-	     libsrt_setsockopt(fd, SRTO_MESSAGEAPI, "SRTO_MESSAGEAPI",
-			       &s->messageapi, sizeof(s->messageapi)) < 0) ||
 	    (s->payload_size >= 0 &&
 	     libsrt_setsockopt(fd, SRTO_PAYLOADSIZE, "SRTO_PAYLOADSIZE",
 			       &s->payload_size,
@@ -512,21 +428,6 @@ static int libsrt_listen_connect(int eid, int fd, const struct sockaddr *addr,
 	return ret;
 }
 
-static int libsrt_set_options_post(struct srt_output *stream, int fd)
-{
-	SRTContext *s = &stream->srtContext;
-
-	if ((s->inputbw >= 0 &&
-	     libsrt_setsockopt(fd, SRTO_INPUTBW, "SRTO_INPUTBW", &s->inputbw,
-			       sizeof(s->inputbw)) < 0) ||
-	    (s->oheadbw >= 0 &&
-	     libsrt_setsockopt(fd, SRTO_OHEADBW, "SRTO_OHEADBW", &s->oheadbw,
-			       sizeof(s->oheadbw)) < 0)) {
-		return -1;
-	}
-	return 0;
-}
-
 static int libsrt_connect(struct srt_output *stream)
 {
 	if (dstr_is_empty(&stream->path)) {
@@ -543,15 +444,9 @@ static int libsrt_connect(struct srt_output *stream)
 
 	/* SRT options (srt/srt.h) */
 	p = strchr(uri, '?');
-	if (p) {
-		if (find_info_tag(buf, sizeof(buf), "connect_timeout", p)) {
-			s->connect_timeout = strtol(buf, NULL, 10);
-		}
-
-		if (find_info_tag(buf, sizeof(buf), "streamid", p)) {
-			bfree(s->streamid);
-			s->streamid = bstrdup(buf);
-		}
+	if (p && find_info_tag(buf, sizeof(buf), "streamid", p)) {
+		bfree(s->streamid);
+		s->streamid = bstrdup(buf);
 	}
 
 	struct addrinfo hints = {0}, *ai, *cur_ai;
@@ -605,19 +500,6 @@ restart:
 		goto fail;
 	}
 
-	/* Set the socket's send or receive buffer sizes, if specified.
-	If unspecified or setting fails, system default is used. */
-	if (s->recv_buffer_size > 0) {
-		srt_setsockopt(fd, SOL_SOCKET, SRTO_UDP_RCVBUF,
-			       &s->recv_buffer_size,
-			       sizeof(s->recv_buffer_size));
-	}
-	if (s->send_buffer_size > 0) {
-		srt_setsockopt(fd, SOL_SOCKET, SRTO_UDP_SNDBUF,
-			       &s->send_buffer_size,
-			       sizeof(s->send_buffer_size));
-	}
-
 	if ((ret = libsrt_listen_connect(s->eid, fd, cur_ai->ai_addr,
 					 cur_ai->ai_addrlen, open_timeout, uri,
 					 !!cur_ai->ai_next)) < 0) {
@@ -626,11 +508,6 @@ restart:
 	}
 
 	doLog(LOG_INFO, "Connection to %s successful", stream->path.array);
-
-	if ((ret = libsrt_set_options_post(stream, fd)) < 0) {
-		doLog(LOG_WARNING, "libsrt_set_options_post failed\n");
-		goto fail;
-	}
 
 	s->fd = fd;
 
@@ -1057,29 +934,9 @@ static void *srt_output_create(obs_data_t *settings, obs_output_t *output)
 
 	UNUSED_PARAMETER(settings);
 	SRTContext *s = &stream->srtContext;
-	s->rw_timeout = -1;
-	s->recv_buffer_size = -1;
-	s->send_buffer_size = -1;
 	s->maxbw = 1024 * 1024 * 2;
-	s->pbkeylen = -1;
-	s->mss = -1;
-	s->ffs = -1;
-	s->ipttl = -1;
-	s->iptos = -1;
-	s->inputbw = -1;
-	s->oheadbw = -1;
-	s->latency = -1;
-	s->tlpktdrop = -1;
-	s->nakreport = -1;
-	s->connect_timeout = -1;
 	s->payload_size = 1316;
-	s->rcvlatency = -1;
-	s->peerlatency = -1;
 	s->sndbuf = 1024 * 1024 * 10;
-	s->rcvbuf = -1;
-	s->lossmaxttl = -1;
-	s->minversion = -1;
-	s->messageapi = -1;
 	s->mode = SRT_MODE_CALLER;
 	s->transtype = SRTT_LIVE;
 
