@@ -19,8 +19,6 @@ include_directories(${CMAKE_CURRENT_BINARY_DIR})
 set(obs-ffmpeg_config_HEADERS
 	"${CMAKE_CURRENT_BINARY_DIR}/obs-ffmpeg-config.h")
 
-find_package(Libsrt REQUIRED)
-
 set(obs-ffmpeg_HEADERS
 	obs-ffmpeg-formats.h
 	obs-ffmpeg-compat.h
@@ -59,16 +57,10 @@ add_library(obs-ffmpeg MODULE
 	${obs-ffmpeg_HEADERS}
 	${obs-ffmpeg_SOURCES})
 target_link_libraries(obs-ffmpeg
-	PRIVATE libobs
+	libobs
 	media-playback
 	${obs-ffmpeg_PLATFORM_DEPS}
 	${FFMPEG_LIBRARIES})
-
-target_sources(obs-ffmpeg PRIVATE obs-ffmpeg-mpegts.c obs-ffmpeg-srt.h obs-ffmpeg-url.h)
-
-target_link_libraries(obs-ffmpeg PRIVATE Libsrt::Libsrt)
-target_link_libraries(obs-ffmpeg PRIVATE ws2_32.lib)
-target_compile_definitions(obs-ffmpeg PRIVATE NEW_MPEGTS_OUTPUT)
 
 install_obs_plugin_with_data(obs-ffmpeg data)
 
