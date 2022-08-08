@@ -228,6 +228,12 @@ static int find_info_tag(char *arg, int arg_size, const char *tag1,
 	return 0;
 }
 
+void logHandler(void *opaque, int level, const char *file, int line,
+		    const char *area, const char *message)
+{
+	doLog(LOG_INFO, "{libsrt log_level %d} %s", level, message);
+}
+
 static inline size_t num_buffered_packets(struct srt_output *stream)
 {
 	return stream->packets.size / sizeof(struct encoder_packet);
@@ -285,7 +291,7 @@ static int libsrt_neterrno()
 	return err;
 }
 
-static void libsrt_write(void *stream, uint8_t *buf, size_t size)
+static bool libsrt_write(void *stream, uint8_t *buf, size_t size)
 {
 	SRTContext *s = &((struct srt_output *)stream)->srtContext;
 	int ret = srt_sendmsg(s->fd, (const char *)buf, (int)size, -1, 0);
@@ -293,6 +299,7 @@ static void libsrt_write(void *stream, uint8_t *buf, size_t size)
 	if (!success) {
 		libsrt_neterrno();
 	}
+	return success;
 }
 
 static int libsrt_setsockopt(int fd, SRT_SOCKOPT optname,
@@ -479,8 +486,7 @@ static int libsrt_connect(struct srt_output *stream)
 		hints.ai_flags |= AI_PASSIVE;
 	ret = getaddrinfo(hostname[0] ? hostname : NULL, portstr, &hints, &ai);
 	if (ret) {
-		doLog(LOG_ERROR, "Failed to resolve hostname %s: %s\n",
-		      hostname, gai_strerror(ret));
+		doLog(LOG_ERROR, "Failed to resolve hostname %s", hostname);
 		return OBS_OUTPUT_CONNECT_FAILED;
 	}
 
@@ -515,6 +521,7 @@ restart:
 	return OBS_OUTPUT_SUCCESS;
 
 fail:
+	srt_epoll_release(eid);
 	if (cur_ai->ai_next) {
 		/* Retry with the next sockaddr */
 		cur_ai = cur_ai->ai_next;
@@ -597,8 +604,8 @@ static void ts_free(void * /*param*/, void * /*packet*/)
 
 static int ts_write(void *param, const void *packet, size_t bytes)
 {
-	libsrt_write(param, (uint8_t *)packet, bytes);
-	return 0;
+	bool ret = libsrt_write(param, (uint8_t *)packet, bytes);
+	return ret ? 0 : -1;
 }
 
 static int ts_stream(void *ts, int codecid, const void *data, size_t bytes)
@@ -619,18 +626,18 @@ static int onAVData(void *ts, int codec, const void *data, size_t bytes,
 	static char s_pts[64], s_dts[64];
 	static uint32_t v_pts = 0, v_dts = 0;
 	static uint32_t a_pts = 0, a_dts = 0;
-
+	int ret = 0;
 	if (STREAM_AUDIO_AAC == codec) {
 		pts = (a_pts && pts < a_pts) ? a_pts : pts;
 		dts = (a_dts && dts < a_dts) ? a_dts : dts;
-		mpeg_ts_write(ts, ts_stream(ts, codec, NULL, 0), 0, pts * 90,
+		ret = mpeg_ts_write(ts, ts_stream(ts, codec, NULL, 0), 0, pts * 90,
 			      dts * 90, data, bytes);
 
 		a_pts = pts;
 		a_dts = dts;
 	} else if (STREAM_VIDEO_H264 == codec) {
 		dts = (a_dts && dts < v_dts) ? v_dts : dts;
-		mpeg_ts_write(ts, ts_stream(ts, codec, NULL, 0),
+		ret = mpeg_ts_write(ts, ts_stream(ts, codec, NULL, 0),
 			      0x01 & flags ? 1 : 0, pts * 90, dts * 90, data,
 			      bytes);
 
@@ -638,13 +645,14 @@ static int onAVData(void *ts, int codec, const void *data, size_t bytes,
 		v_dts = dts;
 	}
 
-	return 0;
+	return ret;
 }
 
 static bool send_packet(struct srt_output *stream,
 			struct encoder_packet *packet, bool is_header,
 			size_t idx)
 {
+	int ret = 0;
 	int32_t dts_offset = is_header ? 0 : stream->start_dts_offset;
 
 	if (packet->type == OBS_ENCODER_VIDEO) {
@@ -694,7 +702,7 @@ static bool send_packet(struct srt_output *stream,
 		payload.insert(payload.end(), packet->data,
 			       packet->data + packet->size);
 
-		onAVData(stream->ts, STREAM_VIDEO_H264, payload.data(),
+		ret = onAVData(stream->ts, STREAM_VIDEO_H264, payload.data(),
 			 payload.size(), pts, dts, hasKeyFrame ? 1 : 0);
 	} else if (packet->type == OBS_ENCODER_AUDIO) {
 		uint8_t *header;
@@ -751,7 +759,7 @@ static bool send_packet(struct srt_output *stream,
 		payload.insert(payload.end(), packet->data,
 			       packet->data + packet->size);
 
-		onAVData(stream->ts, STREAM_AUDIO_AAC, payload.data(),
+		ret = onAVData(stream->ts, STREAM_AUDIO_AAC, payload.data(),
 			 payload.size(), pts, dts, 0);
 	}
 
@@ -760,7 +768,7 @@ static bool send_packet(struct srt_output *stream,
 	else
 		obs_encoder_packet_release(packet);
 
-	return true;
+	return ret == 0;
 }
 
 static void *send_thread(void *data)
@@ -858,7 +866,12 @@ static void *connect_thread(void *data)
 		return NULL;
 	}
 
-	libsrt_connect(stream);
+	if (libsrt_connect(stream) != OBS_OUTPUT_SUCCESS)
+	{
+		obs_output_signal_stop(stream->output,
+				       OBS_OUTPUT_CONNECT_FAILED);
+		return NULL;
+	}
 
 	ret = init_send(stream);
 
@@ -945,6 +958,11 @@ static void *srt_output_create(obs_data_t *settings, obs_output_t *output)
 		libsrt_neterrno();
 		goto fail;
 	}
+
+	srt_setloglevel(LOG_DEBUG);
+	srt_setlogflags(0 | SRT_LOGF_DISABLE_TIME | SRT_LOGF_DISABLE_SEVERITY |
+			SRT_LOGF_DISABLE_THREADNAME | SRT_LOGF_DISABLE_EOL);
+	srt_setloghandler("", logHandler);
 
 	return stream;
 
@@ -1060,7 +1078,8 @@ static int srt_dropped_frames(void *data)
 
 	SRT_TRACEBSTATS info;
 	if (srt_bistats(s->fd, &info, 0, 1) == SRT_SUCCESS)
-		return info.byteSndDropTotal;
+		return info.pktSndDropTotal;
+
 	return 0;
 }
 
