@@ -2998,6 +2998,8 @@ static bool obs_init_rtc_gpu_conversion(struct obs_rtc_mix *rtc_mix)
 static bool obs_init_rtc_textures(struct obs_rtc_mix *rtc_mix)
 {
 	for (size_t i = 0; i < NUM_TEXTURES; i++) {
+		rtc_mix->textures_copied_raw[i] = false;
+
 		rtc_mix->copy_surfaces_raw[i][0] = gs_stagesurface_create(
 			rtc_mix->output_texture_width,
 			rtc_mix->output_texture_height, GS_R8);
