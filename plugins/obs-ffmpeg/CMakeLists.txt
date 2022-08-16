@@ -45,9 +45,13 @@ if(ENABLE_FFMPEG_LOGGING)
 endif()
 
 if(WIN32)
+	add_subdirectory(obs-amf-test)
+
 	list(APPEND obs-ffmpeg_SOURCES
 		jim-nvenc.c
-		jim-nvenc-helpers.c)
+		jim-nvenc-helpers.c
+		texture-amf.cpp
+		texture-amf-opts.hpp)
 	list(APPEND obs-ffmpeg_HEADERS
 		jim-nvenc.h)
 endif()
