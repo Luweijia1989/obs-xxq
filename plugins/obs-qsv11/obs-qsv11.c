@@ -851,6 +851,14 @@ static void parse_packet(struct obs_qsv *obsqsv, struct encoder_packet *packet,
 	}
 
 	da_resize(obsqsv->packet_data, 0);
+
+	uint8_t sei_buf[102400] = {0};
+	int sei_len = 0;
+	bool got_sei = obs_encoder_get_sei(obsqsv->encoder, sei_buf, &sei_len);
+	if (got_sei) {
+		da_push_back_array(obsqsv->packet_data, sei_buf, sei_len);
+	}
+
 	da_push_back_array(obsqsv->packet_data, &pBS->Data[pBS->DataOffset],
 			   pBS->DataLength);
 

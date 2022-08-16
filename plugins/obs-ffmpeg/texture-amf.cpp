@@ -91,6 +91,7 @@ struct amf_base {
 	AMFContextPtr amf_context;
 	AMFComponentPtr amf_encoder;
 	AMFBufferPtr packet_data;
+	DARRAY(uint8_t) packet_data_array;
 	AMFRate amf_frame_rate;
 	AMFBufferPtr header;
 
@@ -114,7 +115,10 @@ struct amf_base {
 	bool using_bframes = false;
 	bool first_update = true;
 
-	inline amf_base(bool fallback) : fallback(fallback) {}
+	inline amf_base(bool fallback) : fallback(fallback)
+	{
+		da_init(packet_data_array);
+	}
 	virtual ~amf_base() = default;
 	virtual void init() = 0;
 };
@@ -471,8 +475,21 @@ static void convert_to_encoder_packet(amf_base *enc, AMFDataPtr &data,
 		break;
 	}
 
-	packet->data = (uint8_t *)enc->packet_data->GetNative();
-	packet->size = enc->packet_data->GetSize();
+	da_resize(enc->packet_data_array, 0);
+
+	uint8_t sei_buf[102400] = {0};
+	int sei_len = 0;
+	bool got_sei = obs_encoder_get_sei(enc->encoder, sei_buf, &sei_len);
+	if (got_sei) {
+		da_push_back_array(enc->packet_data_array, sei_buf, sei_len);
+	}
+
+	da_push_back_array(enc->packet_data_array,
+			   (uint8_t *)enc->packet_data->GetNative(),
+			   enc->packet_data->GetSize());
+
+	packet->data = enc->packet_data_array.array;
+	packet->size = enc->packet_data_array.num;
 	packet->type = OBS_ENCODER_VIDEO;
 	packet->dts = convert_to_obs_ts(enc, data->GetPts());
 	packet->keyframe = type == AMF_VIDEO_ENCODER_OUTPUT_DATA_TYPE_IDR;
@@ -757,9 +774,9 @@ static void h265_video_info_fallback(void *, struct video_scale_info *info)
 	case VIDEO_FORMAT_BGRX:
 		info->format = VIDEO_FORMAT_RGBA;
 		break;
-	//case VIDEO_FORMAT_I010:
-	//case VIDEO_FORMAT_P010:
-	//	info->format = VIDEO_FORMAT_P010;
+		//case VIDEO_FORMAT_I010:
+		//case VIDEO_FORMAT_P010:
+		//	info->format = VIDEO_FORMAT_P010;
 		break;
 	default:
 		info->format = VIDEO_FORMAT_NV12;
@@ -815,7 +832,7 @@ try {
 		enc->amf_characteristic =
 			AMF_COLOR_TRANSFER_CHARACTERISTIC_BT709;
 		break;
-	/*case VIDEO_CS_SRGB:
+		/*case VIDEO_CS_SRGB:
 		enc->amf_color_profile =
 			enc->full_range
 				? AMF_VIDEO_CONVERTER_COLOR_PROFILE_FULL_709
@@ -885,6 +902,7 @@ try {
 static void amf_destroy(void *data)
 {
 	amf_base *enc = (amf_base *)data;
+	da_free(enc->packet_data_array);
 	delete enc;
 }
 
