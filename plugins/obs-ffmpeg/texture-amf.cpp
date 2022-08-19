@@ -1141,6 +1141,7 @@ static bool amf_avc_init(void *data, obs_data_t *settings)
 		warn("B-Frames set to %lld but b-frames are not "
 		     "supported by this device",
 		     bf);
+		bf = 0;
 	}
 
 	int rc = get_avc_rate_control(rc_str);
@@ -1179,11 +1180,12 @@ static bool amf_avc_init(void *data, obs_data_t *settings)
 	     "\tkeyint:       %d\n"
 	     "\tpreset:       %s\n"
 	     "\tprofile:      %s\n"
+	     "\tb-frames:     %d\n"
 	     "\twidth:        %d\n"
 	     "\theight:       %d\n"
 	     "\tparams:       %s",
-	     rc_str, bitrate, qp, gop_size, preset, profile, enc->cx, enc->cy,
-	     ffmpeg_opts);
+	     rc_str, bitrate, qp, gop_size, preset, profile, bf, enc->cx,
+	     enc->cy, ffmpeg_opts);
 
 	return true;
 }
@@ -1249,15 +1251,15 @@ static void *amf_avc_create_texencode(obs_data_t *settings,
 try {
 	check_texture_encode_capability(encoder, false);
 
-	amf_texencode *enc = new amf_texencode;
+	std::unique_ptr<amf_texencode> enc = std::make_unique<amf_texencode>();
 	enc->encoder = encoder;
 	enc->encoder_str = "texture-amf-h264";
 
-	if (!amf_init_d3d11(enc))
+	if (!amf_init_d3d11(enc.get()))
 		throw "Failed to create D3D11";
 
-	amf_avc_create_internal(enc, settings);
-	return enc;
+	amf_avc_create_internal(enc.get(), settings);
+	return enc.release();
 
 } catch (const amf_error &err) {
 	blog(LOG_ERROR, "[texture-amf-h264] %s: %s: %ls", __FUNCTION__, err.str,
@@ -1272,20 +1274,20 @@ try {
 static void *amf_avc_create_fallback(obs_data_t *settings,
 				     obs_encoder_t *encoder)
 try {
-	amf_fallback *enc = new amf_fallback;
+	std::unique_ptr<amf_fallback> enc = std::make_unique<amf_fallback>();
 	enc->encoder = encoder;
 	enc->encoder_str = "fallback-amf-h264";
 
-	amf_avc_create_internal(enc, settings);
-	return enc;
+	amf_avc_create_internal(enc.get(), settings);
+	return enc.release();
 
 } catch (const amf_error &err) {
-	blog(LOG_ERROR, "[texture-amf-h264] %s: %s: %ls", __FUNCTION__, err.str,
-	     amf_trace->GetResultText(err.res));
+	blog(LOG_ERROR, "[fallback-amf-h264] %s: %s: %ls", __FUNCTION__,
+	     err.str, amf_trace->GetResultText(err.res));
 	return nullptr;
 
 } catch (const char *err) {
-	blog(LOG_ERROR, "[texture-amf-h264] %s: %s", __FUNCTION__, err);
+	blog(LOG_ERROR, "[fallback-amf-h264] %s: %s", __FUNCTION__, err);
 	return nullptr;
 }
 
@@ -1558,15 +1560,15 @@ static void *amf_hevc_create_texencode(obs_data_t *settings,
 try {
 	check_texture_encode_capability(encoder, true);
 
-	amf_texencode *enc = new amf_texencode;
+	std::unique_ptr<amf_texencode> enc = std::make_unique<amf_texencode>();
 	enc->encoder = encoder;
 	enc->encoder_str = "texture-amf-h265";
 
-	if (!amf_init_d3d11(enc))
+	if (!amf_init_d3d11(enc.get()))
 		throw "Failed to create D3D11";
 
-	amf_hevc_create_internal(enc, settings);
-	return enc;
+	amf_hevc_create_internal(enc.get(), settings);
+	return enc.release();
 
 } catch (const amf_error &err) {
 	blog(LOG_ERROR, "[texture-amf-h265] %s: %s: %ls", __FUNCTION__, err.str,
@@ -1581,20 +1583,20 @@ try {
 static void *amf_hevc_create_fallback(obs_data_t *settings,
 				      obs_encoder_t *encoder)
 try {
-	amf_fallback *enc = new amf_fallback;
+	std::unique_ptr<amf_fallback> enc = std::make_unique<amf_fallback>();
 	enc->encoder = encoder;
 	enc->encoder_str = "fallback-amf-h265";
 
-	amf_hevc_create_internal(enc, settings);
-	return enc;
+	amf_hevc_create_internal(enc.get(), settings);
+	return enc.release();
 
 } catch (const amf_error &err) {
-	blog(LOG_ERROR, "[texture-amf-h265] %s: %s: %ls", __FUNCTION__, err.str,
-	     amf_trace->GetResultText(err.res));
+	blog(LOG_ERROR, "[fallback-amf-h265] %s: %s: %ls", __FUNCTION__,
+	     err.str, amf_trace->GetResultText(err.res));
 	return nullptr;
 
 } catch (const char *err) {
-	blog(LOG_ERROR, "[texture-amf-h265] %s: %s", __FUNCTION__, err);
+	blog(LOG_ERROR, "[fallback-amf-h265] %s: %s", __FUNCTION__, err);
 	return nullptr;
 }
 
