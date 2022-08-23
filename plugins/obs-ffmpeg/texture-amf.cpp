@@ -96,7 +96,6 @@ struct amf_base {
 	AMFBufferPtr header;
 
 	std::deque<AMFDataPtr> queued_packets;
-	int last_query_timeout_ms = 0;
 
 	AMF_VIDEO_CONVERTER_COLOR_PROFILE_ENUM amf_color_profile;
 	AMF_COLOR_TRANSFER_CHARACTERISTIC_ENUM amf_characteristic;
@@ -105,6 +104,7 @@ struct amf_base {
 
 	amf_int64 max_throughput = 0;
 	amf_int64 throughput = 0;
+	int64_t dts_offset = 0;
 	uint32_t cx;
 	uint32_t cy;
 	uint32_t linesize = 0;
@@ -114,6 +114,7 @@ struct amf_base {
 	bool bframes_supported = false;
 	bool using_bframes = false;
 	bool first_update = true;
+	bool calculated_dts_offset = false;
 
 	inline amf_base(bool fallback) : fallback(fallback)
 	{
@@ -251,6 +252,8 @@ static HMODULE get_lib(const char *lib)
 }
 
 #define AMD_VENDOR_ID 0x1002
+#define OLDER_DEVICE_ID1 0x67ef
+#define OLDER_DEVICE_ID2 0x67df
 
 typedef HRESULT(WINAPI *CREATEDXGIFACTORY1PROC)(REFIID, void **);
 
@@ -294,6 +297,11 @@ try {
 	if (desc.VendorId != AMD_VENDOR_ID)
 		throw "Seems somehow AMF is trying to initialize "
 		      "on a non-AMD adapter";
+
+	if (desc.DeviceId == OLDER_DEVICE_ID1 ||
+	    desc.DeviceId == OLDER_DEVICE_ID2)
+		throw "This device is kind of old so let's just "
+		      "use the fallback for now";
 
 	hr = create_device(adapter, D3D_DRIVER_TYPE_UNKNOWN, nullptr, 0,
 			   nullptr, 0, D3D11_SDK_VERSION, &device, nullptr,
@@ -494,9 +502,30 @@ static void convert_to_encoder_packet(amf_base *enc, AMFDataPtr &data,
 	packet->dts = convert_to_obs_ts(enc, data->GetPts());
 	packet->keyframe = type == AMF_VIDEO_ENCODER_OUTPUT_DATA_TYPE_IDR;
 
-	if (enc->using_bframes)
-		packet->dts -= 2;
+	if (enc->using_bframes) {
+		int64_t duration = data->GetDuration() / 500000;
+
+		if (!enc->calculated_dts_offset) {
+			if (packet->pts == packet->dts) {
+				enc->dts_offset = duration;
+			} else if (packet->pts > packet->dts) {
+				enc->dts_offset =
+					duration - packet->pts + packet->dts;
+			}
+
+			enc->calculated_dts_offset = true;
+		}
+
+		packet->dts = packet->dts - enc->dts_offset;
+
+		if (packet->pts < packet->dts)
+			packet->pts = packet->dts;
+	}
 }
+
+#ifndef SEC_TO_NSEC
+#define SEC_TO_NSEC 1000000000ULL
+#endif
 
 static void amf_encode_base(amf_base *enc, AMFSurface *amf_surf,
 			    encoder_packet *packet, bool *received_packet)
@@ -513,21 +542,21 @@ static void amf_encode_base(amf_base *enc, AMFSurface *amf_surf,
 		/* submit frame                        */
 
 		res = enc->amf_encoder->SubmitInput(amf_surf);
-		int timeout = 0;
 
 		if (res == AMF_OK || res == AMF_NEED_MORE_INPUT) {
 			waiting = false;
 
 		} else if (res == AMF_INPUT_FULL) {
-			timeout = 1;
+			os_sleep_ms(1);
 
+			uint64_t duration = os_gettime_ns() - ts_start;
+			constexpr uint64_t timeout = 5 * SEC_TO_NSEC;
+
+			if (duration >= timeout) {
+				throw amf_error("SubmitInput timed out", res);
+			}
 		} else {
 			throw amf_error("SubmitInput failed", res);
-		}
-
-		if (enc->last_query_timeout_ms != timeout) {
-			set_opt(QUERY_TIMEOUT, timeout);
-			enc->last_query_timeout_ms = timeout;
 		}
 
 		/* ----------------------------------- */
