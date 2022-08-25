@@ -323,7 +323,7 @@ void SimpleOutput::LoadRecordingPreset()
 		} else if (strcmp(encoder, SIMPLE_ENCODER_QSV) == 0) {
 			LoadRecordingPreset_h264("obs_qsv11");
 		} else if (strcmp(encoder, SIMPLE_ENCODER_AMD) == 0) {
-			LoadRecordingPreset_h264("amd_amf_h264");
+			LoadRecordingPreset_h264("h264_texture_amf");
 		} else if (strcmp(encoder, SIMPLE_ENCODER_NVENC) == 0) {
 			const char *id = EncoderAvailable("jim_nvenc")
 						 ? "jim_nvenc"
@@ -348,7 +348,7 @@ SimpleOutput::SimpleOutput(OBSBasic *main_) : BasicOutputHandler(main_)
 		LoadStreamingPreset_h264("obs_qsv11");
 
 	} else if (strcmp(encoder, SIMPLE_ENCODER_AMD) == 0) {
-		LoadStreamingPreset_h264("amd_amf_h264");
+		LoadStreamingPreset_h264("h264_texture_amf");
 
 	} else if (strcmp(encoder, SIMPLE_ENCODER_NVENC) == 0) {
 		const char *id = EncoderAvailable("jim_nvenc") ? "jim_nvenc"
