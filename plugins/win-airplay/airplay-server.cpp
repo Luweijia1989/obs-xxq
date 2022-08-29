@@ -771,6 +771,11 @@ void ScreenMirrorServer::outputAudio(uint8_t *data, size_t data_len, int64_t pts
 	pthread_mutex_unlock(&m_ptsMutex);
 
 	pts = pts / 1000000;
+
+	static int64_t t = pts;
+	blog(LOG_DEBUG, "=========== %lld, %d", pts - t, data_len);
+	t = pts;
+
 	pthread_mutex_lock(&m_audioDataMutex);
 	//这边的pts修正逻辑只有ios镜像投屏才会走到
 	if (m_lastAudioPts == LLONG_MAX) {
@@ -831,7 +836,7 @@ static void UpdateWinAirplaySource(void *obj, obs_data_t *settings)
 static void GetWinAirplayDefaultsOutput(obs_data_t *settings)
 {
 	obs_data_set_default_int(settings, "type",
-				 ScreenMirrorServer::ANDROID_AOA);
+				 ScreenMirrorServer::ANDROID_WIRELESS);
 	obs_data_set_default_int(settings, "status", MIRROR_STOP);
 }
 

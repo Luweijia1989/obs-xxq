@@ -112,9 +112,7 @@ struct amf_base {
 	int fps_den;
 	bool full_range;
 	bool bframes_supported = false;
-	bool using_bframes = false;
 	bool first_update = true;
-	bool calculated_dts_offset = false;
 
 	inline amf_base(bool fallback) : fallback(fallback)
 	{
@@ -252,8 +250,6 @@ static HMODULE get_lib(const char *lib)
 }
 
 #define AMD_VENDOR_ID 0x1002
-#define OLDER_DEVICE_ID1 0x67ef
-#define OLDER_DEVICE_ID2 0x67df
 
 typedef HRESULT(WINAPI *CREATEDXGIFACTORY1PROC)(REFIID, void **);
 
@@ -297,11 +293,6 @@ try {
 	if (desc.VendorId != AMD_VENDOR_ID)
 		throw "Seems somehow AMF is trying to initialize "
 		      "on a non-AMD adapter";
-
-	if (desc.DeviceId == OLDER_DEVICE_ID1 ||
-	    desc.DeviceId == OLDER_DEVICE_ID2)
-		throw "This device is kind of old so let's just "
-		      "use the fallback for now";
 
 	hr = create_device(adapter, D3D_DRIVER_TYPE_UNKNOWN, nullptr, 0,
 			   nullptr, 0, D3D11_SDK_VERSION, &device, nullptr,
@@ -502,25 +493,8 @@ static void convert_to_encoder_packet(amf_base *enc, AMFDataPtr &data,
 	packet->dts = convert_to_obs_ts(enc, data->GetPts());
 	packet->keyframe = type == AMF_VIDEO_ENCODER_OUTPUT_DATA_TYPE_IDR;
 
-	if (enc->using_bframes) {
-		int64_t duration = data->GetDuration() / 500000;
-
-		if (!enc->calculated_dts_offset) {
-			if (packet->pts == packet->dts) {
-				enc->dts_offset = duration;
-			} else if (packet->pts > packet->dts) {
-				enc->dts_offset =
-					duration - packet->pts + packet->dts;
-			}
-
-			enc->calculated_dts_offset = true;
-		}
-
-		packet->dts = packet->dts - enc->dts_offset;
-
-		if (packet->pts < packet->dts)
-			packet->pts = packet->dts;
-	}
+	if (enc->dts_offset)
+		packet->dts -= enc->dts_offset;
 }
 
 #ifndef SEC_TO_NSEC
@@ -1163,7 +1137,7 @@ static bool amf_avc_init(void *data, obs_data_t *settings)
 	check_preset_compatibility(enc, preset);
 
 	if (enc->bframes_supported) {
-		set_avc_property(enc, MAX_CONSECUTIVE_BPICTURES, bf);
+		set_avc_property(enc, MAX_CONSECUTIVE_BPICTURES, 3);
 		set_avc_property(enc, B_PIC_PATTERN, bf);
 
 	} else if (bf != 0) {
@@ -1269,9 +1243,9 @@ static void amf_avc_create_internal(amf_base *enc, obs_data_t *settings)
 
 		if (get_avc_property(enc, B_PIC_PATTERN, &b_frames) &&
 		    get_avc_property(enc, MAX_CONSECUTIVE_BPICTURES, &b_max))
-			enc->using_bframes = b_frames && b_max;
+			enc->dts_offset = b_frames + 1;
 		else
-			enc->using_bframes = false;
+			enc->dts_offset = 0;
 	}
 }
 
