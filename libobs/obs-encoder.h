@@ -261,9 +261,6 @@ struct obs_encoder_info {
 			       uint64_t lock_key, uint64_t *next_key,
 			       struct encoder_packet *packet,
 			       bool *received_packet);
-
-	void (*set_sei)(void *data, char *sei, int len);
-	void (*clear_sei)(void *data);
 };
 
 EXPORT void obs_register_encoder_s(const struct obs_encoder_info *info,

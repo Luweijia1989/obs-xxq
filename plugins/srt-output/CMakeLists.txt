@@ -28,9 +28,9 @@ target_link_libraries(srt-output
 	debug ${PROJECT_SOURCE_DIR}/libsrt/lib/${_lib_bit_suffix}/debug/libcrypto.lib
 	debug ${PROJECT_SOURCE_DIR}/libsrt/lib/${_lib_bit_suffix}/debug/srt_static.lib
 	optimized ${PROJECT_SOURCE_DIR}/libmpeg/lib/${_lib_bit_suffix}/release/libmpeg.lib
-	debug ${PROJECT_SOURCE_DIR}/libsrt/lib/${_lib_bit_suffix}/release/libssl.lib
-	debug ${PROJECT_SOURCE_DIR}/libsrt/lib/${_lib_bit_suffix}/release/libcrypto.lib
-	debug ${PROJECT_SOURCE_DIR}/libsrt/lib/${_lib_bit_suffix}/release/srt_static.lib)
+	optimized ${PROJECT_SOURCE_DIR}/libsrt/lib/${_lib_bit_suffix}/release/libssl.lib
+	optimized ${PROJECT_SOURCE_DIR}/libsrt/lib/${_lib_bit_suffix}/release/libcrypto.lib
+	optimized ${PROJECT_SOURCE_DIR}/libsrt/lib/${_lib_bit_suffix}/release/srt_static.lib)
 set_target_properties(srt-output PROPERTIES FOLDER "plugins")
 
 install_obs_plugin(srt-output data)

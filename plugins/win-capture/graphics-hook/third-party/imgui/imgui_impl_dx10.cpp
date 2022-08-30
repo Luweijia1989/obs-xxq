@@ -34,12 +34,10 @@
 #include <d3d10_1.h>
 #include <d3d10.h>
 #include <d3dcompiler.h>
-#ifdef _MSC_VER
-#pragma comment(lib, "d3dcompiler") // Automatically link with d3dcompiler.lib as we are using D3DCompile() below.
-#endif
 
 // DirectX data
 static ID3D10Device*            g_pd3dDevice = NULL;
+static pD3DCompile		g_d3dCompiler = NULL;
 static IDXGIFactory*            g_pFactory = NULL;
 static ID3D10Buffer*            g_pVB = NULL;
 static ID3D10Buffer*            g_pIB = NULL;
@@ -58,6 +56,30 @@ struct VERTEX_CONSTANT_BUFFER
 {
     float   mvp[4][4];
 };
+
+static pD3DCompile get_compiler(void)
+{
+	pD3DCompile compile = nullptr;
+	char d3dcompiler[40] = {};
+	int ver = 49;
+
+	while (ver > 30) {
+		sprintf_s(d3dcompiler, 40, "D3DCompiler_%02d.dll", ver);
+
+		HMODULE module = LoadLibraryA(d3dcompiler);
+		if (module) {
+			compile = (pD3DCompile)GetProcAddress(module,
+							      "D3DCompile");
+			if (compile) {
+				break;
+			}
+		}
+
+		ver--;
+	}
+
+	return compile;
+}
 
 static void ImGui_ImplDX10_SetupRenderState(ImDrawData* draw_data, ID3D10Device* ctx)
 {
@@ -330,6 +352,8 @@ bool    ImGui_ImplDX10_CreateDeviceObjects()
 {
     if (!g_pd3dDevice)
         return false;
+    if (!g_d3dCompiler)
+	    return false;
     if (g_pFontSampler)
         ImGui_ImplDX10_InvalidateDeviceObjects();
 
@@ -370,7 +394,7 @@ bool    ImGui_ImplDX10_CreateDeviceObjects()
             }";
 
         ID3DBlob* vertexShaderBlob;
-        if (FAILED(D3DCompile(vertexShader, strlen(vertexShader), NULL, NULL, NULL, "main", "vs_4_0", 0, 0, &vertexShaderBlob, NULL)))
+        if (FAILED(g_d3dCompiler(vertexShader, strlen(vertexShader), NULL, NULL, NULL, "main", "vs_4_0", 0, 0, &vertexShaderBlob, NULL)))
             return false; // NB: Pass ID3DBlob* pErrorBlob to D3DCompile() to get error showing in (const char*)pErrorBlob->GetBufferPointer(). Make sure to Release() the blob!
         if (g_pd3dDevice->CreateVertexShader(vertexShaderBlob->GetBufferPointer(), vertexShaderBlob->GetBufferSize(), &g_pVertexShader) != S_OK)
         {
@@ -423,7 +447,7 @@ bool    ImGui_ImplDX10_CreateDeviceObjects()
             }";
 
         ID3DBlob* pixelShaderBlob;
-        if (FAILED(D3DCompile(pixelShader, strlen(pixelShader), NULL, NULL, NULL, "main", "ps_4_0", 0, 0, &pixelShaderBlob, NULL)))
+        if (FAILED(g_d3dCompiler(pixelShader, strlen(pixelShader), NULL, NULL, NULL, "main", "ps_4_0", 0, 0, &pixelShaderBlob, NULL)))
             return false; // NB: Pass ID3DBlob* pErrorBlob to D3DCompile() to get error showing in (const char*)pErrorBlob->GetBufferPointer(). Make sure to Release() the blob!
         if (g_pd3dDevice->CreatePixelShader(pixelShaderBlob->GetBufferPointer(), pixelShaderBlob->GetBufferSize(), &g_pPixelShader) != S_OK)
         {
@@ -504,6 +528,8 @@ bool    ImGui_ImplDX10_Init(ID3D10Device* device)
     ImGuiIO& io = ImGui::GetIO();
     io.BackendRendererName = "imgui_impl_dx10";
     io.BackendFlags |= ImGuiBackendFlags_RendererHasVtxOffset;  // We can honor the ImDrawCmd::VtxOffset field, allowing for large meshes.
+
+    g_d3dCompiler = get_compiler();
 
     // Get factory from device
     IDXGIDevice* pDXGIDevice = NULL;

@@ -3,9 +3,7 @@
         <file>TextSlideShow.qml</file>
         <file>ImageSlideShow.qml</file>
         <file>Rank.qml</file>
-        <file>Leave.qml</file>
         <file>AudioWave.qml</file>
-        <file>Private.qml</file>
         <file>pic_background_yr.png</file>
         <file>vote.qml</file>
         <file>icon_ticket_display.png</file>

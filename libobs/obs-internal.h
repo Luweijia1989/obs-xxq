@@ -302,6 +302,7 @@ struct obs_core_video {
 	graphics_t *graphics;
 	gs_stagesurf_t *copy_surfaces[NUM_TEXTURES][NUM_CHANNELS];
 	gs_texture_t *render_texture;
+	gs_texture_t *render_invisible_texture;
 	gs_texture_t *output_texture;
 	gs_texture_t *convert_textures[NUM_CHANNELS];
 	bool texture_rendered;
@@ -423,8 +424,6 @@ struct obs_core_data {
 
 	obs_data_t *private_data;
 
-	struct obs_source *privacy_source;
-	struct obs_source *leave_source;
 	struct obs_source *h5_source;
 	struct obs_source *sticker_source;
 	struct obs_source *mask_source;
@@ -1170,6 +1169,10 @@ struct obs_encoder {
 	const char *profile_encoder_encode_name;
 
 	uint32_t sei_rate;
+	pthread_mutex_t sei_mutex;
+	uint8_t *custom_sei;
+	size_t custom_sei_size;
+	uint64_t sei_counting;
 };
 
 extern struct obs_encoder_info *find_encoder(const char *id);

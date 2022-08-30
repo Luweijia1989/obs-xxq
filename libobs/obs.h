@@ -36,8 +36,6 @@
 #include "obs-properties.h"
 #include "obs-interaction.h"
 
-#define PRIVACY_ID "f004041a-f99d-4fa4-88f1-6b2db429cd38"
-#define LEAVING_ID "3d3ed3b3-8dbf-40b8-a2af-cd670115f3fd"
 #define H5_ID "e57194d0-f53b-419d-9715-17c094e58723"
 #define STICKER_ID "8d63c5bf-6a44-4193-9109-966cbcf236f8"
 #define MASK_ID "e40d8d33-ac10-4872-be7b-5800f9aa8c38"
@@ -657,6 +655,8 @@ EXPORT void obs_render_main_view(void);
 
 /** Renders the last main output texture */
 EXPORT void obs_render_main_texture(void);
+
+EXPORT void obs_render_invisible_texture(void);
 
 /** Renders the last main output texture ignoring background color */
 EXPORT void obs_render_main_texture_src_color_only(void);
@@ -2117,9 +2117,10 @@ EXPORT const char *obs_encoder_get_id(const obs_encoder_t *encoder);
 EXPORT uint32_t obs_get_encoder_caps(const char *encoder_id);
 EXPORT uint32_t obs_encoder_get_caps(const obs_encoder_t *encoder);
 
-EXPORT void obs_encoder_set_sei(const obs_encoder_t *encoder, char *sei,
+EXPORT void obs_encoder_set_sei(obs_encoder_t *encoder, char *sei,
 				int len);
-EXPORT void obs_encoder_clear_sei(const obs_encoder_t *encoder);
+EXPORT void obs_encoder_clear_sei(obs_encoder_t *encoder);
+EXPORT bool obs_encoder_get_sei(obs_encoder_t *encoder, uint8_t *sei, int *sei_len);
 
 #ifndef SWIG
 /** Duplicates an encoder packet */
