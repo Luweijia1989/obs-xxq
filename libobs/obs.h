@@ -2311,6 +2311,9 @@ EXPORT void obs_rtc_update_frame(int channel, char *data, uint32_t width,
 				 uint32_t height);
 EXPORT void obs_rtc_clear_frame(int channel);
 
+/** For audio encoders, returns the frame size of the audio packet */
+EXPORT size_t obs_encoder_get_frame_size(const obs_encoder_t *encoder);
+
 #ifdef __cplusplus
 }
 #endif

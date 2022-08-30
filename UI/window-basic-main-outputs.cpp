@@ -695,7 +695,7 @@ bool SimpleOutput::StartStreaming(obs_service_t *service)
 	QString url = obs_service_get_url(service);
 	if (url.startsWith("srt://"))
 	{
-		type = "srt_output";
+		type = "ffmpeg_mpegts_muxer";
 	} else {
 		if (!type)
 			type = "rtmp_output";

@@ -82,6 +82,10 @@ file(GLOB FFMPEG_BIN_FILES
 	"${FFMPEG_avcodec_INCLUDE_DIR}/../bin${_bin_suffix}/zlib*.dll"
 	"${FFMPEG_avcodec_INCLUDE_DIR}/bin${_bin_suffix}/libbz2*.dll"
 	"${FFMPEG_avcodec_INCLUDE_DIR}/bin${_bin_suffix}/zlib*.dll"
+	
+	"${FFMPEG_avcodec_INCLUDE_DIR}/../bin/libmbedcrypto.dll"
+	"${FFMPEG_avcodec_INCLUDE_DIR}/../bin/librist.dll"
+	"${FFMPEG_avcodec_INCLUDE_DIR}/../bin/libsrt.dll"
 	)
 
 file(GLOB X264_BIN_FILES
