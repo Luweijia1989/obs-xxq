@@ -1,5 +1,7 @@
 project(obs-filters)
 
+find_package(Libspeexdsp REQUIRED)
+
 find_package(Librnnoise QUIET)
 
 add_library(obs-rnnoise INTERFACE)
@@ -77,11 +79,12 @@ add_library(obs-filters MODULE
 	${obs-filters_config_HEADERS}
 	${obs-filters_LIBSPEEXDSP_SOURCES})
 
-target_compile_definitions(obs-filters PRIVATE LIBRNNOISE_ENABLED)
+target_compile_definitions(obs-filters PRIVATE LIBRNNOISE_ENABLED LIBSPEEXDSP_ENABLED)
 
 target_link_libraries(obs-filters PRIVATE libobs)
 target_link_libraries(obs-filters PRIVATE ${obs-filters_PLATFORM_DEPS})
 target_link_libraries(obs-filters PRIVATE ${obs-filters_LIBSPEEXDSP_LIBRARIES})
+target_link_libraries(obs-filters PRIVATE ${LIBSPEEXDSP_LIBRARIES})
 target_link_libraries(obs-filters PRIVATE Librnnoise::Librnnoise)
 
 install_obs_plugin_with_data(obs-filters data)
