@@ -854,12 +854,12 @@ static bool set_config(struct ffmpeg_output *stream)
 	config.colorspace = format_is_yuv(voi->format) ? AVCOL_SPC_BT709
 						       : AVCOL_SPC_RGB;
 	switch (voi->colorspace) {
+	case VIDEO_CS_DEFAULT:
 	case VIDEO_CS_601:
 		config.color_primaries = AVCOL_PRI_SMPTE170M;
 		config.color_trc = AVCOL_TRC_SMPTE170M;
 		config.colorspace = AVCOL_SPC_SMPTE170M;
 		break;
-	case VIDEO_CS_DEFAULT:
 	case VIDEO_CS_709:
 		config.color_primaries = AVCOL_PRI_BT709;
 		config.color_trc = AVCOL_TRC_BT709;
