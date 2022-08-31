@@ -12,6 +12,15 @@ class AudioLiveLink : public QmlSourceBase {
 	DEFINE_PROPERTY(QString, effect)
 	DEFINE_PROPERTY(int, multiCount)
 	DEFINE_PROPERTY(int, posX)
+
+	// 连麦相关的配置
+	DEFINE_PROPERTY(int, voiceWaveLeftMargin)
+	DEFINE_PROPERTY(int, voiceWaveTopMargin)
+	DEFINE_PROPERTY(int, voiceWaveSize)
+	DEFINE_PROPERTY(int, avatarPos)
+	DEFINE_PROPERTY(int, avatarSize)
+	DEFINE_PROPERTY(int, borderWidth)
+	DEFINE_PROPERTY(int, backWidth)
 public:
 	AudioLiveLink(QObject *parent = nullptr);
 	static void default(obs_data_t *settings);

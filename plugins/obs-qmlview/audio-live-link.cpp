@@ -38,11 +38,31 @@ static void audio_livelink_source_update(void *data, obs_data_t *settings)
 	const char *effectPath = obs_data_get_string(settings, "effectpath");
 	s->seteffect(effectPath);
 
-	int multiCount = obs_data_get_int(settings, "multiCount");
-	s->setmultiCount(multiCount);
-
 	int posX = obs_data_get_int(settings, "posX");
 	s->setposX(posX);
+
+	int voiceWaveLeftMargin =
+		obs_data_get_int(settings, "voiceWaveLeftMargin");
+	s->setvoiceWaveLeftMargin(voiceWaveLeftMargin);
+
+	int voiceWaveTopMargin =
+		obs_data_get_int(settings, "voiceWaveTopMargin");
+	s->setvoiceWaveTopMargin(voiceWaveTopMargin);
+
+	int voiceWaveSize = obs_data_get_int(settings, "voiceWaveSize");
+	s->setvoiceWaveSize(voiceWaveSize);
+
+	int avatarPos = obs_data_get_int(settings, "avatarPos");
+	s->setavatarPos(avatarPos);
+
+	int avatarSize = obs_data_get_int(settings, "avatarSize");
+	s->setavatarSize(avatarSize);
+
+	int borderWidth = obs_data_get_int(settings, "borderWidth");
+	s->setborderWidth(borderWidth);
+
+	int backWidth = obs_data_get_int(settings, "backWidth");
+	s->setbackWidth(backWidth);
 	s->baseUpdate(settings);
 }
 
@@ -69,7 +89,6 @@ static void audio_livelink_source_defaults(obs_data_t *settings)
 {
 	QmlSourceBase::baseDefault(settings);
 	obs_data_set_default_bool(settings, "ismuliti", false);
-	obs_data_set_default_int(settings, "multiCount", 4);
 	obs_data_set_default_int(settings, "width", 720);
 	obs_data_set_default_int(settings, "height", 1080);
 	obs_data_set_default_int(settings, "posX", 0);
@@ -99,8 +118,6 @@ static void audioLiveLinkCommand(void *data, obs_data_t *cmd)
 		emit s->showPkEffect();
 	} else if (strcmp("stoppkface", cmdType) == 0 && s) {
 		emit s->stopPkEffect();
-	} else if (strcmp("startLink", cmdType) == 0 && s) {
-		emit s->link();
 	}
 }
 

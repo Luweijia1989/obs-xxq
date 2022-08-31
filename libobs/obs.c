@@ -461,7 +461,7 @@ static void stop_video(void)
 	}
 }
 
-static void obs_rtc_capture_free(void)
+void obs_rtc_capture_free(bool freeRender)
 {
 	obs_enter_graphics();
 
@@ -525,13 +525,13 @@ static void obs_rtc_capture_free(void)
 			rtc_mix->rtc_textures[c] = NULL;
 		}
 
-		if (rtc_mix->rtc_texture_render[c]) {
+		if (freeRender && rtc_mix->rtc_texture_render[c]) {
 			gs_texrender_destroy(rtc_mix->rtc_texture_render[c]);
 			rtc_mix->rtc_texture_render[c] = NULL;
 		}
 	}
 
-	if (rtc_mix->self_texture_render) {
+	if (freeRender && rtc_mix->self_texture_render) {
 		gs_texrender_destroy(rtc_mix->self_texture_render);
 		rtc_mix->self_texture_render = NULL;
 	}
@@ -1130,7 +1130,7 @@ void obs_shutdown(void)
 	obs_free_audio();
 	obs_free_data();
 	obs_free_video();
-	obs_rtc_capture_free();
+	obs_rtc_capture_free(true);
 	obs_free_hotkeys();
 	obs_free_graphics();
 	proc_handler_destroy(obs->procs);
@@ -2998,6 +2998,8 @@ static bool obs_init_rtc_gpu_conversion(struct obs_rtc_mix *rtc_mix)
 static bool obs_init_rtc_textures(struct obs_rtc_mix *rtc_mix)
 {
 	for (size_t i = 0; i < NUM_TEXTURES; i++) {
+		rtc_mix->textures_copied_raw[i] = false;
+
 		rtc_mix->copy_surfaces_raw[i][0] = gs_stagesurface_create(
 			rtc_mix->output_texture_width,
 			rtc_mix->output_texture_height, GS_R8);
@@ -3096,9 +3098,6 @@ void obs_rtc_capture_end()
 {
 	struct obs_rtc_mix *rtc_mix = &obs->video.rtc_mix;
 	os_atomic_set_bool(&rtc_mix->rtc_frame_active, false);
-	os_atomic_set_bool(&rtc_mix->rtc_output_active, false);
-
-	obs_rtc_capture_free();
 }
 
 void obs_rtc_output_begin(int mixType)
@@ -3106,6 +3105,19 @@ void obs_rtc_output_begin(int mixType)
 	struct obs_rtc_mix *rtc_mix = &obs->video.rtc_mix;
 	rtc_mix->mix_type = mixType;
 	os_atomic_set_bool(&rtc_mix->rtc_output_active, true);
+}
+
+void obs_rtc_output_end()
+{
+	struct obs_rtc_mix *rtc_mix = &obs->video.rtc_mix;
+	os_atomic_set_bool(&rtc_mix->rtc_output_active, false);
+}
+
+void obs_rtc_all_end()
+{
+	obs_rtc_capture_end();
+	obs_rtc_output_end();
+	obs_rtc_capture_free(true);
 }
 
 void obs_rtc_update_frame(int channel, char *data, uint32_t width,
@@ -3150,11 +3162,48 @@ void obs_rtc_clear_frame(int channel)
 	obs_leave_graphics();
 }
 
+void obs_rtc_reset_frame(int channel)
+{
+	struct obs_rtc_mix *rtc_mix = &obs->video.rtc_mix;
+	if (!os_atomic_load_bool(&rtc_mix->rtc_output_active))
+		return;
+	if (channel > NUM_RTC_CHANNEL)
+		return;
+	obs_enter_graphics();
+	if (rtc_mix->rtc_textures[channel]) {
+		gs_texture_destroy(rtc_mix->rtc_textures[channel]);
+		rtc_mix->rtc_textures[channel] = NULL;
+	}
+	rtc_mix->rtc_textures[channel] = gs_texture_create_from_file(
+		rtc_mix->rtc_seat_background_image_path);
+	obs_leave_graphics();
+}
+
 void obs_rtc_set_merge_info(int self_index, obs_data_t *merge_info,
 			    char *background_image)
 {
+	obs_enter_graphics();
+
 	struct obs_rtc_mix *rtc_mix = &obs->video.rtc_mix;
 	da_free(rtc_mix->rtc_frame_render_info.frame_infos);
+	
+	for (size_t c = 0; c < NUM_RTC_CHANNEL; c++) {
+		if (rtc_mix->rtc_textures[c]) {
+			gs_texture_destroy(rtc_mix->rtc_textures[c]);
+			rtc_mix->rtc_textures[c] = NULL;
+		}
+	}
+
+	gs_texture_t* seat_bk_texture = NULL;
+	const char* seatBkFile = obs_data_get_string(merge_info, "seat_bk_file");
+	if (seatBkFile)
+	{
+		memcpy(rtc_mix->rtc_seat_background_image_path, seatBkFile,
+		       strlen(seatBkFile));
+		seat_bk_texture = gs_texture_create_from_file(
+			rtc_mix->rtc_seat_background_image_path);
+	}
+
 	rtc_mix->rtc_frame_render_info.canvas_width =
 		(uint32_t)obs_data_get_int(merge_info, "width");
 	rtc_mix->rtc_frame_render_info.canvas_height =
@@ -3172,6 +3221,17 @@ void obs_rtc_set_merge_info(int self_index, obs_data_t *merge_info,
 		info.height = (uint32_t)obs_data_get_int(item, "height");
 		da_push_back(rtc_mix->rtc_frame_render_info.frame_infos, &info);
 		obs_data_release(item);
+
+		if (seat_bk_texture)
+		{
+			rtc_mix->rtc_textures[i] = gs_texture_create(
+				gs_texture_get_width(seat_bk_texture),
+				gs_texture_get_height(seat_bk_texture),
+				gs_texture_get_color_format(seat_bk_texture),
+				GS_DYNAMIC, NULL, GS_DYNAMIC);
+			gs_copy_texture(rtc_mix->rtc_textures[i],
+					seat_bk_texture);
+		}
 	}
 	obs_data_array_release(array);
 	memset(rtc_mix->rtc_background_image_path, 0,
@@ -3179,6 +3239,10 @@ void obs_rtc_set_merge_info(int self_index, obs_data_t *merge_info,
 	if (background_image)
 		memcpy(rtc_mix->rtc_background_image_path, background_image,
 		       strlen(background_image));
+
+	gs_texture_destroy(seat_bk_texture);
+
+	obs_leave_graphics();
 }
 
 void obs_add_raw_audio_callback(const struct audio_convert_info *conversion,

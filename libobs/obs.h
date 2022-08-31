@@ -2041,6 +2041,9 @@ EXPORT enum obs_encoder_type obs_encoder_get_type(const obs_encoder_t *encoder);
 EXPORT void obs_encoder_set_scaled_size(obs_encoder_t *encoder, uint32_t width,
 					uint32_t height);
 
+/** For video encoders, returns true if pre-encode scaling is enabled */
+EXPORT bool obs_encoder_scaling_enabled(const obs_encoder_t *encoder);
+
 /** For video encoders, returns the width of the encoded image */
 EXPORT uint32_t obs_encoder_get_width(const obs_encoder_t *encoder);
 
@@ -2049,6 +2052,9 @@ EXPORT uint32_t obs_encoder_get_height(const obs_encoder_t *encoder);
 
 /** For audio encoders, returns the sample rate of the audio */
 EXPORT uint32_t obs_encoder_get_sample_rate(const obs_encoder_t *encoder);
+
+/** For audio encoders, returns the frame size of the audio packet */
+EXPORT size_t obs_encoder_get_frame_size(const obs_encoder_t *encoder);
 
 /**
  * Sets the preferred video format for a video encoder.  If the encoder can use
@@ -2305,15 +2311,20 @@ EXPORT void obs_rtc_capture_begin(
 				     void *userdata),
 	void *userdata);
 EXPORT void obs_rtc_capture_end();
+
+EXPORT void obs_rtc_capture_free(bool freeRender);
+
 //mixType 0->普通混流，画布为output_texture，尺寸已经修正过无需偏移
 //        1->优化后的混流，画布为rtc_frame_mix_output_texture,尺寸为1920*1080,有效区域是4：3，绘制时需要做偏移
 EXPORT void obs_rtc_output_begin(int mixType);
+EXPORT void obs_rtc_output_end();
+
+EXPORT void obs_rtc_all_end();
+
 EXPORT void obs_rtc_update_frame(int channel, char *data, uint32_t width,
 				 uint32_t height);
 EXPORT void obs_rtc_clear_frame(int channel);
-
-/** For audio encoders, returns the frame size of the audio packet */
-EXPORT size_t obs_encoder_get_frame_size(const obs_encoder_t *encoder);
+EXPORT void obs_rtc_reset_frame(int channel);
 
 #ifdef __cplusplus
 }
