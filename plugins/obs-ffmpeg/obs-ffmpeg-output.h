@@ -5,6 +5,7 @@
 #include <libavcodec/avcodec.h>
 #include <libavformat/avformat.h>
 #include <libswscale/swscale.h>
+
 #include "obs-ffmpeg-url.h"
 
 struct ffmpeg_cfg {
@@ -99,11 +100,11 @@ struct ffmpeg_output {
 	os_event_t *stop_event;
 
 	DARRAY(AVPacket *) packets;
+
 	/* used for SRT & RIST */
 	URLContext *h;
 	AVIOContext *s;
 	bool got_headers;
 };
-
 bool ffmpeg_data_init(struct ffmpeg_data *data, struct ffmpeg_cfg *config);
 void ffmpeg_data_free(struct ffmpeg_data *data);

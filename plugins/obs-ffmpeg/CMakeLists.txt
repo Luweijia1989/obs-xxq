@@ -28,8 +28,7 @@ set(obs-ffmpeg_HEADERS
 	obs-ffmpeg-output.h
 	obs-ffmpeg-srt.h
 	obs-ffmpeg-rist.h
-	obs-ffmpeg-url.h
-	closest-pixel-format.h)
+	obs-ffmpeg-url.h)
 
 set(obs-ffmpeg_SOURCES
 	obs-ffmpeg.c

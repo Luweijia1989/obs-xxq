@@ -163,6 +163,15 @@ static bool create_video_stream(struct ffmpeg_output *stream,
 			pq ? (int)obs_get_video_hdr_nominal_peak_level()
 			   : (hlg ? 1000 : 0);
 
+		size_t content_size;
+		AVContentLightMetadata *const content =
+			av_content_light_metadata_alloc(&content_size);
+		content->MaxCLL = hdr_nominal_peak_level;
+		content->MaxFALL = hdr_nominal_peak_level;
+		av_stream_add_side_data(data->video,
+					AV_PKT_DATA_CONTENT_LIGHT_LEVEL,
+					(uint8_t *)content, content_size);
+
 		AVMasteringDisplayMetadata *const mastering =
 			av_mastering_display_metadata_alloc();
 		mastering->display_primaries[0][0] = av_make_q(17, 25);
@@ -856,20 +865,20 @@ static bool set_config(struct ffmpeg_output *stream)
 		config.color_trc = AVCOL_TRC_BT709;
 		config.colorspace = AVCOL_SPC_BT709;
 		break;
-	/*case VIDEO_CS_SRGB:
-		config.color_primaries = AVCOL_PRI_BT709;
-		config.color_trc = AVCOL_TRC_IEC61966_2_1;
-		config.colorspace = AVCOL_SPC_BT709;
-		break;
-	case VIDEO_CS_2100_PQ:
-		config.color_primaries = AVCOL_PRI_BT2020;
-		config.color_trc = AVCOL_TRC_SMPTE2084;
-		config.colorspace = AVCOL_SPC_BT2020_NCL;
-		break;
-	case VIDEO_CS_2100_HLG:
-		config.color_primaries = AVCOL_PRI_BT2020;
-		config.color_trc = AVCOL_TRC_ARIB_STD_B67;
-		config.colorspace = AVCOL_SPC_BT2020_NCL;*/
+	//case VIDEO_CS_SRGB:
+	//	config.color_primaries = AVCOL_PRI_BT709;
+	//	config.color_trc = AVCOL_TRC_IEC61966_2_1;
+	//	config.colorspace = AVCOL_SPC_BT709;
+	//	break;
+	//case VIDEO_CS_2100_PQ:
+	//	config.color_primaries = AVCOL_PRI_BT2020;
+	//	config.color_trc = AVCOL_TRC_SMPTE2084;
+	//	config.colorspace = AVCOL_SPC_BT2020_NCL;
+	//	break;
+	//case VIDEO_CS_2100_HLG:
+	//	config.color_primaries = AVCOL_PRI_BT2020;
+	//	config.color_trc = AVCOL_TRC_ARIB_STD_B67;
+	//	config.colorspace = AVCOL_SPC_BT2020_NCL;
 	}
 
 	// 2.c) set width & height

@@ -204,6 +204,43 @@ static bool create_video_stream(struct ffmpeg_data *data)
 			data->config.video_encoder))
 		return false;
 
+	/*const enum AVColorTransferCharacteristic trc = data->config.color_trc;
+	const bool pq = trc == AVCOL_TRC_SMPTE2084;
+	const bool hlg = trc == AVCOL_TRC_ARIB_STD_B67;
+	if (pq || hlg) {
+		const int hdr_nominal_peak_level =
+			pq ? (int)obs_get_video_hdr_nominal_peak_level()
+			   : (hlg ? 1000 : 0);
+		
+		size_t content_size;
+		AVContentLightMetadata *const content =
+			av_content_light_metadata_alloc(&content_size);
+		content->MaxCLL = hdr_nominal_peak_level;
+		content->MaxFALL = hdr_nominal_peak_level;
+		av_stream_add_side_data(data->video,
+					AV_PKT_DATA_CONTENT_LIGHT_LEVEL,
+					(uint8_t *)content, content_size);
+
+		AVMasteringDisplayMetadata *const mastering =
+			av_mastering_display_metadata_alloc();
+		mastering->display_primaries[0][0] = av_make_q(17, 25);
+		mastering->display_primaries[0][1] = av_make_q(8, 25);
+		mastering->display_primaries[1][0] = av_make_q(53, 200);
+		mastering->display_primaries[1][1] = av_make_q(69, 100);
+		mastering->display_primaries[2][0] = av_make_q(3, 20);
+		mastering->display_primaries[2][1] = av_make_q(3, 50);
+		mastering->white_point[0] = av_make_q(3127, 10000);
+		mastering->white_point[1] = av_make_q(329, 1000);
+		mastering->min_luminance = av_make_q(0, 1);
+		mastering->max_luminance = av_make_q(hdr_nominal_peak_level, 1);
+		mastering->has_primaries = 1;
+		mastering->has_luminance = 1;
+		av_stream_add_side_data(data->video,
+					AV_PKT_DATA_MASTERING_DISPLAY_METADATA,
+					(uint8_t *)mastering,
+					sizeof(*mastering));
+	}*/
+
 	closest_format = data->config.format;
 	if (data->vcodec->pix_fmts) {
 		closest_format = avcodec_find_best_pix_fmt_of_list(
@@ -332,13 +369,18 @@ static bool create_audio_stream(struct ffmpeg_data *data, int idx)
 	context->time_base = (AVRational){1, aoi.samples_per_sec};
 	context->channels = get_audio_channels(aoi.speakers);
 	context->sample_rate = aoi.samples_per_sec;
+#if LIBAVCODEC_VERSION_INT < AV_VERSION_INT(59, 24, 100)
 	context->channel_layout =
 		av_get_default_channel_layout(context->channels);
 
-	//AVlib default channel layout for 5 channels is 5.0 ; fix for 4.1
+	//avutil default channel layout for 5 channels is 5.0 ; fix for 4.1
 	if (aoi.speakers == SPEAKERS_4POINT1)
 		context->channel_layout = av_get_channel_layout("4.1");
-
+#else
+	av_channel_layout_default(&context->ch_layout, context->channels);
+	if (aoi.speakers == SPEAKERS_4POINT1)
+		context->ch_layout = (AVChannelLayout)AV_CHANNEL_LAYOUT_4POINT1;
+#endif
 	context->sample_fmt = data->acodec->sample_fmts
 				      ? data->acodec->sample_fmts[0]
 				      : AV_SAMPLE_FMT_FLTP;
@@ -524,6 +566,7 @@ static enum AVCodecID get_codec_id(const char *name, int id)
 	return codec->id;
 }
 
+#if LIBAVFORMAT_VERSION_INT < AV_VERSION_INT(59, 0, 100)
 static void set_encoder_ids(struct ffmpeg_data *data)
 {
 	data->output->oformat->video_codec = get_codec_id(
@@ -532,6 +575,7 @@ static void set_encoder_ids(struct ffmpeg_data *data)
 	data->output->oformat->audio_codec = get_codec_id(
 		data->config.audio_encoder, data->config.audio_encoder_id);
 }
+#endif
 
 bool ffmpeg_data_init(struct ffmpeg_data *data, struct ffmpeg_cfg *config)
 {
@@ -551,7 +595,13 @@ bool ffmpeg_data_init(struct ffmpeg_data *data, struct ffmpeg_cfg *config)
 
 	is_rtmp = (astrcmpi_n(config->url, "rtmp://", 7) == 0);
 
-	AVOutputFormat *output_format = av_guess_format(
+#if LIBAVFORMAT_VERSION_INT < AV_VERSION_INT(59, 0, 100)
+	AVOutputFormat *output_format;
+#else
+	const AVOutputFormat *output_format;
+#endif
+
+	output_format = av_guess_format(
 		is_rtmp ? "flv" : data->config.format_name, data->config.url,
 		is_rtmp ? NULL : data->config.format_mime_type);
 
@@ -577,6 +627,7 @@ bool ffmpeg_data_init(struct ffmpeg_data *data, struct ffmpeg_cfg *config)
 		goto fail;
 	}
 
+#if LIBAVFORMAT_VERSION_INT < AV_VERSION_INT(59, 0, 100)
 	if (is_rtmp) {
 		data->output->oformat->video_codec = AV_CODEC_ID_H264;
 		data->output->oformat->audio_codec = AV_CODEC_ID_AAC;
@@ -584,6 +635,14 @@ bool ffmpeg_data_init(struct ffmpeg_data *data, struct ffmpeg_cfg *config)
 		if (data->config.format_name)
 			set_encoder_ids(data);
 	}
+#else
+	if (is_rtmp) {
+		data->config.audio_encoder = "aac";
+		data->config.audio_encoder_id = AV_CODEC_ID_AAC;
+		data->config.video_encoder = "libx264";
+		data->config.video_encoder_id = AV_CODEC_ID_H264;
+	}
+#endif
 
 	if (!init_streams(data))
 		goto fail;
@@ -1096,6 +1155,21 @@ static bool try_connect(struct ffmpeg_output *output)
 		config.color_trc = AVCOL_TRC_BT709;
 		config.colorspace = AVCOL_SPC_BT709;
 		break;
+	/*case VIDEO_CS_SRGB:
+		config.color_primaries = AVCOL_PRI_BT709;
+		config.color_trc = AVCOL_TRC_IEC61966_2_1;
+		config.colorspace = AVCOL_SPC_BT709;
+		break;
+	case VIDEO_CS_2100_PQ:
+		config.color_primaries = AVCOL_PRI_BT2020;
+		config.color_trc = AVCOL_TRC_SMPTE2084;
+		config.colorspace = AVCOL_SPC_BT2020_NCL;
+		break;
+	case VIDEO_CS_2100_HLG:
+		config.color_primaries = AVCOL_PRI_BT2020;
+		config.color_trc = AVCOL_TRC_ARIB_STD_B67;
+		config.colorspace = AVCOL_SPC_BT2020_NCL;
+		break;*/
 	}
 
 	if (config.format == AV_PIX_FMT_NONE) {
