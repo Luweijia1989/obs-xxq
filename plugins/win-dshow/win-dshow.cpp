@@ -620,10 +620,13 @@ void DShowInput::OutputSourceFrame(obs_source_t *source, struct obs_source_frame
 				if (conversion.width != frame->width
 					|| conversion.height != frame->height
 					|| conversion.format != frame->format) {
+					auto s = obs_source_get_settings(source);
+					auto cs = GetColorSpace(s);
+					obs_data_release(s);
 					conversion.width = frame->width;
 					conversion.height = frame->height;
 					conversion.format = frame->format;
-					conversion.colorspace = frame->color_matrix[2] > 1.5 ? VIDEO_CS_709 : VIDEO_CS_601;
+					conversion.colorspace = cs;
 					conversion.range = frame->range;
 
 					if (scaler2RGBA)

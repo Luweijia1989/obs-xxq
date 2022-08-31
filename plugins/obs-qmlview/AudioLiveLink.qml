@@ -4,8 +4,8 @@ import QtQuick.Controls 2.1
 import QtGraphicalEffects 1.0
 Item{
 	id: root
-	width: 1920
-	height: 1080
+	width: audioLiveLinkProperties.basicWidth
+	height: audioLiveLinkProperties.basicHeight
 	x: 0
 	y: 0
 	visible: true
@@ -14,7 +14,9 @@ Item{
 		width: audioLiveLinkProperties.backWidth
 		height: 1080
 		x: audioLiveLinkProperties.posX
-		y: 0
+		y: audioLiveLinkProperties.posY
+		transformOrigin:Item.TopLeft
+		scale: audioLiveLinkProperties.scale
 		Image {
 			id: background
 			width: audioLiveLinkProperties.backWidth

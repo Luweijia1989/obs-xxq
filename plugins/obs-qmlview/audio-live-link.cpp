@@ -41,6 +41,18 @@ static void audio_livelink_source_update(void *data, obs_data_t *settings)
 	int posX = obs_data_get_int(settings, "posX");
 	s->setposX(posX);
 
+	int posY = obs_data_get_int(settings, "posY");
+	s->setposY(posY);
+
+	float scale = obs_data_get_double(settings, "scale");
+	s->setscale(scale);
+
+	int basicWidth = obs_data_get_int(settings, "width");
+	s->setbasicWidth(basicWidth);
+
+	int basicHeight = obs_data_get_int(settings, "height");
+	s->setbasicHeight(basicHeight);
+
 	int voiceWaveLeftMargin =
 		obs_data_get_int(settings, "voiceWaveLeftMargin");
 	s->setvoiceWaveLeftMargin(voiceWaveLeftMargin);
