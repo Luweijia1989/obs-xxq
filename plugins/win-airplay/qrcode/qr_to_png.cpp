@@ -2,7 +2,7 @@
 // Created by remy on 02-06-20.
 //
 
-#include "QrToPng.h"
+#include "qr_to_png.h"
 
 QrToPng::QrToPng(QString fileName, int imgSize, int minModulePixelSize, std::string text, qrcodegen::QrCode::Ecc ecc) :
         _fileName(fileName), _size(imgSize), _minModulePixelSize(minModulePixelSize), _text(std::move(text)),

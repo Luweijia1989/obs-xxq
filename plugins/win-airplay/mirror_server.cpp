@@ -1,6 +1,5 @@
 #include <obs-module.h>
-#include "airplay-server.h"
-#include "resource.h"
+#include "mirror_server.h"
 #include <cstdio>
 #include <util/dstr.h>
 #include <Shlwapi.h>

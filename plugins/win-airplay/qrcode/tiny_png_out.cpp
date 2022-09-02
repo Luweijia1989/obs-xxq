@@ -23,7 +23,7 @@
 #include <cassert>
 #include <limits>
 #include <stdexcept>
-#include "TinyPngOut.hpp"
+#include "tiny_png_out.hpp"
 
 using std::uint8_t;
 using std::uint16_t;

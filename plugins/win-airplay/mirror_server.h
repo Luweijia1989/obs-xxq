@@ -8,7 +8,6 @@
 #include <map>
 #include <string>
 #include <limits>
-#include "Airplay2Def.h"
 #include <util/circlebuf.h>
 #include "common-define.h"
 #include "ipc.h"

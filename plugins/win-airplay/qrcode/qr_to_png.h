@@ -5,8 +5,8 @@
 #ifndef QR_TO_PNG_H
 #define QR_TO_PNG_H
 
-#include "QrCode.hpp"
-#include "TinyPngOut.hpp"
+#include "qr_code.hpp"
+#include "tiny_png_out.hpp"
 #include <fstream>
 #include <iostream>
 #include <memory>
