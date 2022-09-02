@@ -106,6 +106,7 @@ bool D3D9Renderer::CreateTexture(int width, int height)
 
 	DX_SAFE_RELEASE(output_texture_);
 	DX_SAFE_RELEASE(render_surface_);
+	shared_handler_ = NULL;
 
 	HRESULT hr = S_OK;
 
