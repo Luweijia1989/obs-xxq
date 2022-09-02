@@ -95,9 +95,7 @@ static int dxva2_device_create2(AVHWDeviceContext* device_context, IDirect3DDevi
 	pCreateDeviceManager9* createDeviceManager = NULL;
 
 	unsigned reset_token = 0;
-	UINT adapter = D3DADAPTER_DEFAULT;
 	HRESULT hr = S_OK;
-	int err = 0;
 
 	dxva2_device_priv = (DXVA2DevicePriv*)av_mallocz(sizeof(*dxva2_device_priv));
 	if (!dxva2_device_priv) {
@@ -279,7 +277,7 @@ bool AVDecoder::initHwDecode(uint8_t *data, size_t len, void *d3d9_device)
 	codec_context_->thread_count = 1;
 
 	codec_context_->extradata = (uint8_t *)av_malloc(len);
-	codec_context_->extradata_size = len;
+	codec_context_->extradata_size = (int)len;
 	memcpy(codec_context_->extradata, data, len);
 	if (avcodec_open2(codec_context_, codec, NULL) != 0) {
 		LOG("Open decoder(%d) failed.", (int)AV_CODEC_ID_H264);
@@ -307,7 +305,7 @@ bool AVDecoder::initSoftDecode(uint8_t *data, size_t len)
 
 	codec_context_ = avcodec_alloc_context3(codec);
 	codec_context_->extradata = (uint8_t *)av_malloc(len);
-	codec_context_->extradata_size = len;
+	codec_context_->extradata_size = (int)len;
 	memcpy(codec_context_->extradata, data, len);
 	if (avcodec_open2(codec_context_, codec, NULL) != 0) {
 		LOG("Open decoder(%d) failed.", (int)AV_CODEC_ID_H264);

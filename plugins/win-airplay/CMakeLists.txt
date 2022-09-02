@@ -15,11 +15,7 @@ set(CMAKE_CXX_STANDARD 17)
 set(win-airplay_SOURCES
 	airplay-server.cpp
 	dxva2_decoder.cc
-	dxva2_renderer.cc
-	video-renderer/d3d9_render_texture.cc
-	video-renderer/d3d9_renderer.cc
-	video-renderer/d3d11_render_texture.cc
-	video-renderer/d3d11_renderer.cc
+	d3d9_renderer.cc
 	qrcode/QrCode.cpp
 	qrcode/QrToPng.cpp
 	qrcode/TinyPngOut.cpp
@@ -30,16 +26,8 @@ set(win-airplay_HEADERS
 	airplay-server.h
 	Airplay2Def.h
 	dxva2_decoder.h
-	dxva2_renderer.h
 	av_log.h
-	video-renderer/d3d9_render_texture.h
-	video-renderer/d3d9_renderer.h
-	video-renderer/d3d11_render_texture.h
-	video-renderer/d3d11_renderer.h
-	video-renderer/log.h
-	video-renderer/renderer.h
-	video-renderer/shader_yuv_bt601.h
-	video-renderer/shader_yuv_bt709.h
+	d3d9_renderer.h
 	qrcode/QrCode.hpp
 	qrcode/QrToPng.h
 	qrcode/TinyPngOut.hpp

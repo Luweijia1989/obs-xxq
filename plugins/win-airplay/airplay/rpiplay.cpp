@@ -46,7 +46,6 @@
 #include <QDateTime>
 #include <QDebug>
 #include "common-define.h"
-#include "log.h"
 #include "lib/raop.h"
 #include "lib/stream.h"
 #include "lib/logger.h"

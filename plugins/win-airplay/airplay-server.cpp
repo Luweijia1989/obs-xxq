@@ -162,7 +162,7 @@ ScreenMirrorServer::ScreenMirrorServer(obs_source_t *source, int type)
 
 	saveStatusSettings();
 
-	m_renderer = new DXVA2Renderer;
+	m_renderer = new D3D9Renderer;
 	m_renderer->Init();
 
 	m_stop = false;
@@ -475,7 +475,7 @@ static void sendToObs(std::list<AudioFrame> *frames, obs_source_t *source, media
 	audio.format = audioInfo->format;
 	audio.samples_per_sec = audioInfo->samples_per_sec;
 	audio.speakers = audioInfo->speakers;
-	audio.frames = frame.data_len / (audioInfo->speakers * sizeof(short));
+	audio.frames = (uint32_t)frame.data_len / (audioInfo->speakers * sizeof(short));
 	audio.timestamp = os_gettime_ns();
 	audio.data[0] = frame.data;
 	obs_source_output_audio(source, &audio);
@@ -772,10 +772,6 @@ void ScreenMirrorServer::outputAudio(uint8_t *data, size_t data_len, int64_t pts
 
 	pts = pts / 1000000;
 
-	static int64_t t = pts;
-	blog(LOG_DEBUG, "=========== %lld, %d", pts - t, data_len);
-	t = pts;
-
 	pthread_mutex_lock(&m_audioDataMutex);
 	//这边的pts修正逻辑只有ios镜像投屏才会走到
 	if (m_lastAudioPts == LLONG_MAX) {
@@ -836,7 +832,7 @@ static void UpdateWinAirplaySource(void *obj, obs_data_t *settings)
 static void GetWinAirplayDefaultsOutput(obs_data_t *settings)
 {
 	obs_data_set_default_int(settings, "type",
-				 ScreenMirrorServer::ANDROID_WIRELESS);
+				 ScreenMirrorServer::ANDROID_AOA);
 	obs_data_set_default_int(settings, "status", MIRROR_STOP);
 }
 
@@ -899,7 +895,7 @@ void ScreenMirrorServer::dropFrame(int64_t now_ms)
 		    p1ts < now_ms && p2ts < now_ms && now_ms - p2ts > 60) {
 			if (m_decoder) {
 				m_encodedPacket.data = frame.data;
-				m_encodedPacket.size = frame.data_len;
+				m_encodedPacket.size = (int)frame.data_len;
 				int ret = m_decoder->Send(&m_encodedPacket);
 				while (ret >= 0) {
 					ret = m_decoder->Recv(m_decodedFrame);
@@ -985,7 +981,7 @@ void ScreenMirrorServer::doRenderer(gs_effect_t *effect)
 
 			if (m_decoder) {
 				m_encodedPacket.data = framev.data;
-				m_encodedPacket.size = framev.data_len;
+				m_encodedPacket.size = (int)framev.data_len;
 				int ret = m_decoder->Send(&m_encodedPacket);
 				if (ret == AVERROR_INVALIDDATA) {
 					initDecoder(pps_cache, pps_cache_len, true, true);

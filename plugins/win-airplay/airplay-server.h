@@ -20,7 +20,7 @@
 #include <QProcess>
 
 #include "dxva2_decoder.h"
-#include "dxva2_renderer.h"
+#include "d3d9_renderer.h"
 
 extern "C" {
 #include <util/pipe.h>
@@ -62,7 +62,8 @@ public:
 	ScreenMirrorServer(obs_source_t *source, int type);
 	~ScreenMirrorServer();
 	void outputVideo(uint8_t *data, size_t data_len, int64_t pts);
-	void outputAudio(uint8_t *data, size_t data_len, int64_t pts, int serial);
+	void outputAudio(uint8_t *data, size_t data_len, int64_t pts,
+			 int serial);
 	void doRenderer(gs_effect_t *effect);
 
 	void mirrorServerSetup();
@@ -72,7 +73,8 @@ public:
 	void changeBackendType(int type);
 
 	static void pipeCallback(void *param, uint8_t *data, size_t size);
-	static void *CreateWinAirplay(obs_data_t *settings, obs_source_t *source);
+	static void *CreateWinAirplay(obs_data_t *settings,
+				      obs_source_t *source);
 	int m_width = 0;
 	int m_height = 0;
 	obs_source_t *m_source = nullptr;
@@ -90,7 +92,8 @@ private:
 	void updateStatusImage();
 	void saveStatusSettings();
 
-	void initDecoder(uint8_t *data, size_t len, bool forceRecreate, bool forceSoftware);
+	void initDecoder(uint8_t *data, size_t len, bool forceRecreate,
+			 bool forceSoftware);
 	void dropFrame(int64_t now_ms);
 	void dropAudioFrame(int64_t now_ms);
 	void initSoftOutputFrame();
@@ -134,10 +137,10 @@ private:
 	QString m_backendLostImagePath;
 	QString m_backendConnectingImagePath;
 
-	DXVA2Renderer *m_renderer = nullptr;
+	D3D9Renderer *m_renderer = nullptr;
 	AVDecoder *m_decoder = nullptr;
-	AVFrame* m_decodedFrame = av_frame_alloc();
-	AVPacket m_encodedPacket = { 0 };
+	AVFrame *m_decodedFrame = av_frame_alloc();
+	AVPacket m_encodedPacket = {0};
 	obs_source_frame2 m_softOutputFrame;
 
 	uint8_t *pps_cache = nullptr;
