@@ -851,6 +851,8 @@ EXPORT void obs_source_set_destroy_handler(source_destroy_handler_t handler);
 /** Returns the translated display name of a source */
 EXPORT const char *obs_source_get_display_name(const char *id);
 
+EXPORT bool obs_source_data_valid(obs_source_t *source);
+
 /**
  * Creates a source of the specified type with the specified settings.
  *
