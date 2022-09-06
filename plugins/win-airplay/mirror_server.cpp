@@ -841,7 +841,7 @@ void ScreenMirrorServer::UpdateWinAirplaySource(void *obj, obs_data_t *settings)
 static void GetWinAirplayDefaultsOutput(obs_data_t *settings)
 {
 	obs_data_set_default_int(settings, "type",
-				 ScreenMirrorServer::IOS_AIRPLAY);
+				 ScreenMirrorServer::ANDROID_AOA);
 	obs_data_set_default_int(settings, "status", MIRROR_STOP);
 	obs_data_set_default_bool(settings, "lowLatencyMode", false);
 }
