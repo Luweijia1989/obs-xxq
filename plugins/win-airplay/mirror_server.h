@@ -48,22 +48,13 @@ class QTimer;
 class MirrorRPC;
 class ScreenMirrorServer {
 public:
-	enum MirrorBackEnd {
-		None = -1,
-		IOS_USB_CABLE = 0,
-		IOS_AIRPLAY = 1,
-		ANDROID_USB_CABLE = 2,
-		ANDROID_AOA = 3,
-		ANDROID_WIRELESS = 4,
-		IOS_WIRELESS = 5
-	};
+	enum MirrorBackEnd { None = -1, IOS_USB_CABLE = 0, IOS_AIRPLAY = 1, ANDROID_USB_CABLE = 2, ANDROID_AOA = 3, ANDROID_WIRELESS = 4, IOS_WIRELESS = 5 };
 
 	ScreenMirrorServer(obs_source_t *source, obs_data_t *settings);
 	~ScreenMirrorServer();
 
 	void outputVideo(uint8_t *data, size_t data_len, int64_t pts);
-	void outputAudio(uint8_t *data, size_t data_len, int64_t pts,
-			 int serial);
+	void outputAudio(uint8_t *data, size_t data_len, int64_t pts, int serial);
 	void doRenderer(gs_effect_t *effect);
 
 	void mirrorServerSetup();
@@ -93,8 +84,7 @@ private:
 	void updateStatusImage();
 	void saveStatusSettings();
 
-	void initDecoder(uint8_t *data, size_t len, bool forceRecreate,
-			 bool forceSoftware);
+	void initDecoder(uint8_t *data, size_t len, bool forceRecreate, bool forceSoftware);
 	void dropFrame(int64_t now_ms);
 	void dropAudioFrame(int64_t now_ms);
 	void initSoftOutputFrame();

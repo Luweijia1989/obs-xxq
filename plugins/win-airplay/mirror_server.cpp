@@ -25,26 +25,19 @@ using namespace std;
 #define ANDROID_WIRELESS_EXE "rtmp-server.exe"
 
 static QMap<ScreenMirrorServer::MirrorBackEnd, QString> g_resource_map = {
-	{ScreenMirrorServer::IOS_AIRPLAY, "iOSwuxian"},
-	{ScreenMirrorServer::IOS_USB_CABLE, "iOSyouxian"},
-	{ScreenMirrorServer::ANDROID_AOA, "AndroidAOA"},
-	{ScreenMirrorServer::ANDROID_WIRELESS, "Androidwuxian"},
-	{ScreenMirrorServer::ANDROID_USB_CABLE, "AndroidADB"},
-	{ScreenMirrorServer::IOS_WIRELESS, "iOSsaoma"}
-};
+	{ScreenMirrorServer::IOS_AIRPLAY, "iOSwuxian"},        {ScreenMirrorServer::IOS_USB_CABLE, "iOSyouxian"},
+	{ScreenMirrorServer::ANDROID_AOA, "AndroidAOA"},       {ScreenMirrorServer::ANDROID_WIRELESS, "Androidwuxian"},
+	{ScreenMirrorServer::ANDROID_USB_CABLE, "AndroidADB"}, {ScreenMirrorServer::IOS_WIRELESS, "iOSsaoma"}};
 
 // Instantiate INetFwPolicy2
 HRESULT WFCOMInitialize(INetFwPolicy2 **ppNetFwPolicy2)
 {
 	HRESULT hr = S_OK;
 
-	hr = CoCreateInstance(__uuidof(NetFwPolicy2), NULL,
-			      CLSCTX_INPROC_SERVER, __uuidof(INetFwPolicy2),
-			      (void **)ppNetFwPolicy2);
+	hr = CoCreateInstance(__uuidof(NetFwPolicy2), NULL, CLSCTX_INPROC_SERVER, __uuidof(INetFwPolicy2), (void **)ppNetFwPolicy2);
 
 	if (FAILED(hr)) {
-		printf("CoCreateInstance for INetFwPolicy2 failed: 0x%08lx\n",
-		       hr);
+		printf("CoCreateInstance for INetFwPolicy2 failed: 0x%08lx\n", hr);
 		goto Cleanup;
 	}
 
@@ -120,9 +113,7 @@ uint findProcessListeningToPort(uint port)
 	}
 	QRegularExpression processFinder;
 	{
-		const auto pattern =
-			QStringLiteral(R"(TCP[^:]+:%1.+LISTENING\s+(\d+))")
-				.arg(port);
+		const auto pattern = QStringLiteral(R"(TCP[^:]+:%1.+LISTENING\s+(\d+))").arg(port);
 		processFinder.setPattern(pattern);
 	}
 	const auto processInfo = processFinder.match(netstatOutput);
@@ -134,19 +125,16 @@ uint findProcessListeningToPort(uint port)
 }
 
 ScreenMirrorServer::ScreenMirrorServer(obs_source_t *source, obs_data_t *settings)
-	: m_source(source),
-	  if2((gs_image_file2_t *)bzalloc(sizeof(gs_image_file2_t)))
+	: m_source(source), if2((gs_image_file2_t *)bzalloc(sizeof(gs_image_file2_t)))
 {
 	m_commandIPC = new MirrorRPC;
-	
+
 	closeWindowsFireWall();
 
 	m_timerHelperObject = new QObject;
 	m_helperTimer = new QTimer(m_timerHelperObject);
 	m_helperTimer->setSingleShot(true);
-	QObject::connect(m_helperTimer, &QTimer::timeout, m_timerHelperObject, [=](){
-		handleMirrorStatus(OBS_SOURCE_MIRROR_DEVICE_LOST);
-	});
+	QObject::connect(m_helperTimer, &QTimer::timeout, m_timerHelperObject, [=]() { handleMirrorStatus(OBS_SOURCE_MIRROR_DEVICE_LOST); });
 
 	memset(&m_audioInfo, 0, sizeof(media_audio_info));
 	initSoftOutputFrame();
@@ -207,7 +195,7 @@ ScreenMirrorServer::~ScreenMirrorServer()
 
 void ScreenMirrorServer::dumpResourceImgs()
 {
-	auto checkWrite = [](QString path){
+	auto checkWrite = [](QString path) {
 		QString tempPath = QStandardPaths::writableLocation(QStandardPaths::TempLocation);
 		auto p = QString("%1/%2").arg(tempPath).arg(path);
 		if (QFile::exists(p))
@@ -285,8 +273,7 @@ void ScreenMirrorServer::updateCacheDelay(bool lowLatencyMode)
 void ScreenMirrorServer::setBackendType(int type)
 {
 	m_backend = (MirrorBackEnd)type;
-	switch (m_backend)
-	{
+	switch (m_backend) {
 	case ScreenMirrorServer::None:
 		m_backendProcessName = "";
 		break;
@@ -309,7 +296,7 @@ void ScreenMirrorServer::setBackendType(int type)
 	default:
 		break;
 	}
-	
+
 	auto prefix = g_resource_map.value(m_backend);
 	QString tempPath = QStandardPaths::writableLocation(QStandardPaths::TempLocation);
 	m_backendStopImagePath = QString("%1/%2.png").arg(tempPath).arg(prefix);
@@ -318,7 +305,7 @@ void ScreenMirrorServer::setBackendType(int type)
 	if (m_backend == ANDROID_WIRELESS || m_backend == IOS_WIRELESS) {
 		auto qrcode = streamUrlImage();
 		if (!qrcode.isEmpty()) {
-			auto writeQRCodeImage = [=](QString srcFile, QString dstFile){
+			auto writeQRCodeImage = [=](QString srcFile, QString dstFile) {
 				QImage image(srcFile);
 				image = image.convertToFormat(QImage::Format_RGBA8888);
 				QPainter p(&image);
@@ -336,13 +323,9 @@ void ScreenMirrorServer::setBackendType(int type)
 
 	updateCacheDelay(m_lowLatencyMode);
 
-	obs_source_set_monitoring_type(
-		m_source,
-		(m_backend == ANDROID_AOA
-			|| m_backend == ANDROID_WIRELESS
-			|| m_backend == IOS_WIRELESS)
-			? OBS_MONITORING_TYPE_NONE
-			: OBS_MONITORING_TYPE_MONITOR_ONLY);
+	obs_source_set_monitoring_type(m_source, (m_backend == ANDROID_AOA || m_backend == ANDROID_WIRELESS || m_backend == IOS_WIRELESS)
+							 ? OBS_MONITORING_TYPE_NONE
+							 : OBS_MONITORING_TYPE_MONITOR_ONLY);
 
 	resetState();
 	handleMirrorStatus(MIRROR_STOP);
@@ -466,16 +449,12 @@ void ScreenMirrorServer::handleMirrorStatusInternal(int status)
 
 void ScreenMirrorServer::handleMirrorStatus(int status)
 {
-	QMetaObject::invokeMethod(m_timerHelperObject, [status, this](){
-		handleMirrorStatusInternal(status);
-	});
+	QMetaObject::invokeMethod(m_timerHelperObject, [status, this]() { handleMirrorStatusInternal(status); });
 }
 
-static void sendToObs(std::list<AudioFrame> *frames, obs_source_t *source, media_audio_info *audioInfo) {
-	if (frames->size() <= 0
-		|| !audioInfo->samples_per_sec
-		|| audioInfo->format == AUDIO_FORMAT_UNKNOWN
-		|| audioInfo->speakers == SPEAKERS_UNKNOWN)
+static void sendToObs(std::list<AudioFrame> *frames, obs_source_t *source, media_audio_info *audioInfo)
+{
+	if (frames->size() <= 0 || !audioInfo->samples_per_sec || audioInfo->format == AUDIO_FORMAT_UNKNOWN || audioInfo->speakers == SPEAKERS_UNKNOWN)
 		return;
 	AudioFrame &frame = frames->front();
 	obs_source_audio audio;
@@ -580,8 +559,7 @@ bool ScreenMirrorServer::handleMediaData()
 		VideoInfo vi;
 		vi.data = cache;
 		vi.data_len = info.video_extra_len;
-		m_videoInfos.insert(
-			std::make_pair(m_videoInfoIndex, std::move(vi)));
+		m_videoInfos.insert(std::make_pair(m_videoInfoIndex, std::move(vi)));
 		pthread_mutex_unlock(&m_videoDataMutex);
 
 		handleMirrorStatus(OBS_SOURCE_MIRROR_OUTPUT);
@@ -613,8 +591,7 @@ void ScreenMirrorServer::resetAudioState(bool clearAudioInfo)
 {
 	pthread_mutex_lock(&m_audioDataMutex);
 	m_audioOffset = LLONG_MAX;
-	for (auto iter = m_audioFrames.begin(); iter != m_audioFrames.end();
-	     iter++) {
+	for (auto iter = m_audioFrames.begin(); iter != m_audioFrames.end(); iter++) {
 		AudioFrame &f = *iter;
 		free(f.data);
 	}
@@ -631,16 +608,14 @@ void ScreenMirrorServer::resetState()
 {
 	pthread_mutex_lock(&m_videoDataMutex);
 	m_offset = LLONG_MAX;
-	for (auto iter = m_videoFrames.begin(); iter != m_videoFrames.end();
-	     iter++) {
+	for (auto iter = m_videoFrames.begin(); iter != m_videoFrames.end(); iter++) {
 		VideoFrame &f = *iter;
 		free(f.data);
 	}
 	m_videoFrames.clear();
 	m_videoInfoIndex = 0;
 	m_lastVideoInfoIndex = 0;
-	for (auto iter = m_videoInfos.begin(); iter != m_videoInfos.end();
-	     iter++) {
+	for (auto iter = m_videoInfos.begin(); iter != m_videoInfos.end(); iter++) {
 		VideoInfo &f = iter->second;
 		free(f.data);
 	}
@@ -684,9 +659,7 @@ void ScreenMirrorServer::initSoftOutputFrame()
 	memset(&m_softOutputFrame, 0, sizeof(&m_softOutputFrame));
 
 	m_softOutputFrame.range = VIDEO_RANGE_PARTIAL;
-	video_format_get_parameters(VIDEO_CS_601, m_softOutputFrame.range,
-				    m_softOutputFrame.color_matrix,
-				    m_softOutputFrame.color_range_min,
+	video_format_get_parameters(VIDEO_CS_601, m_softOutputFrame.range, m_softOutputFrame.color_matrix, m_softOutputFrame.color_range_min,
 				    m_softOutputFrame.color_range_max);
 }
 
@@ -734,8 +707,7 @@ void ScreenMirrorServer::updateSoftOutputFrame(AVFrame *frame)
 	m_softOutputFrame.timestamp = frame->pts;
 	m_softOutputFrame.width = frame->width;
 	m_softOutputFrame.height = frame->height;
-	m_softOutputFrame.format =
-		ffmpeg_to_obs_video_format((AVPixelFormat)frame->format);
+	m_softOutputFrame.format = ffmpeg_to_obs_video_format((AVPixelFormat)frame->format);
 	m_softOutputFrame.flip = false;
 	m_softOutputFrame.flip_h = false;
 
@@ -788,7 +760,7 @@ void ScreenMirrorServer::outputAudio(uint8_t *data, size_t data_len, int64_t pts
 			pts = pts - m_fixAudioOffset;
 		} else {
 			int64_t frameDuration = data_len * 1000 / (m_audioInfo.samples_per_sec * 4); //发过来的pcm都是16bit 双声道
-			if (pts - m_lastAudioPts > 3600 * 24) {//如果相邻时间戳的值相差太大，需要修正
+			if (pts - m_lastAudioPts > 3600 * 24) {                                      //如果相邻时间戳的值相差太大，需要修正
 				m_fixAudioOffset = pts - m_lastAudioPts - frameDuration;
 				pts = pts - m_fixAudioOffset;
 			}
@@ -802,8 +774,7 @@ void ScreenMirrorServer::outputAudio(uint8_t *data, size_t data_len, int64_t pts
 	pthread_mutex_unlock(&m_audioDataMutex);
 }
 
-void ScreenMirrorServer::outputVideo(uint8_t *data, size_t data_len,
-				     int64_t pts)
+void ScreenMirrorServer::outputVideo(uint8_t *data, size_t data_len, int64_t pts)
 {
 	pthread_mutex_lock(&m_ptsMutex);
 	if (m_firstVideoPTS == LLONG_MAX)
@@ -840,8 +811,7 @@ void ScreenMirrorServer::UpdateWinAirplaySource(void *obj, obs_data_t *settings)
 
 static void GetWinAirplayDefaultsOutput(obs_data_t *settings)
 {
-	obs_data_set_default_int(settings, "type",
-				 ScreenMirrorServer::ANDROID_AOA);
+	obs_data_set_default_int(settings, "type", ScreenMirrorServer::ANDROID_AOA);
 	obs_data_set_default_int(settings, "status", MIRROR_STOP);
 	obs_data_set_default_bool(settings, "lowLatencyMode", false);
 }
@@ -856,8 +826,7 @@ static obs_properties_t *GetWinAirplayPropertiesOutput(void *data)
 	return props;
 }
 
-void *ScreenMirrorServer::CreateWinAirplay(obs_data_t *settings,
-					   obs_source_t *source)
+void *ScreenMirrorServer::CreateWinAirplay(obs_data_t *settings, obs_source_t *source)
 {
 	ScreenMirrorServer *server = new ScreenMirrorServer(source, settings);
 	return server;
@@ -868,9 +837,15 @@ static void DestroyWinAirplay(void *obj)
 	delete reinterpret_cast<ScreenMirrorServer *>(obj);
 }
 
-static void HideWinAirplay(void *data) { (void)data; }
+static void HideWinAirplay(void *data)
+{
+	(void)data;
+}
 
-static void ShowWinAirplay(void *data) { (void)data; }
+static void ShowWinAirplay(void *data)
+{
+	(void)data;
+}
 static void WinAirplayRender(void *data, gs_effect_t *effect)
 {
 	ScreenMirrorServer *s = (ScreenMirrorServer *)data;
@@ -902,8 +877,7 @@ void ScreenMirrorServer::dropFrame(int64_t now_ms)
 		if (frame.video_info_index != m_lastVideoInfoIndex)
 			break;
 
-		if ((p1 == 0 && p2 == 0) ||
-		    p1ts < now_ms && p2ts < now_ms && now_ms - p2ts > 60) {
+		if ((p1 == 0 && p2 == 0) || p1ts < now_ms && p2ts < now_ms && now_ms - p2ts > 60) {
 			if (m_decoder) {
 				m_encodedPacket.data = frame.data;
 				m_encodedPacket.size = (int)frame.data_len;
@@ -935,8 +909,7 @@ bool ScreenMirrorServer::canProcessMediaData()
 			}
 			ret = true;
 		}
-	}
-	else
+	} else
 		ret = true;
 	pthread_mutex_unlock(&m_ptsMutex);
 
@@ -949,9 +922,7 @@ void ScreenMirrorServer::doRenderer(gs_effect_t *effect)
 		if (if2->image.texture) {
 			m_width = gs_texture_get_width(if2->image.texture);
 			m_height = gs_texture_get_height(if2->image.texture);
-			gs_effect_set_texture(gs_effect_get_param_by_name(effect,
-									  "image"),
-					      if2->image.texture);
+			gs_effect_set_texture(gs_effect_get_param_by_name(effect, "image"), if2->image.texture);
 			gs_draw_sprite(if2->image.texture, 0, m_width, m_height);
 		}
 		return;
@@ -1031,7 +1002,6 @@ void ScreenMirrorServer::doRenderer(gs_effect_t *effect)
 		} else
 			obs_source_draw_videoframe(m_source);
 	}
-
 }
 
 static void WinAirplayCustomCommand(void *data, obs_data_t *cmd)
@@ -1044,7 +1014,7 @@ static void WinAirplayCustomCommand(void *data, obs_data_t *cmd)
 	} else if (strcmp("changeBackend", cmdType) == 0) {
 		int t = obs_data_get_int(cmd, "backendType");
 		s->changeBackendType(t);
-		
+
 		obs_data_t *settings = obs_source_get_settings(s->m_source);
 		obs_data_set_int(settings, "type", t);
 		obs_data_release(settings);
@@ -1062,8 +1032,7 @@ bool obs_module_load(void)
 	obs_source_info info = {};
 	info.id = "win_airplay";
 	info.type = OBS_SOURCE_TYPE_INPUT;
-	info.output_flags = OBS_SOURCE_VIDEO | OBS_SOURCE_DO_NOT_DUPLICATE |
-			    OBS_SOURCE_AUDIO;
+	info.output_flags = OBS_SOURCE_VIDEO | OBS_SOURCE_DO_NOT_DUPLICATE | OBS_SOURCE_AUDIO;
 	info.show = ShowWinAirplay;
 	info.hide = HideWinAirplay;
 	info.get_name = GetWinAirplayName;
