@@ -133,7 +133,7 @@ uint findProcessListeningToPort(uint port)
 	return 0;
 }
 
-ScreenMirrorServer::ScreenMirrorServer(obs_source_t *source, int type)
+ScreenMirrorServer::ScreenMirrorServer(obs_source_t *source, obs_data_t *settings)
 	: m_source(source),
 	  if2((gs_image_file2_t *)bzalloc(sizeof(gs_image_file2_t)))
 {
@@ -166,7 +166,8 @@ ScreenMirrorServer::ScreenMirrorServer(obs_source_t *source, int type)
 
 	m_stop = false;
 
-	changeBackendType(type);
+	m_lowLatencyMode = obs_data_get_bool(settings, "lowLatencyMode");
+	changeBackendType(obs_data_get_int(settings, "type"));
 }
 
 ScreenMirrorServer::~ScreenMirrorServer()
@@ -265,6 +266,22 @@ void ScreenMirrorServer::mirrorServerDestroy()
 	circlebuf_free(&m_avBuffer);
 }
 
+void ScreenMirrorServer::updateCacheDelay(bool lowLatencyMode)
+{
+	int ret = 0;
+
+	if (!lowLatencyMode) {
+		if (m_backend == IOS_AIRPLAY)
+			ret = 500;
+		else if (m_backend == ANDROID_WIRELESS)
+			ret = 300;
+		else if (m_backend == IOS_WIRELESS)
+			ret = 400;
+	}
+
+	m_extraDelay = ret;
+}
+
 void ScreenMirrorServer::setBackendType(int type)
 {
 	m_backend = (MirrorBackEnd)type;
@@ -317,16 +334,7 @@ void ScreenMirrorServer::setBackendType(int type)
 		}
 	}
 
-	if (m_backend == IOS_AIRPLAY)
-		m_extraDelay = 500;
-	else if (m_backend == ANDROID_WIRELESS)
-		m_extraDelay = 300;
-	else if (m_backend == IOS_WIRELESS)
-		m_extraDelay = 400;
-	else if (m_backend == ANDROID_AOA)
-		m_extraDelay = 0;
-	else
-		m_extraDelay = 0;
+	updateCacheDelay(m_lowLatencyMode);
 
 	obs_source_set_monitoring_type(
 		m_source,
@@ -822,17 +830,20 @@ static const char *GetWinAirplayName(void *type_data)
 	return obs_module_text("WindowsAirplay");
 }
 
-static void UpdateWinAirplaySource(void *obj, obs_data_t *settings)
+void ScreenMirrorServer::UpdateWinAirplaySource(void *obj, obs_data_t *settings)
 {
-	(void)obj;
-	(void)settings;
+	ScreenMirrorServer *server = (ScreenMirrorServer *)obj;
+	bool b = obs_data_get_bool(settings, "lowLatencyMode");
+	server->m_lowLatencyMode = b;
+	server->updateCacheDelay(b);
 }
 
 static void GetWinAirplayDefaultsOutput(obs_data_t *settings)
 {
 	obs_data_set_default_int(settings, "type",
-				 ScreenMirrorServer::ANDROID_AOA);
+				 ScreenMirrorServer::IOS_AIRPLAY);
 	obs_data_set_default_int(settings, "status", MIRROR_STOP);
+	obs_data_set_default_bool(settings, "lowLatencyMode", false);
 }
 
 static obs_properties_t *GetWinAirplayPropertiesOutput(void *data)
@@ -841,13 +852,14 @@ static obs_properties_t *GetWinAirplayPropertiesOutput(void *data)
 		return nullptr;
 	obs_properties_t *props = obs_properties_create();
 	obs_properties_add_int(props, "type", u8"投屏类型", 0, 4, 1);
+	obs_properties_add_bool(props, "lowLatencyMode", u8"低延迟模式");
 	return props;
 }
 
 void *ScreenMirrorServer::CreateWinAirplay(obs_data_t *settings,
 					   obs_source_t *source)
 {
-	ScreenMirrorServer *server = new ScreenMirrorServer(source, obs_data_get_int(settings, "type"));
+	ScreenMirrorServer *server = new ScreenMirrorServer(source, settings);
 	return server;
 }
 
@@ -1057,7 +1069,7 @@ bool obs_module_load(void)
 	info.get_name = GetWinAirplayName;
 	info.create = ScreenMirrorServer::CreateWinAirplay;
 	info.destroy = DestroyWinAirplay;
-	info.update = UpdateWinAirplaySource;
+	info.update = ScreenMirrorServer::UpdateWinAirplaySource;
 	info.get_defaults = GetWinAirplayDefaultsOutput;
 	info.get_properties = GetWinAirplayPropertiesOutput;
 	info.video_render = WinAirplayRender;

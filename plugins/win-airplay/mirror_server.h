@@ -58,8 +58,9 @@ public:
 		IOS_WIRELESS = 5
 	};
 
-	ScreenMirrorServer(obs_source_t *source, int type);
+	ScreenMirrorServer(obs_source_t *source, obs_data_t *settings);
 	~ScreenMirrorServer();
+
 	void outputVideo(uint8_t *data, size_t data_len, int64_t pts);
 	void outputAudio(uint8_t *data, size_t data_len, int64_t pts,
 			 int serial);
@@ -68,12 +69,13 @@ public:
 	void mirrorServerSetup();
 	void mirrorServerDestroy();
 
+	void updateCacheDelay(bool lowLatencyMode);
 	void setBackendType(int type);
 	void changeBackendType(int type);
 
 	static void pipeCallback(void *param, uint8_t *data, size_t size);
-	static void *CreateWinAirplay(obs_data_t *settings,
-				      obs_source_t *source);
+	static void *CreateWinAirplay(obs_data_t *settings, obs_source_t *source);
+	static void UpdateWinAirplaySource(void *obj, obs_data_t *settings);
 	int m_width = 0;
 	int m_height = 0;
 	obs_source_t *m_source = nullptr;
@@ -106,6 +108,7 @@ private:
 	media_audio_info m_audioInfo;
 	bool m_stop = false;
 
+	bool m_lowLatencyMode = false;
 	bool m_audioInfoReceived = false;
 	bool m_videoInfoReceived = false;
 	std::list<VideoFrame> m_videoFrames;
