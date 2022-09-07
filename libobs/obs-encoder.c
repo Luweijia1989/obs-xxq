@@ -1569,3 +1569,18 @@ uint32_t obs_encoder_get_sei_rate(const obs_encoder_t *encoder)
 
 	return encoder->sei_rate;
 }
+
+size_t obs_encoder_get_frame_size(const obs_encoder_t *encoder)
+{
+	if (!obs_encoder_valid(encoder, "obs_encoder_get_frame_size"))
+		return 0;
+	if (encoder->info.type != OBS_ENCODER_AUDIO) {
+		blog(LOG_WARNING,
+		     "obs_encoder_get_frame_size: "
+		     "encoder '%s' is not an audio encoder",
+		     obs_encoder_get_name(encoder));
+		return 0;
+	}
+
+	return encoder->framesize;
+}

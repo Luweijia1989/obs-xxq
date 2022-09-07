@@ -11,6 +11,9 @@ find_package(FFmpeg REQUIRED
 	COMPONENTS avcodec avfilter avdevice avutil swscale avformat swresample)
 include_directories(${FFMPEG_INCLUDE_DIRS})
 
+find_package(Librist REQUIRED)
+find_package(Libsrt REQUIRED)
+
 configure_file(
 	"${CMAKE_CURRENT_SOURCE_DIR}/obs-ffmpeg-config.h.in"
 	"${CMAKE_CURRENT_BINARY_DIR}/obs-ffmpeg-config.h")
@@ -22,7 +25,10 @@ set(obs-ffmpeg_config_HEADERS
 set(obs-ffmpeg_HEADERS
 	obs-ffmpeg-formats.h
 	obs-ffmpeg-compat.h
-	closest-pixel-format.h)
+	obs-ffmpeg-output.h
+	obs-ffmpeg-srt.h
+	obs-ffmpeg-rist.h
+	obs-ffmpeg-url.h)
 
 set(obs-ffmpeg_SOURCES
 	obs-ffmpeg.c
@@ -30,6 +36,7 @@ set(obs-ffmpeg_SOURCES
 	obs-ffmpeg-nvenc.c
 	obs-ffmpeg-output.c
 	obs-ffmpeg-mux.c
+	obs-ffmpeg-mpegts.c
 	obs-ffmpeg-source.c)
 
 if(UNIX AND NOT APPLE)
@@ -61,6 +68,9 @@ target_link_libraries(obs-ffmpeg
 	media-playback
 	${obs-ffmpeg_PLATFORM_DEPS}
 	${FFMPEG_LIBRARIES})
+	
+target_link_libraries(obs-ffmpeg Librist::Librist Libsrt::Libsrt)
+target_link_libraries(obs-ffmpeg ws2_32.lib)
 
 install_obs_plugin_with_data(obs-ffmpeg data)
 

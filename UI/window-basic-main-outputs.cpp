@@ -691,10 +691,15 @@ bool SimpleOutput::StartStreaming(obs_service_t *service)
 		auth->OnStreamConfig();
 
 	/* --------------------- */
-
 	const char *type = obs_service_get_output_type(service);
-	if (!type)
-		type = "rtmp_output";
+	QString url = obs_service_get_url(service);
+	if (url.startsWith("srt://"))
+	{
+		type = "ffmpeg_mpegts_muxer";
+	} else {
+		if (!type)
+			type = "rtmp_output";
+	}
 
 	/* XXX: this is messy and disgusting and should be refactored */
 	if (outputType != type) {
