@@ -39,6 +39,7 @@ class WASAPISource {
 	bool isInputDevice;
 	bool useDeviceTiming = false;
 	bool isDefaultDevice = false;
+	std::thread defaultThread;
 
 	bool reconnecting = false;
 	bool previouslyFailed = false;
@@ -186,6 +187,9 @@ inline void WASAPISource::Stop()
 
 inline WASAPISource::~WASAPISource()
 {
+	if(defaultThread.joinable())
+		defaultThread.join();
+
 	enumerator->UnregisterEndpointNotificationCallback(notify);
 	Stop();
 
@@ -629,12 +633,15 @@ void WASAPISource::SetDefaultDevice(EDataFlow flow, ERole role, LPCWSTR id)
 	if (t - lastNotifyTime < 300000000)
 		return;
 
-	std::thread([this]() {
+	if (defaultThread.joinable())
+		defaultThread.join();
+
+	defaultThread = std::move(std::thread([this]() {
 		EnterCriticalSection(&mutex);
 		Stop();
 		Start();
 		LeaveCriticalSection(&mutex);
-	}).detach();
+	}));
 
 	lastNotifyTime = t;
 }
