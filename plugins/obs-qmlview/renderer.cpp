@@ -143,7 +143,7 @@ WindowSingleThreaded::WindowSingleThreaded(QObject *parent)
 	connect(&m_pboTimer, &QTimer::timeout, this, [=](){
 		m_context->makeCurrent(m_offscreenSurface);
 		m_pbos[m_pboIndex]->bind();
-		auto src = m_pbos[m_pboIndex]->map(QOpenGLBuffer::ReadOnly);
+		auto src = m_pbos[m_pboIndex]->map(QOpenGLBuffer::ReadWrite);
 		if (src) {
 			emit capped((quint8 *)src);
 			m_pbos[m_pboIndex]->unmap();
