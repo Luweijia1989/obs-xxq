@@ -330,6 +330,11 @@ static void obs_source_init_audio_hotkeys(struct obs_source *source)
 		obs_source_hotkey_push_to_talk, source);
 }
 
+bool obs_source_data_valid(obs_source_t *source)
+{
+	return data_valid(source, "obs_source_data_valid");
+}
+
 static obs_source_t *
 obs_source_create_internal(const char *id, const char *name,
 			   obs_data_t *settings, obs_data_t *hotkey_data,

@@ -143,7 +143,7 @@ WindowSingleThreaded::WindowSingleThreaded(QObject *parent)
 	connect(&m_pboTimer, &QTimer::timeout, this, [=](){
 		m_context->makeCurrent(m_offscreenSurface);
 		m_pbos[m_pboIndex]->bind();
-		auto src = m_pbos[m_pboIndex]->map(QOpenGLBuffer::ReadOnly);
+		auto src = m_pbos[m_pboIndex]->map(QOpenGLBuffer::ReadWrite);
 		if (src) {
 			emit capped((quint8 *)src);
 			m_pbos[m_pboIndex]->unmap();
@@ -259,7 +259,7 @@ void WindowSingleThreaded::render()
 		glReadPixels(0, 0, m_quickWindow->width(), m_quickWindow->height(), GL_RGBA, GL_UNSIGNED_BYTE, NULL);
 		m_pbos[m_pboIndex]->release();
 		m_pbos[nextIndex]->bind();
-		auto src = m_pbos[nextIndex]->map(QOpenGLBuffer::ReadOnly);
+		auto src = m_pbos[nextIndex]->map(QOpenGLBuffer::ReadWrite);
 		if (src) {
 			emit capped((quint8 *)src);
 			m_pbos[nextIndex]->unmap();
