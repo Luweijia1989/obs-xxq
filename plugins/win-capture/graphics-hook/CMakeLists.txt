@@ -68,6 +68,7 @@ set(graphics-hook_SOURCES
 	dxgi-capture.cpp
 	d3d10-capture.cpp
 	d3d11-capture.cpp
+	d3d12-capture.cpp
 	lyric-capture.cpp)
 
 if(MSVC)
