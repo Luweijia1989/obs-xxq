@@ -14,6 +14,7 @@ set(third-party_HEADERS
 	./third-party/imguidx9_danmu.h
 	./third-party/imguidx10_danmu.h
 	./third-party/imguidx11_danmu.h
+	./third-party/imguidx12_danmu.h
 	./third-party/imgui/imconfig.h
 	./third-party/imgui/imgui_impl_win32.h
 	./third-party/imgui/imgui.h
@@ -24,6 +25,7 @@ set(third-party_HEADERS
 	./third-party/imgui/imgui_impl_dx9.h
 	./third-party/imgui/imgui_impl_dx10.h
 	./third-party/imgui/imgui_impl_dx11.h
+	./third-party/imgui/imgui_impl_dx12.h
 	./third-party/json_tool.h
 	./third-party/shared_helper.h
 	./third-party/shared_mem.h)
@@ -33,6 +35,7 @@ set(third-party_SOURCES
 	./third-party/imguidx9_danmu.cpp
 	./third-party/imguidx10_danmu.cpp
 	./third-party/imguidx11_danmu.cpp
+	./third-party/imguidx12_danmu.cpp
 	./third-party/imgui/imgui_impl_win32.cpp
 	./third-party/imgui/imgui_demo.cpp
 	./third-party/imgui/imgui_tables.cpp
@@ -42,6 +45,7 @@ set(third-party_SOURCES
 	./third-party/imgui/imgui_impl_dx9.cpp
 	./third-party/imgui/imgui_impl_dx10.cpp
 	./third-party/imgui/imgui_impl_dx11.cpp
+	./third-party/imgui/imgui_impl_dx12.cpp
 	./third-party/json_reader.cpp
 	./third-party/json_value.cpp
 	./third-party/json_writer.cpp

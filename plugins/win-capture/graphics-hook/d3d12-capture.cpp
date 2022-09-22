@@ -9,8 +9,14 @@
 
 #include "dxgi-helpers.hpp"
 #include "../funchook.h"
+#include "imguidx12_danmu.h"
 
 #define MAX_BACKBUFFERS 8
+
+typedef HRESULT(STDMETHODCALLTYPE *execute_command_lists_t)(
+	ID3D12CommandQueue *, UINT, ID3D12CommandList *const *);
+
+static struct func_hook execute_command_lists;
 
 struct d3d12_data {
 	ID3D12Device                   *device; /* do not release */
@@ -312,6 +318,10 @@ static void d3d12_init(IDXGISwapChain *swap)
 
 	if (!success)
 		d3d12_free();
+	else {
+		if (!global_hook_info->black_list)
+			imgui_init_dx12(data.device, window, swap);
+	}
 }
 
 static inline void d3d12_copy_texture(ID3D11Resource *dst, ID3D11Resource *src)
@@ -367,6 +377,88 @@ void d3d12_capture(void *swap_ptr, void*, bool capture_overlay)
 	if (capture_ready()) {
 		d3d12_shtex_capture(swap, capture_overlay);
 	}
+
+	imgui_paint_dx12(swap);
+}
+
+static HRESULT STDMETHODCALLTYPE
+hook_execute_command_lists(ID3D12CommandQueue *queue, UINT NumCommandLists,
+			   ID3D12CommandList *const *ppCommandLists)
+{
+	imgui_set_command_queue(queue);
+
+	unhook(&execute_command_lists);
+	execute_command_lists_t call =
+		(execute_command_lists_t)execute_command_lists.call_addr;
+	HRESULT hr = call(queue, NumCommandLists, ppCommandLists);
+	rehook(&execute_command_lists);
+
+	return hr;
+}
+
+static bool manually_get_d3d12_addrs(HMODULE d3d12_module,
+				     void **execute_command_lists_addr)
+{
+	PFN_D3D12_CREATE_DEVICE create =
+		(PFN_D3D12_CREATE_DEVICE)GetProcAddress(d3d12_module,
+							"D3D12CreateDevice");
+	if (!create) {
+		hlog("Failed to load D3D12CreateDevice");
+		return false;
+	}
+
+	bool success = false;
+	ID3D12Device *device;
+	if (SUCCEEDED(create(NULL, D3D_FEATURE_LEVEL_11_0,
+			     IID_PPV_ARGS(&device)))) {
+		D3D12_COMMAND_QUEUE_DESC desc{};
+		ID3D12CommandQueue *queue;
+		HRESULT hr =
+			device->CreateCommandQueue(&desc, IID_PPV_ARGS(&queue));
+		success = SUCCEEDED(hr);
+		if (success) {
+			void **queue_vtable = *(void ***)queue;
+			*execute_command_lists_addr = queue_vtable[10];
+
+			queue->Release();
+		} else {
+			hlog("Failed to create D3D12 command queue");
+		}
+
+		device->Release();
+	} else {
+		hlog("Failed to create D3D12 device");
+	}
+
+	return success;
+}
+
+bool hook_d3d12(void)
+{
+	HMODULE d3d12_module = get_system_module("d3d12.dll");
+	if (!d3d12_module) {
+		return false;
+	}
+
+	void *execute_command_lists_addr = nullptr;
+	if (!manually_get_d3d12_addrs(d3d12_module,
+				      &execute_command_lists_addr)) {
+		hlog("Failed to get D3D12 values");
+		return true;
+	}
+
+	if (!execute_command_lists_addr) {
+		hlog("Invalid D3D12 values");
+		return true;
+	}
+
+	hook_init(&execute_command_lists, execute_command_lists_addr,
+		  (void *)hook_execute_command_lists,
+		  "ID3D12CommandQueue::ExecuteCommandLists");
+	rehook(&execute_command_lists);
+
+	hlog("Hooked D3D12");
+	return true;
 }
 
 #endif

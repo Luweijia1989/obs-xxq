@@ -310,9 +310,16 @@ static inline bool attempt_hook(void)
 	//static bool ddraw_hooked = false;
 	static bool d3d8_hooked = false;
 	static bool d3d9_hooked = false;
+	static bool d3d12_hooked = false;
 	static bool dxgi_hooked = false;
 	static bool gl_hooked = false;
 	static bool lyric_hooked = false;
+
+#ifdef COMPILE_D3D12_HOOK
+	if (!d3d12_hooked) {
+		d3d12_hooked = hook_d3d12();
+	}
+#endif
 
 	if (global_hook_info->only_lyric) {
 		if (!lyric_hooked) {
