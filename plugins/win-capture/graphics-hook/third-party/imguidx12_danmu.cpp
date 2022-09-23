@@ -184,4 +184,41 @@ void imgui_finish_dx12()
 		ImGui::DestroyContext();
 		is_initialised = false;
 	}
+
+	bool deleted = false;
+	for (UINT i = 0; i < DirectX12Interface::BuffersCounts; i++) {
+		if (DirectX12Interface::FrameContext[i].Resource) {
+			DirectX12Interface::FrameContext[i].Resource->Release();
+			DirectX12Interface::FrameContext[i].Resource = NULL;
+		}
+
+		if (!deleted) {
+			if (DirectX12Interface::FrameContext[i].CommandAllocator) {
+				DirectX12Interface::FrameContext[i].CommandAllocator->Release();
+				DirectX12Interface::FrameContext[i].CommandAllocator = NULL;
+			}
+			deleted = true;
+		}
+	}
+
+	if (DirectX12Interface::CommandList) {
+		DirectX12Interface::CommandList->Release();
+		DirectX12Interface::CommandList = NULL;
+	}
+	if (DirectX12Interface::DescriptorHeapBackBuffers) {
+		DirectX12Interface::DescriptorHeapBackBuffers->Release();
+		DirectX12Interface::DescriptorHeapBackBuffers = NULL;
+	}
+	if (DirectX12Interface::DescriptorHeapImGuiRender) {
+		DirectX12Interface::DescriptorHeapImGuiRender->Release();
+		DirectX12Interface::DescriptorHeapImGuiRender = NULL;
+	}
+
+#ifdef DX12_ENABLE_DEBUG_LAYER
+	IDXGIDebug1 *pDebug = NULL;
+	if (SUCCEEDED(DXGIGetDebugInterface1(0, IID_PPV_ARGS(&pDebug)))) {
+		pDebug->ReportLiveObjects(DXGI_DEBUG_ALL, DXGI_DEBUG_RLO_SUMMARY);
+		pDebug->Release();
+	}
+#endif
 }

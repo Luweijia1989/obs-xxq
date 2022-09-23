@@ -50,6 +50,8 @@ static struct d3d12_data data = {};
 
 void d3d12_free(void)
 {
+	imgui_finish_dx12();
+
 	if (data.copy_tex)
 		data.copy_tex->Release();
 	for (size_t i = 0; i < data.backbuffer_count; i++) {
@@ -345,8 +347,6 @@ static inline void d3d12_shtex_capture(IDXGISwapChain *swap)
 	} else {
 		cur_idx = data.cur_backbuffer;
 	}
-
-	cur_idx = 1;
 
 	ID3D11Resource *backbuffer = data.backbuffer11[cur_idx];
 
