@@ -20,6 +20,13 @@ extern "C" {
 #endif
 
 #define NUM_BUFFERS 3
+#define HOOK_VERBOSE_LOGGING 0
+
+#if HOOK_VERBOSE_LOGGING
+#define hlog_verbose(...) hlog(__VA_ARGS__)
+#else
+#define hlog_verbose(...) (void)0
+#endif
 
 extern void hlog(const char *format, ...);
 extern void hlog_hr(const char *text, HRESULT hr);
@@ -234,6 +241,15 @@ static inline bool capture_should_init(void)
 	}
 
 	return false;
+}
+
+static inline bool should_passthrough()
+{
+#if COMPILE_VULKAN_HOOK
+	return vk_presenting > 0;
+#else
+	return false;
+#endif
 }
 
 #ifdef __cplusplus

@@ -37,9 +37,6 @@ void imgui_init_dx12(ID3D12Device *device, HWND hwnd, IDXGISwapChain *swap)
 	if (is_initialised)
 		return;
 
-	if (!DirectX12Interface::CommandQueue)
-		return;
-
 	IDXGISwapChain3 *swap3;
 	auto hr = swap->QueryInterface(__uuidof(IDXGISwapChain3), (void **)&swap3);
 	if (!SUCCEEDED(hr))
@@ -127,12 +124,14 @@ void imgui_init_dx12(ID3D12Device *device, HWND hwnd, IDXGISwapChain *swap)
 
 void imgui_set_command_queue(ID3D12CommandQueue *cq)
 {
-	if (!DirectX12Interface::CommandQueue)
-		DirectX12Interface::CommandQueue = cq;
+	DirectX12Interface::CommandQueue = cq;
 }
 
 void imgui_paint_dx12(IDXGISwapChain *swap)
 {
+	if (!DirectX12Interface::CommandQueue)
+		return;
+
 	if (capture_active() && is_initialised) {
 		Json::Value root;
 		/*if (!checkDanmu(root))

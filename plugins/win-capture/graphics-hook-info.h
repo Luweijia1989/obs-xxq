@@ -46,6 +46,10 @@ struct dxgi_offsets {
 	uint32_t present1;
 };
 
+struct dxgi_offsets2 {
+	uint32_t release;
+};
+
 struct ddraw_offsets {
 	uint32_t surface_create;
 	uint32_t surface_restore;
@@ -77,6 +81,7 @@ struct graphics_offsets {
 	struct d3d9_offsets d3d9;
 	struct dxgi_offsets dxgi;
 	struct ddraw_offsets ddraw;
+	struct dxgi_offsets2 dxgi2;
 };
 
 struct hook_info {

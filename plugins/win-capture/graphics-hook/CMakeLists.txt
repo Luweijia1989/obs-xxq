@@ -8,6 +8,7 @@ configure_file(
 
 include_directories(third-party)
 include_directories(third-party/imgui)
+include_directories(detours)
 
 set(third-party_HEADERS
 	./third-party/draw_danmu.h
@@ -70,8 +71,6 @@ set(graphics-hook_SOURCES
 	d3d8-capture.cpp
 	d3d9-capture.cpp
 	dxgi-capture.cpp
-	d3d10-capture.cpp
-	d3d11-capture.cpp
 	d3d12-capture.cpp
 	lyric-capture.cpp)
 
@@ -89,7 +88,8 @@ target_include_directories(graphics-hook PUBLIC
 	"${CMAKE_BINARY_DIR}/plugins/win-capture/graphics-hook/config")
 
 target_link_libraries(graphics-hook
-	ipc-util psapi)
+	ipc-util psapi
+	${PROJECT_SOURCE_DIR}/detours/detours.lib)
 
 if(CMAKE_SIZEOF_VOID_P EQUAL 8)
 	set(_output_suffix "64")
