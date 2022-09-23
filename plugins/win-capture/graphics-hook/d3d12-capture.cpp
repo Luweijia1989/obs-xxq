@@ -377,7 +377,11 @@ void d3d12_capture(void *swap_ptr, void*, bool capture_overlay)
 	if (capture_ready()) {
 		d3d12_shtex_capture(swap, capture_overlay);
 	}
+}
 
+void d3d12_extra_draw(void *swap_ptr)
+{
+	IDXGISwapChain *swap = (IDXGISwapChain*)swap_ptr;
 	imgui_paint_dx12(swap);
 }
 

@@ -871,6 +871,10 @@ void d3d11_capture(void *swap_ptr, void *backbuffer_ptr, bool)
 
 		backbuffer->Release();
 	}
+}
+
+void d3d11_extra_draw(void *)
+{
 	if (imgui_paint_dx11())
 	{
 		static struct d3d11_state old_state = {0};

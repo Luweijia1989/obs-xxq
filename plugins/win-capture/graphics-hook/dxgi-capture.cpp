@@ -25,6 +25,7 @@ static struct func_hook present1;
 struct dxgi_swap_data {
 	IDXGISwapChain *swap;
 	void (*capture)(void *, void *, bool);
+	void (*extra_draw)(void *);
 	void (*free)(void);
 };
 
@@ -44,6 +45,7 @@ static bool setup_dxgi(IDXGISwapChain *swap)
 		if (level >= D3D_FEATURE_LEVEL_11_0) {
 			data.swap = swap;
 			data.capture = d3d11_capture;
+			data.extra_draw = d3d11_extra_draw;
 			data.free = d3d11_free;
 			return true;
 		}
@@ -62,6 +64,7 @@ static bool setup_dxgi(IDXGISwapChain *swap)
 	if (SUCCEEDED(hr)) {
 		data.swap = swap;
 		data.capture = d3d11_capture;
+		data.extra_draw = d3d11_extra_draw;
 		data.free = d3d11_free;
 		device->Release();
 		return true;
@@ -72,6 +75,7 @@ static bool setup_dxgi(IDXGISwapChain *swap)
 	if (SUCCEEDED(hr)) {
 		data.swap = swap;
 		data.capture = d3d12_capture;
+		data.extra_draw = d3d12_extra_draw;
 		data.free = d3d12_free;
 		device->Release();
 		return true;
@@ -144,6 +148,8 @@ static HRESULT STDMETHODCALLTYPE hook_present(IDXGISwapChain *swap,
 	}
 
 	unhook(&present);
+	if (data.extra_draw)
+		data.extra_draw(swap);
 	present_t call = (present_t)present.call_addr;
 	hr = call(swap, sync_interval, flags);
 	rehook(&present);
@@ -198,6 +204,8 @@ hook_present1(IDXGISwapChain1 *swap, UINT sync_interval, UINT flags,
 	}
 
 	unhook(&present1);
+	if (data.extra_draw)
+		data.extra_draw(swap);
 	present1_t call = (present1_t)present1.call_addr;
 	hr = call(swap, sync_interval, flags, params);
 	rehook(&present1);

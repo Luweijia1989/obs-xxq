@@ -48,10 +48,12 @@ extern bool hook_lyric(void);
 extern void d3d10_capture(void *swap, void *backbuffer, bool capture_overlay);
 extern void d3d10_free(void);
 extern void d3d11_capture(void *swap, void *backbuffer, bool capture_overlay);
+extern void d3d11_extra_draw(void *);
 extern void d3d11_free(void);
 
 #if COMPILE_D3D12_HOOK
 extern void d3d12_capture(void *swap, void *backbuffer, bool capture_overlay);
+extern void d3d12_extra_draw(void *swap);
 extern void d3d12_free(void);
 #endif
 
