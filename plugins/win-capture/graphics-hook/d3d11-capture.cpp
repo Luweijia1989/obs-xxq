@@ -840,7 +840,7 @@ static inline void d3d11_shmem_capture(ID3D11Resource *backbuffer)
 	data.cur_tex = next_tex;
 }
 
-void d3d11_capture(void *swap_ptr, void *backbuffer_ptr, bool)
+void d3d11_capture(void *swap_ptr, void *backbuffer_ptr)
 {
 	IDXGIResource *dxgi_backbuffer = (IDXGIResource *)backbuffer_ptr;
 	IDXGISwapChain *swap = (IDXGISwapChain *)swap_ptr;
@@ -878,9 +878,13 @@ void d3d11_extra_draw(void *)
 	if (imgui_paint_dx11())
 	{
 		static struct d3d11_state old_state = {0};
-		d3d11_save_state(&old_state);
+		data.context->OMGetRenderTargets(MAX_RENDER_TARGETS,
+					 old_state.render_targets,
+					 &old_state.zstencil_view);
 		data.context->OMSetRenderTargets(1, &mainRenderTargetView, NULL);
 		ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
-		d3d11_restore_state(&old_state);
+		data.context->OMSetRenderTargets(MAX_RENDER_TARGETS,
+					 old_state.render_targets,
+					 old_state.zstencil_view);
 	}
 }

@@ -300,7 +300,7 @@ static void d3d12_init(IDXGISwapChain *swap)
 	}
 
 	data.device->Release();
-
+	
 	if (!d3d12_init_format(swap, window, bb)) {
 		return;
 	}
@@ -333,8 +333,7 @@ static inline void d3d12_copy_texture(ID3D11Resource *dst, ID3D11Resource *src)
 	}
 }
 
-static inline void d3d12_shtex_capture(IDXGISwapChain *swap,
-		bool capture_overlay)
+static inline void d3d12_shtex_capture(IDXGISwapChain *swap)
 {
 	bool dxgi_1_4 = data.dxgi_1_4;
 	UINT cur_idx;
@@ -343,13 +342,11 @@ static inline void d3d12_shtex_capture(IDXGISwapChain *swap,
 		IDXGISwapChain3 *swap3 =
 			reinterpret_cast<IDXGISwapChain3*>(swap);
 		cur_idx = swap3->GetCurrentBackBufferIndex();
-		if (!capture_overlay) {
-			if (++cur_idx >= data.backbuffer_count)
-				cur_idx = 0;
-		}
 	} else {
 		cur_idx = data.cur_backbuffer;
 	}
+
+	cur_idx = 1;
 
 	ID3D11Resource *backbuffer = data.backbuffer11[cur_idx];
 
@@ -364,7 +361,7 @@ static inline void d3d12_shtex_capture(IDXGISwapChain *swap,
 	}
 }
 
-void d3d12_capture(void *swap_ptr, void*, bool capture_overlay)
+void d3d12_capture(void *swap_ptr, void*)
 {
 	IDXGISwapChain *swap = (IDXGISwapChain*)swap_ptr;
 
@@ -375,7 +372,7 @@ void d3d12_capture(void *swap_ptr, void*, bool capture_overlay)
 		d3d12_init(swap);
 	}
 	if (capture_ready()) {
-		d3d12_shtex_capture(swap, capture_overlay);
+		d3d12_shtex_capture(swap);
 	}
 }
 
