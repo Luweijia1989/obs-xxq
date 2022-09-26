@@ -3,7 +3,6 @@
 
 #include "dxgi-helpers.hpp"
 #include "graphics-hook.h"
-#include "../funchook.h"
 #include "imguidx10_danmu.h"
 
 struct d3d10_data {

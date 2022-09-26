@@ -1,14 +1,17 @@
 project(graphics-hook)
 
 add_definitions(-DCOMPILE_D3D12_HOOK)
- 
+
+find_package(Detours REQUIRED)
+
+include_directories(${DETOURS_INCLUDE_DIR})
+
 configure_file(
 	"${CMAKE_CURRENT_SOURCE_DIR}/graphics-hook-config.h.in"
 	"${CMAKE_BINARY_DIR}/plugins/win-capture/graphics-hook/config/graphics-hook-config.h")
 
 include_directories(third-party)
 include_directories(third-party/imgui)
-include_directories(detours)
 
 set(third-party_HEADERS
 	./third-party/draw_danmu.h
@@ -58,14 +61,12 @@ set(graphics-hook_HEADERS
 	graphics-hook.h
 	../graphics-hook-info.h
 	../hook-helpers.h
-	../funchook.h
 	../obfuscate.h
 	gl-decs.h
 	d3d9-patches.hpp)
 
 set(graphics-hook_SOURCES
 	graphics-hook.c
-	../funchook.c
 	../obfuscate.c
 	gl-capture.c
 	d3d8-capture.cpp
@@ -90,8 +91,7 @@ target_include_directories(graphics-hook PUBLIC
 	"${CMAKE_BINARY_DIR}/plugins/win-capture/graphics-hook/config")
 
 target_link_libraries(graphics-hook
-	ipc-util psapi
-	${PROJECT_SOURCE_DIR}/detours/detours.lib)
+	ipc-util psapi ${DETOURS_LIB})
 
 if(CMAKE_SIZEOF_VOID_P EQUAL 8)
 	set(_output_suffix "64")
