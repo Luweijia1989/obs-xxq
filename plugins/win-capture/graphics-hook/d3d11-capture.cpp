@@ -51,8 +51,6 @@ struct d3d11_data {
 
 static struct d3d11_data data = {};
 
-ID3D11RenderTargetView *mainRenderTargetView = NULL;
-
 void d3d11_free(void)
 {
 	imgui_finish_dx11();
@@ -95,11 +93,6 @@ void d3d11_free(void)
 	}
 
 	memset(&data, 0, sizeof(data));
-
-	if (mainRenderTargetView) {
-		mainRenderTargetView->Release();
-		mainRenderTargetView = NULL;
-	}
 
 	hlog("----------------- d3d11 capture freed ----------------");
 }
@@ -318,12 +311,7 @@ static void d3d11_init(IDXGISwapChain *swap)
 		d3d11_free();
 	else {
 		if (!global_hook_info->black_list) {
-			ID3D11Texture2D *pBackBuffer;
-			swap->GetBuffer(0, __uuidof(ID3D11Texture2D), (LPVOID *)&pBackBuffer);
-			data.device->CreateRenderTargetView(pBackBuffer, NULL, &mainRenderTargetView);
-			pBackBuffer->Release();
-
-			imgui_init_dx11(data.device, window, data.context);
+			imgui_init_dx11(swap, data.device, window, data.context);
 		}
 	}
 }
@@ -415,12 +403,5 @@ void d3d11_capture(void *swap_ptr, void *backbuffer_ptr)
 
 void d3d11_extra_draw(void *)
 {
-	if (imgui_paint_dx11()) {
-		ID3D11RenderTargetView *render_targets[D3D11_SIMULTANEOUS_RENDER_TARGET_COUNT] = {nullptr};
-		ID3D11DepthStencilView *zstencil_view = nullptr;
-		data.context->OMGetRenderTargets(D3D11_SIMULTANEOUS_RENDER_TARGET_COUNT, render_targets, &zstencil_view);
-		data.context->OMSetRenderTargets(1, &mainRenderTargetView, NULL);
-		ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
-		data.context->OMSetRenderTargets(D3D11_SIMULTANEOUS_RENDER_TARGET_COUNT, render_targets, zstencil_view);
-	}
+	imgui_paint_dx11();
 }

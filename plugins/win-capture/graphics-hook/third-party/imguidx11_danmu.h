@@ -6,6 +6,6 @@
 #include <Windows.h>
 #include <d3d11.h>
 
-void imgui_init_dx11(ID3D11Device *device, HWND hwnd, ID3D11DeviceContext *context);
-bool imgui_paint_dx11();
+void imgui_init_dx11(IDXGISwapChain *swap, ID3D11Device *device, HWND hwnd, ID3D11DeviceContext *context);
+void imgui_paint_dx11();
 void imgui_finish_dx11();
