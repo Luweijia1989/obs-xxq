@@ -1,7 +1,5 @@
 project(graphics-hook)
 
-add_definitions(-DCOMPILE_D3D12_HOOK)
-
 find_package(Detours REQUIRED)
 
 include_directories(${DETOURS_INCLUDE_DIR})
@@ -95,6 +93,7 @@ target_link_libraries(graphics-hook
 
 if(CMAKE_SIZEOF_VOID_P EQUAL 8)
 	set(_output_suffix "64")
+	add_definitions(-DCOMPILE_D3D12_HOOK)
 else()
 	set(_output_suffix "32")
 endif()

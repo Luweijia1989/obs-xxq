@@ -7,6 +7,8 @@
 #include "draw_danmu.h"
 #include <dxgi1_4.h>
 
+#if COMPILE_D3D12_HOOK
+
 #if defined _WIN64
 typedef uint64_t uintx_t;
 #else
@@ -224,3 +226,4 @@ void imgui_finish_dx12()
 	}
 #endif
 }
+#endif

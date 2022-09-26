@@ -190,7 +190,16 @@ bool hook_lyric()
 		DetourAttach((PVOID *)&RealUpdateLayeredWindowIndirect, hook_update_layered_window_indirect);
 	}
 
-	hlog("Hooked Lyric");
-
-	return true;
+	const LONG error = DetourTransactionCommit();
+	const bool success = error == NO_ERROR;
+	if (success) {
+		hlog("Hooked RealUpdatelayeredwindow");
+		hlog("Hooked RealUpdateLayeredWindowIndirect");
+		hlog("Hooked Lyric");
+	} else {
+		RealUpdatelayeredwindow = nullptr;
+		RealUpdateLayeredWindowIndirect = nullptr;
+		hlog("Failed to attach Detours hook: %ld", error);
+	}
+	return success;
 }
