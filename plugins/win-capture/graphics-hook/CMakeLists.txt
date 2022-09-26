@@ -1,6 +1,6 @@
 project(graphics-hook)
 
-set(COMPILE_D3D12_HOOK FALSE CACHE BOOL "Compile D3D12 hook support (required windows 10 SDK)")
+add_definitions(-DCOMPILE_D3D12_HOOK)
 
 configure_file(
 	"${CMAKE_CURRENT_SOURCE_DIR}/graphics-hook-config.h.in"
