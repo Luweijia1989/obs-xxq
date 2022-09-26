@@ -113,9 +113,9 @@ void imgui_init_dx12(ID3D12Device *device, HWND hwnd, IDXGISwapChain *swap)
 	ImGui_ImplDX12_Init(DirectX12Interface::Device, DirectX12Interface::BuffersCounts, DXGI_FORMAT_R8G8B8A8_UNORM,
 			    DirectX12Interface::DescriptorHeapImGuiRender, DirectX12Interface::DescriptorHeapImGuiRender->GetCPUDescriptorHandleForHeapStart(),
 			    DirectX12Interface::DescriptorHeapImGuiRender->GetGPUDescriptorHandleForHeapStart());
-	ImGui_ImplDX12_CreateDeviceObjects();
 
-	//add_fonts();
+	add_fonts();
+	ImGui_ImplDX12_CreateDeviceObjects();
 
 	qBase::connect(g_sharedSize, "YuerGameDanmu");
 
@@ -134,13 +134,16 @@ void imgui_paint_dx12(IDXGISwapChain *swap)
 
 	if (capture_active() && is_initialised) {
 		Json::Value root;
-		/*if (!checkDanmu(root))
-			return;*/
+		if (!checkDanmu(root))
+			return;
 
 		IDXGISwapChain3 *swap3;
 		auto hr = swap->QueryInterface(__uuidof(IDXGISwapChain3), (void **)&swap3);
 		if (!SUCCEEDED(hr))
 			return;
+
+		UINT index = swap3->GetCurrentBackBufferIndex();
+		swap3->Release();
 
 		ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
 
@@ -149,7 +152,7 @@ void imgui_paint_dx12(IDXGISwapChain *swap)
 
 		render_danmu(root);
 
-		DirectX12Interface::_FrameContext &CurrentFrameContext = DirectX12Interface::FrameContext[swap3->GetCurrentBackBufferIndex()];
+		DirectX12Interface::_FrameContext &CurrentFrameContext = DirectX12Interface::FrameContext[index];
 		CurrentFrameContext.CommandAllocator->Reset();
 
 		D3D12_RESOURCE_BARRIER Barrier;

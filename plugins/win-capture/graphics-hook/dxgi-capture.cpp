@@ -58,6 +58,7 @@ static bool setup_dxgi(IDXGISwapChain *swap)
 			data.swap = swap;
 			data.capture = d3d11_capture;
 			data.free = d3d11_free;
+			data.extra_draw = d3d11_extra_draw;
 			return true;
 		}
 	}
@@ -83,6 +84,7 @@ static bool setup_dxgi(IDXGISwapChain *swap)
 		data.swap = swap;
 		data.capture = d3d11_capture;
 		data.free = d3d11_free;
+		data.extra_draw = d3d11_extra_draw;
 		return true;
 	}
 
