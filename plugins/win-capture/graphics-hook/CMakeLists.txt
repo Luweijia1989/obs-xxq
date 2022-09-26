@@ -1,7 +1,7 @@
 project(graphics-hook)
 
 add_definitions(-DCOMPILE_D3D12_HOOK)
-
+ 
 configure_file(
 	"${CMAKE_CURRENT_SOURCE_DIR}/graphics-hook-config.h.in"
 	"${CMAKE_BINARY_DIR}/plugins/win-capture/graphics-hook/config/graphics-hook-config.h")
@@ -71,6 +71,8 @@ set(graphics-hook_SOURCES
 	d3d8-capture.cpp
 	d3d9-capture.cpp
 	dxgi-capture.cpp
+	d3d10-capture.cpp
+	d3d11-capture.cpp
 	d3d12-capture.cpp
 	lyric-capture.cpp)
 

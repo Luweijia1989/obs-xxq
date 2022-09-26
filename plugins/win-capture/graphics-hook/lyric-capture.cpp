@@ -17,12 +17,9 @@ typedef BOOL(WINAPI *UpdateLayeredWindowIndirectProc)(
 	HWND hwnd, const UPDATELAYEREDWINDOWINFO *pULWInfo);
 
 struct lyric_data {
-	uint32_t base_cx;
-	uint32_t base_cy;
 	uint32_t cx;
 	uint32_t cy;
 
-	bool using_scale;
 	HWND window;
 	bool compatibility;
 	HDC hdc;
@@ -36,9 +33,8 @@ static struct lyric_data data = {};
 
 static bool lyric_shmem_init(HWND window)
 {
-	if (!capture_init_shmem(&data.shmem_info, window, data.base_cx,
-				data.base_cy, data.cx, data.cy, data.cx * 4,
-				DXGI_FORMAT_B8G8R8A8_UNORM, true)) {
+	if (!capture_init_shmem(&data.shmem_info, window, data.cx, data.cy,
+				data.cx * 4, DXGI_FORMAT_B8G8R8A8_UNORM, true)) {
 		return false;
 	}
 
@@ -61,18 +57,9 @@ static void lyric_data_free()
 
 static void lyric_data_init(uint32_t width, uint32_t height, HWND window)
 {
-	data.base_cx = width;
-	data.base_cy = height;
+	data.cx = width;
+	data.cy = height;
 	data.window = window;
-	data.using_scale = global_hook_info->use_scale;
-
-	if (data.using_scale) {
-		data.cx = global_hook_info->cx;
-		data.cy = global_hook_info->cy;
-	} else {
-		data.cx = data.base_cx;
-		data.cy = data.base_cy;
-	}
 
 	BITMAPINFO bi = {0};
 	BITMAPINFOHEADER *bih = &bi.bmiHeader;
@@ -101,7 +88,7 @@ static void lyric_capture(HDC hdc, uint32_t width, uint32_t height)
 		lyric_data_init(width, height, WindowFromDC(hdc));
 	}
 	if (capture_ready()) {
-		if (width != data.base_cx || height != data.base_cy) {
+		if (width != data.cx || height != data.cy) {
 			if (width != 0 && height != 0) {
 				lyric_data_free();
 			}
