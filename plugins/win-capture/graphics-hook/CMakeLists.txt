@@ -58,16 +58,16 @@ set(third-party_SOURCES
 
 set(graphics-hook_HEADERS
 	"${CMAKE_BINARY_DIR}/plugins/win-capture/graphics-hook/config/graphics-hook-config.h"
-	graphics-hook.h
 	../graphics-hook-info.h
 	../hook-helpers.h
 	../obfuscate.h
+	graphics-hook.h
 	gl-decs.h
 	d3d9-patches.hpp)
 
 set(graphics-hook_SOURCES
-	graphics-hook.c
 	../obfuscate.c
+	graphics-hook.c
 	gl-capture.c
 	d3d8-capture.cpp
 	d3d9-capture.cpp
