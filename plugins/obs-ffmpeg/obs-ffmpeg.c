@@ -26,6 +26,7 @@ extern struct obs_output_info replay_buffer;
 extern struct obs_encoder_info aac_encoder_info;
 extern struct obs_encoder_info opus_encoder_info;
 extern struct obs_encoder_info nvenc_encoder_info;
+extern struct obs_output_info ffmpeg_mpegts_muxer;
 
 #if LIBAVUTIL_VERSION_INT >= AV_VERSION_INT(55, 27, 100)
 #define LIBAVUTIL_VAAPI_AVAILABLE
@@ -200,6 +201,8 @@ static bool vaapi_supported(void)
 #ifdef _WIN32
 extern void jim_nvenc_load(void);
 extern void jim_nvenc_unload(void);
+extern void amf_load(void);
+extern void amf_unload(void);
 #endif
 
 #if ENABLE_FFMPEG_LOGGING
@@ -215,6 +218,7 @@ bool obs_module_load(void)
 	obs_register_output(&replay_buffer);
 	obs_register_encoder(&aac_encoder_info);
 	obs_register_encoder(&opus_encoder_info);
+	obs_register_output(&ffmpeg_mpegts_muxer);
 #ifndef __APPLE__
 	if (nvenc_supported()) {
 		blog(LOG_INFO, "NVENC supported");
@@ -225,6 +229,11 @@ bool obs_module_load(void)
 #endif
 		obs_register_encoder(&nvenc_encoder_info);
 	}
+
+#ifdef _WIN32
+	amf_load();
+#endif
+
 #if !defined(_WIN32) && defined(LIBAVUTIL_VAAPI_AVAILABLE)
 	if (vaapi_supported()) {
 		blog(LOG_INFO, "FFMPEG VAAPI supported");
@@ -246,6 +255,7 @@ void obs_module_unload(void)
 #endif
 
 #ifdef _WIN32
+	amf_unload();
 	jim_nvenc_unload();
 #endif
 }

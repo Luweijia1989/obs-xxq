@@ -7,15 +7,21 @@
 #include "shared_helper.h"
 #include "draw_danmu.h"
 
-// Pull in the reference WndProc handler to handle window messages.
-extern IMGUI_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND, UINT, WPARAM,
-							LPARAM);
 static bool is_initialised = false;
+static ID3D11RenderTargetView *RenderTargetView = NULL;
+static ID3D11DeviceContext *Context;
 
-void imgui_init_dx11(ID3D11Device *device, HWND hwnd, ID3D11DeviceContext *context)
+void imgui_init_dx11(IDXGISwapChain *swap, ID3D11Device *device, HWND hwnd, ID3D11DeviceContext *c)
 {
 	if (is_initialised)
 		return;
+
+	Context = c;
+
+	ID3D11Texture2D *pBackBuffer = nullptr;
+	swap->GetBuffer(0, __uuidof(ID3D11Texture2D), (LPVOID *)&pBackBuffer);
+	device->CreateRenderTargetView(pBackBuffer, NULL, &RenderTargetView);
+	pBackBuffer->Release();
 
 	IMGUI_CHECKVERSION();
 	ImGui::CreateContext();
@@ -25,7 +31,7 @@ void imgui_init_dx11(ID3D11Device *device, HWND hwnd, ID3D11DeviceContext *conte
 
 	// Setup Platform/Renderer backends
 	ImGui_ImplWin32_Init(hwnd);
-	ImGui_ImplDX11_Init(device, context);
+	ImGui_ImplDX11_Init(device, c);
 
 	add_fonts();
 
@@ -34,12 +40,12 @@ void imgui_init_dx11(ID3D11Device *device, HWND hwnd, ID3D11DeviceContext *conte
 	is_initialised = true;
 }
 
-bool imgui_paint_dx11()
+void imgui_paint_dx11()
 {
 	if (capture_active() && is_initialised) {
 		Json::Value root;
 		if (!checkDanmu(root))
-			return false;
+			return;
 
 		ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
 		// Start the Dear ImGui frame
@@ -48,10 +54,13 @@ bool imgui_paint_dx11()
 
 		render_danmu(root);
 
-		//ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
-		return true;
+		ID3D11RenderTargetView *render_targets[D3D11_SIMULTANEOUS_RENDER_TARGET_COUNT] = {nullptr};
+		ID3D11DepthStencilView *zstencil_view = nullptr;
+		Context->OMGetRenderTargets(D3D11_SIMULTANEOUS_RENDER_TARGET_COUNT, render_targets, &zstencil_view);
+		Context->OMSetRenderTargets(1, &RenderTargetView, NULL);
+		ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
+		Context->OMSetRenderTargets(D3D11_SIMULTANEOUS_RENDER_TARGET_COUNT, render_targets, zstencil_view);
 	}
-	return false;
 }
 
 void imgui_finish_dx11()
@@ -61,5 +70,10 @@ void imgui_finish_dx11()
 		ImGui_ImplWin32_Shutdown();
 		ImGui::DestroyContext();
 		is_initialised = false;
+	}
+
+	if (RenderTargetView) {
+		RenderTargetView->Release();
+		RenderTargetView = nullptr;
 	}
 }

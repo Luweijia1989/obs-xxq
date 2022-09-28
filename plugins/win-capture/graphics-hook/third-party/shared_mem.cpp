@@ -1,10 +1,10 @@
-﻿#include "shared_mem.h"
+#include "shared_mem.h"
 #include <strsafe.h>
 
 namespace qBase
 {
 
-HANDLE SM_Create(size_t mem_size, const char *mem_name)
+HANDLE SM_Create(DWORD mem_size, const char *mem_name)
 {
     SECURITY_ATTRIBUTES lsa;
     SECURITY_DESCRIPTOR lsd;
@@ -19,7 +19,7 @@ HANDLE SM_Create(size_t mem_size, const char *mem_name)
     return handle;
 }
 
-bool SM_Read(HANDLE mem_handle, size_t offset, size_t read_size, void *out_buf)
+bool SM_Read(HANDLE mem_handle, DWORD offset, DWORD read_size, void *out_buf)
 {
     if(mem_handle == NULL)
     {
@@ -37,7 +37,7 @@ bool SM_Read(HANDLE mem_handle, size_t offset, size_t read_size, void *out_buf)
     return true;
 }
 
-bool SM_Write(HANDLE mem_handle, size_t offset, size_t write_size, void *data_buf)
+bool SM_Write(HANDLE mem_handle, DWORD offset, DWORD write_size, void *data_buf)
 {
     if(mem_handle == NULL)
     {

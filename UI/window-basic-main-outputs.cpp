@@ -323,7 +323,7 @@ void SimpleOutput::LoadRecordingPreset()
 		} else if (strcmp(encoder, SIMPLE_ENCODER_QSV) == 0) {
 			LoadRecordingPreset_h264("obs_qsv11");
 		} else if (strcmp(encoder, SIMPLE_ENCODER_AMD) == 0) {
-			LoadRecordingPreset_h264("amd_amf_h264");
+			LoadRecordingPreset_h264("h264_texture_amf");
 		} else if (strcmp(encoder, SIMPLE_ENCODER_NVENC) == 0) {
 			const char *id = EncoderAvailable("jim_nvenc")
 						 ? "jim_nvenc"
@@ -348,7 +348,7 @@ SimpleOutput::SimpleOutput(OBSBasic *main_) : BasicOutputHandler(main_)
 		LoadStreamingPreset_h264("obs_qsv11");
 
 	} else if (strcmp(encoder, SIMPLE_ENCODER_AMD) == 0) {
-		LoadStreamingPreset_h264("amd_amf_h264");
+		LoadStreamingPreset_h264("h264_texture_amf");
 
 	} else if (strcmp(encoder, SIMPLE_ENCODER_NVENC) == 0) {
 		const char *id = EncoderAvailable("jim_nvenc") ? "jim_nvenc"
@@ -691,10 +691,15 @@ bool SimpleOutput::StartStreaming(obs_service_t *service)
 		auth->OnStreamConfig();
 
 	/* --------------------- */
-
 	const char *type = obs_service_get_output_type(service);
-	if (!type)
-		type = "rtmp_output";
+	QString url = obs_service_get_url(service);
+	if (url.startsWith("srt://"))
+	{
+		type = "ffmpeg_mpegts_muxer";
+	} else {
+		if (!type)
+			type = "rtmp_output";
+	}
 
 	/* XXX: this is messy and disgusting and should be refactored */
 	if (outputType != type) {

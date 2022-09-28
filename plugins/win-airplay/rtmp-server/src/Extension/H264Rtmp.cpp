@@ -14,6 +14,9 @@
 #include "common-define.h"
 extern IPCClient *ipc_client;
 
+char start_code[4] = { 0x00, 0x00, 0x00, 0x01 };
+char g_buffer[1024*1024*2] = { 0 };
+
 namespace mediakit{
 
 H264RtmpDecoder::H264RtmpDecoder() {
@@ -78,20 +81,41 @@ static void sendMediaInfo(const char* sps, size_t sps_len, const char* pps, size
 	ipc_client_write_2(ipc_client, &pack_info, sizeof(struct av_packet_info), &info, sizeof(struct media_video_info), INFINITE);
 }
 
-static void send264Data(const char* data, size_t len, uint32_t pts) {
-	if ((data[0] & 0x1F) == 0x06)
+static void send264Data(const std::list<std::pair<char *, size_t>> &nalus, uint32_t pts, size_t total) {
+	if (nalus.empty() ||  !total)
 		return;
 
+	size_t copy_index = 0;
+	size_t used_count = 0;
+	bool send = false;
+	for (auto iter=nalus.begin(); iter!=nalus.end(); iter++) {
+		auto &nalu = *iter;
+		auto data = nalu.first;
+		auto len = nalu.second;
+
+		if ((data[0] & 0x1F) &0x1F == 0x06)
+			continue;
+
+		if (!send)
+			send = true;
+
+		memcpy(g_buffer + copy_index, start_code, 4);
+		copy_index += 4;
+		memcpy(g_buffer + copy_index, data, len);
+		copy_index += len;
+		used_count = used_count + 4 + len;
+	}
+
+	if (!send) {
+		return;
+	}
+
 	char start_code[4] = { 0x00, 0x00, 0x00, 0x01 };
-	char *buffer = (char *)malloc(len + 4);
-	memcpy(buffer, start_code, 4);
-	memcpy(buffer + 4, data, len);
 	struct av_packet_info pack_info = {0};
-	pack_info.size = len + 4;
+	pack_info.size = used_count;
 	pack_info.type = FFM_PACKET_VIDEO;
 	pack_info.pts = (int64_t)pts * 1000000;
-	ipc_client_write_2(ipc_client, &pack_info, sizeof(struct av_packet_info), buffer, len + 4, INFINITE);
-	free(buffer);
+	ipc_client_write_2(ipc_client, &pack_info, sizeof(struct av_packet_info), g_buffer, used_count, INFINITE);
 }
 
 void H264RtmpDecoder::inputRtmp(const RtmpPacket::Ptr &pkt) {
@@ -114,6 +138,10 @@ void H264RtmpDecoder::inputRtmp(const RtmpPacket::Ptr &pkt) {
         uint8_t *cts_ptr = (uint8_t *) (pkt->buffer.data() + 2);
         int32_t cts = (((cts_ptr[0] << 16) | (cts_ptr[1] << 8) | (cts_ptr[2])) + 0xff800000) ^ 0xff800000;
         auto pts = pkt->time_stamp + cts;
+
+	std::list<std::pair<char *, size_t>> nalus;
+	size_t total = 0;
+	size_t nalu_count = 0;
         while (offset + 4 < total_len) {
             uint32_t frame_len;
             memcpy(&frame_len, pkt->buffer.data() + offset, 4);
@@ -123,9 +151,13 @@ void H264RtmpDecoder::inputRtmp(const RtmpPacket::Ptr &pkt) {
                 break;
             }
             onGetH264(pkt->buffer.data() + offset, frame_len, pkt->time_stamp, pts);
-	    send264Data(pkt->buffer.data() + offset, frame_len, pts);
+	    nalus.push_back(std::make_pair(pkt->buffer.data() + offset, frame_len));
+	    total += frame_len;
+	    nalu_count++;
             offset += frame_len;
         }
+
+	send264Data(nalus, pts, total + nalu_count * 4);
     }
 }
 

@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include <Windows.h>
 
@@ -8,11 +8,11 @@ extern HANDLE g_danmuShare;
 
 extern HANDLE g_danmuEvent;
 
- bool connect(size_t size, const char* mem_name);
+ bool connect(DWORD size, const char* mem_name);
 
  void disConnect();
 
- void readShare(size_t size, char* buff);
+ void readShare(DWORD size, char* buff);
 
  void writeShare(char* buff, int length);
 

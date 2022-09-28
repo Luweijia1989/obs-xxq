@@ -39,6 +39,7 @@ class WASAPISource {
 	bool isInputDevice;
 	bool useDeviceTiming = false;
 	bool isDefaultDevice = false;
+	std::thread defaultThread;
 
 	bool reconnecting = false;
 	bool previouslyFailed = false;
@@ -54,7 +55,7 @@ class WASAPISource {
 	audio_format format;
 	uint32_t sampleRate;
 
-	CRITICAL_SECTION mutex;;
+	CRITICAL_SECTION mutex;
 
 	static DWORD WINAPI ReconnectThread(LPVOID param);
 	static DWORD WINAPI CaptureThread(LPVOID param);
@@ -84,7 +85,7 @@ public:
 	void Update(obs_data_t *settings);
 
 	void SetDefaultDevice(EDataFlow flow, ERole role, LPCWSTR id);
-	void OutputCaptureFail(HRESULT res);
+	void OutputCaptureFail();
 };
 
 class WASAPINotify : public IMMNotificationClient {
@@ -186,6 +187,9 @@ inline void WASAPISource::Stop()
 
 inline WASAPISource::~WASAPISource()
 {
+	if(defaultThread.joinable())
+		defaultThread.join();
+
 	enumerator->UnregisterEndpointNotificationCallback(notify);
 	Stop();
 
@@ -269,14 +273,16 @@ void WASAPISource::InitClient()
 		throw HRError("Failed to get initialize audio client", res);
 }
 
-void WASAPISource::OutputCaptureFail(HRESULT res)
+void WASAPISource::OutputCaptureFail()
 {
-	if (res == AUDCLNT_E_UNSUPPORTED_FORMAT) {
-		obs_data_t *event = obs_data_create();
-		obs_data_set_string(event, "type", "Fail2InitRender");
-		obs_source_signal_event(source, event);
-		obs_data_release(event);
-	}
+	obs_data_t *event = obs_data_create();
+	obs_data_set_string(event, "type", "Fail2InitRender");
+	struct calldata cd;
+	uint8_t stack[512];
+	calldata_init_fixed(&cd, stack, sizeof(stack));
+	calldata_set_ptr(&cd, "event", event);
+	signal_handler_signal(obs_get_signal_handler(), "obs_global_event", &cd);
+	obs_data_release(event);
 }
 
 void WASAPISource::InitRender()
@@ -299,7 +305,7 @@ void WASAPISource::InitRender()
 	res = client->Initialize(AUDCLNT_SHAREMODE_SHARED, 0, BUFFER_TIME_100NS,
 				 0, wfex, nullptr);
 	if (FAILED(res)) {
-		OutputCaptureFail(res);
+		OutputCaptureFail();
 		throw HRError("Failed to get initialize audio client", res);
 	}
 
@@ -629,12 +635,15 @@ void WASAPISource::SetDefaultDevice(EDataFlow flow, ERole role, LPCWSTR id)
 	if (t - lastNotifyTime < 300000000)
 		return;
 
-	std::thread([this]() {
+	if (defaultThread.joinable())
+		defaultThread.join();
+
+	defaultThread = std::move(std::thread([this]() {
 		EnterCriticalSection(&mutex);
 		Stop();
 		Start();
 		LeaveCriticalSection(&mutex);
-	}).detach();
+	}));
 
 	lastNotifyTime = t;
 }

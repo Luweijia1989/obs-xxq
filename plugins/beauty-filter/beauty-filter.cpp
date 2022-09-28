@@ -254,7 +254,7 @@ static void initBDResource(std::string appPath)
 		QObject::connect(&t, &QTimer::timeout, &loop, &QEventLoop::quit);
 		t.setSingleShot(true);
 		t.start(3000);
-		QObject::connect(reply, &QNetworkReply::finished, [=, &loop](){
+		QObject::connect(reply, &QNetworkReply::finished, &loop, [=, &loop](){
 			QJsonDocument doc = QJsonDocument::fromJson(reply->readAll());
 			qDebug() << "license doc " << doc;
 			auto o = doc.object();

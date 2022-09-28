@@ -16,7 +16,6 @@ void imgui_init_dx10(ID3D10Device *device, HWND hwnd)
 
 	IMGUI_CHECKVERSION();
 	ImGui::CreateContext();
-	ImGuiIO& io = ImGui::GetIO();
 
 	StyleColorsYuer(nullptr);
 

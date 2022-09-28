@@ -1,4 +1,4 @@
-﻿/******************************************************************************
+/******************************************************************************
     Copyright (C) 2014 by Hugh Bailey <obs.jim@gmail.com>
 
     This program is free software: you can redistribute it and/or modify
@@ -163,12 +163,6 @@ void obs_view_render(obs_view_t *view, void *output_order)
 		gs_matrix_pop();
 	}
 
-	if (core_data->privacy_source)
-		obs_source_default_render(core_data->privacy_source);
-
-	if (core_data->leave_source)
-		obs_source_default_render(core_data->leave_source);
-
 	if (core_data->h5_source) {
 		obs_data_t *ss = core_data->h5_source->context.settings;
 		double wScale = obs_data_get_double(ss, "wScale");
@@ -188,9 +182,6 @@ void obs_view_render(obs_view_t *view, void *output_order)
 
 	if (core_data->mask_source)
 		obs_source_default_render(core_data->mask_source);
-
-	if (core_data->audiolivelink_source)
-		obs_source_default_render(core_data->audiolivelink_source);
 
 	pthread_mutex_unlock(&view->channels_mutex);
 }

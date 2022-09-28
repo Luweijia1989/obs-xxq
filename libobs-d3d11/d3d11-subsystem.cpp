@@ -841,6 +841,25 @@ try {
 	return false;
 }
 
+static bool increase_maximum_frame_latency(ID3D11Device *device)
+{
+	ComQIPtr<IDXGIDevice1> dxgiDevice(device);
+	if (!dxgiDevice) {
+		blog(LOG_DEBUG, "%s: Failed to get IDXGIDevice1", __FUNCTION__);
+		return false;
+	}
+
+	const HRESULT hr = dxgiDevice->SetMaximumFrameLatency(16);
+	if (FAILED(hr)) {
+		blog(LOG_DEBUG, "%s: SetMaximumFrameLatency failed",
+		     __FUNCTION__);
+		return false;
+	}
+
+	blog(LOG_INFO, "DXGI increase maximum frame latency success");
+	return true;
+}
+
 #if USE_GPU_PRIORITY
 static bool set_priority(ID3D11Device *device)
 {
@@ -891,12 +910,17 @@ static bool set_priority(ID3D11Device *device)
 	blog(LOG_INFO, "D3D11 GPU priority setup success");
 	return true;
 }
-
-static bool is_intel(const wstring &name)
-{
-	return wstrstri(name.c_str(), L"intel") != nullptr;
-}
 #endif
+
+static bool CheckFormat(ID3D11Device *device, DXGI_FORMAT format)
+{
+	constexpr UINT required = D3D11_FORMAT_SUPPORT_TEXTURE2D |
+				  D3D11_FORMAT_SUPPORT_RENDER_TARGET;
+
+	UINT support = 0;
+	return SUCCEEDED(device->CheckFormatSupport(format, &support)) &&
+	       ((support & required) == required);
+}
 
 void gs_device::InitDevice(uint32_t adapterIdx)
 {
@@ -932,9 +956,14 @@ void gs_device::InitDevice(uint32_t adapterIdx)
 	blog(LOG_INFO, "D3D11 loaded successfully, feature level used: %x",
 	     (unsigned int)levelUsed);
 
-	/* adjust gpu thread priority */
+	/* prevent stalls sometimes seen in Present calls */
+	if (!increase_maximum_frame_latency(device)) {
+		blog(LOG_INFO, "DXGI increase maximum frame latency failed");
+	}
+
+	/* adjust gpu thread priority on non-intel GPUs */
 #if USE_GPU_PRIORITY
-	if (!is_intel(adapterName) && !set_priority(device)) {
+	if (desc.VendorId != 0x8086 && !set_priority(device)) {
 		blog(LOG_INFO, "D3D11 GPU priority setup "
 			       "failed (not admin?)");
 	}
@@ -947,11 +976,6 @@ void gs_device::InitDevice(uint32_t adapterIdx)
 
 	/* WARP NV12 support is suspected to be buggy on older Windows */
 	if (desc.VendorId == 0x1414 && desc.DeviceId == 0x8c) {
-		return;
-	}
-
-	/* Intel CopyResource is very slow with NV12 */
-	if (desc.VendorId == 0x8086) {
 		return;
 	}
 
@@ -968,27 +992,8 @@ void gs_device::InitDevice(uint32_t adapterIdx)
 		return;
 	}
 
-	/* needs to support the actual format */
-	UINT support = 0;
-	hr = device->CheckFormatSupport(DXGI_FORMAT_NV12, &support);
-	if (FAILED(hr)) {
-		return;
-	}
-
-	if ((support & D3D11_FORMAT_SUPPORT_TEXTURE2D) == 0) {
-		return;
-	}
-
-	/* must be usable as a render target */
-	if ((support & D3D11_FORMAT_SUPPORT_RENDER_TARGET) == 0) {
-		return;
-	}
-
-	if (HasBadNV12Output()) {
-		return;
-	}
-
-	nv12Supported = true;
+	nv12Supported = CheckFormat(device, DXGI_FORMAT_NV12) &&
+			!HasBadNV12Output();
 }
 
 static inline void ConvertStencilSide(D3D11_DEPTH_STENCILOP_DESC &desc,
@@ -2984,7 +2989,9 @@ extern "C" EXPORT void device_debug_marker_end(gs_device_t *)
 	D3DPERF_EndEvent();
 }
 
-extern "C" EXPORT void device_init_imgui(gs_device_t *device, void(*callback)(void *, void *, void *), void *p)
+extern "C" EXPORT void
+device_init_imgui(gs_device_t *device, void (*callback)(void *, void *, void *),
+		  void *p)
 {
 	if (!callback)
 		return;

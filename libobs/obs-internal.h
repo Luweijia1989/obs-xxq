@@ -39,7 +39,7 @@
 #define NUM_TEXTURES 2
 #define NUM_CHANNELS 3
 #define MICROSECOND_DEN 1000000
-#define NUM_ENCODE_TEXTURES 3
+#define NUM_ENCODE_TEXTURES 10
 #define NUM_ENCODE_TEXTURE_FRAMES_TO_WAIT 1
 #define NUM_RTC_CHANNEL 9
 
@@ -261,6 +261,7 @@ typedef void (*rtc_frame_output_t)(uint8_t **data, uint32_t *linesize,
 				   void *userdata);
 struct obs_rtc_mix {
 	char rtc_background_image_path[512];
+	char rtc_seat_background_image_path[512];
 	int mix_type;
 	struct obs_frame_render_info rtc_frame_render_info;
 	gs_texture_t *rtc_textures[NUM_RTC_CHANNEL];
@@ -302,6 +303,7 @@ struct obs_core_video {
 	graphics_t *graphics;
 	gs_stagesurf_t *copy_surfaces[NUM_TEXTURES][NUM_CHANNELS];
 	gs_texture_t *render_texture;
+	gs_texture_t *render_invisible_texture;
 	gs_texture_t *output_texture;
 	gs_texture_t *convert_textures[NUM_CHANNELS];
 	bool texture_rendered;
@@ -423,8 +425,6 @@ struct obs_core_data {
 
 	obs_data_t *private_data;
 
-	struct obs_source *privacy_source;
-	struct obs_source *leave_source;
 	struct obs_source *h5_source;
 	struct obs_source *sticker_source;
 	struct obs_source *mask_source;
