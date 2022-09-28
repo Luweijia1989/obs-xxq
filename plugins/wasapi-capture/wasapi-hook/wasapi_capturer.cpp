@@ -1,11 +1,12 @@
 #include "wasapi_capturer.h"
 #include <process.h>
-#include "MinHook.h"
 #include "wasapi-hook.h"
+
+#include <detours.h>
 
 #include "wasapi_capture_proxy.h"
 
-#define ELASTICS_SAFE_RELEASE(X)      \
+#define SAFE_RELEASE(X)               \
 	{                             \
 		if (X) {              \
 			X->Release(); \
@@ -25,12 +26,10 @@ std::mutex gMutex;
 #ifdef __cplusplus
 extern "C" {
 #endif
-typedef HRESULT(STDMETHODCALLTYPE *AudioClientInitialize)(IAudioClient *pAudioClient, AUDCLNT_SHAREMODE ShareMode, DWORD stream_flags, REFERENCE_TIME hns_buffer_duration, REFERENCE_TIME hns_periodicity, const WAVEFORMATEX *p_format, LPCGUID audio_session_guid);
-typedef HRESULT(STDMETHODCALLTYPE *AudioClientIsFormatSupported)(IAudioClient *pAudioClient, AUDCLNT_SHAREMODE ShareMode, const WAVEFORMATEX *pFormat, WAVEFORMATEX **ppClosestMatch);
-typedef HRESULT(STDMETHODCALLTYPE *AudioClientGetMixFormat)(IAudioClient *pAudioClient, WAVEFORMATEX **ppDeviceFormat);
+typedef HRESULT(STDMETHODCALLTYPE *AudioClientInitialize)(IAudioClient *pAudioClient, AUDCLNT_SHAREMODE ShareMode, DWORD stream_flags,
+							  REFERENCE_TIME hns_buffer_duration, REFERENCE_TIME hns_periodicity, const WAVEFORMATEX *p_format,
+							  LPCGUID audio_session_guid);
 typedef HRESULT(STDMETHODCALLTYPE *AudioClientStop)(IAudioClient *pAudioClient);
-typedef HRESULT(STDMETHODCALLTYPE *AudioClientReset)(IAudioClient *pAudioClient);
-typedef HRESULT(STDMETHODCALLTYPE *AduioClientGetCurrentPadding)(IAudioClient* pAudioClient, UINT32* padding);
 
 typedef HRESULT(STDMETHODCALLTYPE *AudioRenderClientGetBuffer)(IAudioRenderClient *audio_render_client, UINT32 num_frames_requested, BYTE **ppData);
 typedef HRESULT(STDMETHODCALLTYPE *AudioRenderClientReleaseBuffer)(IAudioRenderClient *audio_render_client, UINT32 num_frames_written, DWORD dw_flags);
@@ -39,22 +38,14 @@ typedef HRESULT(STDMETHODCALLTYPE *AudioRenderClientReleaseBuffer)(IAudioRenderC
 #endif
 
 AudioClientInitialize realAudioClientInitialize = NULL;
-AudioClientIsFormatSupported realAudioClientIsFormatSupported = NULL;
-AudioClientGetMixFormat realAudioClientGetMixFormat = NULL;
 AudioClientStop realAudioClientStop = NULL;
-AudioClientReset realAudioClientReset = NULL;
-AduioClientGetCurrentPadding realAudioClientGetCurrentPadding = NULL;
-
 AudioRenderClientGetBuffer realAudioRenderClientGetBuffer = NULL;
 AudioRenderClientReleaseBuffer realAudioRenderClientReleaseBuffer = NULL;
 
-HRESULT STDMETHODCALLTYPE hookAudioClientInitialize(
-	IAudioClient *pAudioClient, AUDCLNT_SHAREMODE share_mode,
-	DWORD stream_flags, REFERENCE_TIME hns_buffer_duration,
-	REFERENCE_TIME hns_periodicity, const WAVEFORMATEX *pFormat,
-	LPCGUID audio_session_guid)
+HRESULT STDMETHODCALLTYPE hookAudioClientInitialize(IAudioClient *pAudioClient, AUDCLNT_SHAREMODE share_mode, DWORD stream_flags,
+						    REFERENCE_TIME hns_buffer_duration, REFERENCE_TIME hns_periodicity, const WAVEFORMATEX *pFormat,
+						    LPCGUID audio_session_guid)
 {
-	hlog("hookAudioClientInitialize 1111111111111111");
 	HRESULT hr = realAudioClientInitialize(pAudioClient, share_mode, stream_flags, hns_buffer_duration, hns_periodicity, pFormat, audio_session_guid);
 	std::unique_lock<std::mutex> lk(gMutex);
 	if (gWASAPIAudioCaptureProxy) {
@@ -63,23 +54,8 @@ HRESULT STDMETHODCALLTYPE hookAudioClientInitialize(
 	return hr;
 }
 
-HRESULT STDMETHODCALLTYPE hookAudioClientIsFormatSupported(
-	IAudioClient *pAudioClient, AUDCLNT_SHAREMODE ShareMode,
-	const WAVEFORMATEX *pFormat, WAVEFORMATEX **ppClosestMatch)
-{
-	return realAudioClientIsFormatSupported(pAudioClient, ShareMode, pFormat, ppClosestMatch);
-}
-
-HRESULT STDMETHODCALLTYPE hookAudioClientGetMixFormat(
-	IAudioClient *pAudioClient, WAVEFORMATEX **ppDeviceFormat)
-{
-	return realAudioClientGetMixFormat(pAudioClient, ppDeviceFormat);
-}
-
 HRESULT STDMETHODCALLTYPE hookAudioClientStop(IAudioClient *pAudioClient)
 {
-	hlog("hookAudioClientStop 222222222222");
-
 	IAudioRenderClient *render_client = NULL;
 	pAudioClient->GetService(__uuidof(IAudioRenderClient), (void **)&render_client);
 
@@ -87,12 +63,10 @@ HRESULT STDMETHODCALLTYPE hookAudioClientStop(IAudioClient *pAudioClient)
 	hr = realAudioClientStop(pAudioClient);
 
 	if (hr == AUDCLNT_E_SERVICE_NOT_RUNNING)
-		hlog("[%d] AudioClientStopHook: called!! (%s)",
-		     GetCurrentThreadId(), "AUDCLNT_E_SERVICE_NOT_RUNNING");
+		hlog("[%d] AudioClientStopHook: called!! (%s)", GetCurrentThreadId(), "AUDCLNT_E_SERVICE_NOT_RUNNING");
 	if (hr == AUDCLNT_E_NOT_INITIALIZED)
-		hlog("[%d] AudioClientStopHook: called!! (%s)",
-		     GetCurrentThreadId(), "AUDCLNT_E_NOT_INITIALIZED");
-	
+		hlog("[%d] AudioClientStopHook: called!! (%s)", GetCurrentThreadId(), "AUDCLNT_E_NOT_INITIALIZED");
+
 	std::unique_lock<std::mutex> lk(gMutex);
 	if (gWASAPIAudioCaptureProxy) {
 		if (SUCCEEDED(hr)) {
@@ -104,20 +78,7 @@ HRESULT STDMETHODCALLTYPE hookAudioClientStop(IAudioClient *pAudioClient)
 	return hr;
 }
 
-HRESULT STDMETHODCALLTYPE hookAudioClientReset(IAudioClient *pAudioClient)
-{
-	return realAudioClientReset(pAudioClient);
-}
-
-HRESULT STDMETHODCALLTYPE hookAudioClientGetCurrentPadding(IAudioClient *pAudioClient, UINT32* padding)
-{
-	HRESULT hr = realAudioClientGetCurrentPadding(pAudioClient, padding);
-	std::unique_lock<std::mutex> lk(gMutex);
-	return hr;
-}
-
-HRESULT STDMETHODCALLTYPE
-hookAudioRenderClientGetBuffer(IAudioRenderClient *pAudioRenderClient, UINT32 nFrameRequested, BYTE **ppData)
+HRESULT STDMETHODCALLTYPE hookAudioRenderClientGetBuffer(IAudioRenderClient *pAudioRenderClient, UINT32 nFrameRequested, BYTE **ppData)
 {
 	HRESULT hr = realAudioRenderClientGetBuffer(pAudioRenderClient, nFrameRequested, ppData);
 	std::unique_lock<std::mutex> lk(gMutex);
@@ -127,15 +88,13 @@ hookAudioRenderClientGetBuffer(IAudioRenderClient *pAudioRenderClient, UINT32 nF
 	return hr;
 }
 
-HRESULT STDMETHODCALLTYPE
-hookAudioRenderClientReleaseBuffer(IAudioRenderClient *pAudioRenderClient, UINT32 nFrameWritten, DWORD dwFlags)
+HRESULT STDMETHODCALLTYPE hookAudioRenderClientReleaseBuffer(IAudioRenderClient *pAudioRenderClient, UINT32 nFrameWritten, DWORD dwFlags)
 {
 	{
 		std::unique_lock<std::mutex> lk(gMutex);
 		if (gWASAPIAudioCaptureProxy) {
-			static int cc = 0;
-			hlog("@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@ %d", cc++);
-			gWASAPIAudioCaptureProxy->capture_audio(pAudioRenderClient, nFrameWritten, gWASAPIAudioCapture->audio_block_align(pAudioRenderClient), dwFlags == AUDCLNT_BUFFERFLAGS_SILENT);
+			gWASAPIAudioCaptureProxy->capture_audio(pAudioRenderClient, nFrameWritten, gWASAPIAudioCapture->audio_block_align(pAudioRenderClient),
+								dwFlags == AUDCLNT_BUFFERFLAGS_SILENT);
 			gWASAPIAudioCaptureProxy->pop_audio_data(pAudioRenderClient);
 		}
 	}
@@ -177,8 +136,7 @@ int32_t core::start(void)
 {
 	_run = TRUE;
 	unsigned thrdaddr = 0;
-	_thread = (HANDLE)::_beginthreadex(NULL, 0, core::process_cb, this, 0,
-					   &thrdaddr);
+	_thread = (HANDLE)::_beginthreadex(NULL, 0, core::process_cb, this, 0, &thrdaddr);
 	if (!_thread || _thread == INVALID_HANDLE_VALUE)
 		return err_code_t::fail;
 	return err_code_t::success;
@@ -227,8 +185,7 @@ void core::on_init(IAudioClient *audio_client, const WAVEFORMATEX *wfex)
 		if (wfex->wBitsPerSample == 32)
 			info._format = 4;
 	} else {
-		switch (wfex->wBitsPerSample)
-		{
+		switch (wfex->wBitsPerSample) {
 		case 8:
 			info._format = 1;
 			break;
@@ -242,7 +199,7 @@ void core::on_init(IAudioClient *audio_client, const WAVEFORMATEX *wfex)
 			break;
 		}
 	}
-	
+
 	IAudioRenderClient *render = NULL;
 	audio_client->GetService(__uuidof(IAudioRenderClient), (void **)&render);
 	if (render)
@@ -251,10 +208,7 @@ void core::on_init(IAudioClient *audio_client, const WAVEFORMATEX *wfex)
 	_audio_clients[audio_client] = info;
 }
 
-void core::on_get_current_padding(IAudioClient *audio_client, UINT32 *padding)
-{
-
-}
+void core::on_get_current_padding(IAudioClient *audio_client, UINT32 *padding) {}
 
 void core::on_receive(uint8_t *data, uint32_t data_size)
 {
@@ -299,92 +253,30 @@ IAudioClient *core::create_dummy_audio_client(void)
 	IAudioClient *pAudioClient = NULL;
 	WAVEFORMATEX *pFormat = NULL;
 
-	//LOGGER::make_trace_log(ELASC, "%s()_%d ", __FUNCTION__, __LINE__);
-
-	hr = CoCreateInstance(__uuidof(MMDeviceEnumerator), NULL,
-			      CLSCTX_INPROC_SERVER,
-			      __uuidof(IMMDeviceEnumerator),
-			      (void **)&pMMDevEnum);
+	hr = CoCreateInstance(__uuidof(MMDeviceEnumerator), NULL, CLSCTX_INPROC_SERVER, __uuidof(IMMDeviceEnumerator), (void **)&pMMDevEnum);
 	if (hr == CO_E_NOTINITIALIZED) {
-		/*
-		std::wostringstream wos2;
-		wos2 << "[" << GetCurrentThreadId() << "] CoCreateInstance fails with CO_E_NOTINITIALIZED" << std::endl;
-		OutputDebugString(wos2.str().c_str());
-		*/
-
-		// We have seen crashes which indicates that this method can in fact
-		// fail with CO_E_NOTINITIALIZED in combination with certain 3rd party
-		// modules. Calling CoInitializeEx is an attempt to resolve the reported
-		// issues.
-		//LOGGER::make_trace_log(ELASC, "%s()_%d : CoCreateInstance CO_E_NOTINITIALIZED", __FUNCTION__, __LINE__);
 		hr = CoInitializeEx(NULL, COINIT_MULTITHREADED);
-		//LOGGER::make_trace_log(ELASC, "%s()_%d ", __FUNCTION__, __LINE__);
-		hr = CoCreateInstance(__uuidof(MMDeviceEnumerator), NULL,
-				      CLSCTX_ALL, __uuidof(IMMDeviceEnumerator),
-				      (void **)&pMMDevEnum);
-		//LOGGER::make_trace_log(ELASC, "%s()_%d : hr=%d", __FUNCTION__, __LINE__, hr);
+		hr = CoCreateInstance(__uuidof(MMDeviceEnumerator), NULL, CLSCTX_ALL, __uuidof(IMMDeviceEnumerator), (void **)&pMMDevEnum);
 		if (SUCCEEDED(hr)) {
-			hr = CoCreateInstance(__uuidof(MMDeviceEnumerator),
-					      NULL, CLSCTX_INPROC_SERVER,
-					      __uuidof(IMMDeviceEnumerator),
-					      (void **)&pMMDevEnum);
+			hr = CoCreateInstance(__uuidof(MMDeviceEnumerator), NULL, CLSCTX_INPROC_SERVER, __uuidof(IMMDeviceEnumerator), (void **)&pMMDevEnum);
 		}
 	}
-	//LOGGER::make_trace_log(ELASC, "%s()_%d : hr=%d", __FUNCTION__, __LINE__, hr);
+
 	hr = pMMDevEnum->GetDefaultAudioEndpoint(eRender, eConsole, &pMMDevice);
-	hr = pMMDevice->Activate(__uuidof(IAudioClient), CLSCTX_ALL, NULL,
-				 (void **)&pAudioClient);
+	hr = pMMDevice->Activate(__uuidof(IAudioClient), CLSCTX_ALL, NULL, (void **)&pAudioClient);
 	hr = pAudioClient->GetMixFormat(&pFormat);
-
-//#define	CHROMIUM_HARD_CODED_VALUE
-#ifdef CHROMIUM_HARD_CODED_VALUE
-	int channels = p_wfx->nChannels;
-	// Preferred sample rate.
-	int sample_rate = p_wfx->nSamplesPerSec;
-
-	// We use a hard-coded value of 16 bits per sample today even if most audio
-	// engines does the actual mixing in 32 bits per sample.
-	int bits_per_sample = 16;
-	g_nblock_align = (bits_per_sample / 8) * channels;
-#else
-#if 0
-	WAVEFORMATPCMEX waveFormatPCMEx;
-	waveFormatPCMEx.Format.wFormatTag = WAVE_FORMAT_EXTENSIBLE;
-	waveFormatPCMEx.Format.nChannels = 2;
-	waveFormatPCMEx.Format.nSamplesPerSec = 44100L;
-	waveFormatPCMEx.Format.nAvgBytesPerSec = 176400L;
-	waveFormatPCMEx.Format.nBlockAlign = 4;  /* Same as the usual */
-	waveFormatPCMEx.Format.wBitsPerSample = 16;
-	waveFormatPCMEx.Format.cbSize = 22;  /* After this to GUID */
-	waveFormatPCMEx.Samples.wValidBitsPerSample = 16;  /* All bits have data */
-	waveFormatPCMEx.dwChannelMask = SPEAKER_FRONT_LEFT | SPEAKER_FRONT_RIGHT;
-	waveFormatPCMEx.SubFormat = KSDATAFORMAT_SUBTYPE_PCM;  // Specify PCM
-
-	pFormat = (WAVEFORMATEX*)&waveFormatPCMEx;
-	/*
-	pFormat->cbSize = 0;
-	pFormat->nAvgBytesPerSec = 176400;
-	pFormat->nBlockAlign = 4;
-	pFormat->nChannels = 2;
-	pFormat->nSamplesPerSec = 44100;
-	pFormat->wBitsPerSample = 16;
-	pFormat->wFormatTag = 1;
-	*/
-#endif
-#endif
-	hr = pAudioClient->Initialize(AUDCLNT_SHAREMODE_SHARED, 0,
-				      hnsReqDuration, 0, pFormat, NULL);
+	hr = pAudioClient->Initialize(AUDCLNT_SHAREMODE_SHARED, 0, hnsReqDuration, 0, pFormat, NULL);
+	
+	CoTaskMemFree(pFormat);
 
 	if (SUCCEEDED(hr)) {
-		CoTaskMemFree(pFormat);
-		ELASTICS_SAFE_RELEASE(pMMDevEnum);
-		ELASTICS_SAFE_RELEASE(pMMDevice);
+		SAFE_RELEASE(pMMDevEnum);
+		SAFE_RELEASE(pMMDevice);
 		return pAudioClient;
 	} else {
-		CoTaskMemFree(pFormat);
-		ELASTICS_SAFE_RELEASE(pMMDevEnum);
-		ELASTICS_SAFE_RELEASE(pMMDevice);
-		ELASTICS_SAFE_RELEASE(pAudioClient);
+		SAFE_RELEASE(pMMDevEnum);
+		SAFE_RELEASE(pMMDevice);
+		SAFE_RELEASE(pAudioClient);
 		return NULL;
 	}
 }
@@ -406,119 +298,53 @@ void core::process(void)
 {
 	::CoInitializeEx(NULL, COINIT_MULTITHREADED);
 
-	HRESULT hr = S_OK;
-#if 1
+	bool success = false;
 	IAudioClient *pAudioClient = create_dummy_audio_client();
-#else
-	REFERENCE_TIME hnsReqDuration = REFTIMES_PER_SEC;
-	IMMDeviceEnumerator *pMMDevEnum = NULL;
-	IMMDevice *pMMDevice = NULL;
-	IAudioClient *pAudioClient = NULL;
-	WAVEFORMATEX *pFormat = NULL;
-	hr = CoCreateInstance(__uuidof(MMDeviceEnumerator), NULL,
-			      CLSCTX_INPROC_SERVER,
-			      __uuidof(IMMDeviceEnumerator),
-			      (void **)&pMMDevEnum);
-	if (hr == CO_E_NOTINITIALIZED) {
-		hr = CoInitializeEx(NULL, COINIT_MULTITHREADED);
-		hr = CoCreateInstance(__uuidof(MMDeviceEnumerator), NULL,
-				      CLSCTX_ALL, __uuidof(IMMDeviceEnumerator),
-				      (void **)&pMMDevEnum);
-		if (SUCCEEDED(hr))
-			hr = CoCreateInstance(__uuidof(MMDeviceEnumerator),
-					      NULL, CLSCTX_INPROC_SERVER,
-					      __uuidof(IMMDeviceEnumerator),
-					      (void **)&pMMDevEnum);
-	}
-	hr = pMMDevEnum->GetDefaultAudioEndpoint(eRender, eConsole, &pMMDevice);
-	hr = pMMDevice->Activate(__uuidof(IAudioClient), CLSCTX_ALL, NULL,
-				 (void **)&pAudioClient);
-	hr = pAudioClient->GetMixFormat(&pFormat);
+	if (pAudioClient) {
+		DetourTransactionBegin();
 
-	/*
-	WAVEFORMATPCMEX waveFormatPCMEx;
-	waveFormatPCMEx.Format.wFormatTag = WAVE_FORMAT_EXTENSIBLE;
-	waveFormatPCMEx.Format.nChannels = 2;
-	waveFormatPCMEx.Format.nSamplesPerSec = 48000L;
-	waveFormatPCMEx.Format.nAvgBytesPerSec = 192000L;
-	waveFormatPCMEx.Format.nBlockAlign = 4;
-	waveFormatPCMEx.Format.wBitsPerSample = 16;
-	waveFormatPCMEx.Format.cbSize = 22;
-	waveFormatPCMEx.Samples.wValidBitsPerSample = 16;
-	waveFormatPCMEx.dwChannelMask = SPEAKER_FRONT_LEFT | SPEAKER_FRONT_RIGHT;
-	waveFormatPCMEx.SubFormat = KSDATAFORMAT_SUBTYPE_PCM;  // Specify PCM
-	pFormat = (WAVEFORMATEX*)&waveFormatPCMEx;
-	*/
-#endif
+		DWORD_PTR *pAudioClientVTable = (DWORD_PTR *)pAudioClient;
+		pAudioClientVTable = (DWORD_PTR *)pAudioClientVTable[0];
 
-	IAudioRenderClient *pAudioRenderClient = NULL;
-	DWORD_PTR *pAudioClientVTable = NULL;
-	DWORD_PTR *pAudioRenderClientVTable = NULL;
+		realAudioClientInitialize = (AudioClientInitialize)pAudioClientVTable[3];
+		DetourAttach((PVOID *)&realAudioClientInitialize, hookAudioClientInitialize);
 
-	if (MH_Initialize() != MH_OK)
-		return;
+		realAudioClientStop = (AudioClientStop)pAudioClientVTable[11];
+		DetourAttach((PVOID *)&realAudioClientStop, hookAudioClientStop);
 
-	do {
-		if (pAudioClient) {
-			pAudioClientVTable = (DWORD_PTR *)pAudioClient;
-			pAudioClientVTable = (DWORD_PTR *)pAudioClientVTable[0];
+		IAudioRenderClient *pAudioRenderClient = NULL;
+		pAudioClient->GetService(__uuidof(IAudioRenderClient), (void **)&pAudioRenderClient);
+		DWORD_PTR *pAudioRenderClientVTable = (DWORD_PTR *)pAudioRenderClient;
+		pAudioRenderClientVTable = (DWORD_PTR *)pAudioRenderClientVTable[0];
 
-			if (MH_CreateHook((DWORD_PTR *)pAudioClientVTable[3], hookAudioClientInitialize, reinterpret_cast<void **>(&realAudioClientInitialize)) != MH_OK)
-				break;
-			if (MH_EnableHook((DWORD_PTR *)pAudioClientVTable[3]) != MH_OK)
-				break;
-			if (MH_CreateHook((DWORD_PTR *)pAudioClientVTable[6], hookAudioClientGetCurrentPadding, reinterpret_cast<void **>(&realAudioClientGetCurrentPadding)) != MH_OK)
-				break;
-			if (MH_EnableHook((DWORD_PTR *)pAudioClientVTable[6]) != MH_OK)
-				break;
-			if (MH_CreateHook((DWORD_PTR *)pAudioClientVTable[7], hookAudioClientIsFormatSupported, reinterpret_cast<void **>(&realAudioClientIsFormatSupported)) != MH_OK)
-				break;
-			if (MH_EnableHook((DWORD_PTR *)pAudioClientVTable[7]) != MH_OK)
-				break;
-			if (MH_CreateHook((DWORD_PTR *)pAudioClientVTable[8], hookAudioClientGetMixFormat, reinterpret_cast<void **>(&realAudioClientGetMixFormat)) != MH_OK)
-				break;
-			if (MH_EnableHook((DWORD_PTR *)pAudioClientVTable[8]) != MH_OK)
-				break;
-			if (MH_CreateHook((DWORD_PTR *)pAudioClientVTable[11], hookAudioClientStop, reinterpret_cast<void **>(&realAudioClientStop)) != MH_OK)
-				break;
-			if (MH_EnableHook((DWORD_PTR *)pAudioClientVTable[11]) != MH_OK)
-				break;
-			if (MH_CreateHook((DWORD_PTR *)pAudioClientVTable[12], hookAudioClientReset, reinterpret_cast<void **>(&realAudioClientReset)) != MH_OK)
-				break;
-			if (MH_EnableHook((DWORD_PTR *)pAudioClientVTable[12]) != MH_OK)
-				break;
+		realAudioRenderClientGetBuffer = (AudioRenderClientGetBuffer)pAudioRenderClientVTable[3];
+		DetourAttach((PVOID *)&realAudioRenderClientGetBuffer, hookAudioRenderClientGetBuffer);
 
-#if 0
-			hr = pAudioClient->Initialize(AUDCLNT_SHAREMODE_SHARED, 0, hnsReqDuration, 0, pFormat, NULL);
-			if (SUCCEEDED(hr))
-			{
-				CoTaskMemFree(pFormat);
-				ELASTICS_SAFE_RELEASE(pMMDevEnum);
-				ELASTICS_SAFE_RELEASE(pMMDevice);
-			}
-			else
-			{
-				CoTaskMemFree(pFormat);
-				ELASTICS_SAFE_RELEASE(pMMDevEnum);
-				ELASTICS_SAFE_RELEASE(pMMDevice);
-				ELASTICS_SAFE_RELEASE(pAudioClient);
-				break;
-			}
-#endif
+		realAudioRenderClientReleaseBuffer = (AudioRenderClientReleaseBuffer)pAudioRenderClientVTable[4];
+		DetourAttach((PVOID *)&realAudioRenderClientReleaseBuffer, hookAudioRenderClientReleaseBuffer);
 
-			hr = pAudioClient->GetService(__uuidof(IAudioRenderClient), (void **)&pAudioRenderClient);
-			pAudioRenderClientVTable = (DWORD_PTR *)pAudioRenderClient;
-			pAudioRenderClientVTable = (DWORD_PTR *)pAudioRenderClientVTable[0];
-			if (MH_CreateHook((DWORD_PTR *)pAudioRenderClientVTable[3], hookAudioRenderClientGetBuffer, reinterpret_cast<void **>(&realAudioRenderClientGetBuffer)) != MH_OK)
-				break;
-			if (MH_EnableHook((DWORD_PTR *)pAudioRenderClientVTable[3]) != MH_OK)
-				break;
-			if (MH_CreateHook((DWORD_PTR *)pAudioRenderClientVTable[4], hookAudioRenderClientReleaseBuffer, reinterpret_cast<void **>(&realAudioRenderClientReleaseBuffer)) != MH_OK)
-				break;
-			if (MH_EnableHook((DWORD_PTR *)pAudioRenderClientVTable[4]) != MH_OK)
-				break;
+		const LONG error = DetourTransactionCommit();
+		success = error == NO_ERROR;
+		if (success) {
+			hlog("Hooked IAudioClient::Initialize");
+			hlog("Hooked IAudioClient::Stop");
+			hlog("Hooked IAudioRenderClient::GetBuffer");
+			hlog("Hooked IAudioRenderClient::ReleaseBuffer");
+			hlog("Hooked wasapi");
+		} else {
+			realAudioClientInitialize = nullptr;
+			realAudioClientStop = nullptr;
+			realAudioRenderClientGetBuffer = nullptr;
+			realAudioRenderClientReleaseBuffer = nullptr;
+			hlog("Failed to attach Detours hook: %ld", error);
 		}
-	} while (0);
+
+		SAFE_RELEASE(pAudioClient);
+		SAFE_RELEASE(pAudioRenderClient);
+	}
+
+	if (!success)
+		return;
 
 	while (_run) {
 		{
@@ -532,7 +358,8 @@ void core::process(void)
 			else {
 				if (capture_should_init()) {
 					const audio_info_t &info = _audio_clients.cbegin()->second;
-					bool success = capture_init_shmem(&_shmem_data_info, &_audio_data_pointer, info._channels, info._samplerate, info._byte_per_sample, info._format);
+					bool success = capture_init_shmem(&_shmem_data_info, &_audio_data_pointer, info._channels, info._samplerate,
+									  info._byte_per_sample, info._format);
 					if (!success)
 						capture_reset();
 				}
@@ -553,35 +380,6 @@ void core::process(void)
 		}
 		::Sleep(10);
 	}
-
-	if (MH_DisableHook((DWORD_PTR *)pAudioRenderClientVTable[4]) == MH_OK)
-		MH_RemoveHook((DWORD_PTR *)pAudioRenderClientVTable[4]);
-	if (MH_DisableHook((DWORD_PTR *)pAudioRenderClientVTable[3]) == MH_OK)
-		MH_RemoveHook((DWORD_PTR *)pAudioRenderClientVTable[3]);
-
-	::Sleep(1);
-
-	if (MH_DisableHook((DWORD_PTR *)pAudioClientVTable[12]) == MH_OK)
-		MH_RemoveHook((DWORD_PTR *)pAudioClientVTable[12]);
-	if (MH_DisableHook((DWORD_PTR *)pAudioClientVTable[11]) == MH_OK)
-		MH_RemoveHook((DWORD_PTR *)pAudioClientVTable[11]);
-	if (MH_DisableHook((DWORD_PTR *)pAudioClientVTable[8]) == MH_OK)
-		MH_RemoveHook((DWORD_PTR *)pAudioClientVTable[8]);
-	if (MH_DisableHook((DWORD_PTR *)pAudioClientVTable[7]) == MH_OK)
-		MH_RemoveHook((DWORD_PTR *)pAudioClientVTable[7]);
-	if (MH_DisableHook((DWORD_PTR *)pAudioClientVTable[6]) == MH_OK)
-		MH_RemoveHook((DWORD_PTR *)pAudioClientVTable[6]);
-	if (MH_DisableHook((DWORD_PTR *)pAudioClientVTable[3]) == MH_OK)
-		MH_RemoveHook((DWORD_PTR *)pAudioClientVTable[3]);
-
-	::Sleep(1);
-
-	ELASTICS_SAFE_RELEASE(pAudioClient);
-	ELASTICS_SAFE_RELEASE(pAudioRenderClient);
-
-	::Sleep(1);
-
-	MH_Uninitialize();
 
 	::CoUninitialize();
 }

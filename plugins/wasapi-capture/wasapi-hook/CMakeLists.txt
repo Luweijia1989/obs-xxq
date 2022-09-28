@@ -1,24 +1,22 @@
 project(wasapi-hook)
 
+find_package(Detours REQUIRED)
+
+include_directories(${DETOURS_INCLUDE_DIR})
+
 if(MSVC)
 	add_compile_options("$<IF:$<CONFIG:Debug>,/MTd,/MT>")
 endif()
 
-include_directories(${PROJECT_SOURCE_DIR}/minhook)
-file(GLOB_RECURSE minihook_SRC ${PROJECT_SOURCE_DIR}/minhook ${PROJECT_SOURCE_DIR}/minhook/hde *.c)
-file(GLOB_RECURSE minihook_HEADER ${PROJECT_SOURCE_DIR}/minhook ${PROJECT_SOURCE_DIR}/minhook/hde *.h)
-
 set(wasapi-hook_HEADERS
     circlebuf.h
     wasapi-hook.h
-    funchook.h
     wasapi_capture_proxy.h
     wasapi_capturer.h
     ../obfuscate.h
     ../wasapi-hook-info.h)
 
 set(wasapi-hook_SOURCES
-    funchook.c
     wasapi-hook.c
     wasapi_capture_proxy.cpp
     wasapi_capturer.cpp
@@ -32,7 +30,8 @@ add_library(wasapi-hook MODULE
 
 target_link_libraries(wasapi-hook
     ipc-util
-    psapi)
+    psapi
+    ${DETOURS_LIB})
 
 if(CMAKE_SIZEOF_VOID_P EQUAL 8)
     set(_output_suffix "64")

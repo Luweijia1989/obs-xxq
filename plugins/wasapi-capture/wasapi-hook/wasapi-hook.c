@@ -2,7 +2,6 @@
 #include <psapi.h>
 #include "wasapi-hook.h"
 #include "../obfuscate.h"
-#include "funchook.h"
 
 #define DEBUG_OUTPUT
 
