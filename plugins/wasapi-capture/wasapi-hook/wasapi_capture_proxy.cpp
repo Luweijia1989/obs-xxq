@@ -1,5 +1,6 @@
 #include "wasapi_capture_proxy.h"
 #include "wasapi-hook.h"
+#include "wasapi_capturer.h"
 
 // Default maximum number of output streams that can be open simultaneously
 // for all platforms.
@@ -11,8 +12,7 @@ FILE *fp_out_ = nullptr;
 
 namespace Util {
 // write the decoded PCM to disk
-void write_to_file(std::vector<uint8_t *> buffer_vec, FILE *fp, uint32_t bytes,
-		   bool has_sub)
+void write_to_file(std::vector<uint8_t *> buffer_vec, FILE *fp, uint32_t bytes, bool has_sub)
 {
 	if (bytes > 0) {
 		fwrite(buffer_vec[0], 1, bytes, fp);
@@ -52,8 +52,7 @@ int check_xcr0_ymm()
 #else
 	__asm__("xgetbv" : "=a"(xcr0) : "c"(0) : "%edx");
 #endif
-	return ((xcr0 & 6) ==
-		6); /* checking if xmm and ymm state are enabled in XCR0 */
+	return ((xcr0 & 6) == 6); /* checking if xmm and ymm state are enabled in XCR0 */
 }
 
 int check_4th_gen_intel_core_features()
@@ -92,14 +91,13 @@ static int can_use_intel_core_4th_gen_features()
 	static int the_4th_gen_features_available = -1;
 	/* test is performed once */
 	if (the_4th_gen_features_available < 0)
-		the_4th_gen_features_available =
-			check_4th_gen_intel_core_features();
+		the_4th_gen_features_available = check_4th_gen_intel_core_features();
 
 	return the_4th_gen_features_available;
 }
 }
 
-proxy::proxy(void)
+WASCaptureProxy::WASCaptureProxy(void)
 	: _obj(NULL),
 	  _max_num_output_streams(kDefaultMaxOutputStreams),
 	  _buffer_count(kDefaultMaxOutputStreams),
@@ -120,22 +118,22 @@ proxy::proxy(void)
 #endif
 
 	_avx2_support = Util::can_use_intel_core_4th_gen_features() > 0 ? TRUE : FALSE;
+	initialize();
 }
 
-proxy::~proxy(void)
+WASCaptureProxy::~WASCaptureProxy(void)
 {
 #ifdef DEBUG_AUDIO_CAPTURE
 	if (fp_out_)
 		fclose(fp_out_);
 #endif
-	for (std::vector<uint8_t *>::iterator it = _audio_data.begin();
-	     it != _audio_data.end(); ++it) {
+	for (std::vector<uint8_t *>::iterator it = _audio_data.begin(); it != _audio_data.end(); ++it) {
 		_aligned_free(*it);
 	}
 	_nbytes_per_buffer = 0;
 }
 
-HRESULT proxy::initialize(void)
+HRESULT WASCaptureProxy::initialize(void)
 {
 	HRESULT hr = E_FAIL;
 	if (_nbytes_per_buffer == 0) {
@@ -143,31 +141,27 @@ HRESULT proxy::initialize(void)
 		if (!_avx2_support)
 			alignment = 16;
 
-		_nbytes_per_buffer =
-			kDefaultBytesPerBuffer; // params.GetBytesPerBuffer();
+		_nbytes_per_buffer = kDefaultBytesPerBuffer; // params.GetBytesPerBuffer();
 		for (int i = 0; i < _buffer_count; i++) {
-			uint8_t *ptr = (uint8_t *)_aligned_malloc(
-				sizeof(uint8_t) * _nbytes_per_buffer,
-				alignment);
+			uint8_t *ptr = (uint8_t *)_aligned_malloc(sizeof(uint8_t) * _nbytes_per_buffer, alignment);
 			if (ptr) {
 				_audio_data.push_back(ptr);
-				if (((unsigned long long)ptr % alignment) ==
-				    0) {
-					//LOGGER::make_trace_log(ELASC, "%s()_%d : captured_audio_data_ pointer=%p,  is aligned on =%d", __FUNCTION__, __LINE__, ptr, alignment);
+				if (((unsigned long long)ptr % alignment) == 0) {
+					hlog("%s()_%d : captured_audio_data_ pointer=%p,  is aligned on =%d", __FUNCTION__, __LINE__, ptr, alignment);
 					hr = S_OK;
 				} else {
-					//LOGGER::make_trace_log(ELASC, "%s()_%d : captured_audio_data_ pointer=%p,  is not aligned on =%d", __FUNCTION__, __LINE__, ptr, alignment);
+					hlog("%s()_%d : captured_audio_data_ pointer=%p,  is not aligned on =%d", __FUNCTION__, __LINE__, ptr, alignment);
 					hr = S_FALSE;
 				}
 			} else {
-				//LOGGER::make_error_log(ELASC, "%s()_%d : Error allocation aligned memory.", __FUNCTION__, __LINE__);
+				hlog("%s()_%d : Error allocation aligned memory.", __FUNCTION__, __LINE__);
 				hr = E_OUTOFMEMORY;
 			}
 		}
 	}
 	return hr;
 }
-void proxy::reset_data(void)
+void WASCaptureProxy::reset_data(void)
 {
 	_first_render_client = NULL;
 	_num_output_streams = 0;
@@ -176,35 +170,30 @@ void proxy::reset_data(void)
 
 // To-Do: Do we need to increase buffer size?
 //        _aligned_realloc causes access violation
-HRESULT proxy::reset(int32_t bytes_per_buffer)
+HRESULT WASCaptureProxy::reset(int32_t bytes_per_buffer)
 {
 	HRESULT hr = S_OK;
 	size_t alignment = 32;
 	if (!_avx2_support)
 		alignment = 16;
 
-	if (bytes_per_buffer <= kDefaultBytesPerBuffer ||
-	    bytes_per_buffer >= kDefaultMaxBytesPerBuffer)
+	if (bytes_per_buffer <= kDefaultBytesPerBuffer || bytes_per_buffer >= kDefaultMaxBytesPerBuffer)
 		return E_FAIL;
 
 	for (int i = 0; i < _buffer_count; i++) {
 		uint8_t *ptr = _audio_data[i];
-		ptr = (uint8_t *)_aligned_realloc(
-			ptr, sizeof(uint8_t) * bytes_per_buffer, alignment);
+		ptr = (uint8_t *)_aligned_realloc(ptr, sizeof(uint8_t) * bytes_per_buffer, alignment);
 		if (ptr) {
 			_audio_data[i] = ptr;
 			if (((unsigned long long)ptr % alignment) == 0) {
-				hlog("%s()_%d : captured_audio_data_ pointer=%p,  is aligned on =%d",
-				     __FUNCTION__, __LINE__, ptr, alignment);
+				hlog("%s()_%d : captured_audio_data_ pointer=%p,  is aligned on =%d", __FUNCTION__, __LINE__, ptr, alignment);
 				hr = S_OK;
 			} else {
-				hlog("%s()_%d : captured_audio_data_ pointer=%p,  is not aligned on =%d",
-				     __FUNCTION__, __LINE__, ptr, alignment);
+				hlog("%s()_%d : captured_audio_data_ pointer=%p,  is not aligned on =%d", __FUNCTION__, __LINE__, ptr, alignment);
 				hr = S_FALSE;
 			}
 		} else {
-			hlog("%s()_%d : Error reallocation aligned memory.",
-			     __FUNCTION__, __LINE__);
+			hlog("%s()_%d : Error reallocation aligned memory.", __FUNCTION__, __LINE__);
 			hr = E_OUTOFMEMORY;
 		}
 	}
@@ -212,12 +201,12 @@ HRESULT proxy::reset(int32_t bytes_per_buffer)
 	return hr;
 }
 
-void proxy::capture_audio(IAudioRenderClient *audio_render_client, uint32_t num_filled_bytes, int32_t block_align, bool slient)
+void WASCaptureProxy::capture_audio(IAudioRenderClient *audio_render_client, uint32_t num_filled_bytes, int32_t block_align, bool slient)
 {
 	uint8_t *audio_data = nullptr;
 	std::map<IAudioRenderClient *, audio_data_pool_t *>::iterator iter = _render_clients.find(audio_render_client);
 	if (iter != _render_clients.end()) {
-		proxy::audio_data_pool_t *pool = iter->second;
+		WASCaptureProxy::audio_data_pool_t *pool = iter->second;
 		if (pool) {
 			audio_data = pool->data.front();
 		}
@@ -228,8 +217,7 @@ void proxy::capture_audio(IAudioRenderClient *audio_render_client, uint32_t num_
 		return;
 
 	if (!_nbytes_per_buffer) {
-		hlog("%s()_%d :captured_bytes_per_buffer_", __FUNCTION__,
-		     __LINE__);
+		hlog("%s()_%d :captured_bytes_per_buffer_", __FUNCTION__, __LINE__);
 		return;
 	}
 
@@ -241,11 +229,9 @@ void proxy::capture_audio(IAudioRenderClient *audio_render_client, uint32_t num_
 
 	if (capture_audio_size > _nbytes_per_buffer) {
 		wos << "[" << GetCurrentThreadId() << "] capture_audio: "
-		    << "num_filled_byte=" << capture_audio_size
-		    << " captured_bytes_per_buffer_=" << _nbytes_per_buffer
-		    << std::endl;
+		    << "num_filled_byte=" << capture_audio_size << " captured_bytes_per_buffer_=" << _nbytes_per_buffer << std::endl;
 		hlog("%s()_%d : %s", __FUNCTION__, __LINE__, wos.str().c_str());
-		if (!proxy::reset(capture_audio_size))
+		if (!WASCaptureProxy::reset(capture_audio_size))
 			return;
 	}
 	std::unique_lock<std::mutex> lock(_lock);
@@ -270,22 +256,16 @@ void proxy::capture_audio(IAudioRenderClient *audio_render_client, uint32_t num_
 		// If other render thread comes, mix the audio data and wite to file.
 		if (_first_render_client != audio_render_client) {
 			mix_done = TRUE;
-			wos << "[" << GetCurrentThreadId()
-			    << "] capture_audio: "
-			    << "[first render=0x" << _first_render_client
-			    << "] _caputred_cnt=" << _caputred_cnt
-			    << " mix_done_=" << mix_done << std::endl;
+			wos << "[" << GetCurrentThreadId() << "] capture_audio: "
+			    << "[first render=0x" << _first_render_client << "] _caputred_cnt=" << _caputred_cnt << " mix_done_=" << mix_done << std::endl;
 			if (!slient)
 				mix_audio(_audio_data[0], audio_data, capture_audio_size);
 		}
 		// If same render thread comes, write the audio data to sub buffer
 		else {
 			_has_sub_buffer = TRUE;
-			wos << "[" << GetCurrentThreadId()
-			    << "] capture_audio: "
-			    << "[first render=0x" << _first_render_client
-			    << "] _caputred_cnt=" << _caputred_cnt
-			    << " has_sub_buffer_=" << _has_sub_buffer
+			wos << "[" << GetCurrentThreadId() << "] capture_audio: "
+			    << "[first render=0x" << _first_render_client << "] _caputred_cnt=" << _caputred_cnt << " has_sub_buffer_=" << _has_sub_buffer
 			    << std::endl;
 			memset(_audio_data[1], 0, _nbytes_per_buffer);
 			if (!slient)
@@ -295,20 +275,14 @@ void proxy::capture_audio(IAudioRenderClient *audio_render_client, uint32_t num_
 	// g_caputred_cnt > 2 and couter was not reset
 	else if (_first_render_client != audio_render_client) {
 		if (_caputred_cnt == 3) {
-			wos << "[" << GetCurrentThreadId()
-			    << "] capture_audio: "
-			    << "[first render=0x" << _first_render_client
-			    << "] _caputred_cnt=" << _caputred_cnt
-			    << " mix_done_=" << mix_done << std::endl;
+			wos << "[" << GetCurrentThreadId() << "] capture_audio: "
+			    << "[first render=0x" << _first_render_client << "] _caputred_cnt=" << _caputred_cnt << " mix_done_=" << mix_done << std::endl;
 			if (!slient)
 				mix_audio(_audio_data[0], audio_data, capture_audio_size);
 		} else if (_caputred_cnt == 4) {
 			mix_done = TRUE;
-			wos << "[" << GetCurrentThreadId()
-			    << "] capture_audio: "
-			    << "[first render=0x" << _first_render_client
-			    << "] _caputred_cnt=" << _caputred_cnt
-			    << " mix_done_=" << mix_done << std::endl;
+			wos << "[" << GetCurrentThreadId() << "] capture_audio: "
+			    << "[first render=0x" << _first_render_client << "] _caputred_cnt=" << _caputred_cnt << " mix_done_=" << mix_done << std::endl;
 			if (!slient)
 				mix_audio(_audio_data[1], audio_data, capture_audio_size);
 		}
@@ -330,12 +304,10 @@ void proxy::capture_audio(IAudioRenderClient *audio_render_client, uint32_t num_
 		*/
 #ifdef DEBUG_AUDIO_CAPTURE
 		static int count = 0;
-		hlog("###################### %d %ld", count++,
-		     capture_audio_size);
+		hlog("###################### %d %ld", count++, capture_audio_size);
 		// write the decoded PCM to disk
 		_has_sub_buffer = 0;
-		Util::write_to_file(_audio_data, fp_out_, capture_audio_size,
-				    _has_sub_buffer);
+		Util::write_to_file(_audio_data, fp_out_, capture_audio_size, _has_sub_buffer);
 #endif
 
 		if (_obj) {
@@ -351,8 +323,7 @@ void proxy::capture_audio(IAudioRenderClient *audio_render_client, uint32_t num_
 	//processed_ = TRUE;
 }
 
-void proxy::mix_audio(uint8_t *buffer_dest, uint8_t *buffer_src,
-		      size_t totoal_frames)
+void WASCaptureProxy::mix_audio(uint8_t *buffer_dest, uint8_t *buffer_src, size_t totoal_frames)
 {
 	if (_avx2_support)
 		mix_audio_avx2(buffer_dest, buffer_src, totoal_frames);
@@ -360,8 +331,7 @@ void proxy::mix_audio(uint8_t *buffer_dest, uint8_t *buffer_src,
 		mix_audio_sse2(buffer_dest, buffer_src, totoal_frames);
 }
 
-void proxy::mix_audio_sse2(uint8_t *buffer_dest, uint8_t *buffer_src,
-			   size_t totoal_frames)
+void WASCaptureProxy::mix_audio_sse2(uint8_t *buffer_dest, uint8_t *buffer_src, size_t totoal_frames)
 {
 	size_t frames_left = totoal_frames;
 	uint8_t *dest_temp = buffer_dest;
@@ -398,8 +368,7 @@ void proxy::mix_audio_sse2(uint8_t *buffer_dest, uint8_t *buffer_src,
 	}
 }
 
-void proxy::mix_audio_avx2(uint8_t *buffer_dest, uint8_t *buffer_src,
-			   size_t totoal_frames)
+void WASCaptureProxy::mix_audio_avx2(uint8_t *buffer_dest, uint8_t *buffer_src, size_t totoal_frames)
 {
 	size_t frames_left = totoal_frames;
 	uint8_t *dest_temp = buffer_dest;
@@ -413,8 +382,7 @@ void proxy::mix_audio_avx2(uint8_t *buffer_dest, uint8_t *buffer_src,
 		__m256i *pos = (__m256i *)(dest_temp + i);
 		__m256i *src = (__m256i *)(src_temp + i);
 		__m256i mix;
-		mix = _mm256_add_epi8(_mm256_loadu_si256(pos),
-				      _mm256_loadu_si256(src));
+		mix = _mm256_add_epi8(_mm256_loadu_si256(pos), _mm256_loadu_si256(src));
 		mix = _mm256_min_epu8(mix, max_val);
 
 		_mm256_store_si256(pos, mix);
@@ -437,12 +405,12 @@ void proxy::mix_audio_avx2(uint8_t *buffer_dest, uint8_t *buffer_src,
 	}
 }
 
-void proxy::push_audio_data(IAudioRenderClient *key, BYTE **ppdata)
+void WASCaptureProxy::push_audio_data(IAudioRenderClient *key, BYTE **ppdata)
 {
-	proxy::audio_data_pool_t *pool = nullptr;
+	WASCaptureProxy::audio_data_pool_t *pool = nullptr;
 	std::map<IAudioRenderClient *, audio_data_pool_t *>::iterator iter = _render_clients.find(key);
 	if (iter == _render_clients.end()) {
-		pool = new proxy::audio_data_pool_t();
+		pool = new WASCaptureProxy::audio_data_pool_t();
 		pool->render = key;
 		_render_clients.insert(std::make_pair(key, pool));
 	} else {
@@ -451,17 +419,17 @@ void proxy::push_audio_data(IAudioRenderClient *key, BYTE **ppdata)
 	pool->data.push(*ppdata);
 }
 
-void proxy::pop_audio_data(IAudioRenderClient *key)
+void WASCaptureProxy::pop_audio_data(IAudioRenderClient *key)
 {
 	std::map<IAudioRenderClient *, audio_data_pool_t *>::iterator iter = _render_clients.find(key);
 	if (iter != _render_clients.end()) {
-		proxy::audio_data_pool_t *pool = iter->second;
+		WASCaptureProxy::audio_data_pool_t *pool = iter->second;
 		if (pool)
 			pool->data.pop();
 	}
 }
 
-void proxy::output_stream_added(IAudioRenderClient *key)
+void WASCaptureProxy::output_stream_added(IAudioRenderClient *key)
 {
 	++_num_output_streams;
 
@@ -473,17 +441,17 @@ void proxy::output_stream_added(IAudioRenderClient *key)
 	}
 }
 
-void proxy::set_audio_capture_proxy_receiver(core *obj)
+void WASCaptureProxy::set_audio_capture_proxy_receiver(WASCaptureData *obj)
 {
 	_obj = obj;
 }
 
-void proxy::on_audioclient_stopped(IAudioClient *audio_client, IAudioRenderClient *render_client, BOOL already_stopped)
+void WASCaptureProxy::on_audioclient_stopped(IAudioClient *audio_client, IAudioRenderClient *render_client, BOOL already_stopped)
 {
 	if (already_stopped) {
 		BOOL b_found = FALSE;
 		IAudioRenderClient *key = nullptr;
-		proxy::audio_data_pool_t *pool = nullptr;
+		WASCaptureProxy::audio_data_pool_t *pool = nullptr;
 		for (std::map<IAudioRenderClient *, audio_data_pool_t *>::iterator it = _render_clients.begin(); it != _render_clients.end(); ++it) {
 			key = it->first;
 			pool = it->second;
@@ -505,16 +473,13 @@ void proxy::on_audioclient_stopped(IAudioClient *audio_client, IAudioRenderClien
 	_obj->on_stop(audio_client, render_client);
 }
 
-void proxy::on_renderclient_released(void) {}
+void WASCaptureProxy::on_renderclient_released(void) {}
 
-std::string proxy::AsHumanReadableString(const WAVEFORMATEX *p_format) const
+std::string WASCaptureProxy::AsHumanReadableString(const WAVEFORMATEX *p_format) const
 {
 	std::ostringstream s;
-	s << "format=" << p_format->wFormatTag
-	  << " channels=" << p_format->nChannels
-	  << " sample_rate=" << p_format->nSamplesPerSec
-	  << " bits_per_sample=" << p_format->wBitsPerSample
-	  << " block size of data=" << p_format->nBlockAlign
+	s << "format=" << p_format->wFormatTag << " channels=" << p_format->nChannels << " sample_rate=" << p_format->nSamplesPerSec
+	  << " bits_per_sample=" << p_format->wBitsPerSample << " block size of data=" << p_format->nBlockAlign
 	  << " average bytes per sec=" << p_format->nAvgBytesPerSec;
 	return s.str();
 }

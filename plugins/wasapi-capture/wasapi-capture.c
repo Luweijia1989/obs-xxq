@@ -490,7 +490,7 @@ static inline bool init_pipe(struct wasapi_capture *gc)
 	sprintf(name, "%s%lu", PIPE_NAME, gc->process_id);
 
 	if (!ipc_pipe_server_start(&gc->pipe, name, pipe_log, gc)) {
-		warn("init_pipe: failed to start pipe");
+		warn("init_pipe: failed to start pipe, %s", name);
 		return false;
 	}
 

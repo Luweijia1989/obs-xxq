@@ -24,17 +24,10 @@
 #include <wincodec.h>
 
 #include "circlebuf.h"
+#include "wasapi_capture_proxy.h"
 
-class core {
-	friend class proxy;
-
+class WASCaptureData {
 public:
-	typedef struct _err_code_t {
-		static const int32_t unknown = -1;
-		static const int32_t success = 0;
-		static const int32_t fail = 1;
-	} err_code_t;
-
 	typedef struct _audio_info_ {
 		int32_t _channels;
 		int32_t _samplerate;
@@ -42,31 +35,22 @@ public:
 		uint32_t _format;
 	} audio_info_t;
 
-	core(void);
-	virtual ~core(void);
+	uint32_t waveformat_offset = 0;
+	WASCaptureProxy capture_proxy;
 
-	int32_t initialize(void);
-	int32_t release(void);
-	int32_t start(void);
-	int32_t stop(void);
+	WASCaptureData();
+	~WASCaptureData();
 
 	void on_receive(uint8_t *data, uint32_t data_size);
 	void on_stop(IAudioClient *audio_client, IAudioRenderClient *render);
 	void on_init(IAudioClient *audio_client, const WAVEFORMATEX *wfex);
-	void on_get_current_padding(IAudioClient *audio_client, UINT32 *padding);
 
 	int32_t audio_block_align(IAudioRenderClient *render);
 
 private:
-	IAudioClient *create_dummy_audio_client(void);
-	void process(void);
 	void capture_reset();
-	static unsigned __stdcall process_cb(void *param);
 
 private:
-	HANDLE _thread;
-	BOOL _run;
-
 	struct shmem_data *_shmem_data_info;
 	uint8_t *_audio_data_pointer;
 	std::mutex _mutex;

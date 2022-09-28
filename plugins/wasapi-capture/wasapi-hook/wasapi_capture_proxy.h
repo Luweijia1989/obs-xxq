@@ -4,9 +4,13 @@
 #include <atomic>
 #include <map>
 #include <queue>
-#include "wasapi_capturer.h"
+#include <mutex>
 
-class proxy {
+#include <Audioclient.h>
+#include <mmdeviceapi.h>
+
+class WASCaptureData;
+class WASCaptureProxy {
 public:
 	static const int32_t kDefaultMaxOutputStreams = 128;
 	static const int32_t kDefaultBytesPerBuffer = 8192;
@@ -22,8 +26,8 @@ public:
 		~_audio_data_pool_t(void) {}
 	} audio_data_pool_t;
 
-	proxy(void);
-	virtual ~proxy(void);
+	WASCaptureProxy(void);
+	virtual ~WASCaptureProxy(void);
 
 	HRESULT initialize(void);
 	void reset_data(void);
@@ -41,20 +45,17 @@ public:
 	std::string AsHumanReadableString(const WAVEFORMATEX *format) const;
 	void output_stream_added(IAudioRenderClient *audio_render_client);
 
-	void set_audio_capture_proxy_receiver(core *obj);
+	void set_audio_capture_proxy_receiver(WASCaptureData *obj);
 
 protected:
-	void SetMaxOutputStreamsAllowed(int32_t max)
-	{
-		_max_num_output_streams = max;
-	}
+	void SetMaxOutputStreamsAllowed(int32_t max) { _max_num_output_streams = max; }
 
 private:
 #ifdef DEBUG_AUDIO_CAPTURE
 	// PCM Audio file
 	FILE *fp_out_;
 #endif
-	core *_obj;
+	WASCaptureData *_obj;
 
 	// captured audio data buffer
 	std::vector<uint8_t *> _audio_data;
@@ -75,9 +76,6 @@ private:
 	std::map<IAudioRenderClient *, audio_data_pool_t *> _render_clients;
 
 	int32_t _caputred_cnt;
-};
-
-class CAudioUtil {
 };
 
 #endif

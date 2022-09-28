@@ -49,7 +49,9 @@ bool init_pipe(void)
 	sprintf(new_name, "%s%lu", PIPE_NAME, GetCurrentProcessId());
 
 	if (!ipc_pipe_client_open(&pipe, new_name)) {
-		DbgOut("Failed to open pipe\n");
+		DbgOut("Failed to open pipe,");
+		DbgOut(new_name);
+		DbgOut("\n");
 		return false;
 	}
 
@@ -401,8 +403,6 @@ void capture_free(void)
 BOOL WINAPI DllMain(HINSTANCE hinst, DWORD reason, LPVOID unused1)
 {
 	if (reason == DLL_PROCESS_ATTACH) {
-		init_var();
-
 		wchar_t name[MAX_PATH];
 
 		dll_inst = hinst;
@@ -450,8 +450,6 @@ BOOL WINAPI DllMain(HINSTANCE hinst, DWORD reason, LPVOID unused1)
 		}
 
 		free_hook();
-
-		reset_var();
 	}
 
 	(void)unused1;
