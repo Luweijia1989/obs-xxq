@@ -58,7 +58,7 @@ HRESULT STDMETHODCALLTYPE hookAudioClientStop(IAudioClient *pAudioClient)
 HRESULT STDMETHODCALLTYPE hookAudioClientGetCurrentPadding(IAudioClient *pAudioClient, UINT32 *padding)
 {
 	HRESULT hr = realAudioClientGetCurrentPadding(pAudioClient, padding);
-	capture_data.on_init(pAudioClient, *(WAVEFORMATEX **)((uint8_t *)pAudioClient + capture_data.waveformat_offset));
+	capture_data.on_init(pAudioClient, *(WAVEFORMATEX **)((uint8_t *)pAudioClient + capture_data.waveformatOffset));
 	return hr;
 }
 
@@ -71,9 +71,15 @@ HRESULT STDMETHODCALLTYPE hookAudioRenderClientGetBuffer(IAudioRenderClient *pAu
 
 HRESULT STDMETHODCALLTYPE hookAudioRenderClientReleaseBuffer(IAudioRenderClient *pAudioRenderClient, UINT32 nFrameWritten, DWORD dwFlags)
 {
-	capture_data.capture_proxy.capture_audio(pAudioRenderClient, nFrameWritten, capture_data.audio_block_align(pAudioRenderClient),
-						 dwFlags == AUDCLNT_BUFFERFLAGS_SILENT);
-	capture_data.capture_proxy.pop_audio_data(pAudioRenderClient);
+	//capture_data.capture_proxy.capture_audio(pAudioRenderClient, nFrameWritten, capture_data.audio_block_align(pAudioRenderClient),
+	//					 dwFlags == AUDCLNT_BUFFERFLAGS_SILENT);
+	//capture_data.capture_proxy.pop_audio_data(pAudioRenderClient);
+
+	IAudioClient *aclient = *(IAudioClient **)((uintptr_t)pAudioRenderClient + capture_data.audioClientOffset);
+	uint8_t *buffer = *(uint8_t **)((uintptr_t)pAudioRenderClient + capture_data.bufferOffset);
+	WAVEFORMATEX *wfex = *(WAVEFORMATEX **)((uintptr_t)pAudioRenderClient + capture_data.waveformatOffset);
+
+	capture_data.on_receive(buffer, nFrameWritten * wfex->nChannels * wfex->wBitsPerSample / 8, wfex);
 
 	return realAudioRenderClientReleaseBuffer(pAudioRenderClient, nFrameWritten, dwFlags);
 }
@@ -149,7 +155,7 @@ void WASCaptureData::on_init(IAudioClient *audio_client, const WAVEFORMATEX *wfe
 	_audio_clients[audio_client] = info;
 }
 
-void WASCaptureData::on_receive(uint8_t *data, uint32_t data_size)
+void WASCaptureData::on_receive(uint8_t *data, uint32_t data_size, WAVEFORMATEX *wfex)
 {
 	std::unique_lock<std::mutex> lk(_mutex);
 	if (capture_active())
@@ -159,13 +165,41 @@ void WASCaptureData::on_receive(uint8_t *data, uint32_t data_size)
 		capture_reset();
 	}
 
-	if (_audio_clients.size() == 0)
+	if (/*_audio_clients.size() == 0*/ false)
 		capture_reset();
 	else {
 		if (capture_should_init()) {
-			const audio_info_t &info = _audio_clients.cbegin()->second;
-			bool success = capture_init_shmem(&_shmem_data_info, &_audio_data_pointer, info._channels, info._samplerate, info._byte_per_sample,
-							  info._format);
+			//const audio_info_t &info = _audio_clients.cbegin()->second;
+			BOOL bfloat = FALSE;
+			if (wfex->wFormatTag == WAVE_FORMAT_EXTENSIBLE) {
+				WAVEFORMATEXTENSIBLE *wfext = (WAVEFORMATEXTENSIBLE *)wfex;
+				if (wfext->SubFormat == KSDATAFORMAT_SUBTYPE_IEEE_FLOAT)
+					bfloat = TRUE;
+			} else if (wfex->wFormatTag == WAVE_FORMAT_IEEE_FLOAT) {
+				bfloat = TRUE;
+			}
+
+			uint32_t _format = 0;
+			if (bfloat) {
+				if (wfex->wBitsPerSample == 32)
+					_format = 4;
+			} else {
+				switch (wfex->wBitsPerSample) {
+				case 8:
+					_format = 1;
+					break;
+				case 16:
+					_format = 2;
+					break;
+				case 32:
+					_format = 3;
+					break;
+				default:
+					break;
+				}
+			}
+			bool success = capture_init_shmem(&_shmem_data_info, &_audio_data_pointer, wfex->nChannels, wfex->nSamplesPerSec,
+							  wfex->wBitsPerSample / 8, _format);
 			if (!success)
 				capture_reset();
 		}
@@ -194,17 +228,14 @@ void WASCaptureData::on_stop(IAudioClient *audio_client, IAudioRenderClient *ren
 		_audio_render_blocks.erase(render);
 }
 
-void SearchMemory(PVOID pSearchBuffer, DWORD dwSearchBufferSize, std::set<uintptr_t> &tocheck)
+void SearchMemory(PVOID waveformat, DWORD size1, std::set<uintptr_t> &waveformatCheck, PVOID audioClient, DWORD size2, std::set<uintptr_t> &audioClientCheck,
+		  PVOID buffer, DWORD size3, std::set<uintptr_t> &bufferCheck, BYTE *startPoint)
 {
 	HANDLE hProcess = ::GetCurrentProcess();
 	if (NULL == hProcess) {
 		return;
 	}
-
-	SYSTEM_INFO sysInfo = {0};
-	GetSystemInfo(&sysInfo);
-
-	BYTE *pSearchAddress = (BYTE *)sysInfo.lpMinimumApplicationAddress;
+	BYTE *pSearchAddress = startPoint;
 	MEMORY_BASIC_INFORMATION mbi = {0};
 	DWORD dwRet = 0;
 	BOOL bRet = false;
@@ -226,12 +257,23 @@ void SearchMemory(PVOID pSearchBuffer, DWORD dwSearchBufferSize, std::set<uintpt
 			if (FALSE == bRet) {
 				break;
 			}
-			for (i = 0; i < (mbi.RegionSize - dwSearchBufferSize); i++) {
+
+			auto max = std::max<DWORD>(std::max<DWORD>(size1, size2), size3);
+			for (i = 0; i < (mbi.RegionSize - max); i++) {
 				pTemp = (BYTE *)pBuf + i;
-				if (RtlEqualMemory(pTemp, pSearchBuffer, dwSearchBufferSize)) {
-					tocheck.insert((uintptr_t)((BYTE *)mbi.BaseAddress + i));
+				if (RtlEqualMemory(pTemp, waveformat, size1)) {
+					waveformatCheck.insert((uintptr_t)((BYTE *)mbi.BaseAddress + i));
+				}
+
+				if (RtlEqualMemory(pTemp, audioClient, size2)) {
+					audioClientCheck.insert((uintptr_t)((BYTE *)mbi.BaseAddress + i));
+				}
+
+				if (RtlEqualMemory(pTemp, buffer, size3)) {
+					bufferCheck.insert((uintptr_t)((BYTE *)mbi.BaseAddress + i));
 				}
 			}
+
 			delete[] pBuf;
 			pBuf = NULL;
 		}
@@ -253,14 +295,15 @@ void WASCaptureData::capture_reset()
 
 IAudioClient *createDummyAudioClient(void)
 {
-	HRESULT hr = S_OK;
+	::CoInitializeEx(NULL, COINIT_MULTITHREADED);
+
 	REFERENCE_TIME hnsReqDuration = 10000000;
 	IMMDeviceEnumerator *pMMDevEnum = NULL;
 	IMMDevice *pMMDevice = NULL;
 	IAudioClient *pAudioClient = NULL;
 	WAVEFORMATEX *pFormat = NULL;
 
-	hr = CoCreateInstance(__uuidof(MMDeviceEnumerator), NULL, CLSCTX_INPROC_SERVER, __uuidof(IMMDeviceEnumerator), (void **)&pMMDevEnum);
+	HRESULT hr = CoCreateInstance(__uuidof(MMDeviceEnumerator), NULL, CLSCTX_INPROC_SERVER, __uuidof(IMMDeviceEnumerator), (void **)&pMMDevEnum);
 	if (hr == CO_E_NOTINITIALIZED) {
 		hr = CoInitializeEx(NULL, COINIT_MULTITHREADED);
 		hr = CoCreateInstance(__uuidof(MMDeviceEnumerator), NULL, CLSCTX_ALL, __uuidof(IMMDeviceEnumerator), (void **)&pMMDevEnum);
@@ -269,47 +312,59 @@ IAudioClient *createDummyAudioClient(void)
 		}
 	}
 
-	hr = pMMDevEnum->GetDefaultAudioEndpoint(eRender, eConsole, &pMMDevice);
-	hr = pMMDevice->Activate(__uuidof(IAudioClient), CLSCTX_ALL, NULL, (void **)&pAudioClient);
-	hr = pAudioClient->GetMixFormat(&pFormat);
-	hr = pAudioClient->Initialize(AUDCLNT_SHAREMODE_SHARED, 0, hnsReqDuration, 0, pFormat, NULL);
+	pMMDevEnum->GetDefaultAudioEndpoint(eRender, eConsole, &pMMDevice);
+	pMMDevice->Activate(__uuidof(IAudioClient), CLSCTX_ALL, NULL, (void **)&pAudioClient);
+	pAudioClient->GetMixFormat(&pFormat);
+	pAudioClient->Initialize(AUDCLNT_SHAREMODE_SHARED, 0, hnsReqDuration, 0, pFormat, NULL);
+	IAudioRenderClient *renderClient = nullptr;
+	pAudioClient->GetService(__uuidof(IAudioRenderClient), (void **)&renderClient);
+	BYTE *data = NULL;
+	renderClient->GetBuffer(1024, &data);
 
-	std::set<uintptr_t> tocheck;
-	SearchMemory(pFormat, sizeof(WAVEFORMATEX), tocheck);
-	if (tocheck.size() > 0) {
-		uint8_t *pRawAudioClient = (uint8_t *)pAudioClient;
+	std::set<uintptr_t> waveformatCheck;
+	std::set<uintptr_t> audioClientCheck;
+	std::set<uintptr_t> bufferCheck;
+	SearchMemory(pFormat, sizeof(WAVEFORMATEX), waveformatCheck, &pAudioClient, sizeof(void *), audioClientCheck, &data, sizeof(void *), bufferCheck,
+		     (BYTE *)renderClient);
+	if (waveformatCheck.size() > 0 && audioClientCheck.size() > 0 && bufferCheck.size() > 0) {
+		uint8_t *pRawAudioClient = (uint8_t *)renderClient;
+		bool gotWaveformatOffset = false;
+		bool gotAudioClientOffset = false;
+		bool gotBufferOffset = false;
 		uint32_t offset = 0;
 		while (offset < 1024) // The highest offset I got was 904, i never got any segfault errors. This value should maybe be tweaked
 		{
 			uintptr_t *curr = (uintptr_t *)(pRawAudioClient + offset);
 
-			if (tocheck.find(*curr) != tocheck.end()) {
-				capture_data.waveformat_offset = offset;
-				break;
+			if (waveformatCheck.find(*curr) != waveformatCheck.end() && !gotWaveformatOffset) {
+				gotWaveformatOffset = true;
+				capture_data.waveformatOffset = offset;
+			}
+
+			if (audioClientCheck.find((uintptr_t)curr) != audioClientCheck.end() && !gotAudioClientOffset) {
+				gotAudioClientOffset = true;
+				capture_data.audioClientOffset = offset;
+			}
+
+			if (bufferCheck.find((uintptr_t)curr) != bufferCheck.end() && !gotBufferOffset) {
+				gotBufferOffset = true;
+				capture_data.bufferOffset = offset;
 			}
 			++offset;
 		}
 	}
 	CoTaskMemFree(pFormat);
 
-	if (SUCCEEDED(hr)) {
-		SAFE_RELEASE(pMMDevEnum);
-		SAFE_RELEASE(pMMDevice);
-		CoUninitialize();
-		return pAudioClient;
-	} else {
-		SAFE_RELEASE(pMMDevEnum);
-		SAFE_RELEASE(pMMDevice);
-		SAFE_RELEASE(pAudioClient);
-		CoUninitialize();
-		return NULL;
-	}
+	SAFE_RELEASE(pMMDevEnum);
+	SAFE_RELEASE(pMMDevice);
+	SAFE_RELEASE(renderClient);
+
+	CoUninitialize();
+	return pAudioClient;
 }
 
 bool hook_wasapi()
 {
-	::CoInitializeEx(NULL, COINIT_MULTITHREADED);
-
 	bool success = false;
 	IAudioClient *pAudioClient = createDummyAudioClient();
 	if (pAudioClient) {
@@ -319,19 +374,19 @@ bool hook_wasapi()
 		DWORD_PTR *pAudioClientVTable = (DWORD_PTR *)pAudioClient;
 		pAudioClientVTable = (DWORD_PTR *)pAudioClientVTable[0];
 
-		realAudioClientStop = (AudioClientStop)pAudioClientVTable[11];
-		DetourAttach((PVOID *)&realAudioClientStop, hookAudioClientStop);
+		//realAudioClientStop = (AudioClientStop)pAudioClientVTable[11];
+		//DetourAttach((PVOID *)&realAudioClientStop, hookAudioClientStop);
 
-		realAudioClientGetCurrentPadding = (AduioClientGetCurrentPadding)pAudioClientVTable[6];
-		DetourAttach((PVOID *)&realAudioClientGetCurrentPadding, hookAudioClientGetCurrentPadding);
+		//realAudioClientGetCurrentPadding = (AduioClientGetCurrentPadding)pAudioClientVTable[6];
+		//DetourAttach((PVOID *)&realAudioClientGetCurrentPadding, hookAudioClientGetCurrentPadding);
 
 		IAudioRenderClient *pAudioRenderClient = NULL;
 		pAudioClient->GetService(__uuidof(IAudioRenderClient), (void **)&pAudioRenderClient);
 		DWORD_PTR *pAudioRenderClientVTable = (DWORD_PTR *)pAudioRenderClient;
 		pAudioRenderClientVTable = (DWORD_PTR *)pAudioRenderClientVTable[0];
 
-		realAudioRenderClientGetBuffer = (AudioRenderClientGetBuffer)pAudioRenderClientVTable[3];
-		DetourAttach((PVOID *)&realAudioRenderClientGetBuffer, hookAudioRenderClientGetBuffer);
+		//realAudioRenderClientGetBuffer = (AudioRenderClientGetBuffer)pAudioRenderClientVTable[3];
+		//DetourAttach((PVOID *)&realAudioRenderClientGetBuffer, hookAudioRenderClientGetBuffer);
 
 		realAudioRenderClientReleaseBuffer = (AudioRenderClientReleaseBuffer)pAudioRenderClientVTable[4];
 		DetourAttach((PVOID *)&realAudioRenderClientReleaseBuffer, hookAudioRenderClientReleaseBuffer);

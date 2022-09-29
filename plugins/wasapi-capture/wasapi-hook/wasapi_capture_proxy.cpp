@@ -311,9 +311,9 @@ void WASCaptureProxy::capture_audio(IAudioRenderClient *audio_render_client, uin
 #endif
 
 		if (_obj) {
-			_obj->on_receive(_audio_data[0], capture_audio_size);
+			/*_obj->on_receive(_audio_data[0], capture_audio_size);
 			if (_has_sub_buffer)
-				_obj->on_receive(_audio_data[1], capture_audio_size);
+				_obj->on_receive(_audio_data[1], capture_audio_size);*/
 		}
 
 		// reset count

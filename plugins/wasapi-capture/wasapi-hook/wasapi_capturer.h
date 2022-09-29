@@ -35,13 +35,15 @@ public:
 		uint32_t _format;
 	} audio_info_t;
 
-	uint32_t waveformat_offset = 0;
+	uint32_t waveformatOffset = 0;
+	uint32_t audioClientOffset = 0;
+	uint32_t bufferOffset = 0;
 	WASCaptureProxy capture_proxy;
 
 	WASCaptureData();
 	~WASCaptureData();
 
-	void on_receive(uint8_t *data, uint32_t data_size);
+	void on_receive(uint8_t *data, uint32_t data_size, WAVEFORMATEX *wfex);
 	void on_stop(IAudioClient *audio_client, IAudioRenderClient *render);
 	void on_init(IAudioClient *audio_client, const WAVEFORMATEX *wfex);
 
