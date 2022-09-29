@@ -39,5 +39,6 @@ target_link_libraries(mac-capture
 	${COREFOUNDATION}
 	${IOSURF}
 	${COCOA})
+set_target_properties(mac-capture PROPERTIES FOLDER "plugins")
 
 install_obs_plugin_with_data(mac-capture data)

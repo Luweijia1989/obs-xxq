@@ -42,5 +42,6 @@ target_link_libraries(android-aoa-server
 	optimized ${PROJECT_SOURCE_DIR}/libusb/lib/${_bit_suffix}/libusb-1.0.lib
 	Setupapi
 	ntdll)
+set_target_properties(android-aoa-server PROPERTIES FOLDER "plugins/win-airplay")
 
 install_obs_core(android-aoa-server)

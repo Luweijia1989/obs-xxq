@@ -61,5 +61,6 @@ target_link_libraries(win-airplay
 	Qt5::Network
 	Qt5::Widgets
 	${FFMPEG_LIBRARIES})
+set_target_properties(win-airplay PROPERTIES FOLDER "plugins/win-airplay")
 
 install_obs_plugin(win-airplay) 

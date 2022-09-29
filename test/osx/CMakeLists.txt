@@ -15,4 +15,5 @@ add_executable(osx_test
 target_link_libraries(osx_test
 	libobs
 	${COCOA})
+set_target_properties(osx_test PROPERTIES FOLDER "tests and examples")
 define_graphic_modules(osx_test)

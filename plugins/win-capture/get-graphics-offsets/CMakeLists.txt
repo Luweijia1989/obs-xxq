@@ -23,6 +23,7 @@ target_link_libraries(get-graphics-offsets
 	d3d9.lib
 	dxgi.lib
 	d3d11.lib)
+set_target_properties(get-graphics-offsets PROPERTIES FOLDER "plugins/win-capture")
 
 if(CMAKE_SIZEOF_VOID_P EQUAL 8)
 	set(_output_suffix "64")

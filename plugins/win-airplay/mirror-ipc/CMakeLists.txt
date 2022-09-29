@@ -33,6 +33,7 @@ target_link_libraries(mirror-ipc
 	debug ${PROJECT_SOURCE_DIR}/mirror-ipc/lib/${_bit_suffix}/debug/RPC.lib
 	optimized ${PROJECT_SOURCE_DIR}/mirror-ipc/lib/${_bit_suffix}/release/RPC.lib
 )
+set_target_properties(mirror-ipc PROPERTIES FOLDER "plugins/win-airplay")
 
 target_include_directories(mirror-ipc
 	PUBLIC .)

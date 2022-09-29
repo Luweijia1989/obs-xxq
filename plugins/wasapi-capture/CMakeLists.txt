@@ -22,6 +22,7 @@ target_link_libraries(wasapi-capture
 	libobs
 	ipc-util
 	psapi)
+set_target_properties(wasapi-capture PROPERTIES FOLDER "plugins/wasapi-capture")
 
 install_obs_plugin(wasapi-capture data)
 

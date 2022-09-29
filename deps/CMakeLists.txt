@@ -12,7 +12,6 @@ endif()
 
 add_subdirectory(media-playback)
 add_subdirectory(file-updater)
-add_subdirectory(obs-scripting)
 
 if(WIN32)
 	add_subdirectory(blake2)

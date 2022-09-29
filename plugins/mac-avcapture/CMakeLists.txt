@@ -40,5 +40,6 @@ target_link_libraries(mac-avcapture
 	${COREVIDEO}
 	${COREMEDIAIO}
 	${COCOA})
+set_target_properties(mac-avcapture PROPERTIES FOLDER "plugins")
 
 install_obs_plugin_with_data(mac-avcapture data)

@@ -41,6 +41,7 @@ endif()
 
 set_target_properties(wasapi-hook
 PROPERTIES
+        FOLDER "plugins/wasapi-capture"
     	OUTPUT_NAME "wasapi-hook${_output_suffix}")
 
 install_obs_datatarget(wasapi-hook "obs-plugins/wasapi-capture")

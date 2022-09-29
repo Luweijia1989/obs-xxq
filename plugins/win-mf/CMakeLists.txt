@@ -46,6 +46,7 @@ add_library(win-mf MODULE
 target_link_libraries(win-mf
 	${win-mf_DEPS}
 	libobs)
+set_target_properties(win-mf PROPERTIES FOLDER "plugins")
 
 target_include_directories(win-mf
 	PUBLIC

@@ -99,5 +99,6 @@ target_link_libraries(obs-qmlview
         Qt5::QuickWidgets
         Qt5::Widgets
 )
+set_target_properties(obs-qmlview PROPERTIES FOLDER "plugins")
 
 install_obs_plugin(obs-qmlview)
