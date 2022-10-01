@@ -63,6 +63,9 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 #include <string>
 #include <atomic>
 #include <intrin.h>
+#include <d3d11.h>
+#include <dxgi1_2.h>
+#include <wrl/client.h>
 
 #define do_log(level, format, ...) \
 	blog(level, "[qsv encoder: '%s'] " format, "msdk_impl", ##__VA_ARGS__)
@@ -70,6 +73,99 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 mfxIMPL impl = MFX_IMPL_HARDWARE_ANY;
 mfxVersion ver = {{0, 1}}; // for backward compatibility
 std::atomic<bool> is_active{false};
+
+bool prefer_current_or_igpu_enc(int *iGPUIndex)
+{
+	IDXGIAdapter *pAdapter;
+	bool hasIGPU = false;
+	bool hasDGPU = false;
+	bool hasCurrent = false;
+
+	HMODULE hDXGI = LoadLibrary(L"dxgi.dll");
+	if (hDXGI == NULL) {
+		return false;
+	}
+
+	typedef HRESULT(WINAPI * LPCREATEDXGIFACTORY)(REFIID riid,
+						      void **ppFactory);
+
+	LPCREATEDXGIFACTORY pCreateDXGIFactory =
+		(LPCREATEDXGIFACTORY)GetProcAddress(hDXGI,
+						    "CreateDXGIFactory1");
+	if (pCreateDXGIFactory == NULL) {
+		pCreateDXGIFactory = (LPCREATEDXGIFACTORY)GetProcAddress(
+			hDXGI, "CreateDXGIFactory");
+
+		if (pCreateDXGIFactory == NULL) {
+			FreeLibrary(hDXGI);
+			return false;
+		}
+	}
+
+	IDXGIFactory *pFactory = NULL;
+	if (FAILED((*pCreateDXGIFactory)(__uuidof(IDXGIFactory),
+					 (void **)(&pFactory)))) {
+		FreeLibrary(hDXGI);
+		return false;
+	}
+
+	LUID luid;
+	bool hasLuid = false;
+	obs_enter_graphics();
+	{
+		ID3D11Device *pDevice = (ID3D11Device *)gs_get_device_obj();
+		Microsoft::WRL::ComPtr<IDXGIDevice> dxgiDevice;
+		if (SUCCEEDED(pDevice->QueryInterface<IDXGIDevice>(
+			    dxgiDevice.GetAddressOf()))) {
+			Microsoft::WRL::ComPtr<IDXGIAdapter> dxgiAdapter;
+			if (SUCCEEDED(dxgiDevice->GetAdapter(
+				    dxgiAdapter.GetAddressOf()))) {
+				DXGI_ADAPTER_DESC desc;
+				hasLuid =
+					SUCCEEDED(dxgiAdapter->GetDesc(&desc));
+				if (hasLuid) {
+					luid = desc.AdapterLuid;
+				}
+			}
+		}
+	}
+	obs_leave_graphics();
+
+	// Check for i+I cases (Intel discrete + Intel integrated graphics on the same system). Default will be integrated.
+	for (int adapterIndex = 0;
+	     SUCCEEDED(pFactory->EnumAdapters(adapterIndex, &pAdapter));
+	     ++adapterIndex) {
+		DXGI_ADAPTER_DESC AdapterDesc = {};
+		const HRESULT hr = pAdapter->GetDesc(&AdapterDesc);
+		pAdapter->Release();
+
+		if (SUCCEEDED(hr) && (AdapterDesc.VendorId == 0x8086)) {
+			if (hasLuid &&
+			    (AdapterDesc.AdapterLuid.LowPart == luid.LowPart) &&
+			    (AdapterDesc.AdapterLuid.HighPart ==
+			     luid.HighPart)) {
+				hasCurrent = true;
+				*iGPUIndex = adapterIndex;
+				break;
+			}
+
+			if (AdapterDesc.DedicatedVideoMemory <=
+			    512 * 1024 * 1024) {
+				hasIGPU = true;
+				if (iGPUIndex != NULL) {
+					*iGPUIndex = adapterIndex;
+				}
+			} else {
+				hasDGPU = true;
+			}
+		}
+	}
+
+	pFactory->Release();
+	FreeLibrary(hDXGI);
+
+	return hasCurrent || (hasIGPU && hasDGPU);
+}
 
 void qsv_encoder_version(unsigned short *major, unsigned short *minor)
 {
@@ -79,6 +175,14 @@ void qsv_encoder_version(unsigned short *major, unsigned short *minor)
 
 qsv_t *qsv_encoder_open(qsv_param_t *pParams)
 {
+	mfxIMPL impl_list[4] = {MFX_IMPL_HARDWARE, MFX_IMPL_HARDWARE2,
+				MFX_IMPL_HARDWARE3, MFX_IMPL_HARDWARE4};
+	int igpu_index = -1;
+	if (prefer_current_or_igpu_enc(&igpu_index) &&
+	    (igpu_index < _countof(impl_list))) {
+		impl = impl_list[igpu_index];
+	}
+
 	QSV_Encoder_Internal *pEncoder = new QSV_Encoder_Internal(impl, ver);
 	mfxStatus sts = pEncoder->Open(pParams);
 	if (sts != MFX_ERR_NONE) {
@@ -196,6 +300,23 @@ int qsv_encoder_encode(qsv_t *pContext, uint64_t ts, uint8_t *pDataY,
 		return -1;
 }
 
+int qsv_encoder_encode_tex(qsv_t *pContext, uint64_t ts, uint32_t tex_handle,
+			   uint64_t lock_key, uint64_t *next_key,
+			   mfxBitstream **pBS)
+{
+	QSV_Encoder_Internal *pEncoder = (QSV_Encoder_Internal *)pContext;
+	mfxStatus sts = MFX_ERR_NONE;
+
+	sts = pEncoder->Encode_tex(ts, tex_handle, lock_key, next_key, pBS);
+
+	if (sts == MFX_ERR_NONE)
+		return 0;
+	else if (sts == MFX_ERR_MORE_DATA)
+		return 1;
+	else
+		return -1;
+}
+
 int qsv_encoder_close(qsv_t *pContext)
 {
 	QSV_Encoder_Internal *pEncoder = (QSV_Encoder_Internal *)pContext;
@@ -300,6 +421,18 @@ enum qsv_cpu_platform qsv_get_cpu_platform()
 	case 0x4e:
 	case 0x5e:
 		return QSV_CPU_PLATFORM_SKL;
+	case 0x5c:
+		return QSV_CPU_PLATFORM_APL;
+	case 0x8e:
+	case 0x9e:
+		return QSV_CPU_PLATFORM_KBL;
+	case 0x7a:
+		return QSV_CPU_PLATFORM_GLK;
+	case 0x66:
+		return QSV_CPU_PLATFORM_CNL;
+	case 0x7d:
+	case 0x7e:
+		return QSV_CPU_PLATFORM_ICL;
 	}
 
 	//assume newer revisions are at least as capable as Haswell

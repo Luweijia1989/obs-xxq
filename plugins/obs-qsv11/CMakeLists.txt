@@ -15,6 +15,7 @@ set(obs-qsv11_libmfx_SOURCES
 	libmfx/src/mfx_load_plugin.cpp
 	libmfx/src/mfx_plugin_hive.cpp
 	libmfx/src/mfx_win_reg_key.cpp
+	libmfx/src/mfx_driver_store_loader.cpp
 	)
 
 set(obs-qsv11_libmfx_HEADERS
@@ -44,6 +45,7 @@ set(obs-qsv11_libmfx_HEADERS
 	libmfx/include/mfx_plugin_hive.h
 	libmfx/include/mfx_vector.h
 	libmfx/include/mfx_win_reg_key.h
+	libmfx/include/mfx_driver_store_loader.h
 	libmfx/include/mfxaudio_exposed_functions_list.h
 	)
 
@@ -80,6 +82,7 @@ target_link_libraries(obs-qsv11
 	d3d11
 	dxva2
 	dxgi
+	dxguid
 	)
 
 target_compile_definitions(obs-qsv11 PRIVATE DX11_D3D)
