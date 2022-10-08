@@ -15,9 +15,7 @@
 #include "app-helpers.h"
 #include "obfuscate.h"
 
-#define do_log(level, format, ...)                    \
-	blog(level, "[wasapi-capture: '%s'] " format, \
-	     obs_source_get_name(gc->source), ##__VA_ARGS__)
+#define do_log(level, format, ...) blog(level, "[wasapi-capture: '%s'] " format, obs_source_get_name(gc->source), ##__VA_ARGS__)
 
 #define warn(format, ...) do_log(LOG_WARNING, format, ##__VA_ARGS__)
 #define info(format, ...) do_log(LOG_INFO, format, ##__VA_ARGS__)
@@ -57,7 +55,6 @@ struct wasapi_capture {
 
 	enum window_priority priority;
 	bool wait_for_target_startup;
-	bool showing;
 	bool active;
 	bool capturing;
 	bool activate_hook;
@@ -70,7 +67,6 @@ struct wasapi_capture {
 	bool cursor_hidden;
 
 	ipc_pipe_server_t pipe;
-	gs_texture_t *texture;
 	struct hook_info *global_hook_info;
 	HANDLE keepalive_mutex;
 	HANDLE hook_init;
@@ -84,7 +80,6 @@ struct wasapi_capture {
 	HANDLE audio_data_mutex;
 	wchar_t *app_sid;
 	int retrying;
-	float cursor_check_time;
 
 	union {
 		struct {
@@ -96,46 +91,41 @@ struct wasapi_capture {
 	};
 };
 
-static inline HANDLE open_mutex_plus_id(struct wasapi_capture *gc,
-					const wchar_t *name, DWORD id)
+struct wasapi_offset offsets32 = {0};
+struct wasapi_offset offsets64 = {0};
+
+static inline HANDLE open_mutex_plus_id(struct wasapi_capture *gc, const wchar_t *name, DWORD id)
 {
 	wchar_t new_name[64];
 	_snwprintf(new_name, 64, L"%s%lu", name, id);
-	return gc->is_app ? open_app_mutex(gc->app_sid, new_name)
-			  : open_mutex(new_name);
+	return gc->is_app ? open_app_mutex(gc->app_sid, new_name) : open_mutex(new_name);
 }
 
-static inline HANDLE open_mutex_gc(struct wasapi_capture *gc,
-				   const wchar_t *name)
+static inline HANDLE open_mutex_gc(struct wasapi_capture *gc, const wchar_t *name)
 {
 	return open_mutex_plus_id(gc, name, gc->process_id);
 }
 
-static inline HANDLE open_event_plus_id(struct wasapi_capture *gc,
-					const wchar_t *name, DWORD id)
+static inline HANDLE open_event_plus_id(struct wasapi_capture *gc, const wchar_t *name, DWORD id)
 {
 	wchar_t new_name[64];
 	_snwprintf(new_name, 64, L"%s%lu", name, id);
-	return gc->is_app ? open_app_event(gc->app_sid, new_name)
-			  : open_event(new_name);
+	return gc->is_app ? open_app_event(gc->app_sid, new_name) : open_event(new_name);
 }
 
-static inline HANDLE open_event_gc(struct wasapi_capture *gc,
-				   const wchar_t *name)
+static inline HANDLE open_event_gc(struct wasapi_capture *gc, const wchar_t *name)
 {
 	return open_event_plus_id(gc, name, gc->process_id);
 }
 
-static inline HANDLE open_map_plus_id(struct wasapi_capture *gc,
-				      const wchar_t *name, DWORD id)
+static inline HANDLE open_map_plus_id(struct wasapi_capture *gc, const wchar_t *name, DWORD id)
 {
 	wchar_t new_name[64];
 	_snwprintf(new_name, 64, L"%s%lu", name, id);
 
 	debug("map id: %S", new_name);
 
-	return gc->is_app ? open_app_map(gc->app_sid, new_name)
-			  : OpenFileMappingW(GC_MAPPING_FLAGS, false, new_name);
+	return gc->is_app ? open_app_map(gc->app_sid, new_name) : OpenFileMappingW(GC_MAPPING_FLAGS, false, new_name);
 }
 
 static inline HANDLE open_hook_info(struct wasapi_capture *gc)
@@ -161,13 +151,11 @@ static inline HMODULE kernel32(void)
 	return kernel32_handle;
 }
 
-static inline HANDLE open_process(DWORD desired_access, bool inherit_handle,
-				  DWORD process_id)
+static inline HANDLE open_process(DWORD desired_access, bool inherit_handle, DWORD process_id)
 {
 	static HANDLE(WINAPI * open_process_proc)(DWORD, BOOL, DWORD) = NULL;
 	if (!open_process_proc)
-		open_process_proc = get_obfuscated_func(
-			kernel32(), "NuagUykjcxr", 0x1B694B59451ULL);
+		open_process_proc = get_obfuscated_func(kernel32(), "NuagUykjcxr", 0x1B694B59451ULL);
 
 	return open_process_proc(desired_access, inherit_handle, process_id);
 }
@@ -206,13 +194,6 @@ static void stop_capture(struct wasapi_capture *gc)
 	close_handle(&gc->target_process);
 	close_handle(&gc->audio_data_mutex);
 
-	if (gc->texture) {
-		obs_enter_graphics();
-		gs_texture_destroy(gc->texture);
-		obs_leave_graphics();
-		gc->texture = NULL;
-	}
-
 	if (gc->active)
 		info("capture stopped");
 
@@ -244,11 +225,9 @@ static void wasapi_capture_destroy(void *data)
 	bfree(gc);
 }
 
-static inline void get_config(struct wasapi_capture_config *cfg,
-			      obs_data_t *settings, const char *window)
+static inline void get_config(struct wasapi_capture_config *cfg, obs_data_t *settings, const char *window)
 {
-	build_window_strings(window, &cfg->class, &cfg->title,
-			     &cfg->executable);
+	build_window_strings(window, &cfg->class, &cfg->title, &cfg->executable);
 }
 
 static inline int s_cmp(const char *str1, const char *str2)
@@ -259,13 +238,10 @@ static inline int s_cmp(const char *str1, const char *str2)
 	return strcmp(str1, str2);
 }
 
-static inline bool capture_needs_reset(struct wasapi_capture_config *cfg1,
-				       struct wasapi_capture_config *cfg2)
+static inline bool capture_needs_reset(struct wasapi_capture_config *cfg1, struct wasapi_capture_config *cfg2)
 {
 
-	if (s_cmp(cfg1->class, cfg2->class) != 0 ||
-	    s_cmp(cfg1->title, cfg2->title) != 0 ||
-	    s_cmp(cfg1->executable, cfg2->executable) != 0)
+	if (s_cmp(cfg1->class, cfg2->class) != 0 || s_cmp(cfg1->title, cfg2->title) != 0 || s_cmp(cfg1->executable, cfg2->executable) != 0)
 		return true;
 
 	return false;
@@ -276,8 +252,7 @@ static void wasapi_capture_update(void *data, obs_data_t *settings)
 	struct wasapi_capture *gc = data;
 	struct wasapi_capture_config cfg;
 	bool reset_capture = false;
-	const char *window =
-		obs_data_get_string(settings, SETTING_CAPTURE_WINDOW);
+	const char *window = obs_data_get_string(settings, SETTING_CAPTURE_WINDOW);
 
 	get_config(&cfg, settings, window);
 	reset_capture = capture_needs_reset(&cfg, &gc->config);
@@ -307,10 +282,12 @@ static void wasapi_capture_update(void *data, obs_data_t *settings)
 	}
 }
 
+extern void wait_for_hook_initialization(void);
 static void *wasapi_capture_create(obs_data_t *settings, obs_source_t *source)
 {
-	struct wasapi_capture *gc = bzalloc(sizeof(*gc));
+	wait_for_hook_initialization();
 
+	struct wasapi_capture *gc = bzalloc(sizeof(*gc));
 	gc->source = source;
 	gc->initial_config = true;
 	gc->retry_interval = DEFAULT_RETRY_INTERVAL;
@@ -324,8 +301,7 @@ static void *wasapi_capture_create(obs_data_t *settings, obs_source_t *source)
 	"that the OBS installation folder is excluded/ignored in the "      \
 	"settings of the security software you are using."
 
-static bool check_file_integrity(struct wasapi_capture *gc, const char *file,
-				 const char *name)
+static bool check_file_integrity(struct wasapi_capture *gc, const char *file, const char *name)
 {
 	DWORD error;
 	HANDLE handle;
@@ -341,8 +317,7 @@ static bool check_file_integrity(struct wasapi_capture *gc, const char *file,
 		return false;
 	}
 
-	handle = CreateFileW(w_file, GENERIC_READ | GENERIC_EXECUTE,
-			     FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
+	handle = CreateFileW(w_file, GENERIC_READ | GENERIC_EXECUTE, FILE_SHARE_READ, NULL, OPEN_EXISTING, 0, NULL);
 
 	bfree(w_file);
 
@@ -355,11 +330,9 @@ static bool check_file_integrity(struct wasapi_capture *gc, const char *file,
 	if (error == ERROR_FILE_NOT_FOUND) {
 		warn("Game capture file '%s' not found." STOP_BEING_BAD, file);
 	} else if (error == ERROR_ACCESS_DENIED) {
-		warn("Game capture file '%s' could not be loaded." STOP_BEING_BAD,
-		     file);
+		warn("Game capture file '%s' could not be loaded." STOP_BEING_BAD, file);
 	} else {
-		warn("Game capture file '%s' could not be loaded: %lu." STOP_BEING_BAD,
-		     file, error);
+		warn("Game capture file '%s' could not be loaded: %lu." STOP_BEING_BAD, file, error);
 	}
 
 	return false;
@@ -391,8 +364,7 @@ static inline bool is_64bit_process(HANDLE process)
 
 static inline bool open_target_process(struct wasapi_capture *gc)
 {
-	gc->target_process = open_process(
-		PROCESS_QUERY_INFORMATION | SYNCHRONIZE, false, gc->process_id);
+	gc->target_process = open_process(PROCESS_QUERY_INFORMATION | SYNCHRONIZE, false, gc->process_id);
 	if (!gc->target_process) {
 		warn("could not open process: %s", gc->config.executable);
 		return false;
@@ -409,8 +381,7 @@ static inline bool open_target_process(struct wasapi_capture *gc)
 static inline bool init_keepalive(struct wasapi_capture *gc)
 {
 	wchar_t new_name[64];
-	_snwprintf(new_name, 64, L"%s%lu", WINDOW_HOOK_KEEPALIVE,
-		   gc->process_id);
+	_snwprintf(new_name, 64, L"%s%lu", WINDOW_HOOK_KEEPALIVE, gc->process_id);
 
 	gc->keepalive_mutex = CreateMutexW(NULL, false, new_name);
 	if (!gc->keepalive_mutex) {
@@ -421,7 +392,7 @@ static inline bool init_keepalive(struct wasapi_capture *gc)
 	return true;
 }
 
-static inline bool init_texture_mutexes(struct wasapi_capture *gc)
+static inline bool init_audio_data_mutexes(struct wasapi_capture *gc)
 {
 	gc->audio_data_mutex = open_mutex_gc(gc, AUDIO_DATA_MUTEX);
 
@@ -433,8 +404,7 @@ static inline bool init_texture_mutexes(struct wasapi_capture *gc)
 				info("hook not loaded yet, retrying..");
 			}
 		} else {
-			warn("failed to open texture mutexes: %lu",
-			     GetLastError());
+			warn("failed to open audio data mutexes: %lu", GetLastError());
 		}
 		return false;
 	}
@@ -447,8 +417,7 @@ static inline bool attempt_existing_hook(struct wasapi_capture *gc)
 {
 	gc->hook_restart = open_event_gc(gc, EVENT_CAPTURE_RESTART);
 	if (gc->hook_restart) {
-		debug("existing hook found, signaling process: %s",
-		      gc->config.executable);
+		debug("existing hook found, signaling process: %s", gc->config.executable);
 		SetEvent(gc->hook_restart);
 		return true;
 	}
@@ -460,17 +429,14 @@ static inline bool init_hook_info(struct wasapi_capture *gc)
 {
 	gc->global_hook_info_map = open_hook_info(gc);
 	if (!gc->global_hook_info_map) {
-		warn("init_hook_info: get_hook_info failed: %lu",
-		     GetLastError());
+		warn("init_hook_info: get_hook_info failed: %lu", GetLastError());
 		return false;
 	}
 
-	gc->global_hook_info = MapViewOfFile(gc->global_hook_info_map,
-					     FILE_MAP_ALL_ACCESS, 0, 0,
-					     sizeof(*gc->global_hook_info));
+	gc->global_hook_info = MapViewOfFile(gc->global_hook_info_map, FILE_MAP_ALL_ACCESS, 0, 0, sizeof(*gc->global_hook_info));
+	gc->global_hook_info->offset = gc->process_is_64bit ? offsets64 : offsets32;
 	if (!gc->global_hook_info) {
-		warn("init_hook_info: failed to map data view: %lu",
-		     GetLastError());
+		warn("init_hook_info: failed to map data view: %lu", GetLastError());
 		return false;
 	}
 
@@ -497,9 +463,7 @@ static inline bool init_pipe(struct wasapi_capture *gc)
 	return true;
 }
 
-static inline bool create_inject_process(struct wasapi_capture *gc,
-					 const char *inject_path,
-					 const char *hook_dll)
+static inline bool create_inject_process(struct wasapi_capture *gc, const char *inject_path, const char *hook_dll)
 {
 	wchar_t *command_line_w = malloc(4096 * sizeof(wchar_t));
 	wchar_t *inject_path_w;
@@ -513,18 +477,14 @@ static inline bool create_inject_process(struct wasapi_capture *gc,
 
 	si.cb = sizeof(si);
 
-	swprintf(command_line_w, 4096, L"\"%s\" \"%s\" %lu %lu", inject_path_w,
-		 hook_dll_w, 1, gc->thread_id);
+	swprintf(command_line_w, 4096, L"\"%s\" \"%s\" %lu %lu", inject_path_w, hook_dll_w, 1, gc->thread_id);
 
-	success = !!CreateProcessW(inject_path_w, command_line_w, NULL, NULL,
-				   false, CREATE_NO_WINDOW, NULL, NULL, &si,
-				   &pi);
+	success = !!CreateProcessW(inject_path_w, command_line_w, NULL, NULL, false, CREATE_NO_WINDOW, NULL, NULL, &si, &pi);
 	if (success) {
 		CloseHandle(pi.hThread);
 		gc->injector_process = pi.hProcess;
 	} else {
-		warn("Failed to create inject helper process: %lu",
-		     GetLastError());
+		warn("Failed to create inject helper process: %lu", GetLastError());
 	}
 
 	free(command_line_w);
@@ -650,7 +610,7 @@ static bool init_hook(struct wasapi_capture *gc)
 			return false;
 		}
 	}
-	if (!init_texture_mutexes(gc)) {
+	if (!init_audio_data_mutexes(gc)) {
 		info("init audio datex mutex failed");
 		return false;
 	}
@@ -679,8 +639,7 @@ static void setup_window(struct wasapi_capture *gc, HWND window)
 
 	GetWindowThreadProcessId(window, &gc->process_id);
 	if (gc->process_id) {
-		process = open_process(PROCESS_QUERY_INFORMATION, false,
-				       gc->process_id);
+		process = open_process(PROCESS_QUERY_INFORMATION, false, gc->process_id);
 		if (process) {
 			gc->is_app = is_app(process);
 			if (gc->is_app) {
@@ -719,9 +678,7 @@ static void get_selected_window(struct wasapi_capture *gc)
 		os_utf8_to_wcs(gc->class.array, 0, class_w, 512);
 		window = FindWindowW(class_w, NULL);
 	} else {
-		window = find_window(INCLUDE_MINIMIZED, gc->priority,
-				     gc->class.array, gc->title.array,
-				     gc->executable.array);
+		window = find_window(INCLUDE_MINIMIZED, gc->priority, gc->class.array, gc->title.array, gc->executable.array);
 	}
 
 	if (window) {
@@ -736,8 +693,7 @@ static void try_hook(struct wasapi_capture *gc)
 	get_selected_window(gc);
 
 	if (gc->next_window) {
-		gc->thread_id = GetWindowThreadProcessId(gc->next_window,
-							 &gc->process_id);
+		gc->thread_id = GetWindowThreadProcessId(gc->next_window, &gc->process_id);
 
 		// Make sure we never try to hook ourselves (projector)
 		if (gc->process_id == GetCurrentProcessId())
@@ -776,8 +732,7 @@ static inline bool init_events(struct wasapi_capture *gc)
 	if (!gc->hook_stop) {
 		gc->hook_stop = open_event_gc(gc, EVENT_CAPTURE_STOP);
 		if (!gc->hook_stop) {
-			warn("init_events: failed to get hook_stop event: %lu",
-			     GetLastError());
+			warn("init_events: failed to get hook_stop event: %lu", GetLastError());
 			return false;
 		} else
 			object_signalled(gc->hook_stop);
@@ -786,8 +741,7 @@ static inline bool init_events(struct wasapi_capture *gc)
 	if (!gc->hook_init) {
 		gc->hook_init = open_event_gc(gc, EVENT_HOOK_INIT);
 		if (!gc->hook_init) {
-			warn("init_events: failed to get hook_init event: %lu",
-			     GetLastError());
+			warn("init_events: failed to get hook_init event: %lu", GetLastError());
 			return false;
 		}
 	}
@@ -795,8 +749,7 @@ static inline bool init_events(struct wasapi_capture *gc)
 	if (!gc->hook_ready) {
 		gc->hook_ready = open_event_gc(gc, EVENT_HOOK_READY);
 		if (!gc->hook_ready) {
-			warn("init_events: failed to get hook_ready event: %lu",
-			     GetLastError());
+			warn("init_events: failed to get hook_ready event: %lu", GetLastError());
 			return false;
 		}
 	}
@@ -804,8 +757,7 @@ static inline bool init_events(struct wasapi_capture *gc)
 	if (!gc->hook_exit) {
 		gc->hook_exit = open_event_gc(gc, EVENT_HOOK_EXIT);
 		if (!gc->hook_exit) {
-			warn("init_events: failed to get hook_exit event: %lu",
-			     GetLastError());
+			warn("init_events: failed to get hook_exit event: %lu", GetLastError());
 			return false;
 		}
 	}
@@ -817,10 +769,6 @@ enum capture_result { CAPTURE_FAIL, CAPTURE_RETRY, CAPTURE_SUCCESS };
 
 static inline enum capture_result init_capture_data(struct wasapi_capture *gc)
 {
-	gc->channels = gc->global_hook_info->channels;
-	gc->samplerate = gc->global_hook_info->samplerate;
-	gc->byte_persample = gc->global_hook_info->byte_persample;
-
 	if (gc->data) {
 		UnmapViewOfFile(gc->data);
 		gc->data = NULL;
@@ -828,8 +776,7 @@ static inline enum capture_result init_capture_data(struct wasapi_capture *gc)
 
 	CloseHandle(gc->hook_data_map);
 
-	gc->hook_data_map =
-		open_map_plus_id(gc, SHMEM_AUDIO, gc->global_hook_info->map_id);
+	gc->hook_data_map = open_map_plus_id(gc, SHMEM_AUDIO, gc->global_hook_info->map_id);
 	if (!gc->hook_data_map) {
 		DWORD error = GetLastError();
 		if (error == 2) {
@@ -842,11 +789,9 @@ static inline enum capture_result init_capture_data(struct wasapi_capture *gc)
 		return CAPTURE_FAIL;
 	}
 
-	gc->data = MapViewOfFile(gc->hook_data_map, FILE_MAP_ALL_ACCESS, 0, 0,
-				 gc->global_hook_info->map_size);
+	gc->data = MapViewOfFile(gc->hook_data_map, FILE_MAP_ALL_ACCESS, 0, 0, gc->global_hook_info->map_size);
 	if (!gc->data) {
-		warn("init_capture_data: failed to map data view: %lu",
-		     GetLastError());
+		warn("init_capture_data: failed to map data view: %lu", GetLastError());
 		return CAPTURE_FAIL;
 	}
 
@@ -855,40 +800,60 @@ static inline enum capture_result init_capture_data(struct wasapi_capture *gc)
 
 static void copy_shmem_tex(struct wasapi_capture *gc)
 {
-	int audio_size = 0;
-	HANDLE mutex = NULL;
-
 	if (!gc->shmem_data)
 		return;
 
 	if (object_signalled(gc->audio_data_mutex)) {
-
-		audio_size = gc->shmem_data->available_audio_size;
-
+		uint32_t audio_size = gc->shmem_data->available_audio_size;
 		if (audio_size > 0) {
-			struct obs_source_audio data = { 0 };
-			data.data[0] = (const uint8_t *)gc->audio_data_buffer;
-			data.frames = (uint32_t)(audio_size/(gc->global_hook_info->channels * gc->global_hook_info->byte_persample));
-			data.speakers = (enum speaker_layout)gc->global_hook_info->channels;
-			data.samples_per_sec = gc->global_hook_info->samplerate;
-			data.format = gc->global_hook_info->format;
-			data.timestamp = os_gettime_ns();
-			data.timestamp -= util_mul_div64(data.frames, 1000000000ULL,
-								 data.samples_per_sec);
+			uint32_t offset = 0;
+			while (true) {
+				if (offset >= audio_size)
+					break;
 
-			obs_source_output_audio(gc->source, &data);
+				uint8_t *buffer_data = gc->audio_data_buffer + offset + 4;
 
-			gc->shmem_data->available_audio_size = 0;
+				uint32_t nf = 0;
+				memcpy(&nf, gc->audio_data_buffer + offset, 4);
+				offset += nf;
+
+				//renderclient poniter
+				//channel samplerate format byte_per_sample timestamp
+				uint64_t ptr = 0;
+				uint64_t timestamp = 0;
+				uint32_t channel = 0, samplerate = 0, format = 0, byte_per_sample = 0;
+				memcpy(&ptr, buffer_data, 8);
+				memcpy(&channel, buffer_data + 8, 4);
+				memcpy(&samplerate, buffer_data + 12, 4);
+				memcpy(&format, buffer_data + 16, 4);
+				memcpy(&byte_per_sample, buffer_data + 20, 4);
+				memcpy(&timestamp, buffer_data + 24, 8);
+
+				struct obs_source_audio data = {0};
+				data.data[0] = (const uint8_t *)(buffer_data + 32);
+
+				data.frames = (uint32_t)((nf - 36) / (channel * byte_per_sample));
+				data.speakers = (enum speaker_layout)channel;
+				data.samples_per_sec = samplerate;
+				data.format = format;
+				data.timestamp = timestamp;
+				//data.timestamp -= util_mul_div64(data.frames, 1000000000ULL, data.samples_per_sec);
+				obs_source_output_audio(gc->source, &data);
+
+				static uint64_t ls = 0;
+				debug("wascapture audio ts: %lld, len: %ld, timestamp: %lld", (data.timestamp - ls) / 1000000, data.frames, data.timestamp);
+				ls = data.timestamp;
+
+				gc->shmem_data->available_audio_size -= nf;
+			}
 		}
-
 		ReleaseMutex(gc->audio_data_mutex);
 	}
 }
 
 static inline bool init_shmem_capture(struct wasapi_capture *gc)
 {
-	gc->audio_data_buffer =
-		(uint8_t *)gc->data + gc->shmem_data->audio_offset;
+	gc->audio_data_buffer = (uint8_t *)gc->data + gc->shmem_data->audio_offset;
 	return true;
 }
 
@@ -914,18 +879,6 @@ static void wasapi_capture_tick(void *data, float seconds)
 {
 	struct wasapi_capture *gc = data;
 
-	if (!obs_source_showing(gc->source)) {
-		if (gc->showing) {
-			if (gc->active)
-				stop_capture(gc);
-			gc->showing = false;
-		}
-		return;
-
-	} else if (!gc->showing) {
-		gc->retry_time = 10.0f;
-	}
-
 	if (gc->hook_stop && object_signalled(gc->hook_stop)) {
 		debug("hook stop signal received");
 		stop_capture(gc);
@@ -944,7 +897,6 @@ static void wasapi_capture_tick(void *data, float seconds)
 		if (exit_code != 0) {
 			warn("inject process failed: %ld", (long)exit_code);
 			gc->error_acquiring = true;
-
 		}
 	}
 
@@ -966,8 +918,7 @@ static void wasapi_capture_tick(void *data, float seconds)
 	gc->retry_time += seconds;
 
 	if (!gc->active) {
-		if (!gc->error_acquiring &&
-		    gc->retry_time > gc->retry_interval) {
+		if (!gc->error_acquiring && gc->retry_time > gc->retry_interval) {
 			if (gc->activate_hook) {
 				try_hook(gc);
 				gc->retry_time = 0.0f;
@@ -982,9 +933,6 @@ static void wasapi_capture_tick(void *data, float seconds)
 			copy_shmem_tex(gc);
 		}
 	}
-
-	if (!gc->showing)
-		gc->showing = true;
 }
 
 static const char *wasapi_capture_name(void *unused)
@@ -995,8 +943,7 @@ static const char *wasapi_capture_name(void *unused)
 
 static void wasapi_capture_defaults(obs_data_t *settings) {}
 
-static bool window_not_blacklisted(const char *title, const char *class,
-				   const char *exe)
+static bool window_not_blacklisted(const char *title, const char *class, const char *exe)
 {
 	UNUSED_PARAMETER(title);
 	UNUSED_PARAMETER(class);
@@ -1023,8 +970,7 @@ static void insert_preserved_val(obs_property_t *p, const char *val)
 	bfree(executable);
 }
 
-static bool window_changed_callback(obs_properties_t *ppts, obs_property_t *p,
-				    obs_data_t *settings)
+static bool window_changed_callback(obs_properties_t *ppts, obs_property_t *p, obs_data_t *settings)
 {
 	const char *cur_val;
 	bool match = false;
@@ -1060,9 +1006,7 @@ static obs_properties_t *wasapi_capture_properties(void *data)
 	obs_properties_t *ppts = obs_properties_create();
 	obs_property_t *p;
 
-	p = obs_properties_add_list(ppts, SETTING_CAPTURE_WINDOW, "Window",
-				    OBS_COMBO_TYPE_LIST,
-				    OBS_COMBO_FORMAT_STRING);
+	p = obs_properties_add_list(ppts, SETTING_CAPTURE_WINDOW, "Window", OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
 	obs_property_list_add_string(p, "", "");
 	fill_window_list(p, INCLUDE_MINIMIZED, window_not_blacklisted);
 

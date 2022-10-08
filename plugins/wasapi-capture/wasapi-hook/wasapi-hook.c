@@ -131,8 +131,7 @@ static inline bool init_system_path(void)
 
 static inline void log_current_process(void)
 {
-	DWORD len = GetModuleBaseNameA(GetCurrentProcess(), NULL, process_name,
-				       MAX_PATH);
+	DWORD len = GetModuleBaseNameA(GetCurrentProcess(), NULL, process_name, MAX_PATH);
 	if (len > 0) {
 		process_name[len] = 0;
 		hlog("Hooked to process: %s", process_name);
@@ -145,16 +144,13 @@ static inline bool init_hook_info(void)
 {
 	filemap_hook_info = create_hook_info(GetCurrentProcessId());
 	if (!filemap_hook_info) {
-		hlog("Failed to create hook info file mapping: %lu",
-		     GetLastError());
+		hlog("Failed to create hook info file mapping: %lu", GetLastError());
 		return false;
 	}
 
-	global_hook_info = MapViewOfFile(filemap_hook_info, FILE_MAP_ALL_ACCESS,
-					 0, 0, sizeof(struct hook_info));
+	global_hook_info = MapViewOfFile(filemap_hook_info, FILE_MAP_ALL_ACCESS, 0, 0, sizeof(struct hook_info));
 	if (!global_hook_info) {
-		hlog("Failed to map the hook info file mapping: %lu",
-		     GetLastError());
+		hlog("Failed to map the hook info file mapping: %lu", GetLastError());
 		return false;
 	}
 
@@ -165,8 +161,7 @@ static inline bool init_hook(HANDLE thread_handle)
 {
 	wait_for_dll_main_finish(thread_handle);
 
-	_snwprintf(keepalive_name, sizeof(keepalive_name) / sizeof(wchar_t),
-		   L"%s%lu", WINDOW_HOOK_KEEPALIVE, GetCurrentProcessId());
+	_snwprintf(keepalive_name, sizeof(keepalive_name) / sizeof(wchar_t), L"%s%lu", WINDOW_HOOK_KEEPALIVE, GetCurrentProcessId());
 
 	init_pipe();
 
@@ -271,11 +266,8 @@ void hlog_hr(const char *text, HRESULT hr)
 {
 	LPSTR buffer = NULL;
 
-	FormatMessageA(FORMAT_MESSAGE_FROM_SYSTEM |
-			       FORMAT_MESSAGE_ALLOCATE_BUFFER |
-			       FORMAT_MESSAGE_IGNORE_INSERTS,
-		       NULL, hr, MAKELANGID(LANG_ENGLISH, SUBLANG_ENGLISH_US),
-		       (LPSTR)&buffer, 0, NULL);
+	FormatMessageA(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_IGNORE_INSERTS, NULL, hr,
+		       MAKELANGID(LANG_ENGLISH, SUBLANG_ENGLISH_US), (LPSTR)&buffer, 0, NULL);
 
 	if (buffer) {
 		hlog("%s (0x%08lX): %s", text, hr, buffer);
@@ -316,20 +308,15 @@ static inline bool init_shared_info(size_t size)
 	wchar_t name[64];
 	_snwprintf(name, 64, L"%s%u", SHMEM_AUDIO, ++shmem_id_counter);
 
-	shmem_file_handle = CreateFileMappingW(INVALID_HANDLE_VALUE, NULL,
-					       PAGE_READWRITE, 0, (DWORD)size,
-					       name);
+	shmem_file_handle = CreateFileMappingW(INVALID_HANDLE_VALUE, NULL, PAGE_READWRITE, 0, (DWORD)size, name);
 	if (!shmem_file_handle) {
-		hlog("init_shared_info: Failed to create shared memory: %d",
-		     GetLastError());
+		hlog("init_shared_info: Failed to create shared memory: %d", GetLastError());
 		return false;
 	}
 
-	shmem_info = MapViewOfFile(shmem_file_handle, FILE_MAP_ALL_ACCESS, 0, 0,
-				   size);
+	shmem_info = MapViewOfFile(shmem_file_handle, FILE_MAP_ALL_ACCESS, 0, 0, size);
 	if (!shmem_info) {
-		hlog("init_shared_info: Failed to map shared memory: %d",
-		     GetLastError());
+		hlog("init_shared_info: Failed to map shared memory: %d", GetLastError());
 		return false;
 	}
 
@@ -340,11 +327,9 @@ static inline bool init_shared_info(size_t size)
 #define ALIGN(bytes, align) (((bytes) + ((align)-1)) & ~((align)-1))
 #endif
 
-bool capture_init_shmem(struct shmem_data **data, uint8_t **data_pointer,
-			uint32_t channels, uint32_t samplerate,
-			uint32_t byte_persample, uint32_t format)
+bool capture_init_shmem(struct shmem_data **data, uint8_t **data_pointer)
 {
-	uint32_t audio_size = channels * samplerate * byte_persample * 60;
+	uint32_t audio_size = 1024 * 1024;
 	uint32_t aligned_header = ALIGN(sizeof(struct shmem_data), 32);
 	uint32_t aligned_audio = ALIGN(audio_size, 32);
 	uint32_t total_size = aligned_header + aligned_audio;
@@ -368,18 +353,14 @@ bool capture_init_shmem(struct shmem_data **data, uint8_t **data_pointer,
 
 	(*data)->available_audio_size = 0;
 	(*data)->audio_offset = align_pos;
+	(*data)->buffer_size = aligned_audio;
 	*data_pointer = (uint8_t *)shmem_info + align_pos;
 
-	global_hook_info->byte_persample = byte_persample;
-	global_hook_info->channels = channels;
-	global_hook_info->samplerate = samplerate;
-	global_hook_info->format = format;
 	global_hook_info->map_id = shmem_id_counter;
 	global_hook_info->map_size = total_size;
 
 	if (!SetEvent(signal_ready)) {
-		hlog("capture_init_shmem: Failed to signal ready: %d",
-		     GetLastError());
+		hlog("capture_init_shmem: Failed to signal ready: %d", GetLastError());
 		return false;
 	}
 
@@ -408,10 +389,7 @@ BOOL WINAPI DllMain(HINSTANCE hinst, DWORD reason, LPVOID unused1)
 		dll_inst = hinst;
 
 		HANDLE cur_thread;
-		bool success = DuplicateHandle(GetCurrentProcess(),
-					       GetCurrentThread(),
-					       GetCurrentProcess(), &cur_thread,
-					       SYNCHRONIZE, false, 0);
+		bool success = DuplicateHandle(GetCurrentProcess(), GetCurrentThread(), GetCurrentProcess(), &cur_thread, SYNCHRONIZE, false, 0);
 
 		if (!success)
 			DbgOut("Failed to get current thread handle");
@@ -434,9 +412,7 @@ BOOL WINAPI DllMain(HINSTANCE hinst, DWORD reason, LPVOID unused1)
 		GetModuleFileNameW(hinst, name, MAX_PATH);
 		LoadLibraryW(name);
 
-		capture_thread = CreateThread(
-			NULL, 0, (LPTHREAD_START_ROUTINE)main_capture_thread,
-			(LPVOID)cur_thread, 0, 0);
+		capture_thread = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)main_capture_thread, (LPVOID)cur_thread, 0, 0);
 		if (!capture_thread) {
 			CloseHandle(cur_thread);
 			return false;
@@ -456,8 +432,7 @@ BOOL WINAPI DllMain(HINSTANCE hinst, DWORD reason, LPVOID unused1)
 	return true;
 }
 
-__declspec(dllexport) LRESULT CALLBACK
-	dummy_debug_proc(int code, WPARAM wparam, LPARAM lparam)
+__declspec(dllexport) LRESULT CALLBACK dummy_debug_proc(int code, WPARAM wparam, LPARAM lparam)
 {
 	static bool hooking = true;
 	MSG *msg = (MSG *)lparam;
@@ -466,10 +441,7 @@ __declspec(dllexport) LRESULT CALLBACK
 		HMODULE user32 = GetModuleHandleW(L"USER32");
 		BOOL(WINAPI * unhook_windows_hook_ex)(HHOOK) = NULL;
 
-		unhook_windows_hook_ex =
-			(BOOL(WINAPI *)(HHOOK))get_obfuscated_func(
-				user32, "VojeleY`bdgxvM`hhDz",
-				0x7F55F80C9EE3A213ULL);
+		unhook_windows_hook_ex = (BOOL(WINAPI *)(HHOOK))get_obfuscated_func(user32, "VojeleY`bdgxvM`hhDz", 0x7F55F80C9EE3A213ULL);
 
 		if (unhook_windows_hook_ex)
 			unhook_windows_hook_ex((HHOOK)msg->lParam);

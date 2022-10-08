@@ -11,14 +11,12 @@ endif()
 set(wasapi-hook_HEADERS
     circlebuf.h
     wasapi-hook.h
-    wasapi_capture_proxy.h
     wasapi_capturer.h
     ../obfuscate.h
     ../wasapi-hook-info.h)
 
 set(wasapi-hook_SOURCES
     wasapi-hook.c
-    wasapi_capture_proxy.cpp
     wasapi_capturer.cpp
     ../obfuscate.c)
 

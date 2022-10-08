@@ -27,3 +27,4 @@ set_target_properties(wasapi-capture PROPERTIES FOLDER "plugins/wasapi-capture")
 install_obs_plugin(wasapi-capture data)
 
 add_subdirectory(wasapi-hook)
+add_subdirectory(get-wasapi-offsets)

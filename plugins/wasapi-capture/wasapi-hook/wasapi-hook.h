@@ -40,9 +40,7 @@ extern void reset_var();
 extern bool hook_wasapi(void);
 extern bool rehook_gl(void);
 
-extern bool capture_init_shmem(struct shmem_data **data, uint8_t **data_pointer,
-			       uint32_t channels, uint32_t samplerate,
-			       uint32_t byte_persample, uint32_t format);
+extern bool capture_init_shmem(struct shmem_data **data, uint8_t **data_pointer);
 extern void capture_free(void);
 
 extern struct hook_info *global_hook_info;

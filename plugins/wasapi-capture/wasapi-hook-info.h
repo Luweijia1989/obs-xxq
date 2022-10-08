@@ -27,19 +27,23 @@
 #pragma pack(push, 8)
 
 struct shmem_data {
-	volatile int available_audio_size;
+	volatile uint32_t available_audio_size;
 	uint32_t audio_offset;
+	uint32_t buffer_size;
+};
+
+struct wasapi_offset {
+	uint32_t release_buffer;
+	uint32_t audio_client_offset;
+	uint32_t waveformat_offset;
+	uint32_t buffer_offset;
 };
 
 struct hook_info {
-	/* capture info */
-	uint32_t channels;
-	uint32_t samplerate;
-	uint32_t byte_persample;
-	uint32_t format;
-
 	uint32_t map_id;
 	uint32_t map_size;
+
+	struct wasapi_offset offset;
 };
 
 #pragma pack(pop)
@@ -51,6 +55,5 @@ static inline HANDLE create_hook_info(DWORD id)
 	wchar_t new_name[64];
 	_snwprintf(new_name, 64, L"%s%lu", SHMEM_HOOK_INFO, id);
 
-	return CreateFileMappingW(INVALID_HANDLE_VALUE, NULL, PAGE_READWRITE, 0,
-				  sizeof(struct hook_info), new_name);
+	return CreateFileMappingW(INVALID_HANDLE_VALUE, NULL, PAGE_READWRITE, 0, sizeof(struct hook_info), new_name);
 }
