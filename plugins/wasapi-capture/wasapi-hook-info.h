@@ -18,6 +18,7 @@
 #define WINDOW_HOOK_KEEPALIVE L"CaptureHook_KeepAlive"
 
 #define AUDIO_DATA_MUTEX L"CaptureHook_Audio_Data_Mutex"
+#define AUDIO_DATA_EVENT L"CaptureHook_Audio_Data_Event"
 
 #define SHMEM_HOOK_INFO L"CaptureHook_HookInfo"
 #define SHMEM_AUDIO L"CaptureHook_Audio"

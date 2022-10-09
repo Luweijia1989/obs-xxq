@@ -38,10 +38,6 @@ struct wasapi_capture {
 
 	HANDLE injector_process;
 
-	uint32_t channels;
-	uint32_t samplerate;
-	uint32_t byte_persample;
-
 	DWORD process_id;
 	DWORD thread_id;
 	HWND next_window;
@@ -60,11 +56,8 @@ struct wasapi_capture {
 	bool activate_hook;
 	bool process_is_64bit;
 	bool error_acquiring;
-	bool dwm_capture;
 	bool initial_config;
-	bool convert_16bit;
 	bool is_app;
-	bool cursor_hidden;
 
 	ipc_pipe_server_t pipe;
 	struct hook_info *global_hook_info;
@@ -78,6 +71,7 @@ struct wasapi_capture {
 	HANDLE global_hook_info_map;
 	HANDLE target_process;
 	HANDLE audio_data_mutex;
+	HANDLE audio_data_event;
 	wchar_t *app_sid;
 	int retrying;
 
@@ -89,6 +83,8 @@ struct wasapi_capture {
 
 		void *data;
 	};
+
+	HANDLE capture_thread;
 };
 
 struct wasapi_offset offsets32 = {0};
@@ -163,6 +159,14 @@ static inline HANDLE open_process(DWORD desired_access, bool inherit_handle, DWO
 static void stop_capture(struct wasapi_capture *gc)
 {
 	info("stop capture called");
+
+	gc->capturing = false;
+	SetEvent(gc->audio_data_event);
+	if (gc->capture_thread != INVALID_HANDLE_VALUE) {
+		WaitForSingleObject(gc->capture_thread, INFINITE);
+		gc->capture_thread = INVALID_HANDLE_VALUE;
+	}
+
 	ipc_pipe_server_free(&gc->pipe);
 
 	if (gc->hook_stop) {
@@ -193,13 +197,13 @@ static void stop_capture(struct wasapi_capture *gc)
 	close_handle(&gc->global_hook_info_map);
 	close_handle(&gc->target_process);
 	close_handle(&gc->audio_data_mutex);
+	close_handle(&gc->audio_data_event);
 
 	if (gc->active)
 		info("capture stopped");
 
 	gc->wait_for_target_startup = false;
 	gc->active = false;
-	gc->capturing = false;
 
 	if (gc->retrying)
 		gc->retrying--;
@@ -291,6 +295,7 @@ static void *wasapi_capture_create(obs_data_t *settings, obs_source_t *source)
 	gc->source = source;
 	gc->initial_config = true;
 	gc->retry_interval = DEFAULT_RETRY_INTERVAL;
+	gc->capture_thread = INVALID_HANDLE_VALUE;
 
 	wasapi_capture_update(gc, settings);
 	return gc;
@@ -405,6 +410,21 @@ static inline bool init_audio_data_mutexes(struct wasapi_capture *gc)
 			}
 		} else {
 			warn("failed to open audio data mutexes: %lu", GetLastError());
+		}
+		return false;
+	}
+
+	gc->audio_data_event = open_event_gc(gc, AUDIO_DATA_EVENT);
+
+	if (!gc->audio_data_event) {
+		DWORD error = GetLastError();
+		if (error == 2) {
+			if (!gc->retrying) {
+				gc->retrying = 2;
+				info("hook not loaded yet, retrying..");
+			}
+		} else {
+			warn("failed to open audio data events: %lu", GetLastError());
 		}
 		return false;
 	}
@@ -798,76 +818,77 @@ static inline enum capture_result init_capture_data(struct wasapi_capture *gc)
 	return CAPTURE_SUCCESS;
 }
 
-static void copy_shmem_tex(struct wasapi_capture *gc)
-{
-	if (!gc->shmem_data)
-		return;
-
-	if (object_signalled(gc->audio_data_mutex)) {
-		uint32_t audio_size = gc->shmem_data->available_audio_size;
-		if (audio_size > 0) {
-			uint32_t offset = 0;
-			while (true) {
-				if (offset >= audio_size)
-					break;
-
-				uint8_t *buffer_data = gc->audio_data_buffer + offset + 4;
-
-				uint32_t nf = 0;
-				memcpy(&nf, gc->audio_data_buffer + offset, 4);
-				offset += nf;
-
-				//renderclient poniter
-				//channel samplerate format byte_per_sample timestamp
-				uint64_t ptr = 0;
-				uint64_t timestamp = 0;
-				uint32_t channel = 0, samplerate = 0, format = 0, byte_per_sample = 0;
-				memcpy(&ptr, buffer_data, 8);
-				memcpy(&channel, buffer_data + 8, 4);
-				memcpy(&samplerate, buffer_data + 12, 4);
-				memcpy(&format, buffer_data + 16, 4);
-				memcpy(&byte_per_sample, buffer_data + 20, 4);
-				memcpy(&timestamp, buffer_data + 24, 8);
-
-				struct obs_source_audio data = {0};
-				data.data[0] = (const uint8_t *)(buffer_data + 32);
-
-				data.frames = (uint32_t)((nf - 36) / (channel * byte_per_sample));
-				data.speakers = (enum speaker_layout)channel;
-				data.samples_per_sec = samplerate;
-				data.format = format;
-				data.timestamp = timestamp;
-				//data.timestamp -= util_mul_div64(data.frames, 1000000000ULL, data.samples_per_sec);
-				obs_source_output_audio(gc->source, &data);
-
-				static uint64_t ls = 0;
-				debug("wascapture audio ts: %lld, len: %ld, timestamp: %lld", (data.timestamp - ls) / 1000000, data.frames, data.timestamp);
-				ls = data.timestamp;
-
-				gc->shmem_data->available_audio_size -= nf;
-			}
-		}
-		ReleaseMutex(gc->audio_data_mutex);
-	}
-}
-
 static inline bool init_shmem_capture(struct wasapi_capture *gc)
 {
 	gc->audio_data_buffer = (uint8_t *)gc->data + gc->shmem_data->audio_offset;
 	return true;
 }
 
-static bool start_capture(struct wasapi_capture *gc)
+static void capture_thread_proc(LPVOID param)
+{
+	struct wasapi_capture *gc = param;
+	while (gc->capturing) {
+		if (WaitForSingleObject(gc->audio_data_event, 100) != WAIT_OBJECT_0)
+			continue;
+
+		if (!gc->capturing)
+			break;
+
+		if (WaitForSingleObject(gc->audio_data_mutex, 10) == WAIT_OBJECT_0) {
+			uint32_t audio_size = gc->shmem_data->available_audio_size;
+			if (audio_size > 0) {
+				uint32_t offset = 0;
+				while (true) {
+					if (offset >= audio_size)
+						break;
+
+					uint8_t *buffer_data = gc->audio_data_buffer + offset + 4;
+
+					uint32_t nf = 0;
+					memcpy(&nf, gc->audio_data_buffer + offset, 4);
+					offset += nf;
+
+					//renderclient poniter channel samplerate format byte_per_sample timestamp
+					uint64_t ptr = 0;
+					uint64_t timestamp = 0;
+					uint32_t channel = 0, samplerate = 0, format = 0, byte_per_sample = 0;
+					memcpy(&ptr, buffer_data, 8);
+					memcpy(&channel, buffer_data + 8, 4);
+					memcpy(&samplerate, buffer_data + 12, 4);
+					memcpy(&format, buffer_data + 16, 4);
+					memcpy(&byte_per_sample, buffer_data + 20, 4);
+					memcpy(&timestamp, buffer_data + 24, 8);
+
+					struct obs_source_audio data = {0};
+					data.data[0] = (const uint8_t *)(buffer_data + 32);
+					data.frames = (uint32_t)((nf - 36) / (channel * byte_per_sample));
+					data.speakers = (enum speaker_layout)channel;
+					data.samples_per_sec = samplerate;
+					data.format = format;
+					data.timestamp = timestamp;
+					obs_source_output_audio(gc->source, &data);
+
+					gc->shmem_data->available_audio_size -= nf;
+				}
+			}
+			ReleaseMutex(gc->audio_data_mutex);
+		}
+	}
+}
+
+static void start_capture(struct wasapi_capture *gc)
 {
 	debug("Starting capture");
 
 	if (!init_shmem_capture(gc)) {
-		return false;
+		return;
 	}
 
 	info("memory capture successful");
 
-	return true;
+	gc->capturing = true;
+
+	gc->capture_thread = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)capture_thread_proc, gc, 0, NULL);
 }
 
 static inline bool capture_valid(struct wasapi_capture *gc)
@@ -905,7 +926,7 @@ static void wasapi_capture_tick(void *data, float seconds)
 		enum capture_result result = init_capture_data(gc);
 
 		if (result == CAPTURE_SUCCESS)
-			gc->capturing = start_capture(gc);
+			start_capture(gc);
 		else
 			debug("init_capture_data failed");
 
@@ -929,8 +950,6 @@ static void wasapi_capture_tick(void *data, float seconds)
 			info("capture window no longer exists, "
 			     "terminating capture");
 			stop_capture(gc);
-		} else {
-			copy_shmem_tex(gc);
 		}
 	}
 }

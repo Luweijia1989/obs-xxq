@@ -94,7 +94,7 @@ void WASCaptureData::out_audio_data(IAudioRenderClient *pAudioRenderClient, UINT
 	uint32_t len = nFrameWritten * wfex->nChannels * wfex->wBitsPerSample / 8;
 
 	DWORD wait_result = WAIT_FAILED;
-	wait_result = WaitForSingleObject(tex_mutexe, 0);
+	wait_result = WaitForSingleObject(audio_data_mutex, 0);
 	if (wait_result == WAIT_OBJECT_0 || wait_result == WAIT_ABANDONED) {
 		uint32_t count = len + 36;
 		if (_shmem_data_info->available_audio_size + count <= _shmem_data_info->buffer_size) {
@@ -107,12 +107,9 @@ void WASCaptureData::out_audio_data(IAudioRenderClient *pAudioRenderClient, UINT
 			memcpy(audio_data_pointer + _shmem_data_info->available_audio_size + 28, &timestamp, 8);
 			memcpy(audio_data_pointer + _shmem_data_info->available_audio_size + 36, buffer, len);
 			_shmem_data_info->available_audio_size += count;
-
-			static uint64_t ls = 0;
-			hlog("hook audio ts: %lld, len: %d, timestamp: %lld", (timestamp - ls) / 1000000, nFrameWritten, timestamp);
-			ls = timestamp;
 		}
-		ReleaseMutex(tex_mutexe);
+		ReleaseMutex(audio_data_mutex);
+		SetEvent(audio_data_event);
 	}
 }
 

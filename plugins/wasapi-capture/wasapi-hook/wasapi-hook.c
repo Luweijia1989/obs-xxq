@@ -17,7 +17,8 @@ HANDLE signal_stop = NULL;
 HANDLE signal_ready = NULL;
 HANDLE signal_exit = NULL;
 static HANDLE signal_init = NULL;
-HANDLE tex_mutexe = NULL;
+HANDLE audio_data_mutex = NULL;
+HANDLE audio_data_event = NULL;
 static HANDLE filemap_hook_info = NULL;
 
 static HINSTANCE dll_inst = NULL;
@@ -26,7 +27,6 @@ static HANDLE capture_thread = NULL;
 char system_path[MAX_PATH] = {0};
 char process_name[MAX_PATH] = {0};
 wchar_t keepalive_name[64] = {0};
-HWND dummy_window = NULL;
 
 static unsigned int shmem_id_counter = 0;
 static void *shmem_info = NULL;
@@ -110,8 +110,13 @@ static inline bool init_mutexes(void)
 {
 	DWORD pid = GetCurrentProcessId();
 
-	tex_mutexe = init_mutex(AUDIO_DATA_MUTEX, pid);
-	if (!tex_mutexe) {
+	audio_data_mutex = init_mutex(AUDIO_DATA_MUTEX, pid);
+	if (!audio_data_mutex) {
+		return false;
+	}
+
+	audio_data_event = init_event(AUDIO_DATA_EVENT, pid);
+	if (!audio_data_event) {
 		return false;
 	}
 
@@ -190,7 +195,8 @@ static void free_hook(void)
 		global_hook_info = NULL;
 	}
 
-	close_handle(&tex_mutexe);
+	close_handle(&audio_data_mutex);
+	close_handle(&audio_data_event);
 	close_handle(&signal_exit);
 	close_handle(&signal_ready);
 	close_handle(&signal_stop);
