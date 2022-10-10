@@ -21,7 +21,6 @@ HANDLE audio_data_mutex = NULL;
 HANDLE audio_data_event = NULL;
 static HANDLE filemap_hook_info = NULL;
 
-static HINSTANCE dll_inst = NULL;
 static volatile bool stop_loop = false;
 static HANDLE capture_thread = NULL;
 char system_path[MAX_PATH] = {0};
@@ -391,8 +390,6 @@ BOOL WINAPI DllMain(HINSTANCE hinst, DWORD reason, LPVOID unused1)
 {
 	if (reason == DLL_PROCESS_ATTACH) {
 		wchar_t name[MAX_PATH];
-
-		dll_inst = hinst;
 
 		HANDLE cur_thread;
 		bool success = DuplicateHandle(GetCurrentProcess(), GetCurrentThread(), GetCurrentProcess(), &cur_thread, SYNCHRONIZE, false, 0);

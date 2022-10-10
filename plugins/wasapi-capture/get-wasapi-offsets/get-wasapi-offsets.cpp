@@ -149,6 +149,7 @@ void get_wasapi_offset(struct wasapi_offset *ret)
 
 	SAFE_RELEASE(pMMDevEnum);
 	SAFE_RELEASE(pMMDevice);
+	SAFE_RELEASE(pAudioClient);
 	SAFE_RELEASE(renderClient);
 
 	CoUninitialize();
