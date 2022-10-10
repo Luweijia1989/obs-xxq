@@ -114,8 +114,6 @@ struct wasapi_capture {
 	struct circlebuf buffered_timestamps;
 	uint64_t buffering_wait_ticks;
 	int total_buffering_ticks;
-
-	FILE *dump;
 };
 
 struct wasapi_offset offsets32 = {0};
@@ -271,8 +269,6 @@ static void wasapi_capture_destroy(void *data)
 	circlebuf_free(&gc->buffered_timestamps);
 	da_free(gc->mix_channels);
 
-	fclose(gc->dump);
-
 	bfree(gc);
 }
 
@@ -357,8 +353,6 @@ static void *wasapi_capture_create(obs_data_t *settings, obs_source_t *source)
 	gc->channels = get_audio_channels(gc->out_sample_info.speakers);
 	gc->planes = planar ? gc->channels : 1;
 	gc->block_size = (planar ? 1 : gc->channels) * get_audio_bytes_per_channel(gc->out_sample_info.format);
-
-	gc->dump = fopen("E:\\capture.pcm", "wb");
 
 	wasapi_capture_update(gc, settings);
 	return gc;
@@ -1255,11 +1249,16 @@ static void wasapi_capture_input_and_output(struct wasapi_capture *gc, uint64_t 
 	///* clamps audio data to -1.0..1.0 */
 	clamp_audio_output(gc, bytes);
 
-	fwrite(data.data[0], sizeof(float), AUDIO_OUTPUT_FRAMES, gc->dump);
-
-	///* output */
-	//for (size_t i = 0; i < MAX_AUDIO_MIXES; i++)
-	//	do_audio_output(audio, i, new_ts, AUDIO_OUTPUT_FRAMES);
+	struct obs_source_audio audio;
+	audio.format = AUDIO_FORMAT_FLOAT_PLANAR;
+	audio.frames = AUDIO_OUTPUT_FRAMES;
+	audio.samples_per_sec = gc->out_sample_info.samples_per_sec;
+	audio.speakers = gc->out_sample_info.speakers;
+	audio.timestamp = new_ts;
+	for (size_t i = 0; i < MAX_AUDIO_CHANNELS; i++) {
+		audio.data[i] = (const uint8_t *)data.data[i];
+	}
+	obs_source_output_audio(gc->source, &audio);
 }
 
 static void mix_thread_proc(LPVOID param)
@@ -1355,7 +1354,6 @@ static void capture_thread_proc(LPVOID param)
 						data.samples_per_sec = samplerate;
 						data.format = format;
 						data.timestamp = timestamp;
-						//obs_source_output_audio(gc->source, &data);
 						output_audio_data(gc, &data, ptr);
 
 						gc->shmem_data->available_audio_size -= nf;
