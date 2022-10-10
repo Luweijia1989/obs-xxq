@@ -35,6 +35,7 @@ struct shmem_data {
 
 struct wasapi_offset {
 	uint32_t release_buffer;
+	uint32_t get_service;
 	uint32_t audio_client_offset;
 	uint32_t waveformat_offset;
 	uint32_t buffer_offset;

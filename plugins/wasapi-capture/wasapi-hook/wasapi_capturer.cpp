@@ -21,11 +21,19 @@ static WASCaptureData capture_data;
 extern "C" {
 #endif
 typedef HRESULT(STDMETHODCALLTYPE *AudioRenderClientReleaseBuffer)(IAudioRenderClient *audio_render_client, UINT32 num_frames_written, DWORD dw_flags);
+typedef HRESULT(STDMETHODCALLTYPE *AudioClientGetService)(IAudioClient *audio_client, REFIID riid, void **ppv);
 #ifdef __cplusplus
 }
 #endif
 
 AudioRenderClientReleaseBuffer realAudioRenderClientReleaseBuffer = NULL;
+AudioClientGetService realAudioClientGetService = NULL;
+
+HRESULT STDMETHODCALLTYPE hookAudioClientGetService(IAudioClient *audio_client, REFIID riid, void **ppv)
+{
+	auto ret = realAudioClientGetService(audio_client, riid, ppv);
+	return ret;
+}
 
 HRESULT STDMETHODCALLTYPE hookAudioRenderClientReleaseBuffer(IAudioRenderClient *pAudioRenderClient, UINT32 nFrameWritten, DWORD dwFlags)
 {
@@ -85,6 +93,7 @@ void WASCaptureData::out_audio_data(IAudioRenderClient *pAudioRenderClient, UINT
 	if (!capture_active())
 		return;
 
+	IAudioClient *audio_client = *(IAudioClient **)((uintptr_t)pAudioRenderClient + global_hook_info->offset.audio_client_offset);
 	uint8_t *buffer = *(uint8_t **)((uintptr_t)pAudioRenderClient + global_hook_info->offset.buffer_offset);
 	WAVEFORMATEX *wfex = *(WAVEFORMATEX **)((uintptr_t)pAudioRenderClient + global_hook_info->offset.waveformat_offset);
 
@@ -99,7 +108,7 @@ void WASCaptureData::out_audio_data(IAudioRenderClient *pAudioRenderClient, UINT
 		uint32_t count = len + 36;
 		if (_shmem_data_info->available_audio_size + count <= _shmem_data_info->buffer_size) {
 			memcpy(audio_data_pointer + _shmem_data_info->available_audio_size, &count, 4);
-			memcpy(audio_data_pointer + _shmem_data_info->available_audio_size + 4, &pAudioRenderClient, 8);
+			memcpy(audio_data_pointer + _shmem_data_info->available_audio_size + 4, &audio_client, 8);
 			memcpy(audio_data_pointer + _shmem_data_info->available_audio_size + 12, &info.channels, 4);
 			memcpy(audio_data_pointer + _shmem_data_info->available_audio_size + 16, &info.samplerate, 4);
 			memcpy(audio_data_pointer + _shmem_data_info->available_audio_size + 20, &info.format, 4);
@@ -133,13 +142,14 @@ void WASCaptureData::capture_check(IAudioRenderClient *pAudioRenderClient)
 
 bool hook_wasapi()
 {
-	if (!global_hook_info->offset.release_buffer || !global_hook_info->offset.audio_client_offset || !global_hook_info->offset.waveformat_offset ||
-	    !global_hook_info->offset.buffer_offset)
+	if (!global_hook_info->offset.release_buffer || !global_hook_info->offset.get_service || !global_hook_info->offset.audio_client_offset ||
+	    !global_hook_info->offset.waveformat_offset || !global_hook_info->offset.buffer_offset)
 		return true;
 
 	HMODULE module = load_system_library("AudioSes.dll");
 	uint32_t size;
 	void *release_buffer_addr = nullptr;
+	void *get_service_addr = nullptr;
 
 	if (!module) {
 		return false;
@@ -147,19 +157,22 @@ bool hook_wasapi()
 
 	size = module_size(module);
 
-	if (global_hook_info->offset.release_buffer < size)
+	if (global_hook_info->offset.release_buffer < size && global_hook_info->offset.get_service < size) {
 		release_buffer_addr = get_offset_addr(module, global_hook_info->offset.release_buffer);
-	else
+		get_service_addr = get_offset_addr(module, global_hook_info->offset.get_service);
+	} else
 		return true;
 
-	if (!release_buffer_addr) {
-		hlog("Invalid IAudioRenderClient Release Buffer values");
+	if (!release_buffer_addr || !get_service_addr) {
+		hlog("Invalid func addr");
 		return true;
 	}
 
 	DetourTransactionBegin();
 	realAudioRenderClientReleaseBuffer = (AudioRenderClientReleaseBuffer)release_buffer_addr;
 	DetourAttach((PVOID *)&realAudioRenderClientReleaseBuffer, hookAudioRenderClientReleaseBuffer);
+	realAudioClientGetService = (AudioClientGetService)get_service_addr;
+	DetourAttach((PVOID *)&realAudioClientGetService, hookAudioClientGetService);
 
 	const LONG error = DetourTransactionCommit();
 	bool success = error == NO_ERROR;

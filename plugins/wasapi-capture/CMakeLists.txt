@@ -6,9 +6,11 @@ set(wasapi-capture_HEADERS
 	wasapi-hook-info.h
 	window-helpers.h
 	app-helpers.h
-	obfuscate.h)
+	obfuscate.h
+	audio-channel.h)
 
 set(wasapi-capture_SOURCES
+	audio-channel.c
 	wasapi-capture.c
 	window-helpers.c
 	app-helpers.c
@@ -21,7 +23,8 @@ add_library(wasapi-capture MODULE
 target_link_libraries(wasapi-capture
 	libobs
 	ipc-util
-	psapi)
+	psapi
+	w32-pthreads)
 set_target_properties(wasapi-capture PROPERTIES FOLDER "plugins/wasapi-capture")
 
 install_obs_plugin(wasapi-capture data)

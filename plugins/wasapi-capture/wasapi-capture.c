@@ -14,6 +14,7 @@
 #include "window-helpers.h"
 #include "app-helpers.h"
 #include "obfuscate.h"
+#include "audio-channel.h"
 
 #define do_log(level, format, ...) blog(level, "[wasapi-capture: '%s'] " format, obs_source_get_name(gc->source), ##__VA_ARGS__)
 
@@ -26,10 +27,23 @@
 #define DEFAULT_RETRY_INTERVAL 2.0f
 #define ERROR_RETRY_INTERVAL 4.0f
 
+struct ts_info {
+	uint64_t start;
+	uint64_t end;
+};
+
+#define DEBUG_AUDIO 0
+#define MAX_BUFFERING_TICKS 45
+
 struct wasapi_capture_config {
 	char *title;
 	char *class;
 	char *executable;
+};
+
+struct audio_channel_info {
+	uint64_t ptr;
+	struct audio_channel *channel;
 };
 
 struct wasapi_capture {
@@ -85,6 +99,23 @@ struct wasapi_capture {
 	};
 
 	HANDLE capture_thread;
+	HANDLE mix_thread;
+	struct resample_info out_sample_info;
+	DARRAY(struct audio_channel_info) audio_channels;
+	size_t block_size;
+	size_t channels;
+	size_t planes;
+	float buffer[MAX_AUDIO_CHANNELS][AUDIO_OUTPUT_FRAMES];
+
+	DARRAY(struct audio_channel *) mix_channels;
+
+	pthread_mutex_t channel_mutex;
+	uint64_t buffered_ts;
+	struct circlebuf buffered_timestamps;
+	uint64_t buffering_wait_ticks;
+	int total_buffering_ticks;
+
+	FILE *dump;
 };
 
 struct wasapi_offset offsets32 = {0};
@@ -166,6 +197,10 @@ static void stop_capture(struct wasapi_capture *gc)
 		WaitForSingleObject(gc->capture_thread, INFINITE);
 		gc->capture_thread = INVALID_HANDLE_VALUE;
 	}
+	if (gc->mix_thread != INVALID_HANDLE_VALUE) {
+		WaitForSingleObject(gc->mix_thread, INFINITE);
+		gc->mix_thread = INVALID_HANDLE_VALUE;
+	}
 
 	ipc_pipe_server_free(&gc->pipe);
 
@@ -226,6 +261,18 @@ static void wasapi_capture_destroy(void *data)
 	dstr_free(&gc->class);
 	dstr_free(&gc->executable);
 	free_config(&gc->config);
+
+	for (size_t i = 0; i < gc->audio_channels.num; i++) {
+		audio_channel_destroy(gc->audio_channels.array[i].channel);
+	}
+	da_free(gc->audio_channels);
+
+	pthread_mutex_destroy(&gc->channel_mutex);
+	circlebuf_free(&gc->buffered_timestamps);
+	da_free(gc->mix_channels);
+
+	fclose(gc->dump);
+
 	bfree(gc);
 }
 
@@ -296,6 +343,22 @@ static void *wasapi_capture_create(obs_data_t *settings, obs_source_t *source)
 	gc->initial_config = true;
 	gc->retry_interval = DEFAULT_RETRY_INTERVAL;
 	gc->capture_thread = INVALID_HANDLE_VALUE;
+	pthread_mutex_init_value(&gc->channel_mutex);
+	pthread_mutex_init(&gc->channel_mutex, NULL);
+	da_init(gc->audio_channels);
+
+	struct obs_audio_info audio_info;
+	obs_get_audio_info(&audio_info);
+	gc->out_sample_info.format = AUDIO_FORMAT_FLOAT_PLANAR;
+	gc->out_sample_info.samples_per_sec = audio_info.samples_per_sec;
+	gc->out_sample_info.speakers = audio_info.speakers;
+
+	bool planar = is_audio_planar(gc->out_sample_info.format);
+	gc->channels = get_audio_channels(gc->out_sample_info.speakers);
+	gc->planes = planar ? gc->channels : 1;
+	gc->block_size = (planar ? 1 : gc->channels) * get_audio_bytes_per_channel(gc->out_sample_info.format);
+
+	gc->dump = fopen("E:\\capture.pcm", "wb");
 
 	wasapi_capture_update(gc, settings);
 	return gc;
@@ -824,54 +887,482 @@ static inline bool init_shmem_capture(struct wasapi_capture *gc)
 	return true;
 }
 
+static inline void find_min_ts(struct wasapi_capture *gc, uint64_t *min_ts)
+{
+	for (size_t i = 0; i < gc->audio_channels.num; i++) {
+		struct audio_channel *source = gc->audio_channels.array[i].channel;
+		if (!source->audio_pending && source->audio_ts && source->audio_ts < *min_ts) {
+			*min_ts = source->audio_ts;
+		}
+	}
+}
+
+static inline bool mark_invalid_sources(struct wasapi_capture *gc, size_t sample_rate, uint64_t min_ts)
+{
+	bool recalculate = false;
+
+	for (size_t i = 0; i < gc->audio_channels.num; i++) {
+		struct audio_channel *source = gc->audio_channels.array[i].channel;
+		recalculate |= audio_channel_audio_buffer_insuffient(source, sample_rate, min_ts);
+	}
+
+	return recalculate;
+}
+
+static inline void calc_min_ts(struct wasapi_capture *gc, size_t sample_rate, uint64_t *min_ts)
+{
+	find_min_ts(gc, min_ts);
+	if (mark_invalid_sources(gc, sample_rate, *min_ts))
+		find_min_ts(gc, min_ts);
+}
+
+static void wasapi_capture_add_audio_buffering(struct wasapi_capture *gc, size_t sample_rate, struct ts_info *ts, uint64_t min_ts)
+{
+	struct ts_info new_ts;
+	uint64_t offset;
+	uint64_t frames;
+	size_t total_ms;
+	size_t ms;
+	int ticks;
+
+	if (gc->total_buffering_ticks == MAX_BUFFERING_TICKS)
+		return;
+
+	if (!gc->buffering_wait_ticks)
+		gc->buffered_ts = ts->start;
+
+	offset = ts->start - min_ts;
+	frames = ns_to_audio_frames(sample_rate, offset);
+	ticks = (int)((frames + AUDIO_OUTPUT_FRAMES - 1) / AUDIO_OUTPUT_FRAMES);
+
+	gc->total_buffering_ticks += ticks;
+
+	if (gc->total_buffering_ticks >= MAX_BUFFERING_TICKS) {
+		ticks -= gc->total_buffering_ticks - MAX_BUFFERING_TICKS;
+		gc->total_buffering_ticks = MAX_BUFFERING_TICKS;
+		blog(LOG_WARNING, "Max audio buffering reached!");
+	}
+
+	ms = ticks * AUDIO_OUTPUT_FRAMES * 1000 / sample_rate;
+	total_ms = gc->total_buffering_ticks * AUDIO_OUTPUT_FRAMES * 1000 / sample_rate;
+
+	blog(LOG_INFO,
+	     "wasapi-capture===>: adding %d milliseconds of audio buffering, total "
+	     "audio buffering is now %d milliseconds",
+	     (int)ms, (int)total_ms);
+#if DEBUG_AUDIO == 1
+	blog(LOG_DEBUG,
+	     "min_ts (%" PRIu64 ") < start timestamp "
+	     "(%" PRIu64 ")",
+	     min_ts, ts->start);
+	blog(LOG_DEBUG, "old buffered ts: %" PRIu64 "-%" PRIu64, ts->start, ts->end);
+#endif
+
+	new_ts.start = gc->buffered_ts - audio_frames_to_ns(sample_rate, gc->buffering_wait_ticks * AUDIO_OUTPUT_FRAMES);
+
+	while (ticks--) {
+		uint64_t cur_ticks = ++gc->buffering_wait_ticks;
+
+		new_ts.end = new_ts.start;
+		new_ts.start = gc->buffered_ts - audio_frames_to_ns(sample_rate, cur_ticks * AUDIO_OUTPUT_FRAMES);
+
+#if DEBUG_AUDIO == 1
+		blog(LOG_DEBUG, "add buffered ts: %" PRIu64 "-%" PRIu64, new_ts.start, new_ts.end);
+#endif
+
+		circlebuf_push_front(&gc->buffered_timestamps, &new_ts, sizeof(new_ts));
+	}
+
+	*ts = new_ts;
+}
+
+static inline void wasapi_capture_mix_audio(struct audio_output_data *mixes, struct audio_channel *source, size_t channels, size_t sample_rate,
+					    struct ts_info *ts)
+{
+	size_t total_floats = AUDIO_OUTPUT_FRAMES;
+	size_t start_point = 0;
+
+	if (source->audio_ts < ts->start || ts->end <= source->audio_ts)
+		return;
+
+	if (source->audio_ts != ts->start) {
+		start_point = convert_time_to_frames(sample_rate, source->audio_ts - ts->start);
+		if (start_point == AUDIO_OUTPUT_FRAMES)
+			return;
+
+		total_floats -= start_point;
+	}
+
+	for (size_t ch = 0; ch < channels; ch++) {
+		register float *mix = mixes->data[ch];
+		register float *aud = source->audio_output_buf[ch];
+		register float *end;
+
+		mix += start_point;
+		end = aud + total_floats;
+
+		while (aud < end)
+			*(mix++) += *(aud++);
+	}
+}
+
+static void ignore_audio(struct audio_channel *source, size_t channels, size_t sample_rate)
+{
+	size_t num_floats = source->audio_input_buf[0].size / sizeof(float);
+
+	if (num_floats) {
+		for (size_t ch = 0; ch < channels; ch++)
+			circlebuf_pop_front(&source->audio_input_buf[ch], NULL, source->audio_input_buf[ch].size);
+
+		source->last_audio_input_buf_size = 0;
+		source->audio_ts += (uint64_t)num_floats * 1000000000ULL / (uint64_t)sample_rate;
+	}
+}
+
+static bool discard_if_stopped(struct audio_channel *source, size_t channels)
+{
+	size_t last_size;
+	size_t size;
+
+	last_size = source->last_audio_input_buf_size;
+	size = source->audio_input_buf[0].size;
+
+	if (!size)
+		return false;
+
+	/* if perpetually pending data, it means the audio has stopped,
+	 * so clear the audio data */
+	if (last_size == size) {
+		if (!source->pending_stop) {
+			source->pending_stop = true;
+#if DEBUG_AUDIO == 1
+			blog(LOG_DEBUG, "doing pending stop trick: '0x%p'", source);
+#endif
+			return true;
+		}
+
+		for (size_t ch = 0; ch < channels; ch++)
+			circlebuf_pop_front(&source->audio_input_buf[ch], NULL, source->audio_input_buf[ch].size);
+
+		source->pending_stop = false;
+		source->audio_ts = 0;
+		source->last_audio_input_buf_size = 0;
+#if DEBUG_AUDIO == 1
+		blog(LOG_DEBUG, "source audio data appears to have "
+				"stopped, clearing");
+#endif
+		return true;
+	} else {
+		source->last_audio_input_buf_size = size;
+		return false;
+	}
+}
+
+#define MAX_AUDIO_SIZE (AUDIO_OUTPUT_FRAMES * sizeof(float))
+
+static inline void wasapi_capture_discard_audio(struct wasapi_capture *gc, struct audio_channel *source, size_t channels, size_t sample_rate,
+						struct ts_info *ts)
+{
+	size_t total_floats = AUDIO_OUTPUT_FRAMES;
+	size_t size;
+
+	if (ts->end <= source->audio_ts) {
+#if DEBUG_AUDIO == 1
+		blog(LOG_DEBUG,
+		     "can't discard, source "
+		     "timestamp (%" PRIu64 ") >= "
+		     "end timestamp (%" PRIu64 ")",
+		     source->audio_ts, ts->end);
+#endif
+		return;
+	}
+
+	if (source->audio_ts < (ts->start - 1)) {
+		if (source->audio_pending && source->audio_input_buf[0].size < MAX_AUDIO_SIZE && discard_if_stopped(source, channels))
+			return;
+
+#if DEBUG_AUDIO == 1
+		blog(LOG_DEBUG,
+		     "can't discard, source "
+		     "timestamp (%" PRIu64 ") < "
+		     "start timestamp (%" PRIu64 ")",
+		     source->audio_ts, ts->start);
+#endif
+		if (gc->total_buffering_ticks == MAX_BUFFERING_TICKS)
+			ignore_audio(source, channels, sample_rate);
+		return;
+	}
+
+	if (source->audio_ts != ts->start && source->audio_ts != (ts->start - 1)) {
+		size_t start_point = convert_time_to_frames(sample_rate, source->audio_ts - ts->start);
+		if (start_point == AUDIO_OUTPUT_FRAMES) {
+#if DEBUG_AUDIO == 1
+			blog(LOG_DEBUG, "can't discard, start point is "
+					"at audio frame count");
+#endif
+			return;
+		}
+
+		total_floats -= start_point;
+	}
+
+	size = total_floats * sizeof(float);
+
+	if (source->audio_input_buf[0].size < size) {
+		if (discard_if_stopped(source, channels))
+			return;
+
+#if DEBUG_AUDIO == 1
+		blog(LOG_DEBUG, "can't discard, data still pending");
+#endif
+		source->audio_ts = ts->end;
+		return;
+	}
+
+	for (size_t ch = 0; ch < channels; ch++)
+		circlebuf_pop_front(&source->audio_input_buf[ch], NULL, size);
+
+	source->last_audio_input_buf_size = 0;
+
+#if DEBUG_AUDIO == 1
+	blog(LOG_DEBUG, "audio discarded, new ts: %" PRIu64, ts->end);
+#endif
+
+	source->pending_stop = false;
+	source->audio_ts = ts->end;
+}
+
+bool wasapi_capture_fetch_audio(struct wasapi_capture *gc, uint64_t start_ts_in, uint64_t end_ts_in, uint64_t *out_ts, struct audio_output_data *mixes)
+{
+	da_resize(gc->mix_channels, 0);
+
+	struct ts_info ts = {start_ts_in, end_ts_in};
+	circlebuf_push_back(&gc->buffered_timestamps, &ts, sizeof(ts));
+	circlebuf_peek_front(&gc->buffered_timestamps, &ts, sizeof(ts));
+
+	uint64_t min_ts = ts.start;
+
+	size_t audio_size = AUDIO_OUTPUT_FRAMES * sizeof(float);
+
+#if DEBUG_AUDIO == 1
+	blog(LOG_DEBUG, "ts %llu-%llu", ts.start, ts.end);
+#endif
+
+	pthread_mutex_lock(&gc->channel_mutex);
+	for (size_t i = 0; i < gc->audio_channels.num; i++) {
+		da_push_back(gc->mix_channels, &(gc->audio_channels.array[i].channel));
+	}
+	pthread_mutex_unlock(&gc->channel_mutex);
+	/* ------------------------------------------------ */
+	/* render audio data */
+	for (size_t i = 0; i < gc->mix_channels.num; i++) {
+		audio_channel_pick_audio_data(gc->mix_channels.array[i], audio_size, gc->channels);
+	}
+
+	/* ------------------------------------------------ */
+	/* get minimum audio timestamp */
+	pthread_mutex_lock(&gc->channel_mutex);
+	calc_min_ts(gc, gc->out_sample_info.samples_per_sec, &min_ts);
+	pthread_mutex_unlock(&gc->channel_mutex);
+
+	/* ------------------------------------------------ */
+	/* if a source has gone backward in time, buffer */
+	if (min_ts < ts.start)
+		wasapi_capture_add_audio_buffering(gc, gc->out_sample_info.samples_per_sec, &ts, min_ts);
+
+	/* ------------------------------------------------ */
+	/* mix audio */
+	if (!gc->buffering_wait_ticks) {
+		for (size_t i = 0; i < gc->mix_channels.num; i++) {
+			struct audio_channel *source = gc->mix_channels.array[i];
+
+			if (source->audio_pending)
+				continue;
+
+			pthread_mutex_lock(&source->audio_buf_mutex);
+
+			if (source->audio_output_buf[0][0] && source->audio_ts)
+				wasapi_capture_mix_audio(mixes, source, gc->channels, gc->out_sample_info.samples_per_sec, &ts);
+
+			pthread_mutex_unlock(&source->audio_buf_mutex);
+		}
+	}
+
+	/* ------------------------------------------------ */
+	/* discard audio */
+	pthread_mutex_lock(&gc->channel_mutex);
+	for (size_t i = 0; i < gc->audio_channels.num; i++) {
+		struct audio_channel *a_c = gc->audio_channels.array[i].channel;
+		pthread_mutex_lock(&a_c->audio_buf_mutex);
+		wasapi_capture_discard_audio(gc, a_c, gc->channels, gc->out_sample_info.samples_per_sec, &ts);
+		pthread_mutex_unlock(&a_c->audio_buf_mutex);
+	}
+	pthread_mutex_unlock(&gc->channel_mutex);
+
+	circlebuf_pop_front(&gc->buffered_timestamps, NULL, sizeof(ts));
+
+	*out_ts = ts.start;
+
+	if (gc->buffering_wait_ticks) {
+		gc->buffering_wait_ticks--;
+		return false;
+	}
+
+	return true;
+}
+
+static inline void clamp_audio_output(struct wasapi_capture *gc, size_t bytes)
+{
+	size_t float_size = bytes / sizeof(float);
+
+	for (size_t plane = 0; plane < gc->planes; plane++) {
+		float *mix_data = gc->buffer[plane];
+		float *mix_end = &mix_data[float_size];
+
+		while (mix_data < mix_end) {
+			float val = *mix_data;
+			val = (val > 1.0f) ? 1.0f : val;
+			val = (val < -1.0f) ? -1.0f : val;
+			*(mix_data++) = val;
+		}
+	}
+}
+
+static void wasapi_capture_input_and_output(struct wasapi_capture *gc, uint64_t audio_time, uint64_t prev_time)
+{
+	size_t bytes = AUDIO_OUTPUT_FRAMES * gc->block_size;
+	struct audio_output_data data;
+	uint64_t new_ts = 0;
+	bool success;
+
+	memset(&data, 0, sizeof(struct audio_output_data));
+
+#if DEBUG_AUDIO == 1
+	blog(LOG_DEBUG, "audio_time: %llu, prev_time: %llu, bytes: %lu", audio_time, prev_time, bytes);
+#endif
+
+	/* clear mix buffers */
+	memset(gc->buffer[0], 0, AUDIO_OUTPUT_FRAMES * MAX_AUDIO_CHANNELS * sizeof(float));
+
+	for (size_t i = 0; i < gc->planes; i++)
+		data.data[i] = gc->buffer[i];
+
+	/* get new audio data */
+	success = wasapi_capture_fetch_audio(gc, prev_time, audio_time, &new_ts, &data);
+	if (!success)
+		return;
+
+	///* clamps audio data to -1.0..1.0 */
+	clamp_audio_output(gc, bytes);
+
+	fwrite(data.data[0], sizeof(float), AUDIO_OUTPUT_FRAMES, gc->dump);
+
+	///* output */
+	//for (size_t i = 0; i < MAX_AUDIO_MIXES; i++)
+	//	do_audio_output(audio, i, new_ts, AUDIO_OUTPUT_FRAMES);
+}
+
+static void mix_thread_proc(LPVOID param)
+{
+	os_set_thread_name("wasapi-capture: audio mix thread");
+
+	struct wasapi_capture *gc = param;
+	size_t rate = gc->out_sample_info.samples_per_sec;
+	uint64_t samples = 0;
+	uint64_t start_time = os_gettime_ns();
+	uint64_t prev_time = start_time;
+	uint64_t audio_time = prev_time;
+	uint32_t audio_wait_time = (uint32_t)(audio_frames_to_ns(rate, AUDIO_OUTPUT_FRAMES) / 1000000);
+
+	while (gc->capturing) {
+		os_sleep_ms(audio_wait_time);
+
+		uint64_t cur_time = os_gettime_ns();
+		while (audio_time <= cur_time) {
+			samples += AUDIO_OUTPUT_FRAMES;
+			audio_time = start_time + audio_frames_to_ns(rate, samples);
+
+			wasapi_capture_input_and_output(gc, audio_time, prev_time);
+
+			prev_time = audio_time;
+		}
+	}
+}
+
+static void output_audio_data(struct wasapi_capture *gc, struct obs_source_audio *data, uint64_t ptr)
+{
+	struct audio_channel *channel = NULL;
+	pthread_mutex_lock(&gc->channel_mutex);
+	for (size_t i = 0; i < gc->audio_channels.num; i++) {
+		if (gc->audio_channels.array[i].ptr == ptr) {
+			channel = gc->audio_channels.array[i].channel;
+			break;
+		}
+	}
+	pthread_mutex_unlock(&gc->channel_mutex);
+
+	if (!channel) {
+		channel = audio_channel_create(&gc->out_sample_info);
+		struct audio_channel_info info;
+		info.channel = channel;
+		info.ptr = ptr;
+		pthread_mutex_lock(&gc->channel_mutex);
+		da_push_back(gc->audio_channels, &info);
+		pthread_mutex_unlock(&gc->channel_mutex);
+	}
+
+	audio_channel_output_audio(channel, data);
+}
+
 static void capture_thread_proc(LPVOID param)
 {
+	os_set_thread_name("wasapi-capture: audio capture thread");
 	struct wasapi_capture *gc = param;
 	while (gc->capturing) {
-		if (WaitForSingleObject(gc->audio_data_event, 100) != WAIT_OBJECT_0)
-			continue;
+		if (WaitForSingleObject(gc->audio_data_event, 100) == WAIT_OBJECT_0) {
+			if (!gc->capturing)
+				break;
 
-		if (!gc->capturing)
-			break;
+			if (WaitForSingleObject(gc->audio_data_mutex, 10) == WAIT_OBJECT_0) {
+				uint32_t audio_size = gc->shmem_data->available_audio_size;
+				if (audio_size > 0) {
+					uint32_t offset = 0;
+					while (true) {
+						if (offset >= audio_size)
+							break;
 
-		if (WaitForSingleObject(gc->audio_data_mutex, 10) == WAIT_OBJECT_0) {
-			uint32_t audio_size = gc->shmem_data->available_audio_size;
-			if (audio_size > 0) {
-				uint32_t offset = 0;
-				while (true) {
-					if (offset >= audio_size)
-						break;
+						uint8_t *buffer_data = gc->audio_data_buffer + offset + 4;
 
-					uint8_t *buffer_data = gc->audio_data_buffer + offset + 4;
+						uint32_t nf = 0;
+						memcpy(&nf, gc->audio_data_buffer + offset, 4);
+						offset += nf;
 
-					uint32_t nf = 0;
-					memcpy(&nf, gc->audio_data_buffer + offset, 4);
-					offset += nf;
+						//renderclient poniter channel samplerate format byte_per_sample timestamp
+						uint64_t ptr = 0;
+						uint64_t timestamp = 0;
+						uint32_t channel = 0, samplerate = 0, format = 0, byte_per_sample = 0;
+						memcpy(&ptr, buffer_data, 8);
+						memcpy(&channel, buffer_data + 8, 4);
+						memcpy(&samplerate, buffer_data + 12, 4);
+						memcpy(&format, buffer_data + 16, 4);
+						memcpy(&byte_per_sample, buffer_data + 20, 4);
+						memcpy(&timestamp, buffer_data + 24, 8);
 
-					//renderclient poniter channel samplerate format byte_per_sample timestamp
-					uint64_t ptr = 0;
-					uint64_t timestamp = 0;
-					uint32_t channel = 0, samplerate = 0, format = 0, byte_per_sample = 0;
-					memcpy(&ptr, buffer_data, 8);
-					memcpy(&channel, buffer_data + 8, 4);
-					memcpy(&samplerate, buffer_data + 12, 4);
-					memcpy(&format, buffer_data + 16, 4);
-					memcpy(&byte_per_sample, buffer_data + 20, 4);
-					memcpy(&timestamp, buffer_data + 24, 8);
+						struct obs_source_audio data = {0};
+						data.data[0] = (const uint8_t *)(buffer_data + 32);
+						data.frames = (uint32_t)((nf - 36) / (channel * byte_per_sample));
+						data.speakers = (enum speaker_layout)channel;
+						data.samples_per_sec = samplerate;
+						data.format = format;
+						data.timestamp = timestamp;
+						//obs_source_output_audio(gc->source, &data);
+						output_audio_data(gc, &data, ptr);
 
-					struct obs_source_audio data = {0};
-					data.data[0] = (const uint8_t *)(buffer_data + 32);
-					data.frames = (uint32_t)((nf - 36) / (channel * byte_per_sample));
-					data.speakers = (enum speaker_layout)channel;
-					data.samples_per_sec = samplerate;
-					data.format = format;
-					data.timestamp = timestamp;
-					obs_source_output_audio(gc->source, &data);
-
-					gc->shmem_data->available_audio_size -= nf;
+						gc->shmem_data->available_audio_size -= nf;
+					}
 				}
+				ReleaseMutex(gc->audio_data_mutex);
 			}
-			ReleaseMutex(gc->audio_data_mutex);
 		}
 	}
 }
@@ -889,6 +1380,7 @@ static void start_capture(struct wasapi_capture *gc)
 	gc->capturing = true;
 
 	gc->capture_thread = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)capture_thread_proc, gc, 0, NULL);
+	gc->mix_thread = CreateThread(NULL, 0, (LPTHREAD_START_ROUTINE)mix_thread_proc, gc, 0, NULL);
 }
 
 static inline bool capture_valid(struct wasapi_capture *gc)
