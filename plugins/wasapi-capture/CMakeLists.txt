@@ -6,7 +6,8 @@ set(wasapi-capture_HEADERS
 	wasapi-hook-info.h
 	app-helpers.h
 	obfuscate.h
-	audio-channel.h)
+	audio-channel.h
+	wasapi-capture.h)
 
 set(wasapi-capture_SOURCES
 	audio-channel.c

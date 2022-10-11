@@ -20,102 +20,100 @@ static inline uint32_t vtable_offset(HMODULE module, void *cls, unsigned int off
 	return (uint32_t)(vtable[offset] - (uintptr_t)module);
 }
 
-void SearchMemory(PVOID waveformat, DWORD size1, std::set<uintptr_t> &waveformatCheck, PVOID audioClient, DWORD size2, std::set<uintptr_t> &audioClientCheck,
-		  PVOID buffer, DWORD size3, std::set<uintptr_t> &bufferCheck)
+void search_memory(PVOID wave_format, DWORD size1, std::set<uintptr_t> &wave_format_check, PVOID audio_client, DWORD size2,
+		   std::set<uintptr_t> &audio_client_check, PVOID buffer, DWORD size3, std::set<uintptr_t> &buffer_check)
 {
-	HANDLE hProcess = ::GetCurrentProcess();
-	if (NULL == hProcess) {
+	HANDLE process = ::GetCurrentProcess();
+	if (NULL == process) {
 		return;
 	}
 
 	SYSTEM_INFO info;
 	GetSystemInfo(&info);
-	BYTE *pSearchAddress = (BYTE *)info.lpMinimumApplicationAddress;
+	BYTE *search_address = (BYTE *)info.lpMinimumApplicationAddress;
 	MEMORY_BASIC_INFORMATION mbi = {0};
-	DWORD dwRet = 0;
-	BOOL bRet = false;
-	BYTE *pTemp = nullptr;
-	DWORD i = 0;
-	BYTE *pBuf = nullptr;
+	DWORD ret = 0;
+	BYTE *temp = nullptr;
+	BYTE *buf = nullptr;
 
 	while (true) {
 		::RtlZeroMemory(&mbi, sizeof(mbi));
-		dwRet = ::VirtualQueryEx(hProcess, pSearchAddress, &mbi, sizeof(mbi));
-		if (0 == dwRet) {
+		ret = ::VirtualQueryEx(process, search_address, &mbi, sizeof(mbi));
+		if (0 == ret) {
 			break;
 		}
 		if ((MEM_COMMIT == mbi.State) && (PAGE_READONLY == mbi.Protect || PAGE_READWRITE == mbi.Protect || PAGE_EXECUTE_READ == mbi.Protect ||
 						  PAGE_EXECUTE_READWRITE == mbi.Protect)) {
-			pBuf = new BYTE[mbi.RegionSize];
-			::RtlZeroMemory(pBuf, mbi.RegionSize);
-			bRet = ::ReadProcessMemory(hProcess, mbi.BaseAddress, pBuf, mbi.RegionSize, &dwRet);
-			if (FALSE == bRet) {
+			buf = new BYTE[mbi.RegionSize];
+			::RtlZeroMemory(buf, mbi.RegionSize);
+			if (!ReadProcessMemory(process, mbi.BaseAddress, buf, mbi.RegionSize, &ret)) {
 				break;
 			}
 
 			auto max = std::max<DWORD>(std::max<DWORD>(size1, size2), size3);
-			for (i = 0; i < (mbi.RegionSize - max); i++) {
-				pTemp = (BYTE *)pBuf + i;
-				if (RtlEqualMemory(pTemp, waveformat, size1)) {
-					waveformatCheck.insert((uintptr_t)((BYTE *)mbi.BaseAddress + i));
+			for (DWORD i = 0; i < (mbi.RegionSize - max); i++) {
+				temp = (BYTE *)buf + i;
+				if (RtlEqualMemory(temp, wave_format, size1)) {
+					wave_format_check.insert((uintptr_t)((BYTE *)mbi.BaseAddress + i));
 				}
 
-				if (RtlEqualMemory(pTemp, audioClient, size2)) {
-					audioClientCheck.insert((uintptr_t)((BYTE *)mbi.BaseAddress + i));
+				if (RtlEqualMemory(temp, audio_client, size2)) {
+					audio_client_check.insert((uintptr_t)((BYTE *)mbi.BaseAddress + i));
 				}
 
-				if (RtlEqualMemory(pTemp, buffer, size3)) {
-					bufferCheck.insert((uintptr_t)((BYTE *)mbi.BaseAddress + i));
+				if (RtlEqualMemory(temp, buffer, size3)) {
+					buffer_check.insert((uintptr_t)((BYTE *)mbi.BaseAddress + i));
 				}
 			}
 
-			delete[] pBuf;
-			pBuf = NULL;
+			delete[] buf;
+			buf = NULL;
 		}
-		pSearchAddress = pSearchAddress + mbi.RegionSize;
+		search_address = search_address + mbi.RegionSize;
 	}
 
-	if (pBuf) {
-		delete[] pBuf;
-		pBuf = NULL;
+	if (buf) {
+		delete[] buf;
+		buf = NULL;
 	}
-	::CloseHandle(hProcess);
+	::CloseHandle(process);
 }
 
 void get_wasapi_offset(struct wasapi_offset *ret)
 {
 	::CoInitializeEx(NULL, COINIT_MULTITHREADED);
 
-	REFERENCE_TIME hnsReqDuration = 10000000;
-	IMMDeviceEnumerator *pMMDevEnum = NULL;
-	IMMDevice *pMMDevice = NULL;
-	IAudioClient *pAudioClient = NULL;
-	WAVEFORMATEX *pFormat = NULL;
+	REFERENCE_TIME hns_req_duration = 10000000;
+	IMMDeviceEnumerator *dev_enum = NULL;
+	IMMDevice *imm_device = NULL;
+	IAudioClient *audio_client = NULL;
+	WAVEFORMATEX *audio_format = NULL;
 
-	HRESULT hr = CoCreateInstance(__uuidof(MMDeviceEnumerator), NULL, CLSCTX_INPROC_SERVER, __uuidof(IMMDeviceEnumerator), (void **)&pMMDevEnum);
+	HRESULT hr = CoCreateInstance(__uuidof(MMDeviceEnumerator), NULL, CLSCTX_INPROC_SERVER, __uuidof(IMMDeviceEnumerator), (void **)&dev_enum);
 	if (hr == CO_E_NOTINITIALIZED) {
 		hr = CoInitializeEx(NULL, COINIT_MULTITHREADED);
-		hr = CoCreateInstance(__uuidof(MMDeviceEnumerator), NULL, CLSCTX_ALL, __uuidof(IMMDeviceEnumerator), (void **)&pMMDevEnum);
+		hr = CoCreateInstance(__uuidof(MMDeviceEnumerator), NULL, CLSCTX_ALL, __uuidof(IMMDeviceEnumerator), (void **)&dev_enum);
 		if (SUCCEEDED(hr)) {
-			hr = CoCreateInstance(__uuidof(MMDeviceEnumerator), NULL, CLSCTX_INPROC_SERVER, __uuidof(IMMDeviceEnumerator), (void **)&pMMDevEnum);
+			hr = CoCreateInstance(__uuidof(MMDeviceEnumerator), NULL, CLSCTX_INPROC_SERVER, __uuidof(IMMDeviceEnumerator), (void **)&dev_enum);
 		}
 	}
 
-	pMMDevEnum->GetDefaultAudioEndpoint(eRender, eConsole, &pMMDevice);
-	pMMDevice->Activate(__uuidof(IAudioClient), CLSCTX_ALL, NULL, (void **)&pAudioClient);
-	pAudioClient->GetMixFormat(&pFormat);
-	pAudioClient->Initialize(AUDCLNT_SHAREMODE_SHARED, 0, hnsReqDuration, 0, pFormat, NULL);
-	IAudioRenderClient *renderClient = nullptr;
-	pAudioClient->GetService(__uuidof(IAudioRenderClient), (void **)&renderClient);
+	dev_enum->GetDefaultAudioEndpoint(eRender, eConsole, &imm_device);
+	imm_device->Activate(__uuidof(IAudioClient), CLSCTX_ALL, NULL, (void **)&audio_client);
+	audio_client->GetMixFormat(&audio_format);
+	audio_client->Initialize(AUDCLNT_SHAREMODE_SHARED, 0, hns_req_duration, 0, audio_format, NULL);
+	IAudioRenderClient *audio_render_client = nullptr;
+	audio_client->GetService(__uuidof(IAudioRenderClient), (void **)&audio_render_client);
 	BYTE *data = NULL;
-	renderClient->GetBuffer(1024, &data);
+	audio_render_client->GetBuffer(1024, &data);
 
-	std::set<uintptr_t> waveformatCheck;
-	std::set<uintptr_t> audioClientCheck;
-	std::set<uintptr_t> bufferCheck;
-	SearchMemory(pFormat, sizeof(WAVEFORMATEX), waveformatCheck, &pAudioClient, sizeof(void *), audioClientCheck, &data, sizeof(void *), bufferCheck);
-	if (waveformatCheck.size() > 0 && audioClientCheck.size() > 0 && bufferCheck.size() > 0) {
-		uint8_t *pRawAudioClient = (uint8_t *)renderClient;
+	std::set<uintptr_t> wave_format_check;
+	std::set<uintptr_t> audio_client_check;
+	std::set<uintptr_t> buffer_check;
+	search_memory(audio_format, sizeof(WAVEFORMATEX), wave_format_check, &audio_client, sizeof(void *), audio_client_check, &data, sizeof(void *),
+		      buffer_check);
+	if (wave_format_check.size() > 0 && audio_client_check.size() > 0 && buffer_check.size() > 0) {
+		uint8_t *pRawAudioClient = (uint8_t *)audio_render_client;
 		bool gotWaveformatOffset = false;
 		bool gotAudioClientOffset = false;
 		bool gotBufferOffset = false;
@@ -124,33 +122,33 @@ void get_wasapi_offset(struct wasapi_offset *ret)
 		{
 			uintptr_t *curr = (uintptr_t *)(pRawAudioClient + offset);
 
-			if (waveformatCheck.find(*curr) != waveformatCheck.end() && !gotWaveformatOffset) {
+			if (wave_format_check.find(*curr) != wave_format_check.end() && !gotWaveformatOffset) {
 				gotWaveformatOffset = true;
 				ret->waveformat_offset = offset;
 			}
 
-			if (audioClientCheck.find((uintptr_t)curr) != audioClientCheck.end() && !gotAudioClientOffset) {
+			if (audio_client_check.find((uintptr_t)curr) != audio_client_check.end() && !gotAudioClientOffset) {
 				gotAudioClientOffset = true;
 				ret->audio_client_offset = offset;
 			}
 
-			if (bufferCheck.find((uintptr_t)curr) != bufferCheck.end() && !gotBufferOffset) {
+			if (buffer_check.find((uintptr_t)curr) != buffer_check.end() && !gotBufferOffset) {
 				gotBufferOffset = true;
 				ret->buffer_offset = offset;
 			}
 			++offset;
 		}
 	}
-	CoTaskMemFree(pFormat);
+	CoTaskMemFree(audio_format);
 
 	auto module = GetModuleHandleA("AudioSes.dll");
-	ret->release_buffer = vtable_offset(module, renderClient, 4);
-	ret->get_service = vtable_offset(module, pAudioClient, 14);
+	ret->release_buffer = vtable_offset(module, audio_render_client, 4);
+	ret->get_service = vtable_offset(module, audio_client, 14);
 
-	SAFE_RELEASE(pMMDevEnum);
-	SAFE_RELEASE(pMMDevice);
-	SAFE_RELEASE(pAudioClient);
-	SAFE_RELEASE(renderClient);
+	SAFE_RELEASE(dev_enum);
+	SAFE_RELEASE(imm_device);
+	SAFE_RELEASE(audio_client);
+	SAFE_RELEASE(audio_render_client);
 
 	CoUninitialize();
 }
