@@ -1111,7 +1111,6 @@ static bool init_hook(struct wasapi_capture *wc)
 
 static void setup_process(struct wasapi_capture *wc, DWORD id)
 {
-	DWORD ret = GetWindowThreadProcessId(NULL, &id);
 	HANDLE hook_restart;
 	HANDLE process;
 
