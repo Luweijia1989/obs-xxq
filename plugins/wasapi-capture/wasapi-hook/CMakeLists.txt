@@ -27,7 +27,6 @@ add_library(wasapi-hook MODULE
     ${wasapi-hook_SOURCES})
 
 target_link_libraries(wasapi-hook
-    ipc-util
     psapi
     ${DETOURS_LIB})
 

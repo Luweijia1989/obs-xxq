@@ -668,8 +668,6 @@ static void stop_capture(struct wasapi_capture *wc)
 		wc->mix_thread = INVALID_HANDLE_VALUE;
 	}
 
-	ipc_pipe_server_free(&wc->pipe);
-
 	if (wc->hook_stop) {
 		info("set hook stop event");
 		SetEvent(wc->hook_stop);
@@ -871,26 +869,6 @@ static inline bool init_keepalive(struct wasapi_capture *wc)
 	return true;
 }
 
-static void pipe_log(void *param, uint8_t *data, size_t size)
-{
-	struct wasapi_capture *wc = param;
-	if (data && size)
-		info("%s", data);
-}
-
-static inline bool init_pipe(struct wasapi_capture *wc)
-{
-	char name[64];
-	sprintf(name, "%s%lu", PIPE_NAME, wc->process_id);
-
-	if (!ipc_pipe_server_start(&wc->pipe, name, pipe_log, wc)) {
-		warn("init_pipe: failed to start pipe, %s", name);
-		return false;
-	}
-
-	return true;
-}
-
 /* if there's already a hook in the process, then signal and start */
 static inline bool attempt_existing_hook(struct wasapi_capture *wc)
 {
@@ -1076,9 +1054,6 @@ static bool init_hook(struct wasapi_capture *wc)
 		return false;
 	}
 	if (!init_keepalive(wc)) {
-		return false;
-	}
-	if (!init_pipe(wc)) {
 		return false;
 	}
 	if (!attempt_existing_hook(wc)) {

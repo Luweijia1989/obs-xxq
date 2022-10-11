@@ -11,7 +11,6 @@
 #define DbgOut(x)
 #endif
 
-ipc_pipe_client_t pipe = {0};
 HANDLE signal_restart = NULL;
 HANDLE signal_stop = NULL;
 HANDLE signal_ready = NULL;
@@ -40,21 +39,6 @@ static inline void wait_for_dll_main_finish(HANDLE thread_handle)
 		WaitForSingleObject(thread_handle, 100);
 		CloseHandle(thread_handle);
 	}
-}
-
-bool init_pipe(void)
-{
-	char new_name[64];
-	sprintf(new_name, "%s%lu", PIPE_NAME, GetCurrentProcessId());
-
-	if (!ipc_pipe_client_open(&pipe, new_name)) {
-		DbgOut("Failed to open pipe,");
-		DbgOut(new_name);
-		DbgOut("\n");
-		return false;
-	}
-
-	return true;
 }
 
 static HANDLE init_event(const wchar_t *name, DWORD pid)
@@ -167,8 +151,6 @@ static inline bool init_hook(HANDLE thread_handle)
 
 	_snwprintf(keepalive_name, sizeof(keepalive_name) / sizeof(wchar_t), L"%s%lu", WINDOW_HOOK_KEEPALIVE, GetCurrentProcessId());
 
-	init_pipe();
-
 	log_current_process();
 
 	SetEvent(signal_restart);
@@ -200,7 +182,6 @@ static void free_hook(void)
 	close_handle(&signal_ready);
 	close_handle(&signal_stop);
 	close_handle(&signal_restart);
-	ipc_pipe_client_free(&pipe);
 }
 
 static inline bool attempt_hook(void)
@@ -250,9 +231,6 @@ static inline void hlogv(const char *format, va_list args)
 	char message[1024] = "";
 	int num = _vsprintf_p(message, 1024, format, args);
 	if (num) {
-		if (!ipc_pipe_client_write(&pipe, message, num + 1)) {
-			ipc_pipe_client_free(&pipe);
-		}
 		DbgOut(message);
 		DbgOut("\n");
 	}

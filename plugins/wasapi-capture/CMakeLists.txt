@@ -21,7 +21,6 @@ add_library(wasapi-capture MODULE
 	${wasapi-capture_HEADERS})
 target_link_libraries(wasapi-capture
 	libobs
-	ipc-util
 	psapi
 	w32-pthreads)
 set_target_properties(wasapi-capture PROPERTIES FOLDER "plugins/wasapi-capture")

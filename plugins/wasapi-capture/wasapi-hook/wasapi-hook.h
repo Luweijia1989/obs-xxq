@@ -6,7 +6,6 @@
 #endif
 
 #include "../wasapi-hook-info.h"
-#include <ipc-util/pipe.h>
 #include <psapi.h>
 
 #ifdef __cplusplus
@@ -58,7 +57,6 @@ static inline void *get_offset_addr(HMODULE module, uint32_t offset)
 
 /* ------------------------------------------------------------------------- */
 
-extern ipc_pipe_client_t pipe;
 extern HANDLE signal_restart;
 extern HANDLE signal_stop;
 extern HANDLE signal_ready;
@@ -156,15 +154,10 @@ static inline bool capture_should_stop(void)
 	return stop_requested;
 }
 
-extern bool init_pipe(void);
-
 static inline bool capture_should_init(void)
 {
 	if (!capture_active() && capture_restarted()) {
 		if (capture_alive()) {
-			if (!ipc_pipe_client_valid(&pipe)) {
-				init_pipe();
-			}
 			return true;
 		}
 	}

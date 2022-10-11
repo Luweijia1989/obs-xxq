@@ -23,8 +23,6 @@
 #define SHMEM_HOOK_INFO L"CaptureHook_HookInfo"
 #define SHMEM_AUDIO L"CaptureHook_Audio"
 
-#define PIPE_NAME "CaptureHook_Pipe"
-
 #pragma pack(push, 8)
 
 struct shmem_data {

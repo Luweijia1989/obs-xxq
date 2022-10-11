@@ -2,7 +2,6 @@
 #include <util/platform.h>
 #include <util/threading.h>
 #include <util/dstr.h>
-#include <ipc-util/pipe.h>
 #include "wasapi-hook-info.h"
 #include "audio-channel.h"
 
@@ -44,7 +43,6 @@ struct wasapi_capture {
 	bool initial_config;
 	bool is_app;
 
-	ipc_pipe_server_t pipe;
 	struct hook_info *global_hook_info;
 	HANDLE keepalive_mutex;
 	HANDLE hook_init;
