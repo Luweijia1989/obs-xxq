@@ -32,7 +32,7 @@ void search_memory(PVOID wave_format, DWORD size1, std::set<uintptr_t> &wave_for
 	GetSystemInfo(&info);
 	BYTE *search_address = (BYTE *)info.lpMinimumApplicationAddress;
 	MEMORY_BASIC_INFORMATION mbi = {0};
-	DWORD ret = 0;
+	SIZE_T ret = 0;
 	BYTE *temp = nullptr;
 	BYTE *buf = nullptr;
 
