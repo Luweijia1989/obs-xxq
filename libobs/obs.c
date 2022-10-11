@@ -2554,6 +2554,15 @@ void *obs_obj_get_data(void *obj)
 	return context->data;
 }
 
+bool obs_obj_is_private(void *obj)
+{
+	struct obs_context_data *context = obj;
+	if (!context)
+		return false;
+
+	return context->private;
+}
+
 void obs_default_output_audio_device_changed()
 {
 	pthread_mutex_lock(&obs->audio.monitoring_mutex);
@@ -3186,7 +3195,7 @@ void obs_rtc_set_merge_info(int self_index, obs_data_t *merge_info,
 
 	struct obs_rtc_mix *rtc_mix = &obs->video.rtc_mix;
 	da_free(rtc_mix->rtc_frame_render_info.frame_infos);
-	
+
 	for (size_t c = 0; c < NUM_RTC_CHANNEL; c++) {
 		if (rtc_mix->rtc_textures[c]) {
 			gs_texture_destroy(rtc_mix->rtc_textures[c]);
@@ -3194,10 +3203,10 @@ void obs_rtc_set_merge_info(int self_index, obs_data_t *merge_info,
 		}
 	}
 
-	gs_texture_t* seat_bk_texture = NULL;
-	const char* seatBkFile = obs_data_get_string(merge_info, "seat_bk_file");
-	if (seatBkFile)
-	{
+	gs_texture_t *seat_bk_texture = NULL;
+	const char *seatBkFile =
+		obs_data_get_string(merge_info, "seat_bk_file");
+	if (seatBkFile) {
 		memcpy(rtc_mix->rtc_seat_background_image_path, seatBkFile,
 		       strlen(seatBkFile));
 		seat_bk_texture = gs_texture_create_from_file(
@@ -3222,8 +3231,7 @@ void obs_rtc_set_merge_info(int self_index, obs_data_t *merge_info,
 		da_push_back(rtc_mix->rtc_frame_render_info.frame_infos, &info);
 		obs_data_release(item);
 
-		if (seat_bk_texture)
-		{
+		if (seat_bk_texture) {
 			rtc_mix->rtc_textures[i] = gs_texture_create(
 				gs_texture_get_width(seat_bk_texture),
 				gs_texture_get_height(seat_bk_texture),
