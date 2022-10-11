@@ -4,7 +4,6 @@ set(wasapi-capture_HEADERS
 	nt-stuff.h
 	hook-helpers.h
 	wasapi-hook-info.h
-	window-helpers.h
 	app-helpers.h
 	obfuscate.h
 	audio-channel.h)
@@ -12,7 +11,6 @@ set(wasapi-capture_HEADERS
 set(wasapi-capture_SOURCES
 	audio-channel.c
 	wasapi-capture.c
-	window-helpers.c
 	app-helpers.c
 	obfuscate.c
 	plugin-main.c)

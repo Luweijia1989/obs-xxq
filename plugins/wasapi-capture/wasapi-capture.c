@@ -1,17 +1,12 @@
+#include <windows.h>
+#include <psapi.h>
 #include <inttypes.h>
 #include <obs-module.h>
-#include <obs-hotkey.h>
 #include <util/platform.h>
 #include <util/threading.h>
 #include <util/dstr.h>
-#include <util/util_uint64.h>
-#include <windows.h>
-#include <dxgi.h>
-#include <emmintrin.h>
 #include <ipc-util/pipe.h>
-#include "nt-stuff.h"
 #include "wasapi-hook-info.h"
-#include "window-helpers.h"
 #include "app-helpers.h"
 #include "obfuscate.h"
 #include "audio-channel.h"
@@ -22,7 +17,7 @@
 #define info(format, ...) do_log(LOG_INFO, format, ##__VA_ARGS__)
 #define debug(format, ...) do_log(LOG_DEBUG, format, ##__VA_ARGS__)
 
-#define SETTING_CAPTURE_WINDOW "window"
+#define SETTING_CAPTURE_PROCESS "window"
 
 #define DEFAULT_RETRY_INTERVAL 2.0f
 #define ERROR_RETRY_INTERVAL 4.0f
@@ -35,12 +30,6 @@ struct ts_info {
 #define DEBUG_AUDIO 0
 #define MAX_BUFFERING_TICKS 45
 
-struct wasapi_capture_config {
-	char *title;
-	char *class;
-	char *executable;
-};
-
 struct audio_channel_info {
 	uint64_t ptr;
 	struct audio_channel *channel;
@@ -48,19 +37,14 @@ struct audio_channel_info {
 
 struct wasapi_capture {
 	obs_source_t *source;
-	struct wasapi_capture_config config;
 
 	HANDLE injector_process;
 
 	DWORD process_id;
-	DWORD thread_id;
-	HWND next_window;
-	HWND window;
+	DWORD next_process_id;
 	float retry_time;
 	float retry_interval;
 
-	struct dstr title;
-	struct dstr class;
 	struct dstr executable;
 
 	enum window_priority priority;
@@ -242,23 +226,12 @@ static void stop_capture(struct wasapi_capture *gc)
 		gc->retrying--;
 }
 
-static inline void free_config(struct wasapi_capture_config *config)
-{
-	bfree(config->title);
-	bfree(config->class);
-	bfree(config->executable);
-	memset(config, 0, sizeof(*config));
-}
-
 static void wasapi_capture_destroy(void *data)
 {
 	struct wasapi_capture *gc = data;
 	stop_capture(gc);
 
-	dstr_free(&gc->title);
-	dstr_free(&gc->class);
 	dstr_free(&gc->executable);
-	free_config(&gc->config);
 
 	for (size_t i = 0; i < gc->audio_channels.num; i++) {
 		audio_channel_destroy(gc->audio_channels.array[i].channel);
@@ -272,11 +245,6 @@ static void wasapi_capture_destroy(void *data)
 	bfree(gc);
 }
 
-static inline void get_config(struct wasapi_capture_config *cfg, obs_data_t *settings, const char *window)
-{
-	build_window_strings(window, &cfg->class, &cfg->title, &cfg->executable);
-}
-
 static inline int s_cmp(const char *str1, const char *str2)
 {
 	if (!str1 || !str2)
@@ -285,10 +253,10 @@ static inline int s_cmp(const char *str1, const char *str2)
 	return strcmp(str1, str2);
 }
 
-static inline bool capture_needs_reset(struct wasapi_capture_config *cfg1, struct wasapi_capture_config *cfg2)
+static inline bool capture_needs_reset(const char *cfg1, const char *cfg2)
 {
 
-	if (s_cmp(cfg1->class, cfg2->class) != 0 || s_cmp(cfg1->title, cfg2->title) != 0 || s_cmp(cfg1->executable, cfg2->executable) != 0)
+	if (s_cmp(cfg1, cfg2) != 0)
 		return true;
 
 	return false;
@@ -297,28 +265,20 @@ static inline bool capture_needs_reset(struct wasapi_capture_config *cfg1, struc
 static void wasapi_capture_update(void *data, obs_data_t *settings)
 {
 	struct wasapi_capture *gc = data;
-	struct wasapi_capture_config cfg;
 	bool reset_capture = false;
-	const char *window = obs_data_get_string(settings, SETTING_CAPTURE_WINDOW);
+	const char *process = obs_data_get_string(settings, SETTING_CAPTURE_PROCESS);
 
-	get_config(&cfg, settings, window);
-	reset_capture = capture_needs_reset(&cfg, &gc->config);
+	reset_capture = capture_needs_reset(process, gc->executable.array);
 
 	gc->error_acquiring = false;
-	gc->activate_hook = !!window && !!*window;
+	gc->activate_hook = !!process && !!*process;
 
-	free_config(&gc->config);
-	gc->config = cfg;
 	gc->retry_interval = DEFAULT_RETRY_INTERVAL;
 	gc->wait_for_target_startup = false;
 
-	dstr_free(&gc->title);
-	dstr_free(&gc->class);
 	dstr_free(&gc->executable);
 
-	dstr_copy(&gc->title, gc->config.title);
-	dstr_copy(&gc->class, gc->config.class);
-	dstr_copy(&gc->executable, gc->config.executable);
+	dstr_copy(&gc->executable, process);
 
 	if (!gc->initial_config) {
 		if (reset_capture) {
@@ -424,11 +384,89 @@ static inline bool is_64bit_process(HANDLE process)
 	return !x86;
 }
 
+bool get_window_exe(struct dstr *name, DWORD id)
+{
+	wchar_t wname[MAX_PATH];
+	struct dstr temp = {0};
+	bool success = false;
+	HANDLE process = NULL;
+	char *slash;
+
+	process = open_process(PROCESS_QUERY_LIMITED_INFORMATION, false, id);
+	if (!process)
+		goto fail;
+
+	if (!GetProcessImageFileNameW(process, wname, MAX_PATH))
+		goto fail;
+
+	dstr_from_wcs(&temp, wname);
+	slash = strrchr(temp.array, '\\');
+	if (!slash)
+		goto fail;
+
+	dstr_copy(name, slash + 1);
+	success = true;
+
+fail:
+	if (!success)
+		dstr_copy(name, "unknown");
+
+	dstr_free(&temp);
+	CloseHandle(process);
+	return true;
+}
+
+static void fill_process_list(obs_property_t *p)
+{
+	DWORD processes[1024], process_count;
+	unsigned int i;
+
+	if (!EnumProcesses(processes, sizeof(processes), &process_count))
+		return;
+
+	process_count = process_count / sizeof(DWORD);
+	for (i = 0; i < process_count; i++) {
+		if (processes[i] != 0) {
+			struct dstr exe = {0};
+			get_window_exe(&exe, processes[i]);
+			if (s_cmp(exe.array, "unknown") != 0)
+				obs_property_list_add_string(p, exe.array, exe.array);
+			dstr_free(&exe);
+		}
+	}
+}
+
+static bool find_selectd_process(const char *process_image_name, DWORD *id)
+{
+	bool got = false;
+	DWORD processes[1024], process_count;
+
+	if (!EnumProcesses(processes, sizeof(processes), &process_count))
+		return got;
+
+	process_count = process_count / sizeof(DWORD);
+	for (unsigned int i = 0; i < process_count; i++) {
+		if (processes[i] != 0) {
+			struct dstr exe = {0};
+			get_window_exe(&exe, processes[i]);
+			if (s_cmp(exe.array, process_image_name) == 0) {
+				*id = processes[i];
+				got = true;
+			}
+			dstr_free(&exe);
+			if (got)
+				break;
+		}
+	}
+
+	return got;
+}
+
 static inline bool open_target_process(struct wasapi_capture *gc)
 {
 	gc->target_process = open_process(PROCESS_QUERY_INFORMATION | SYNCHRONIZE, false, gc->process_id);
 	if (!gc->target_process) {
-		warn("could not open process: %s", gc->config.executable);
+		warn("could not open process: %s", gc->executable);
 		return false;
 	}
 
@@ -494,7 +532,7 @@ static inline bool attempt_existing_hook(struct wasapi_capture *gc)
 {
 	gc->hook_restart = open_event_gc(gc, EVENT_CAPTURE_RESTART);
 	if (gc->hook_restart) {
-		debug("existing hook found, signaling process: %s", gc->config.executable);
+		debug("existing hook found, signaling process: %s", gc->executable);
 		SetEvent(gc->hook_restart);
 		return true;
 	}
@@ -554,7 +592,7 @@ static inline bool create_inject_process(struct wasapi_capture *gc, const char *
 
 	si.cb = sizeof(si);
 
-	swprintf(command_line_w, 4096, L"\"%s\" \"%s\" %lu %lu", inject_path_w, hook_dll_w, 1, gc->thread_id);
+	swprintf(command_line_w, 4096, L"\"%s\" \"%s\" %lu %lu", inject_path_w, hook_dll_w, (unsigned long)false, gc->next_process_id);
 
 	success = !!CreateProcessW(inject_path_w, command_line_w, NULL, NULL, false, CREATE_NO_WINDOW, NULL, NULL, &si, &pi);
 	if (success) {
@@ -645,31 +683,18 @@ static bool is_blacklisted_exe(const char *exe)
 	return false;
 }
 
-static bool target_suspended(struct wasapi_capture *gc)
-{
-	return thread_is_suspended(gc->process_id, gc->thread_id);
-}
-
 static bool init_events(struct wasapi_capture *gc);
 
 static bool init_hook(struct wasapi_capture *gc)
 {
-	struct dstr exe = {0};
 	bool blacklisted_process = false;
+	info("attempting to hook process: %s", gc->executable.array);
 
-	if (get_window_exe(&exe, gc->next_window)) {
-		info("attempting to hook process: %s", exe.array);
-	}
-
-	blacklisted_process = is_blacklisted_exe(exe.array);
+	blacklisted_process = is_blacklisted_exe(gc->executable.array);
 	if (blacklisted_process)
-		info("cannot capture %s due to being blacklisted", exe.array);
-	dstr_free(&exe);
+		info("cannot capture %s due to being blacklisted", gc->executable.array);
 
 	if (blacklisted_process) {
-		return false;
-	}
-	if (target_suspended(gc)) {
 		return false;
 	}
 	if (!open_target_process(gc)) {
@@ -702,19 +727,20 @@ static bool init_hook(struct wasapi_capture *gc)
 
 	SetEvent(gc->hook_init);
 
-	gc->window = gc->next_window;
-	gc->next_window = NULL;
+	gc->process_id = gc->next_process_id;
+	gc->next_process_id = 0;
 	gc->active = true;
 	gc->retrying = 0;
 	return true;
 }
 
-static void setup_window(struct wasapi_capture *gc, HWND window)
+static void setup_process(struct wasapi_capture *gc, DWORD id)
 {
+	DWORD ret = GetWindowThreadProcessId(NULL, &id);
 	HANDLE hook_restart;
 	HANDLE process;
 
-	GetWindowThreadProcessId(window, &gc->process_id);
+	gc->process_id = id;
 	if (gc->process_id) {
 		process = open_process(PROCESS_QUERY_INFORMATION, false, gc->process_id);
 		if (process) {
@@ -742,42 +768,25 @@ static void setup_window(struct wasapi_capture *gc, HWND window)
 		gc->retry_interval = 3.0f;
 		gc->wait_for_target_startup = false;
 	} else {
-		gc->next_window = window;
-	}
-}
-
-static void get_selected_window(struct wasapi_capture *gc)
-{
-	HWND window;
-
-	if (dstr_cmpi(&gc->class, "dwm") == 0) {
-		wchar_t class_w[512];
-		os_utf8_to_wcs(gc->class.array, 0, class_w, 512);
-		window = FindWindowW(class_w, NULL);
-	} else {
-		window = find_window(INCLUDE_MINIMIZED, gc->priority, gc->class.array, gc->title.array, gc->executable.array);
-	}
-
-	if (window) {
-		setup_window(gc, window);
-	} else {
-		gc->wait_for_target_startup = true;
+		gc->next_process_id = id;
 	}
 }
 
 static void try_hook(struct wasapi_capture *gc)
 {
-	get_selected_window(gc);
+	DWORD id = 0;
+	bool ret = find_selectd_process(gc->executable.array, &id);
+	if (ret)
+		setup_process(gc, id);
+	else {
+		gc->wait_for_target_startup = true;
+	}
 
-	if (gc->next_window) {
-		gc->thread_id = GetWindowThreadProcessId(gc->next_window, &gc->process_id);
-
+	if (gc->next_process_id) {
 		// Make sure we never try to hook ourselves (projector)
 		if (gc->process_id == GetCurrentProcessId())
 			return;
 
-		if (!gc->thread_id && gc->process_id)
-			return;
 		if (!gc->process_id) {
 			warn("error acquiring, failed to get window "
 			     "thread/process ids: %lu",
@@ -1460,32 +1469,13 @@ static bool window_not_blacklisted(const char *title, const char *class, const c
 	return !is_blacklisted_exe(exe);
 }
 
-static void insert_preserved_val(obs_property_t *p, const char *val)
-{
-	char *class = NULL;
-	char *title = NULL;
-	char *executable = NULL;
-	struct dstr desc = {0};
-
-	build_window_strings(val, &class, &title, &executable);
-
-	dstr_printf(&desc, "[%s]: %s", executable, title);
-	obs_property_list_insert_string(p, 1, desc.array, val);
-	obs_property_list_item_disable(p, 1, true);
-
-	dstr_free(&desc);
-	bfree(class);
-	bfree(title);
-	bfree(executable);
-}
-
 static bool window_changed_callback(obs_properties_t *ppts, obs_property_t *p, obs_data_t *settings)
 {
 	const char *cur_val;
 	bool match = false;
 	size_t i = 0;
 
-	cur_val = obs_data_get_string(settings, SETTING_CAPTURE_WINDOW);
+	cur_val = obs_data_get_string(settings, SETTING_CAPTURE_PROCESS);
 	if (!cur_val) {
 		return false;
 	}
@@ -1502,7 +1492,8 @@ static bool window_changed_callback(obs_properties_t *ppts, obs_property_t *p, o
 	}
 
 	if (cur_val && *cur_val && !match) {
-		insert_preserved_val(p, cur_val);
+		obs_property_list_insert_string(p, 1, cur_val, cur_val);
+		obs_property_list_item_disable(p, 1, true);
 		return true;
 	}
 
@@ -1515,9 +1506,9 @@ static obs_properties_t *wasapi_capture_properties(void *data)
 	obs_properties_t *ppts = obs_properties_create();
 	obs_property_t *p;
 
-	p = obs_properties_add_list(ppts, SETTING_CAPTURE_WINDOW, "Window", OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
+	p = obs_properties_add_list(ppts, SETTING_CAPTURE_PROCESS, "Process", OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
 	obs_property_list_add_string(p, "", "");
-	fill_window_list(p, INCLUDE_MINIMIZED, window_not_blacklisted);
+	fill_process_list(p);
 
 	obs_property_set_modified_callback(p, window_changed_callback);
 
