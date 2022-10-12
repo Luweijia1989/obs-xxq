@@ -37,8 +37,10 @@ HRESULT STDMETHODCALLTYPE hookAudioClientGetService(IAudioClient *audio_client, 
 
 HRESULT STDMETHODCALLTYPE hookAudioRenderClientReleaseBuffer(IAudioRenderClient *pAudioRenderClient, UINT32 nFrameWritten, DWORD dwFlags)
 {
-	capture_data.capture_check(pAudioRenderClient);
-	capture_data.out_audio_data(pAudioRenderClient, nFrameWritten);
+	if (!(dwFlags & AUDCLNT_BUFFERFLAGS_SILENT)) {
+		capture_data.capture_check(pAudioRenderClient);
+		capture_data.out_audio_data(pAudioRenderClient, nFrameWritten);
+	}
 	return realAudioRenderClientReleaseBuffer(pAudioRenderClient, nFrameWritten, dwFlags);
 }
 

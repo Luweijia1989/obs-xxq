@@ -10,6 +10,7 @@ set(wasapi-capture_HEADERS
 	wasapi-capture.h)
 
 set(wasapi-capture_SOURCES
+	windows-helpers.cpp
 	audio-channel.c
 	wasapi-capture.c
 	app-helpers.c

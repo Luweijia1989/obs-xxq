@@ -142,7 +142,7 @@ static inline HMODULE kernel32(void)
 	return kernel32_handle;
 }
 
-static inline HANDLE open_process(DWORD desired_access, bool inherit_handle, DWORD process_id)
+inline HANDLE open_process(DWORD desired_access, bool inherit_handle, DWORD process_id)
 {
 	static HANDLE(WINAPI * open_process_proc)(DWORD, BOOL, DWORD) = NULL;
 	if (!open_process_proc)
@@ -151,7 +151,7 @@ static inline HANDLE open_process(DWORD desired_access, bool inherit_handle, DWO
 	return open_process_proc(desired_access, inherit_handle, process_id);
 }
 
-static inline int s_cmp(const char *str1, const char *str2)
+inline int s_cmp(const char *str1, const char *str2)
 {
 	if (!str1 || !str2)
 		return -1;

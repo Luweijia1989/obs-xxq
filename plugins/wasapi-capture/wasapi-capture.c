@@ -58,96 +58,6 @@ static bool check_file_integrity(struct wasapi_capture *wc, const char *file, co
 	return false;
 }
 
-bool get_pid_exe(struct dstr *name, DWORD id)
-{
-	wchar_t wname[MAX_PATH];
-	struct dstr temp = {0};
-	bool success = false;
-	HANDLE process = NULL;
-	char *slash;
-
-	process = open_process(PROCESS_QUERY_LIMITED_INFORMATION, false, id);
-	if (!process)
-		goto fail;
-
-	if (!GetProcessImageFileNameW(process, wname, MAX_PATH))
-		goto fail;
-
-	dstr_from_wcs(&temp, wname);
-	if (strstr(temp.array, "\\Windows\\System32") != NULL || strstr(temp.array, "Microsoft Visual Studio") != NULL)
-		goto fail;
-
-	slash = strrchr(temp.array, '\\');
-	if (!slash)
-		goto fail;
-
-	dstr_copy(name, slash + 1);
-	success = true;
-
-fail:
-	if (!success)
-		dstr_copy(name, "unknown");
-
-	dstr_free(&temp);
-	CloseHandle(process);
-	return true;
-}
-
-static void fill_process_list(obs_property_t *p)
-{
-	DWORD processes[1024], process_count;
-	unsigned int i;
-
-	if (!EnumProcesses(processes, sizeof(processes), &process_count))
-		return;
-
-	process_count = process_count / sizeof(DWORD);
-	for (i = 0; i < process_count; i++) {
-		if (processes[i] != 0) {
-			struct dstr exe = {0};
-			get_pid_exe(&exe, processes[i]);
-			if (s_cmp(exe.array, "unknown") != 0) {
-				bool found = false;
-				for (size_t i = 0; i < obs_property_list_item_count(p); i++) {
-					if (s_cmp(obs_property_list_item_string(p, i), exe.array) == 0) {
-						found = true;
-						break;
-					}
-				}
-				if (!found)
-					obs_property_list_add_string(p, exe.array, exe.array);
-			}
-			dstr_free(&exe);
-		}
-	}
-}
-
-static bool find_selectd_process(const char *process_image_name, DWORD *id)
-{
-	bool got = false;
-	DWORD processes[1024], process_count;
-
-	if (!EnumProcesses(processes, sizeof(processes), &process_count))
-		return got;
-
-	process_count = process_count / sizeof(DWORD);
-	for (unsigned int i = 0; i < process_count; i++) {
-		if (processes[i] != 0) {
-			struct dstr exe = {0};
-			get_pid_exe(&exe, processes[i]);
-			if (s_cmp(exe.array, process_image_name) == 0) {
-				*id = processes[i];
-				got = true;
-			}
-			dstr_free(&exe);
-			if (got)
-				break;
-		}
-	}
-
-	return got;
-}
-
 static inline void find_min_ts(struct wasapi_capture *wc, uint64_t *min_ts)
 {
 	for (size_t i = 0; i < wc->audio_channels.num; i++) {
@@ -397,7 +307,9 @@ bool wasapi_capture_fetch_audio(struct wasapi_capture *wc, uint64_t start_ts_in,
 {
 	da_resize(wc->mix_channels, 0);
 
-	struct ts_info ts = {start_ts_in, end_ts_in};
+	struct ts_info ts;
+	ts.start = start_ts_in;
+	ts.end = end_ts_in;
 	circlebuf_push_back(&wc->buffered_timestamps, &ts, sizeof(ts));
 	circlebuf_peek_front(&wc->buffered_timestamps, &ts, sizeof(ts));
 
@@ -715,7 +627,7 @@ static const char *wasapi_capture_name(void *unused)
 }
 
 extern void wait_for_hook_initialization(void);
-void wasapi_capture_update(void *data, obs_data_t *settings);
+static void wasapi_capture_update(void *data, obs_data_t *settings);
 static void *wasapi_capture_create(obs_data_t *settings, obs_source_t *source)
 {
 	wait_for_hook_initialization();
@@ -797,6 +709,7 @@ static bool window_changed_callback(obs_properties_t *ppts, obs_property_t *p, o
 	return false;
 }
 
+extern void fill_process_list(obs_property_t *p);
 static obs_properties_t *wasapi_capture_properties(void *data)
 {
 	obs_properties_t *ppts = obs_properties_create();
@@ -1121,25 +1034,32 @@ static void setup_process(struct wasapi_capture *wc, DWORD id)
 	}
 }
 
+extern bool find_selectd_process(const char *process_image_name, DWORD *id, bool *changed, char *new_name);
 static void try_hook(struct wasapi_capture *wc)
 {
 	DWORD id = 0;
-	bool ret = find_selectd_process(wc->executable.array, &id);
-	if (ret)
+	bool changed = false;
+	char new_name[MAX_PATH] = {0};
+	bool ret = find_selectd_process(wc->executable.array, &id, &changed, new_name);
+	if (ret) {
 		setup_process(wc, id);
-	else {
+		if (changed) {
+			dstr_free(&wc->executable);
+			dstr_copy(&wc->executable, new_name);
+			obs_data_t *s = obs_source_get_settings(wc->source);
+			obs_data_set_string(s, SETTING_CAPTURE_PROCESS, new_name);
+			obs_data_release(s);
+		}
+	} else {
 		wc->wait_for_target_startup = true;
 	}
 
 	if (wc->next_process_id) {
-		// Make sure we never try to hook ourselves (projector)
 		if (wc->process_id == GetCurrentProcessId())
 			return;
 
 		if (!wc->process_id) {
-			warn("error acquiring, failed to get window "
-			     "thread/process ids: %lu",
-			     GetLastError());
+			warn("error acquiring, failed to get process ids: %lu", GetLastError());
 			wc->error_acquiring = true;
 			return;
 		}
@@ -1235,7 +1155,7 @@ static void wasapi_capture_tick(void *data, float seconds)
 		}
 	} else {
 		if (object_signalled(wc->target_process)) {
-			info("capture window no longer exists, "
+			info("capture process no longer exists, "
 			     "terminating capture");
 			stop_capture(wc);
 		}
