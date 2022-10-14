@@ -43,3 +43,5 @@ for file in glob.glob(os.path.join(sys.argv[1]+'/plugins/data/obs-plugins/enc-am
         
 sign(sys.argv[1]+'/plugins/data/obs-plugins/win-capture/graphics-hook64.dll')
 sign(sys.argv[1]+'/plugins/data/obs-plugins/win-capture/graphics-hook32.dll')
+sign(sys.argv[1]+'/plugins/data/obs-plugins/win-capture/get-graphics-offsets64.dll')
+sign(sys.argv[1]+'/plugins/data/obs-plugins/win-capture/get-graphics-offsets32.dll')
