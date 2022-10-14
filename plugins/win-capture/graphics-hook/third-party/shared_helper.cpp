@@ -6,7 +6,7 @@ namespace qBase {
 HANDLE g_danmuShare = nullptr;
 HANDLE g_danmuEvent = nullptr;
 
-bool connect(size_t size, const char* mem_name) {
+bool connect(DWORD size, const char* mem_name) {
     g_danmuShare = qBase::SM_Open(mem_name);
     if (!g_danmuShare)
         g_danmuShare = qBase::SM_Create(size, mem_name);
@@ -22,7 +22,7 @@ void disConnect() {
         qBase::SM_Close(g_danmuShare);
 }
 
-void readShare(size_t size, char* buff) {
+void readShare(DWORD size, char* buff) {
     if (!g_danmuShare)
         return;
     qBase::SM_Read(g_danmuShare, 0, size, buff);

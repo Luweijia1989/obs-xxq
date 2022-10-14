@@ -2,7 +2,6 @@
 #include <psapi.h>
 #include "graphics-hook.h"
 #include "../obfuscate.h"
-#include "../funchook.h"
 
 #define DEBUG_OUTPUT
 
@@ -310,9 +309,16 @@ static inline bool attempt_hook(void)
 	//static bool ddraw_hooked = false;
 	static bool d3d8_hooked = false;
 	static bool d3d9_hooked = false;
+	static bool d3d12_hooked = false;
 	static bool dxgi_hooked = false;
 	static bool gl_hooked = false;
 	static bool lyric_hooked = false;
+
+#ifdef COMPILE_D3D12_HOOK
+	if (!d3d12_hooked) {
+		d3d12_hooked = hook_d3d12();
+	}
+#endif
 
 	if (global_hook_info->only_lyric) {
 		if (!lyric_hooked) {
@@ -525,9 +531,9 @@ static inline bool init_shared_info(size_t size)
 	return true;
 }
 
-bool capture_init_shtex(struct shtex_data **data, HWND window, uint32_t base_cx,
-			uint32_t base_cy, uint32_t cx, uint32_t cy,
-			uint32_t format, bool flip, uintptr_t handle)
+bool capture_init_shtex(struct shtex_data **data, HWND window, uint32_t cx,
+			uint32_t cy, uint32_t format, bool flip,
+			uintptr_t handle)
 {
 	if (!init_shared_info(sizeof(struct shtex_data))) {
 		hlog("capture_init_shtex: Failed to initialize memory");
@@ -545,8 +551,8 @@ bool capture_init_shtex(struct shtex_data **data, HWND window, uint32_t base_cx,
 	global_hook_info->map_size = sizeof(struct shtex_data);
 	global_hook_info->cx = cx;
 	global_hook_info->cy = cy;
-	global_hook_info->base_cx = base_cx;
-	global_hook_info->base_cy = base_cy;
+	global_hook_info->UNUSED_base_cx = cx;
+	global_hook_info->UNUSED_base_cy = cy;
 
 	if (!SetEvent(signal_ready)) {
 		hlog("capture_init_shtex: Failed to signal ready: %d",
@@ -700,9 +706,8 @@ static inline bool init_shmem_thread(uint32_t pitch, uint32_t cy)
 #define ALIGN(bytes, align) (((bytes) + ((align)-1)) & ~((align)-1))
 #endif
 
-bool capture_init_shmem(struct shmem_data **data, HWND window, uint32_t base_cx,
-			uint32_t base_cy, uint32_t cx, uint32_t cy,
-			uint32_t pitch, uint32_t format, bool flip)
+bool capture_init_shmem(struct shmem_data **data, HWND window, uint32_t cx,
+			uint32_t cy, uint32_t pitch, uint32_t format, bool flip)
 {
 	uint32_t tex_size = cy * pitch;
 	uint32_t aligned_header = ALIGN(sizeof(struct shmem_data), 32);
@@ -739,8 +744,8 @@ bool capture_init_shmem(struct shmem_data **data, HWND window, uint32_t base_cx,
 	global_hook_info->pitch = pitch;
 	global_hook_info->cx = cx;
 	global_hook_info->cy = cy;
-	global_hook_info->base_cx = base_cx;
-	global_hook_info->base_cy = base_cy;
+	global_hook_info->UNUSED_base_cx = cx;
+	global_hook_info->UNUSED_base_cy = cy;
 
 	if (!init_shmem_thread(pitch, cy)) {
 		return false;

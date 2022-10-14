@@ -4,10 +4,8 @@
 #include <tchar.h>
 #include <shlwapi.h>
 #include "graphics-hook.h"
-#include "../funchook.h"
 
-static struct func_hook updatelayeredwindow;
-static struct func_hook updateLayeredWindowIndirect;
+#include <detours.h>
 
 typedef BOOL(WINAPI *UpdateLayeredWindowProc)(
 	HWND hWnd, HDC hdcDst, POINT *pptDst, SIZE *psize, HDC hdcSrc,
@@ -16,13 +14,13 @@ typedef BOOL(WINAPI *UpdateLayeredWindowProc)(
 typedef BOOL(WINAPI *UpdateLayeredWindowIndirectProc)(
 	HWND hwnd, const UPDATELAYEREDWINDOWINFO *pULWInfo);
 
+UpdateLayeredWindowProc RealUpdatelayeredwindow;
+UpdateLayeredWindowIndirectProc RealUpdateLayeredWindowIndirect;
+
 struct lyric_data {
-	uint32_t base_cx;
-	uint32_t base_cy;
 	uint32_t cx;
 	uint32_t cy;
 
-	bool using_scale;
 	HWND window;
 	bool compatibility;
 	HDC hdc;
@@ -36,9 +34,8 @@ static struct lyric_data data = {};
 
 static bool lyric_shmem_init(HWND window)
 {
-	if (!capture_init_shmem(&data.shmem_info, window, data.base_cx,
-				data.base_cy, data.cx, data.cy, data.cx * 4,
-				DXGI_FORMAT_B8G8R8A8_UNORM, true)) {
+	if (!capture_init_shmem(&data.shmem_info, window, data.cx, data.cy,
+				data.cx * 4, DXGI_FORMAT_B8G8R8A8_UNORM, true)) {
 		return false;
 	}
 
@@ -61,18 +58,9 @@ static void lyric_data_free()
 
 static void lyric_data_init(uint32_t width, uint32_t height, HWND window)
 {
-	data.base_cx = width;
-	data.base_cy = height;
+	data.cx = width;
+	data.cy = height;
 	data.window = window;
-	data.using_scale = global_hook_info->use_scale;
-
-	if (data.using_scale) {
-		data.cx = global_hook_info->cx;
-		data.cy = global_hook_info->cy;
-	} else {
-		data.cx = data.base_cx;
-		data.cy = data.base_cy;
-	}
 
 	BITMAPINFO bi = {0};
 	BITMAPINFOHEADER *bih = &bi.bmiHeader;
@@ -101,7 +89,7 @@ static void lyric_capture(HDC hdc, uint32_t width, uint32_t height)
 		lyric_data_init(width, height, WindowFromDC(hdc));
 	}
 	if (capture_ready()) {
-		if (width != data.base_cx || height != data.base_cy) {
+		if (width != data.cx || height != data.cy) {
 			if (width != 0 && height != 0) {
 				lyric_data_free();
 			}
@@ -148,13 +136,8 @@ static BOOL WINAPI hook_update_layered_window(
 	if ((!isKw && strstr(buf1, "桌面歌词") != NULL) || (isKw && strstr(buf1, "") != NULL))
 		lyric_capture(hdcSrc, psize->cx, psize->cy);
 
-	unhook(&updatelayeredwindow);
-	UpdateLayeredWindowProc call =
-		(UpdateLayeredWindowProc)updatelayeredwindow.call_addr;
-	BOOL ret = call(hWnd, hdcDst, pptDst, psize, hdcSrc, pptSrc, crKey,
+	return RealUpdatelayeredwindow(hWnd, hdcDst, pptDst, psize, hdcSrc, pptSrc, crKey,
 			pblend, dwFlags);
-	rehook(&updatelayeredwindow);
-	return ret;
 }
 
 static BOOL WINAPI hook_update_layered_window_indirect(
@@ -170,13 +153,7 @@ static BOOL WINAPI hook_update_layered_window_indirect(
 		lyric_capture(pULWInfo->hdcSrc, pULWInfo->psize->cx,
 			      pULWInfo->psize->cy);
 
-	unhook(&updateLayeredWindowIndirect);
-	UpdateLayeredWindowIndirectProc call =
-		(UpdateLayeredWindowIndirectProc)
-			updateLayeredWindowIndirect.call_addr;
-	BOOL ret = call(hwnd, pULWInfo);
-	rehook(&updateLayeredWindowIndirect);
-	return ret;
+	return RealUpdateLayeredWindowIndirect(hwnd, pULWInfo);
 }
 
 bool hook_lyric()
@@ -189,6 +166,8 @@ bool hook_lyric()
 		return false;
 	}
 
+	DetourTransactionBegin();
+
 	update_layered_window_addr =
 		GetProcAddress(user_module, "UpdateLayeredWindow");
 	if (!update_layered_window_addr) {
@@ -196,10 +175,8 @@ bool hook_lyric()
 		return true;
 	}
 	if (update_layered_window_addr) {
-		hook_init(&updatelayeredwindow, update_layered_window_addr,
-			  (void *)hook_update_layered_window,
-			  "UpdateLayeredWindow");
-		rehook(&updatelayeredwindow);
+		RealUpdatelayeredwindow = (UpdateLayeredWindowProc)update_layered_window_addr;
+		DetourAttach((PVOID *)&RealUpdatelayeredwindow, hook_update_layered_window);
 	}
 
 	update_layered_window_indirect_addr =
@@ -209,14 +186,20 @@ bool hook_lyric()
 		return true;
 	}
 	if (update_layered_window_indirect_addr) {
-		hook_init(&updateLayeredWindowIndirect,
-			  update_layered_window_indirect_addr,
-			  (void *)hook_update_layered_window_indirect,
-			  "UpdateLayeredWindowIndirect");
-		rehook(&updateLayeredWindowIndirect);
+		RealUpdateLayeredWindowIndirect = (UpdateLayeredWindowIndirectProc)update_layered_window_indirect_addr;
+		DetourAttach((PVOID *)&RealUpdateLayeredWindowIndirect, hook_update_layered_window_indirect);
 	}
 
-	hlog("Hooked Lyric");
-
-	return true;
+	const LONG error = DetourTransactionCommit();
+	const bool success = error == NO_ERROR;
+	if (success) {
+		hlog("Hooked RealUpdatelayeredwindow");
+		hlog("Hooked RealUpdateLayeredWindowIndirect");
+		hlog("Hooked Lyric");
+	} else {
+		RealUpdatelayeredwindow = nullptr;
+		RealUpdateLayeredWindowIndirect = nullptr;
+		hlog("Failed to attach Detours hook: %ld", error);
+	}
+	return success;
 }

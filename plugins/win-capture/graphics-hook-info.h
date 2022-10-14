@@ -46,6 +46,10 @@ struct dxgi_offsets {
 	uint32_t present1;
 };
 
+struct dxgi_offsets2 {
+	uint32_t release;
+};
+
 struct ddraw_offsets {
 	uint32_t surface_create;
 	uint32_t surface_restore;
@@ -77,6 +81,7 @@ struct graphics_offsets {
 	struct d3d9_offsets d3d9;
 	struct dxgi_offsets dxgi;
 	struct ddraw_offsets ddraw;
+	struct dxgi_offsets2 dxgi2;
 };
 
 struct hook_info {
@@ -86,8 +91,8 @@ struct hook_info {
 	uint32_t format;
 	uint32_t cx;
 	uint32_t cy;
-	uint32_t base_cx;
-	uint32_t base_cy;
+	uint32_t UNUSED_base_cx;
+	uint32_t UNUSED_base_cy;
 	uint32_t pitch;
 	uint32_t map_id;
 	uint32_t map_size;
@@ -95,7 +100,7 @@ struct hook_info {
 
 	/* additional options */
 	uint64_t frame_interval;
-	bool use_scale;
+	bool UNUSED_use_scale;
 	bool force_shmem;
 	bool capture_overlay;
 	bool only_lyric;

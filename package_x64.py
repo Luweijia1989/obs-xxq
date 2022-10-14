@@ -33,6 +33,11 @@ def main():
        return;
     if isOnline == "0":
        channel = "test"
+
+    if os.path.exists("conanfile.py") :
+        os.remove("conanfile.py")
+    shutil.copyfile("conanfile_x64.py", "conanfile.py")
+
     system('conan export-pkg . obs-xxq_x64/%s@bixin/%s -s compiler.version=15 -s arch=x86_64 -s build_type=Debug --force' % (version,channel))
     system('conan export-pkg . obs-xxq_x64/%s@bixin/%s -s compiler.version=15 -s arch=x86_64 -s build_type=Release --force' % (version,channel))
     if isOnline == "1":
