@@ -2012,6 +2012,11 @@ bool save_transform_states(obs_scene_t *scene, obs_sceneitem_t *item,
 		obs_data_set_int(temp, "bottom", crop.bottom);
 		obs_data_set_int(temp, "left", crop.left);
 		obs_data_set_int(temp, "right", crop.right);
+		obs_source_t *s = obs_sceneitem_get_source(item);
+		if (s) {
+			const char *name = obs_source_get_name(s);
+			obs_data_set_string(temp, "name", name);
+		}
 
 		obs_data_array_push_back(item_ids, temp);
 
@@ -2080,6 +2085,11 @@ void load_transform_states(obs_data_t *temp, void *vp_scene)
 	obs_scene_t *scene = (obs_scene_t *)vp_scene;
 	int64_t id = obs_data_get_int(temp, "id");
 	obs_sceneitem_t *item = obs_scene_find_sceneitem_by_id(scene, id);
+	if (item == NULL) {
+		const char *name = obs_data_get_string(temp, "name");
+		if (strlen(name) > 0)
+			item = obs_scene_find_source(scene, name);
+	}
 
 	struct obs_transform_info info;
 	struct obs_sceneitem_crop crop;
