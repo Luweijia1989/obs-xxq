@@ -683,9 +683,6 @@ EXPORT void obs_source_save(obs_source_t *source);
 /** Send a load signal to sources */
 EXPORT void obs_source_load(obs_source_t *source);
 
-/** Send a load signal to sources */
-EXPORT void obs_source_load2(obs_source_t *source);
-
 typedef void (*obs_load_source_cb)(void *private_data, obs_source_t *source);
 
 /** Loads sources from a data array */
@@ -716,7 +713,6 @@ EXPORT enum obs_obj_type obs_obj_get_type(void *obj);
 EXPORT const char *obs_obj_get_id(void *obj);
 EXPORT bool obs_obj_invalid(void *obj);
 EXPORT void *obs_obj_get_data(void *obj);
-EXPORT bool obs_obj_is_private(void *obj);
 
 typedef bool (*obs_enum_audio_device_cb)(void *data, const char *name,
 					 const char *id);
@@ -2341,15 +2337,6 @@ EXPORT void obs_rtc_clear_frame(int channel);
 EXPORT void obs_rtc_reset_frame(int channel);
 
 ////undo/redo add code////
-/** Adds a scene item. */
-EXPORT void obs_sceneitems_add(obs_scene_t *scene, obs_data_array_t *data);
-
-/** Saves Sceneitem into an array, arr **/
-EXPORT void obs_sceneitem_save(obs_sceneitem_t *item, obs_data_array_t *arr);
-
-/** Set the ID of a sceneitem */
-EXPORT void obs_sceneitem_set_id(obs_sceneitem_t *sceneitem, int64_t id);
-
 /** Tries to find the sceneitem of the source in a given scene. Returns NULL if not found */
 EXPORT obs_sceneitem_t *obs_scene_sceneitem_from_source(obs_scene_t *scene,
 							obs_source_t *source);

@@ -3898,19 +3898,6 @@ void obs_source_load(obs_source_t *source)
 	obs_source_dosignal(source, "source_load", "load");
 }
 
-void obs_source_load2(obs_source_t *source)
-{
-	if (!data_valid(source, "obs_source_load2"))
-		return;
-
-	obs_source_load(source);
-
-	for (size_t i = source->filters.num; i > 0; i--) {
-		obs_source_t *filter = source->filters.array[i - 1];
-		obs_source_load(filter);
-	}
-}
-
 bool obs_source_active(const obs_source_t *source)
 {
 	return obs_source_valid(source, "obs_source_active")
@@ -4955,13 +4942,4 @@ void obs_source_set_placeholder_image(obs_source_t *source, char *image_path)
 	source->placeholder_height =
 		gs_texture_get_height(source->async_holder_image);
 	gs_leave_context();
-}
-
-void obs_source_set_hidden(obs_source_t *source, bool hidden)
-{
-	source->temp_removed = hidden;
-}
-bool obs_source_is_hidden(obs_source_t *source)
-{
-	return source->temp_removed;
 }

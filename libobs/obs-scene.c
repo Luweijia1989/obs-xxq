@@ -3366,23 +3366,6 @@ obs_sceneitem_t *obs_scene_sceneitem_from_source(obs_scene_t *scene,
 	obs_scene_enum_items(scene, check_sceneitem_exists, (void *)&check);
 	return check.item_out;
 }
-
-void obs_sceneitem_save(obs_sceneitem_t *item, obs_data_array_t *arr)
-{
-	scene_save_item(arr, item, NULL);
-}
-
-void sceneitem_restore(obs_data_t *data, void *vp)
-{
-	obs_scene_t *scene = (obs_scene_t *)vp;
-	scene_load_item(scene, data);
-}
-
-void obs_sceneitems_add(obs_scene_t *scene, obs_data_array_t *data)
-{
-	obs_data_array_enum(data, sceneitem_restore, scene);
-}
-
 int obs_sceneitem_get_order_position(obs_sceneitem_t *item)
 {
 	struct obs_scene *scene = item->parent;
@@ -3399,10 +3382,5 @@ int obs_sceneitem_get_order_position(obs_sceneitem_t *item)
 	full_unlock(scene);
 
 	return index;
-}
-
-void obs_sceneitem_set_id(obs_sceneitem_t *item, int64_t id)
-{
-	item->id = id;
 }
 /*********************************************************************/

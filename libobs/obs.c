@@ -2554,15 +2554,6 @@ void *obs_obj_get_data(void *obj)
 	return context->data;
 }
 
-bool obs_obj_is_private(void *obj)
-{
-	struct obs_context_data *context = obj;
-	if (!context)
-		return false;
-
-	return context->private;
-}
-
 void obs_default_output_audio_device_changed()
 {
 	pthread_mutex_lock(&obs->audio.monitoring_mutex);
