@@ -10,6 +10,8 @@ extern "C" {
 #include "libavutil/avutil.h"
 #include "libavutil/hwcontext.h"
 #include "libavutil/pixdesc.h"
+#include <libavcodec/dxva2.h>
+#include <libavutil/hwcontext_dxva2.h>
 }
 
 class AVDecoder {

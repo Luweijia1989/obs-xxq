@@ -833,6 +833,7 @@ static const char *obs_signals[] = {
 	"void hotkey_unregister(ptr hotkey)",
 	"void hotkey_bindings_changed(ptr hotkey)",
 
+	"void obs_global_event(ptr event)",
 	NULL,
 };
 

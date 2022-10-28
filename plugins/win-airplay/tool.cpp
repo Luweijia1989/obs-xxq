@@ -1,7 +1,7 @@
 #include "tool.h"
 #include <QFile>
 #include <QStandardPaths>
-#include "qrcode/QrToPng.h"
+#include "qrcode/qr_to_png.h"
 
 #include <QJsonArray>
 #include <QJsonDocument>

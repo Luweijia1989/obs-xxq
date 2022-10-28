@@ -37,12 +37,14 @@
 #include "imgui_impl_dx12.h"
 
 // DirectX
+#include <stdio.h>
 #include <d3d12.h>
 #include <dxgi1_4.h>
 #include <d3dcompiler.h>
 
 // DirectX data
 static ID3D12Device*                g_pd3dDevice = NULL;
+static pD3DCompile		    g_d3dCompiler = NULL;
 static ID3D12RootSignature*         g_pRootSignature = NULL;
 static ID3D12PipelineState*         g_pPipelineState = NULL;
 static DXGI_FORMAT                  g_RTVFormat = DXGI_FORMAT_UNKNOWN;
@@ -73,6 +75,30 @@ struct VERTEX_CONSTANT_BUFFER
 {
     float   mvp[4][4];
 };
+
+static pD3DCompile get_compiler(void)
+{
+	pD3DCompile compile = nullptr;
+	char d3dcompiler[40] = {};
+	int ver = 49;
+
+	while (ver > 30) {
+		sprintf_s(d3dcompiler, 40, "D3DCompiler_%02d.dll", ver);
+
+		HMODULE module = LoadLibraryA(d3dcompiler);
+		if (module) {
+			compile = (pD3DCompile)GetProcAddress(module,
+							      "D3DCompile");
+			if (compile) {
+				break;
+			}
+		}
+
+		ver--;
+	}
+
+	return compile;
+}
 
 static void ImGui_ImplDX12_SetupRenderState(ImDrawData* draw_data, ID3D12GraphicsCommandList* ctx, FrameResources* fr)
 {
@@ -405,6 +431,8 @@ bool    ImGui_ImplDX12_CreateDeviceObjects()
 {
     if (!g_pd3dDevice)
         return false;
+    if (!g_d3dCompiler)
+	return false;
     if (g_pPipelineState)
         ImGui_ImplDX12_InvalidateDeviceObjects();
 
@@ -540,7 +568,7 @@ bool    ImGui_ImplDX12_CreateDeviceObjects()
               return output;\
             }";
 
-        if (FAILED(D3DCompile(vertexShader, strlen(vertexShader), NULL, NULL, NULL, "main", "vs_5_0", 0, 0, &vertexShaderBlob, NULL)))
+        if (FAILED(g_d3dCompiler(vertexShader, strlen(vertexShader), NULL, NULL, NULL, "main", "vs_5_0", 0, 0, &vertexShaderBlob, NULL)))
             return false; // NB: Pass ID3D10Blob* pErrorBlob to D3DCompile() to get error showing in (const char*)pErrorBlob->GetBufferPointer(). Make sure to Release() the blob!
         psoDesc.VS = { vertexShaderBlob->GetBufferPointer(), vertexShaderBlob->GetBufferSize() };
 
@@ -572,7 +600,7 @@ bool    ImGui_ImplDX12_CreateDeviceObjects()
               return out_col; \
             }";
 
-        if (FAILED(D3DCompile(pixelShader, strlen(pixelShader), NULL, NULL, NULL, "main", "ps_5_0", 0, 0, &pixelShaderBlob, NULL)))
+        if (FAILED(g_d3dCompiler(pixelShader, strlen(pixelShader), NULL, NULL, NULL, "main", "ps_5_0", 0, 0, &pixelShaderBlob, NULL)))
         {
             vertexShaderBlob->Release();
             return false; // NB: Pass ID3D10Blob* pErrorBlob to D3DCompile() to get error showing in (const char*)pErrorBlob->GetBufferPointer(). Make sure to Release() the blob!
@@ -660,6 +688,8 @@ bool ImGui_ImplDX12_Init(ID3D12Device* device, int num_frames_in_flight, DXGI_FO
     ImGuiIO& io = ImGui::GetIO();
     io.BackendRendererName = "imgui_impl_dx12";
     io.BackendFlags |= ImGuiBackendFlags_RendererHasVtxOffset;  // We can honor the ImDrawCmd::VtxOffset field, allowing for large meshes.
+
+    g_d3dCompiler = get_compiler();
 
     g_pd3dDevice = device;
     g_RTVFormat = rtv_format;

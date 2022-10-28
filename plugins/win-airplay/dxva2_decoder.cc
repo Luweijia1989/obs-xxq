@@ -1,10 +1,5 @@
 #include "dxva2_decoder.h"
-#include "av_log.h"
-
-#include "libavcodec/dxva2.h"
-#include "libavutil/hwcontext.h"
-#include "libavutil/hwcontext_dxva2.h"
-
+#include <util/base.h>
 
 static AVPixelFormat get_dxva2_hw_format(AVCodecContext* avctx, const enum AVPixelFormat* pix_fmts)
 {
@@ -38,7 +33,7 @@ static AVPixelFormat get_dxva2_hw_format(AVCodecContext* avctx, const enum AVPix
 		pix_fmts++;
 	}
 
-	LOG("Failed to get HW surface format.");
+	blog(LOG_DEBUG, "Failed to get HW surface format.");
 	return AV_PIX_FMT_NONE;
 }
 
@@ -95,9 +90,7 @@ static int dxva2_device_create2(AVHWDeviceContext* device_context, IDirect3DDevi
 	pCreateDeviceManager9* createDeviceManager = NULL;
 
 	unsigned reset_token = 0;
-	UINT adapter = D3DADAPTER_DEFAULT;
 	HRESULT hr = S_OK;
-	int err = 0;
 
 	dxva2_device_priv = (DXVA2DevicePriv*)av_mallocz(sizeof(*dxva2_device_priv));
 	if (!dxva2_device_priv) {
@@ -173,7 +166,7 @@ bool AVDecoder::CheckSPSChanged(uint8_t *data, size_t len)
 void AVDecoder::Init(uint8_t *data, size_t len, void* d3d9_device, bool useSoftware)
 {
 	if (codec_context_ != nullptr) {
-		LOG("codec was opened.");
+		blog(LOG_DEBUG, "codec was opened.");
 		return;
 	}
 
@@ -251,8 +244,7 @@ bool AVDecoder::initHwDecode(uint8_t *data, size_t len, void *d3d9_device)
 {
 	AVCodec *codec = avcodec_find_decoder(AV_CODEC_ID_H264);
 	if (!codec) {
-		LOG("decoder(%s) not found.",
-		    avcodec_get_name(AV_CODEC_ID_H264));
+		blog(LOG_DEBUG, "decoder(%s) not found.", avcodec_get_name(AV_CODEC_ID_H264));
 		return false;
 	}
 
@@ -265,11 +257,9 @@ bool AVDecoder::initHwDecode(uint8_t *data, size_t len, void *d3d9_device)
 	if (d3d9_device) {
 		device_buffer_ = av_hwdevice_ctx_alloc(hw_type);
 		device_context = (AVHWDeviceContext *)device_buffer_->data;
-		d3d9_device_context =
-			(AVDXVA2DeviceContext *)device_context->hwctx;
+		d3d9_device_context = (AVDXVA2DeviceContext *)device_context->hwctx;
 		codec_context_->opaque = device_buffer_;
-		dxva2_device_create2(device_context,
-				     (IDirect3DDevice9Ex *)d3d9_device);
+		dxva2_device_create2(device_context, (IDirect3DDevice9Ex *)d3d9_device);
 	} else {
 		av_hwdevice_ctx_create(&device_buffer_, hw_type, NULL, NULL, 0);
 	}
@@ -279,10 +269,10 @@ bool AVDecoder::initHwDecode(uint8_t *data, size_t len, void *d3d9_device)
 	codec_context_->thread_count = 1;
 
 	codec_context_->extradata = (uint8_t *)av_malloc(len);
-	codec_context_->extradata_size = len;
+	codec_context_->extradata_size = (int)len;
 	memcpy(codec_context_->extradata, data, len);
 	if (avcodec_open2(codec_context_, codec, NULL) != 0) {
-		LOG("Open decoder(%d) failed.", (int)AV_CODEC_ID_H264);
+		blog(LOG_DEBUG, "Open decoder(%d) failed.", (int)AV_CODEC_ID_H264);
 		goto failed;
 	}
 
@@ -300,17 +290,16 @@ bool AVDecoder::initSoftDecode(uint8_t *data, size_t len)
 {
 	AVCodec *codec = avcodec_find_decoder(AV_CODEC_ID_H264);
 	if (!codec) {
-		LOG("decoder(%s) not found.",
-		    avcodec_get_name(AV_CODEC_ID_H264));
+		blog(LOG_DEBUG, "decoder(%s) not found.", avcodec_get_name(AV_CODEC_ID_H264));
 		return false;
 	}
 
 	codec_context_ = avcodec_alloc_context3(codec);
 	codec_context_->extradata = (uint8_t *)av_malloc(len);
-	codec_context_->extradata_size = len;
+	codec_context_->extradata_size = (int)len;
 	memcpy(codec_context_->extradata, data, len);
 	if (avcodec_open2(codec_context_, codec, NULL) != 0) {
-		LOG("Open decoder(%d) failed.", (int)AV_CODEC_ID_H264);
+		blog(LOG_DEBUG, "Open decoder(%d) failed.", (int)AV_CODEC_ID_H264);
 		goto failed;
 	}
 

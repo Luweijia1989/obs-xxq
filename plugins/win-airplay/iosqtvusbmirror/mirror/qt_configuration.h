@@ -10,4 +10,4 @@
 int findInterfaceForSubclass(struct usb_config_descriptor *descriptor, int classType);
 int isQtConfig(struct usb_config_descriptor *descriptor);
 int isMuxConfig(struct usb_config_descriptor *descriptor);
-void findConfigurations(struct usb_device_descriptor *desc, struct usb_device *device, int *muxConfigIndex, int *qtConfigIndex);
+void findConfigurations(struct usb_device_descriptor *desc, struct usb_device *device, int *qtConfigIndex);
