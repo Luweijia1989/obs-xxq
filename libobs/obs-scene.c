@@ -1450,9 +1450,9 @@ obs_sceneitem_t *obs_scene_find_source(obs_scene_t *scene, const char *name)
 	return item;
 }
 
-obs_sceneitem_t *obs_scene_find_sceneitem_by_id(obs_scene_t *scene, int64_t id)
+obs_sceneitem_t *obs_scene_find_sceneitem_by_id(obs_scene_t *scene, int64_t id, const char *name)
 {
-	struct obs_scene_item *item;
+	struct obs_scene_item *item = NULL;
 
 	if (!scene)
 		return NULL;
@@ -1465,6 +1465,16 @@ obs_sceneitem_t *obs_scene_find_sceneitem_by_id(obs_scene_t *scene, int64_t id)
 			break;
 
 		item = item->next;
+	}
+
+	if (!item&&strlen(name)>0) {
+		item = scene->first_item;
+		while (item) {
+			if (strcmp(item->source->context.name, name) == 0)
+				break;
+
+			item = item->next;
+		}
 	}
 
 	full_unlock(scene);
@@ -2084,13 +2094,8 @@ void load_transform_states(obs_data_t *temp, void *vp_scene)
 {
 	obs_scene_t *scene = (obs_scene_t *)vp_scene;
 	int64_t id = obs_data_get_int(temp, "id");
-	obs_sceneitem_t *item = obs_scene_find_sceneitem_by_id(scene, id);
-	if (item == NULL) {
-		const char *name = obs_data_get_string(temp, "name");
-		if (strlen(name) > 0)
-			item = obs_scene_find_source(scene, name);
-	}
-
+	const char *name = obs_data_get_string(temp, "name");
+	obs_sceneitem_t *item = obs_scene_find_sceneitem_by_id(scene, id, name);
 	struct obs_transform_info info;
 	struct obs_sceneitem_crop crop;
 	obs_data_get_vec2(temp, "pos", &info.pos);

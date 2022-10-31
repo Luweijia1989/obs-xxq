@@ -1512,7 +1512,7 @@ EXPORT obs_sceneitem_t *obs_scene_find_source(obs_scene_t *scene,
 					      const char *name);
 
 EXPORT obs_sceneitem_t *obs_scene_find_sceneitem_by_id(obs_scene_t *scene,
-						       int64_t id);
+						       int64_t id, const char *name);
 
 /** Enumerates sources within a scene */
 EXPORT void obs_scene_enum_items(obs_scene_t *scene,
