@@ -151,7 +151,7 @@ inline HANDLE open_process(DWORD desired_access, bool inherit_handle, DWORD proc
 	return open_process_proc(desired_access, inherit_handle, process_id);
 }
 
-inline int s_cmp(const char *str1, const char *str2)
+int s_cmp(const char *str1, const char *str2)
 {
 	if (!str1 || !str2)
 		return -1;
