@@ -263,13 +263,9 @@ static void process_frame(void *data)
 		if (!buffer)
 			continue;
 
-		auto ts = os_gettime_ns();
 		struct background_removal_filter *tf = reinterpret_cast<background_removal_filter *>(data);
 
 		cv::Mat imageRGBA(height, width, CV_8UC4, buffer);
-
-		if (tf->backgroundMask.empty() || tf->backgroundMask.size().width != width || tf->backgroundMask.size().height != height)
-			tf->backgroundMask = cv::Mat(imageRGBA.size(), CV_8UC1, cv::Scalar(255));
 
 		tf->maskEveryXFramesCount = ++(tf->maskEveryXFramesCount) % tf->maskEveryXFrames;
 		if (tf->maskEveryXFramesCount != 0 && !tf->backgroundMaskCache.empty()) {
@@ -287,12 +283,20 @@ static void process_frame(void *data)
 
 		// Apply the mask back to the main image.
 		try {
-			imageRGBA.setTo(cv::Scalar(0, 0, 0, 0), tf->backgroundMask);
+			cv::Mat maskFloat;
+			int k_size = (int)(40 * 0.5);
+			cv::boxFilter(tf->backgroundMask, maskFloat, tf->backgroundMask.depth(), cv::Size(k_size, k_size));
+
+			for (size_t i = 0; i < height; i++) {
+				for (size_t m = 0; m < width; m++) {
+					auto index1 = i * width + m;
+					auto index = index1 * 4 + 3;
+					buffer[index] = 255 - *(maskFloat.ptr(i, m));
+				}
+			}
 		} catch (const std::exception &e) {
 			blog(LOG_ERROR, "%s", e.what());
 		}
-
-		blog(LOG_DEBUG, "===%lld", (os_gettime_ns() - ts) / 1000000);
 
 		std::unique_lock<std::mutex> lk(tf->mutex);
 		if (tf->cache_output_buffer.size() < size) {
@@ -325,6 +329,9 @@ static void *filter_create(obs_data_t *settings, obs_source_t *source)
 
 static struct obs_source_frame *filter_render(void *data, struct obs_source_frame *frame)
 {
+	if (frame->format != VIDEO_FORMAT_RGBA)
+		return frame;
+
 	struct background_removal_filter *tf = reinterpret_cast<background_removal_filter *>(data);
 	std::unique_lock<std::mutex> lk1(tf->mutex);
 	auto size = frame->width * frame->height * 4;
