@@ -176,16 +176,6 @@ static void filter_update(void *data, obs_data_t *settings)
 	tf->smoothContour = (float)obs_data_get_double(settings, "smooth_contour");
 	tf->maskEveryXFrames = (int)obs_data_get_int(settings, "mask_every_x_frames");
 	tf->maskEveryXFramesCount = (int)(0);
-
-	bool newUseGpu = obs_data_get_bool(settings, "useGPU");
-
-	if (!tf->model || tf->useGPU != newUseGpu) {
-		// Re-initialize model if it's not already the selected one or switching inference device
-		tf->useGPU = newUseGpu;
-		tf->model.reset(new ModelRVM);
-
-		createOrtSession(tf);
-	}
 }
 
 /**                   FILTER CORE                     */
@@ -263,6 +253,18 @@ static void process_frame(void *data)
 		if (!buffer)
 			continue;
 
+		auto settings = obs_source_get_settings(tf->source);
+		bool newUseGpu = obs_data_get_bool(settings, "useGPU");
+		obs_data_release(settings);
+
+		if (!tf->model || tf->useGPU != newUseGpu) {
+			// Re-initialize model if it's not already the selected one or switching inference device
+			tf->useGPU = newUseGpu;
+			tf->model.reset(new ModelRVM);
+
+			createOrtSession(tf);
+		}
+
 		auto ts = os_gettime_ns();
 		struct background_removal_filter *tf = reinterpret_cast<background_removal_filter *>(data);
 
@@ -306,7 +308,7 @@ static void process_frame(void *data)
 		free(buffer);
 		tf->out_available = true;
 
-		blog(LOG_DEBUG, "=====%lld", (os_gettime_ns()-ts)/1000000);
+		blog(LOG_DEBUG, "=====%lld", (os_gettime_ns() - ts) / 1000000);
 	}
 }
 
