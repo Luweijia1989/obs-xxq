@@ -263,6 +263,7 @@ static void process_frame(void *data)
 		if (!buffer)
 			continue;
 
+		auto ts = os_gettime_ns();
 		struct background_removal_filter *tf = reinterpret_cast<background_removal_filter *>(data);
 
 		cv::Mat imageRGBA(height, width, CV_8UC4, buffer);
@@ -286,14 +287,10 @@ static void process_frame(void *data)
 			cv::Mat maskFloat;
 			int k_size = (int)(40 * 0.5);
 			cv::boxFilter(tf->backgroundMask, maskFloat, tf->backgroundMask.depth(), cv::Size(k_size, k_size));
-
-			for (size_t i = 0; i < height; i++) {
-				for (size_t m = 0; m < width; m++) {
-					auto index1 = i * width + m;
-					auto index = index1 * 4 + 3;
-					buffer[index] = 255 - *(maskFloat.ptr(i, m));
-				}
-			}
+			unsigned char *maskFloatData = maskFloat.data;
+			imageRGBA.forEach<cv::Vec4b>([maskFloatData, width](cv::Vec4b &pixel, const int *position) -> void {
+				pixel[3] = 255 - *(maskFloatData + position[0] * width + position[1]);
+			});
 		} catch (const std::exception &e) {
 			blog(LOG_ERROR, "%s", e.what());
 		}
@@ -308,6 +305,8 @@ static void process_frame(void *data)
 		memcpy(tf->cache_output_buffer.data(), buffer, size);
 		free(buffer);
 		tf->out_available = true;
+
+		blog(LOG_DEBUG, "=====%lld", (os_gettime_ns()-ts)/1000000);
 	}
 }
 
