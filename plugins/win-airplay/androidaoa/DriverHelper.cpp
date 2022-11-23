@@ -5,7 +5,7 @@
 #include <QDebug>
 #include <QRunnable>
 #include <QThreadPool>
-#include "libusb.h"
+#include <libusb-1.0/libusb.h>
 
 const int GOOGLE_VID = 0x18D1;
 const int GOOGLE_PID = 0x2D04;
