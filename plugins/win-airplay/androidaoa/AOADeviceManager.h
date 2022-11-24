@@ -66,7 +66,6 @@ public:
 	~AOADeviceManager();
 
 	int connectDevice(libusb_device *device);
-	int isDroidInAcc(int vid, int pid);
 	void switchDroidToAcc(int vid, int pid, int force);
 	int setupDroid(libusb_device *usbDevice, accessory_droid *device);
 	int shutdownUSBDroid(accessory_droid *device);
@@ -77,7 +76,6 @@ public:
 	int checkAndInstallDriver();
 	bool startTask();
 	void deferUpdateUsbInventory(bool isAdd);
-	bool adbDeviceOpenAndCheck(WCHAR *devicePath);
 
 	void signalWait()
 	{
@@ -93,9 +91,7 @@ public:
 private:
 	int initUSB();
 	void clearUSB();
-	bool isAndroidADBDevice(int vid, int pid);
 	bool handleMediaData();
-	bool adbDeviceExist();
 
 signals:
 	void installProgress(int step, int value);
@@ -104,7 +100,7 @@ signals:
 	void deviceLost();
 
 public slots:
-	void updateUsbInventory(bool isDeviceAdd, bool checkAdb);
+	void updateUsbInventory(bool isDeviceAdd);
 	void disconnectDevice();
 
 private:
@@ -161,18 +157,11 @@ public:
 		};
 
 		registerNotification(USB_DEVICE_GUID, hDeviceNotify_normal);
-		registerNotification(ADB_DEVICE_GUID, hDeviceNotify_adb);
-
-		timer.setSingleShot(true);
-		timer.setInterval(2000);
-		connect(&timer, &QTimer::timeout, this,
-			[=]() { m_helper->deferUpdateUsbInventory(true); });
 	}
 
 	~HelerWidget()
 	{
 		UnregisterDeviceNotification(hDeviceNotify_normal);
-		UnregisterDeviceNotification(hDeviceNotify_adb);
 	}
 
 protected:
@@ -192,23 +181,8 @@ protected:
 						QString::fromWCharArray(
 							info->dbcc_name);
 					qDebug() << "new device: " << devicePath;
-					bool isAdbDevice = devicePath.endsWith(
-						"{f72fe0d4-cbcb-407d-8814-9ed673d0dd6b}", Qt::CaseInsensitive);
-					if (timer.isActive())
-						timer.stop();
-
-					if (!isAdbDevice) {
-						timer.start();
-						m_helper->signalWait();
-					} else {
-						if (!m_helper->adbDeviceOpenAndCheck(
-							    info->dbcc_name))
-							m_helper->deferUpdateUsbInventory(
-								true);
-						else
-							emit m_helper->infoPrompt(
-								u8"系统检测到手机的'USB调试'功能被打开，请在手机'设置'界面中'开发人员选项'里关闭此功能，并重新拔插手机！！");
-					}
+					m_helper->signalWait();
+					m_helper->deferUpdateUsbInventory(true);
 				}
 			} break;
 			case DBT_DEVICEREMOVECOMPLETE:
@@ -239,7 +213,6 @@ private:
 	HDEVNOTIFY hDeviceNotify_normal;
 	HDEVNOTIFY hDeviceNotify_adb;
 	AOADeviceManager *m_helper;
-	QTimer timer;
 };
 
 #endif // AOADEVICEMANAGER_H

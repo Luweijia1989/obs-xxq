@@ -30,7 +30,7 @@ int main(int argc, char *argv[]){
     QObject::connect(&manager, &AOADeviceManager::infoPrompt, &widget, &InformationWidget::onInfoPrompt);
     QObject::connect(&manager, &AOADeviceManager::deviceLost, &widget, &InformationWidget::onDeviceLost);
 
-    QMetaObject::invokeMethod(&manager, "updateUsbInventory", Qt::QueuedConnection, Q_ARG(bool, true), Q_ARG(bool, true));
+    QMetaObject::invokeMethod(&manager, "updateUsbInventory", Qt::QueuedConnection, Q_ARG(bool, true));
 
 
     HelerWidget w(&manager);

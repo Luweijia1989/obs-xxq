@@ -17,7 +17,26 @@ const char *version = "1.0";
 const char *uri = "https://www.yuerzhibo.com";
 const char *serial = "0000000012345678";
 
-extern bool isAOADevice(int vid, int pid);
+int isAOADevice(int vid, int pid)
+{
+	if (vid == VID_GOOGLE) {
+		switch (pid) {
+		case PID_AOA_ACC:
+		case PID_AOA_ACC_ADB:
+		case PID_AOA_ACC_AU:
+		case PID_AOA_ACC_AU_ADB:
+			return 1;
+		case PID_AOA_AU:
+		case PID_AOA_AU_ADB:
+			qDebug("device is audio-only\n");
+			break;
+		default:
+			break;
+		}
+	}
+
+	return 0;
+}
 
 GUID ADB_DEVICE_GUID = {0xf72fe0d4,
 			0xcbcb,
@@ -229,27 +248,6 @@ int AOADeviceManager::shutdownUSBDroid(accessory_droid *device)
 	return 0;
 }
 
-int AOADeviceManager::isDroidInAcc(int vid, int pid)
-{
-	if (vid == VID_GOOGLE) {
-		switch (pid) {
-		case PID_AOA_ACC:
-		case PID_AOA_ACC_ADB:
-		case PID_AOA_ACC_AU:
-		case PID_AOA_ACC_AU_ADB:
-			return 1;
-		case PID_AOA_AU:
-		case PID_AOA_AU_ADB:
-			qDebug("device is audio-only\n");
-			break;
-		default:
-			break;
-		}
-	}
-
-	return 0;
-}
-
 void AOADeviceManager::switchDroidToAcc(int vid, int pid, int force)
 {
 	struct libusb_device_handle *handle = nullptr;
@@ -456,11 +454,6 @@ void *AOADeviceManager::a2s_usbRxThread(void *d)
 	return NULL;
 }
 
-bool AOADeviceManager::isAndroidADBDevice(int vid, int pid)
-{
-	return vid == VID_GOOGLE && (pid == PID_AOA_ACC_AU_ADB || pid == PID_AOA_AU_ADB || pid == PID_AOA_ACC_AU_ADB);
-}
-
 int AOADeviceManager::startUSBPipe()
 {
 	m_continuousRead = true;
@@ -604,7 +597,7 @@ bool AOADeviceManager::startTask()
 			continue;
 		}
 
-		if (isDroidInAcc(desc.idVendor, desc.idProduct)) {
+		if (isAOADevice(desc.idVendor, desc.idProduct)) {
 			ret = connectDevice(m_devs[i]) == 0;
 			break;
 		}
@@ -618,150 +611,9 @@ void AOADeviceManager::deferUpdateUsbInventory(bool isAdd)
 	if (m_deviceChangeMutex.tryLock()) {
 		QMetaObject::invokeMethod(this, "updateUsbInventory",
 					  Qt::QueuedConnection,
-					  Q_ARG(bool, isAdd),
-					  Q_ARG(bool, false));
+					  Q_ARG(bool, isAdd));
 		m_deviceChangeMutex.unlock();
 	}
-}
-
-bool AOADeviceManager::adbDeviceOpenAndCheck(WCHAR *devicePath)
-{
-	// Open generic handle to device
-	HANDLE hnd = CreateFile(devicePath, GENERIC_WRITE | GENERIC_READ,
-				FILE_SHARE_WRITE | FILE_SHARE_READ, NULL,
-				OPEN_EXISTING,
-				FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OVERLAPPED,
-				NULL);
-	if ((hnd == NULL) || (hnd == INVALID_HANDLE_VALUE))
-		return false;
-
-	// Initialize WinUSB for this device and get a WinUSB handle for it
-	WINUSB_INTERFACE_HANDLE fd;
-	bool success = WinUsb_Initialize(hnd, &fd);
-	if (!success) {
-		CloseHandle(hnd);
-		return false;
-	}
-
-	auto sendControlMsg = [](WINUSB_INTERFACE_HANDLE fd, UCHAR requesttype,
-				 UCHAR request, USHORT value, USHORT index,
-				 UCHAR *bytes, USHORT size) -> bool {
-		WINUSB_SETUP_PACKET sp;
-		sp.RequestType = requesttype;
-		sp.Request = request;
-		sp.Value = value;
-		sp.Index = index;
-		sp.Length = size;
-
-		UCHAR buf[256] = {0};
-		memcpy(buf, bytes, size);
-
-		ULONG actlen = 0;
-		if (!WinUsb_ControlTransfer(fd, sp, buf, size, &actlen, NULL)) {
-			return false;
-		}
-
-		return actlen > 0;
-	};
-
-	const char *setupStrings[6];
-	setupStrings[0] = vendor;
-	setupStrings[1] = model;
-	setupStrings[2] = description;
-	setupStrings[3] = version;
-	setupStrings[4] = uri;
-	setupStrings[5] = serial;
-
-	int i = 0;
-	for (; i < 6; i++) {
-		bool pass = sendControlMsg(fd, 0x40, 52, 0, i,
-					   (unsigned char *)setupStrings[i],
-					   strlen(setupStrings[i]));
-		if (!pass)
-			break;
-	}
-
-	if (i == 6) {
-		sendControlMsg(fd, 0x40, 58, 1, 0, NULL, 0);
-		sendControlMsg(fd, 0x40, 53, 0, 0, NULL, 0);
-	}
-
-	WinUsb_Free(fd);
-	CloseHandle(hnd);
-
-	QThread::msleep(500);
-
-	bool adbexist = false;
-	libusb_context *ctx = nullptr;
-	libusb_init(&ctx);
-
-	libusb_device **devs = nullptr;
-	int count = libusb_get_device_list(ctx, &devs);
-	for (int i = 0; i < count; i++) {
-		struct libusb_device_descriptor desc;
-		int r = libusb_get_device_descriptor(devs[i], &desc);
-		if (r < 0) {
-			continue;
-		}
-
-		int isAndroid = isAndroidADBDevice(desc.idVendor, desc.idProduct);
-		if (isAndroid == 0) {
-			adbexist = true;
-			break;
-		}
-	}
-
-	libusb_free_device_list(devs, count);
-	libusb_exit(ctx);
-
-	return adbexist;
-}
-
-bool AOADeviceManager::adbDeviceExist()
-{
-	bool ret = false;
-	GUID hGuid = ADB_DEVICE_GUID;
-	HDEVINFO deviceInfo = SetupDiGetClassDevs(&hGuid, NULL, NULL, DIGCF_PRESENT | DIGCF_DEVICEINTERFACE);
-	if (!deviceInfo) {
-		return ret;
-	}
-
-	for (int i = 0; ; i++)
-        {
-		// Get interface data for next interface and attempt to init it
-		SP_DEVICE_INTERFACE_DATA interfaceData;
-		interfaceData.cbSize = sizeof(SP_DEVICE_INTERFACE_DATA);
-		if (!SetupDiEnumDeviceInterfaces(deviceInfo, NULL, &hGuid, i, &interfaceData)) 
-			break;
-
-		// Determine required size for interface detail data
-		ULONG requiredLength = 0;
-		if (!SetupDiGetDeviceInterfaceDetail(deviceInfo, &interfaceData, NULL, 0, &requiredLength, NULL)) {
-			auto err = GetLastError();
-			if (err != ERROR_INSUFFICIENT_BUFFER) {
-				SetupDiDestroyDeviceInfoList(deviceInfo);
-				break;
-			}
-		}
-
-		// Allocate storage for interface detail data
-		PSP_DEVICE_INTERFACE_DETAIL_DATA detailData = (PSP_DEVICE_INTERFACE_DETAIL_DATA)malloc(requiredLength);
-		detailData->cbSize = sizeof(SP_DEVICE_INTERFACE_DETAIL_DATA);
-
-		// Fetch interface detail data
-		if (!SetupDiGetDeviceInterfaceDetail(deviceInfo, &interfaceData, detailData, requiredLength, &requiredLength, NULL)) {
-			free(detailData);
-			continue;
-		}
-
-		ret = adbDeviceOpenAndCheck(detailData->DevicePath);
-		free(detailData);
-		if (ret)
-			break;
-	}
-
-	SetupDiDestroyDeviceInfoList(deviceInfo);
-	return ret;
 }
 
 int AOADeviceManager::checkAndInstallDriver() // 1->检测到adb 2->没找到android设备 3->切到aoa模式失败 4->还没切换呢就已经在aoa模式了，需要提醒用户插拔
@@ -788,7 +640,7 @@ Retry:
 		qDebug() << "checkInstall wait device reconnect finish";
 		goto Retry;
 	}
-	if (isDroidInAcc(m_androidDeviceInfo.vid, m_androidDeviceInfo.pid)) {
+	if (isAOADevice(m_androidDeviceInfo.vid, m_androidDeviceInfo.pid)) {
 		ret = sendSwitchCommand ? 0 : 4;
 	} else {
 		qDebug() << "switch command loop count: " << switchAOACount;
@@ -869,11 +721,6 @@ bool AOADeviceManager::enumDeviceAndCheck()
 		if (!ok)
 			continue;
 
-		if (isAndroidADBDevice(vid, pid)) {
-			emit infoPrompt(u8"系统检测到手机的'USB调试'功能被打开，请在手机'设置'界面中'开发人员选项'里关闭此功能，并重新拔插手机！！");
-			break;
-		}
-
 		if (!m_vids.contains(vid))
 			continue;
 
@@ -912,31 +759,27 @@ bool AOADeviceManager::enumDeviceAndCheck()
 	return ret;
 }
 
-void AOADeviceManager::updateUsbInventory(bool isDeviceAdd, bool checkAdb)
+void AOADeviceManager::updateUsbInventory(bool isDeviceAdd)
 {
 	QMutexLocker locker(&m_deviceChangeMutex);
 	qDebug() << "enter updateUsbInventory";
 	bool doLost = true;
 	if (isDeviceAdd && !m_droid.connected) {
-		if (!checkAdb || !adbDeviceExist()) {
-			bool exist = enumDeviceAndCheck();
-			if (exist) {
-				int ret = checkAndInstallDriver();
-				if (ret == 0)
-					startTask();
-				else if (ret == 3)
-					emit infoPrompt(u8"启动投屏服务失败，后台退出鱼耳直播APP，插拔手机后再试。");
-				else if (ret == 4)
-					emit infoPrompt(u8"启动投屏服务失败，请插拔手机后再试。");
-				else
-					qDebug() << "checkAndInstallDriver return : " << ret;
-			}
+		bool exist = enumDeviceAndCheck();
+		if (exist) {
+			int ret = checkAndInstallDriver();
+			if (ret == 0)
+				startTask();
+			else if (ret == 3)
+				emit infoPrompt(u8"启动投屏服务失败，后台退出鱼耳直播APP，插拔手机后再试。");
+			else if (ret == 4)
+				emit infoPrompt(u8"启动投屏服务失败，请插拔手机后再试。");
+			else
+				qDebug() << "checkAndInstallDriver return : " << ret;
+		}
 
-			if (exist)
-				doLost = false;
-		} else
-			emit infoPrompt(
-				u8"系统检测到手机的'USB调试'功能被打开，请在手机'设置'界面中'开发人员选项'里关闭此功能，并重新拔插手机！！");
+		if (exist)
+			doLost = false;
 	}
 
 	if (doLost)

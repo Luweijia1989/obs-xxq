@@ -7,13 +7,7 @@
 #include <QThreadPool>
 #include <libusb-1.0/libusb.h>
 
-const int GOOGLE_VID = 0x18D1;
-const int GOOGLE_PID = 0x2D04;
-
-bool isAOADevice(int vid, int pid)
-{
-	return vid == GOOGLE_VID && pid == GOOGLE_PID;
-}
+extern int isAOADevice(int vid, int pid);
 
 #define safe_free(p)                     \
 	do {                             \
