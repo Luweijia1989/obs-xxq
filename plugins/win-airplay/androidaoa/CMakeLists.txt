@@ -7,11 +7,11 @@ else()
 endif()
 
 find_package(Qt5Widgets REQUIRED)
+find_package(LibUSB REQUIRED)
 set(CMAKE_AUTOMOC TRUE)
 
 include_directories(
 	${PROJECT_SOURCE_DIR}/libwdi/include
-	${PROJECT_SOURCE_DIR}/libusb/include
 )
 
 set(android-aoa-server_SOURCES
@@ -33,13 +33,12 @@ add_executable(android-aoa-server
 	)
 
 target_link_libraries(android-aoa-server
+	${LIB_USB_LIBRARIES}
 	mirror-ipc
 	libobs
 	Qt5::Widgets
 	debug ${PROJECT_SOURCE_DIR}/libwdi/lib/${_bit_suffix}/libwdid.lib
 	optimized ${PROJECT_SOURCE_DIR}/libwdi/lib/${_bit_suffix}/libwdi.lib
-	debug ${PROJECT_SOURCE_DIR}/libusb/lib/${_bit_suffix}/libusb-1.0-d.lib
-	optimized ${PROJECT_SOURCE_DIR}/libusb/lib/${_bit_suffix}/libusb-1.0.lib
 	Setupapi
 	ntdll)
 

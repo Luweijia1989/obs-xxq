@@ -51,7 +51,7 @@
 #include "lib/logger.h"
 #include "lib/dnssd.h"
 
-#include "aacdecoder_lib.h"
+#include <fdk-aac/aacdecoder_lib.h>
 
 #define VERSION "1.2"
 
