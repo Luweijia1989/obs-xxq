@@ -656,6 +656,9 @@ int usb_discover(void)
 
 	usbmuxd_log(LL_SPEW, "usb_discover: scanning %d devices", cnt);
 
+	usb_find_busses();
+	usb_find_devices();
+
 	// Mark all devices as dead, and do a mark-sweep like
 	// collection of dead devices
 	FOREACH(struct usb_device * usbdev, &device_list) { usbdev->alive = 0; }
