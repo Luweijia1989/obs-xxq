@@ -34,13 +34,19 @@ add_library(phone-camera MODULE
 	${phone-camera_HEADERS}
 	${usbmuxd_SRC}
 	${usbmuxd_HEADER})
+
+foreach(lib ${PLIST_LIBRARIES} ${OpenSSL_LIBRARIES} ${FDKAAC_LIBRARIES} ${IMOBILEDEVICE_LIBRARIES} ${LIBUSBMUXD_LIBRARIES} ${LIB_USB_LIBRARIES})
+    list (APPEND RELEASE_LINK_LIST optimized ${lib})
+endforeach()
+
+foreach(lib ${PLIST_DEBUG_LIBRARIES} ${OpenSSL_DEBUG_LIBRARIES} ${FDKAAC_DEBUG_LIBRARIES} ${IMOBILEDEVICE_DEBUG_LIBRARIES} ${LIBUSBMUXD_DEBUG_LIBRARIES} ${LIB_USB_DEBUG_LIBRARIES})
+    list (APPEND DEBUG_LINK_LIST debug ${lib})
+endforeach()
+
 target_link_libraries(phone-camera
+	${RELEASE_LINK_LIST}
+	${DEBUG_LINK_LIST}
 	Setupapi
-	${PLIST_LIBRARIES}
-	${OpenSSL_LIBRARIES}
-	${LIB_USB_LIBRARIES}
-	${IMOBILEDEVICE_LIBRARIES}
-	${LIBUSBMUXD_LIBRARIES}
 	w32-pthreads
 	libobs
 	Qt5::Gui

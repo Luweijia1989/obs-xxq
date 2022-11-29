@@ -121,7 +121,7 @@ private:
 
 private:
 	pthread_t m_loopThread = {0};
-	PhoneType m_phoneType = Android;
+	PhoneType m_phoneType = iOS;
 	NativeEventFilter *m_eventFilter = nullptr;
 	QSet<int> m_vids;
 	DeviceInfo m_validDevice;

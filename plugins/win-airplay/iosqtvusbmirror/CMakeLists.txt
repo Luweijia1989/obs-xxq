@@ -48,10 +48,17 @@ add_executable(ios-qtvusb-mirror
 	${ios-qtvusb-mirror_SRC}
 	${ios-qtvusb-mirror_HEADER})
 
+foreach(lib ${PLIST_LIBRARIES} ${OpenSSL_LIBRARIES} ${LIB_USB_LIBRARIES})
+    list (APPEND RELEASE_LINK_LIST optimized ${lib})
+endforeach()
+
+foreach(lib ${PLIST_DEBUG_LIBRARIES} ${OpenSSL_DEBUG_LIBRARIES} ${LIB_USB_DEBUG_LIBRARIES})
+    list (APPEND DEBUG_LINK_LIST debug ${lib})
+endforeach()
+
 target_link_libraries(ios-qtvusb-mirror
-	${PLIST_LIBRARIES}
-	${OpenSSL_LIBRARIES}
-	${LIB_USB_LIBRARIES}
+	${RELEASE_LINK_LIST}
+	${DEBUG_LINK_LIST}
 	mirror-ipc
 	libobs
 	Qt5::Widgets

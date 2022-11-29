@@ -32,8 +32,17 @@ add_executable(android-aoa-server
 	${android-aoa-server_HEADERS}
 	)
 
+foreach(lib ${LIB_USB_LIBRARIES})
+    list (APPEND RELEASE_LINK_LIST optimized ${lib})
+endforeach()
+
+foreach(lib ${LIB_USB_DEBUG_LIBRARIES})
+    list (APPEND DEBUG_LINK_LIST debug ${lib})
+endforeach()
+
 target_link_libraries(android-aoa-server
 	${LIB_USB_LIBRARIES}
+	${DEBUG_LINK_LIST}
 	mirror-ipc
 	libobs
 	Qt5::Widgets

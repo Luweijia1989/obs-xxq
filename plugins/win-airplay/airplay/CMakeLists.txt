@@ -40,11 +40,18 @@ add_executable(airplay-server
 	${airplay_main_SRC}
 	${airplay_extra_SOURCES}
 	${airplay_extra_HEADERS})
-	
+
+foreach(lib ${PLIST_LIBRARIES} ${OpenSSL_LIBRARIES} ${FDKAAC_LIBRARIES})
+    list (APPEND RELEASE_LINK_LIST optimized ${lib})
+endforeach()
+
+foreach(lib ${PLIST_DEBUG_LIBRARIES} ${OpenSSL_DEBUG_LIBRARIES} ${FDKAAC_DEBUG_LIBRARIES})
+    list (APPEND DEBUG_LINK_LIST debug ${lib})
+endforeach()
+
 target_link_libraries(airplay-server
-	${PLIST_LIBRARIES}
-	${OpenSSL_LIBRARIES}
-	${FDKAAC_LIBRARIES}
+	${RELEASE_LINK_LIST}
+	${DEBUG_LINK_LIST}
 	Setupapi
 	Dbghelp
 	Shlwapi
