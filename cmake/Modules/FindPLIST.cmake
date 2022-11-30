@@ -1,4 +1,4 @@
-find_path(PLIST_INCLUDE_DIR NAMES plist.h HINTS "${DepsPath}/include")
+find_path(PLIST_INCLUDE_DIR NAMES plist/plist.h HINTS "${DepsPath}/include")
 
 find_library(PLIST_LIB NAMES plist-2.0 PATHS "${DepsPath}/bin")
 find_library(PLIST_LIB++ NAMES plist++-2.0 PATHS "${DepsPath}/bin")

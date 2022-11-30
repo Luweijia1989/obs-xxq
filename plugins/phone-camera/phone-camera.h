@@ -13,6 +13,7 @@
 #include <qeventloop.h>
 
 #include "usb-helper.h"
+#include <obs.h>
 
 class NativeEventFilter : public QObject, public QAbstractNativeEventFilter {
 	Q_OBJECT
@@ -85,10 +86,12 @@ private:
 	QWidget *m_dummyWidget;
 };
 
+class iOSCamera;
 class PhoneCamera : public QObject {
 	Q_OBJECT
 public:
 	enum PhoneType {
+		None,
 		iOS,
 		Android,
 	};
@@ -100,14 +103,14 @@ public:
 		bool aoa;
 	};
 
-	PhoneCamera();
+	PhoneCamera(obs_data_t *settings, obs_source_t *source);
 	~PhoneCamera();
 
-	void startLoopThread();
-	void stopLoopThread();
-	void switchPhoneType(PhoneType type);
-
 	PhoneType type() { return m_phoneType; }
+	const QMap<QString, QString> &deviceList() const;
+
+public slots:
+	void switchPhoneType(int type);
 
 private:
 	void initAndroidVids();
@@ -115,17 +118,23 @@ private:
 	QList<QString> enumUSBDevice();
 	void doDriverProcess();
 	void installAndroidExtraDriver();
+	void driverInstallationPrepare();
 	void startFinalTask();
 
 	void switchDroidToAcc(int vid, int pid, int force);
 
 private:
-	pthread_t m_loopThread = {0};
-	PhoneType m_phoneType = iOS;
 	NativeEventFilter *m_eventFilter = nullptr;
 	QSet<int> m_vids;
 	DeviceInfo m_validDevice;
 	QProcess m_driverInstallProcess;
 	QTimer m_driverInstallTimer;
 	QEventLoop m_eventLoop;
+
+	/***************************/
+	PhoneType m_phoneType = None;
+	iOSCamera *m_iOSCamera = nullptr;
+	QMap<QString, QString> m_iOSDevices;
+
+	obs_source_t *m_source;
 };

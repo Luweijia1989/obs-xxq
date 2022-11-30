@@ -1,21 +1,67 @@
 #include "phone-camera.h"
-#include <obs.h>
 #include <qcoreapplication.h>
 #include <Setupapi.h>
 #include <Devpkey.h>
 #include <qstandardpaths.h>
 #include <qfile.h>
 #include <libusb-1.0/libusb.h>
+#include <usbmuxd.h>
+
+#include "ios-camera.h"
+
+#define IOS_DEVICE_LIST "iOS_device_list"
 
 extern "C" {
-extern int usbmuxd_process();
-extern int should_exit;
+int in_install_driver;
+pthread_mutex_t lock = PTHREAD_RECURSIVE_MUTEX_INITIALIZER;
+
+void lock_install()
+{
+	pthread_mutex_lock(&lock);
+}
+
+void unlock_install()
+{
+	pthread_mutex_unlock(&lock);
+}
 }
 
 QSet<QString> installingDevices;
 QSet<QString> runningDevices;
 
-PhoneCamera::PhoneCamera()
+PhoneCamera::PhoneCamera(obs_data_t *settings, obs_source_t *source) : m_source(source)
+{
+	int type = obs_data_get_int(settings, "phoneType");
+	switchPhoneType(iOS);
+
+	driverInstallationPrepare();
+
+	auto list = enumUSBDevice();
+	for (auto iter = list.begin(); iter != list.end(); iter++) {
+		const QString &path = *iter;
+		if (installingDevices.contains(path) || runningDevices.contains(path))
+			continue;
+
+		if (checkTargetDevice(path)) {
+			if (isAOADevice(m_validDevice.vid, m_validDevice.pid))
+				qDebug() << "start with aoa device connected, should reconnect";
+			else
+				doDriverProcess();
+			break;
+		}
+	}
+}
+
+PhoneCamera::~PhoneCamera()
+{
+	qApp->removeNativeEventFilter(m_eventFilter);
+	delete m_eventFilter;
+
+	if (m_iOSCamera)
+		delete m_iOSCamera;
+}
+
+void PhoneCamera::driverInstallationPrepare()
 {
 	initAndroidVids();
 
@@ -79,6 +125,9 @@ PhoneCamera::PhoneCamera()
 				else
 					qDebug() << "iOS driver error, try restart";
 			}
+
+			in_install_driver = 0;
+			unlock_install();
 		});
 
 	connect(&m_driverInstallTimer, &QTimer::timeout, this, [=]() { m_driverInstallProcess.kill(); });
@@ -87,27 +136,6 @@ PhoneCamera::PhoneCamera()
 
 	m_driverInstallTimer.setSingleShot(true);
 	m_driverInstallTimer.setInterval(60 * 10 * 1000);
-
-	auto list = enumUSBDevice();
-	for (auto iter = list.begin(); iter != list.end(); iter++) {
-		const QString &path = *iter;
-		if (installingDevices.contains(path) || runningDevices.contains(path))
-			continue;
-
-		if (checkTargetDevice(path)) {
-			if (isAOADevice(m_validDevice.vid, m_validDevice.pid))
-				qDebug() << "start with aoa device connected, should reconnect";
-			else
-				doDriverProcess();
-			break;
-		}
-	}
-}
-
-PhoneCamera::~PhoneCamera()
-{
-	qApp->removeNativeEventFilter(m_eventFilter);
-	delete m_eventFilter;
 }
 
 void PhoneCamera::initAndroidVids()
@@ -133,34 +161,30 @@ void PhoneCamera::initAndroidVids()
 	}
 }
 
-static void *loopFunc(void *arg)
+void PhoneCamera::switchPhoneType(int type)
 {
-	PhoneCamera *camera = (PhoneCamera *)arg;
-	if (1 || camera->type() == PhoneCamera::iOS) {
-		usbmuxd_process();
+	if (type == m_phoneType)
+		return;
+
+	m_phoneType = (PhoneType)type;
+
+	if (m_iOSCamera) {
+		m_iOSCamera->deleteLater();
+		m_iOSCamera = nullptr;
 	}
-	return NULL;
+	if (type == iOS) {
+		m_iOSCamera = new iOSCamera(this);
+		connect(m_iOSCamera, &iOSCamera::updateDeviceList, this, [=](QMap<QString, QString> devices){
+			m_iOSDevices = devices;
+		});
+		m_iOSCamera->start();
+	} else if (type == Android) {
+	}
 }
 
-void PhoneCamera::startLoopThread()
+const QMap<QString, QString> &PhoneCamera::deviceList() const
 {
-	pthread_create(&m_loopThread, NULL, loopFunc, this);
-}
-
-void PhoneCamera::stopLoopThread()
-{
-	if (1 || m_phoneType == iOS)
-		should_exit = 1;
-
-	pthread_join(m_loopThread, NULL);
-	m_loopThread = {0};
-}
-
-void PhoneCamera::switchPhoneType(PhoneType type)
-{
-	stopLoopThread();
-	m_phoneType = type;
-	startLoopThread();
+	return m_iOSDevices;
 }
 
 bool PhoneCamera::checkTargetDevice(QString devicePath)
@@ -267,6 +291,9 @@ void PhoneCamera::doDriverProcess()
 
 	if (installingDevices.contains(m_validDevice.devicePath))
 		return;
+
+	lock_install();
+	in_install_driver = 1;
 
 	installingDevices.insert(m_validDevice.devicePath);
 
@@ -381,9 +408,7 @@ static void *CreatePhoneCameraInput(obs_data_t *settings, obs_source_t *source)
 	PhoneCamera *cameraInput = nullptr;
 
 	try {
-		cameraInput = new PhoneCamera;
-		cameraInput->startLoopThread();
-		UpdatePhoneCameraInput(cameraInput, settings);
+		cameraInput = new PhoneCamera(settings, source);
 	} catch (const char *error) {
 		blog(LOG_ERROR, "Could not create device '%s': %s", obs_source_get_name(source), error);
 	}
@@ -393,7 +418,6 @@ static void *CreatePhoneCameraInput(obs_data_t *settings, obs_source_t *source)
 
 static void DestroyPhoneCameraInput(void *data)
 {
-	reinterpret_cast<PhoneCamera *>(data)->stopLoopThread();
 	delete reinterpret_cast<PhoneCamera *>(data);
 }
 
@@ -409,10 +433,39 @@ static void ActivatePhoneCameraInput(void *data)
 	//cameraInput->activate();
 }
 
+static bool DeviceSelectionChanged(obs_properties_t *props, obs_property_t *p, obs_data_t *settings)
+{
+
+	return false;
+}
+
+static bool UpdateClicked(obs_properties_t *props, obs_property_t *p, void *data)
+{
+	PhoneCamera *camera = reinterpret_cast<PhoneCamera *>(data);
+	auto devices = camera->deviceList();
+
+	obs_property_t *dev_list = obs_properties_get(props, IOS_DEVICE_LIST);
+	obs_property_list_clear(dev_list);
+
+	for (auto iter = devices.begin(); iter != devices.end(); iter++) {
+		obs_property_list_add_string(dev_list, iter.value().toUtf8().data(), iter.key().toUtf8().data());
+	}
+
+	return true;
+}
+
 static obs_properties_t *GetPhoneCameraProperties(void *data)
 {
 	UNUSED_PARAMETER(data);
+
+	PhoneCamera *camera = reinterpret_cast<PhoneCamera *>(data);
 	obs_properties_t *ppts = obs_properties_create();
+
+	obs_property_t *p = obs_properties_add_list(ppts, IOS_DEVICE_LIST, "iOS device list", OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_STRING);
+	UpdateClicked(ppts, p, camera);
+
+	obs_property_set_modified_callback(p, DeviceSelectionChanged);
+	obs_properties_add_button(ppts, "update", "update device list", UpdateClicked);
 
 	return ppts;
 }
@@ -428,6 +481,8 @@ static void SavePhoneCameraInput(void *data, obs_data_t *settings)
 static void UpdatePhoneCameraInput(void *data, obs_data_t *settings)
 {
 	PhoneCamera *input = reinterpret_cast<PhoneCamera *>(data);
+	int type = obs_data_get_int(settings, "phoneType");
+	QMetaObject::invokeMethod(input, "switchPhoneType", Q_ARG(int, 1));
 }
 
 void RegisterPhoneCamera()

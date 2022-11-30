@@ -194,12 +194,12 @@ file(GLOB QT_ICU_BIN_FILES
 	"${Qt5Core_DIR}/../../../bin/icu*.dll")
 
 file(GLOB PLIST_BIN_FILES "${PLIST_INCLUDE_DIR}/../bin/plist*.dll")
-file(GLOB LIBIMOBILEDEVICE_BIN_FILES "${IMOBILEDEVICE_INCLUDE_DIRS}/../bin/libimobiledevice*.dll")
-file(GLOB LIBUSBMUXD_BIN_FILES "${LIBUSBMUXD_INCLUDE_DIRS}/../bin/libusbmuxd.dll")
+file(GLOB LIBIMOBILEDEVICE_BIN_FILES "${LIBIMOBILEDEVICE_INCLUDE_DIR}/../bin/libimobiledevice*.dll")
+file(GLOB LIBUSBMUXD_BIN_FILES "${LIBUSBMUXD_INCLUDE_DIR}/../bin/libusbmuxd.dll")
 
-file(GLOB PLIST_DEBUG_BIN_FILES "${PLIST_INCLUDE_DIR}/../bin/plist*.dll")
-file(GLOB LIBIMOBILEDEVICE_DEBUG_BIN_FILES "${IMOBILEDEVICE_INCLUDE_DIRS}/../bin/libimobiledevice*.dll")
-file(GLOB LIBUSBMUXD_DEBUG_BIN_FILES "${LIBUSBMUXD_INCLUDE_DIRS}/../bin/libusbmuxd.dll")
+file(GLOB PLIST_DEBUG_BIN_FILES "${PLIST_INCLUDE_DIR}/../bin/debug/plist*.dll")
+file(GLOB LIBIMOBILEDEVICE_DEBUG_BIN_FILES "${LIBIMOBILEDEVICE_INCLUDE_DIR}/../bin/debug/libimobiledevice*.dll")
+file(GLOB LIBUSBMUXD_DEBUG_BIN_FILES "${LIBUSBMUXD_INCLUDE_DIR}/../bin/debug/libusbmuxd.dll")
 
 set(ALL_BASE_BIN_FILES
 	${FFMPEG_BIN_FILES}

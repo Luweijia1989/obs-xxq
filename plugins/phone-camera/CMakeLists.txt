@@ -22,11 +22,13 @@ file(GLOB usbmuxd_HEADER ${PROJECT_SOURCE_DIR}/ios/usbmuxd/*.h)
 
 set(phone-camera_HEADERS
 	phone-camera.h
-	usb-helper.h)
+	usb-helper.h
+	ios-camera.h)
 
 set(phone-camera_SOURCES
 	phone-camera.cpp
 	usb-helper.cpp
+	ios-camera.cpp
 	plugin-main.cpp)
 
 add_library(phone-camera MODULE

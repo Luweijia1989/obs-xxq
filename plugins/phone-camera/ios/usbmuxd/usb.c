@@ -630,8 +630,17 @@ static int usb_device_add(libusb_device *dev)
 	return 0;
 }
 
+extern int in_install_driver;
+extern void lock_install();
+extern void unlock_install();
 int usb_discover(void)
 {
+	lock_install();
+	if (in_install_driver) {
+		unlock_install();
+		return 0;
+	}
+
 	int cnt, i;
 	int valid_count = 0;
 	libusb_device **devs;
@@ -683,6 +692,8 @@ int usb_discover(void)
 	next_dev_poll_time.tv_usec += DEVICE_POLL_TIME * 1000;
 	next_dev_poll_time.tv_sec += next_dev_poll_time.tv_usec / 1000000;
 	next_dev_poll_time.tv_usec = next_dev_poll_time.tv_usec % 1000000;
+
+	unlock_install();
 
 	return valid_count;
 }
