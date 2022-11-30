@@ -529,6 +529,10 @@ void device_client_process(int device_id, struct mux_client *client, short event
 		}
 		conn->tx_seq += size;
 	}
+	if(events & POLLERR || events & POLLHUP) {
+		connection_teardown(conn);
+		return;
+	}
 
 	update_connection(conn);
 }

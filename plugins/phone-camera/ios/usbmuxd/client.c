@@ -1010,9 +1010,10 @@ void client_process(int fd, short events)
 			process_recv(client);
 		} else if(events & POLLOUT) { //not both in case client died as part of process_recv
 			process_send(client);
+		} else if(events & POLLERR || events & POLLHUP) {
+			client_close(client);
 		}
 	}
-
 }
 
 void client_device_add(struct device_info *dev)
