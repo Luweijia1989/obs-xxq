@@ -15,6 +15,10 @@
 #include "usb-helper.h"
 #include <obs.h>
 
+extern "C" {
+#include "ffmpeg-decode.h"
+}
+
 class NativeEventFilter : public QObject, public QAbstractNativeEventFilter {
 	Q_OBJECT
 private:
@@ -86,6 +90,17 @@ private:
 	QWidget *m_dummyWidget;
 };
 
+class Decoder {
+	struct ffmpeg_decode decode;
+
+public:
+	inline Decoder() { memset(&decode, 0, sizeof(decode)); }
+	inline ~Decoder() { ffmpeg_decode_free(&decode); }
+
+	inline operator ffmpeg_decode *() { return &decode; }
+	inline ffmpeg_decode *operator->() { return &decode; }
+};
+
 class iOSCamera;
 class PhoneCamera : public QObject {
 	Q_OBJECT
@@ -107,7 +122,7 @@ public:
 	~PhoneCamera();
 
 	PhoneType type() { return m_phoneType; }
-	const QMap<QString, QString> &deviceList() const;
+	const QMap<QString, QPair<QString, uint32_t>> &deviceList() const;
 
 public slots:
 	void switchPhoneType(int type);
@@ -134,7 +149,10 @@ private:
 	/***************************/
 	PhoneType m_phoneType = None;
 	iOSCamera *m_iOSCamera = nullptr;
-	QMap<QString, QString> m_iOSDevices;
+	QMap<QString, QPair<QString, uint32_t>> m_iOSDevices;
 
 	obs_source_t *m_source;
+	Decoder *m_audioDecoder = nullptr;
+	Decoder *m_videoDecoder = nullptr;
+	obs_source_frame2 frame = { 0 };
 };

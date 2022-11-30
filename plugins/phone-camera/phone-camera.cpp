@@ -6,10 +6,12 @@
 #include <qfile.h>
 #include <libusb-1.0/libusb.h>
 #include <usbmuxd.h>
+#include <util/platform.h>
 
 #include "ios-camera.h"
 
 #define IOS_DEVICE_LIST "iOS_device_list"
+#define IOS_DEVICE_UDID "iOS_udid"
 
 extern "C" {
 int in_install_driver;
@@ -31,7 +33,50 @@ QSet<QString> runningDevices;
 
 PhoneCamera::PhoneCamera(obs_data_t *settings, obs_source_t *source) : m_source(source)
 {
+	video_format_get_parameters(VIDEO_CS_601, VIDEO_RANGE_DEFAULT, frame.color_matrix, frame.color_range_min, frame.color_range_max);
+
+	m_iOSCamera = new iOSCamera(this);
+	connect(m_iOSCamera, &iOSCamera::updateDeviceList, this, [=](QMap<QString, QPair<QString, uint32_t>> devices) { m_iOSDevices = devices; });
+	connect(m_iOSCamera, &iOSCamera::mediaData, this,
+		[this](uint8_t *data, size_t size, bool isVideo) {
+			uint64_t curTs = os_gettime_ns();
+			if (isVideo) {
+				if (!m_videoDecoder)
+					m_videoDecoder = new Decoder();
+
+				if (!ffmpeg_decode_valid(*m_videoDecoder)) {
+					if (ffmpeg_decode_init(*m_videoDecoder, AV_CODEC_ID_H264, false) < 0) {
+						blog(LOG_WARNING, "Could not initialize video decoder");
+						return;
+					}
+				}
+
+				long long ts = curTs;
+				bool got_output;
+				bool success = ffmpeg_decode_video(*m_videoDecoder, data, size, &ts, VIDEO_RANGE_DEFAULT, &frame, &got_output);
+				if (!success) {
+					blog(LOG_WARNING, "Error decoding video");
+					return;
+				}
+
+				if (got_output) {
+					frame.timestamp = curTs;
+					obs_source_output_video2(m_source, &frame);
+				}
+			}
+		},
+		Qt::DirectConnection);
+	connect(m_iOSCamera, &iOSCamera::mediaFinish, this,
+		[this]() {
+			if (m_audioDecoder)
+				delete m_audioDecoder;
+			if (m_videoDecoder)
+				delete m_videoDecoder;
+		},
+		Qt::DirectConnection);
+
 	int type = obs_data_get_int(settings, "phoneType");
+	m_iOSCamera->setCurrentDevice(obs_data_get_string(settings, IOS_DEVICE_UDID));
 	switchPhoneType(iOS);
 
 	driverInstallationPrepare();
@@ -57,8 +102,7 @@ PhoneCamera::~PhoneCamera()
 	qApp->removeNativeEventFilter(m_eventFilter);
 	delete m_eventFilter;
 
-	if (m_iOSCamera)
-		delete m_iOSCamera;
+	delete m_iOSCamera;
 }
 
 void PhoneCamera::driverInstallationPrepare()
@@ -168,21 +212,14 @@ void PhoneCamera::switchPhoneType(int type)
 
 	m_phoneType = (PhoneType)type;
 
-	if (m_iOSCamera) {
-		m_iOSCamera->deleteLater();
-		m_iOSCamera = nullptr;
-	}
+	m_iOSCamera->stop();
 	if (type == iOS) {
-		m_iOSCamera = new iOSCamera(this);
-		connect(m_iOSCamera, &iOSCamera::updateDeviceList, this, [=](QMap<QString, QString> devices){
-			m_iOSDevices = devices;
-		});
 		m_iOSCamera->start();
 	} else if (type == Android) {
 	}
 }
 
-const QMap<QString, QString> &PhoneCamera::deviceList() const
+const QMap<QString, QPair<QString, uint32_t>> &PhoneCamera::deviceList() const
 {
 	return m_iOSDevices;
 }
@@ -448,7 +485,7 @@ static bool UpdateClicked(obs_properties_t *props, obs_property_t *p, void *data
 	obs_property_list_clear(dev_list);
 
 	for (auto iter = devices.begin(); iter != devices.end(); iter++) {
-		obs_property_list_add_string(dev_list, iter.value().toUtf8().data(), iter.key().toUtf8().data());
+		obs_property_list_add_string(dev_list, iter.value().first.toUtf8().data(), iter.key().toUtf8().data());
 	}
 
 	return true;

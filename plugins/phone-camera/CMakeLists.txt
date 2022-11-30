@@ -9,6 +9,9 @@ find_package(Libusbmuxd REQUIRED)
 find_package(Qt5Gui REQUIRED)
 find_package(Qt5Widgets REQUIRED)
 
+find_package(FFmpeg REQUIRED COMPONENTS avcodec avutil)
+include_directories(${FFMPEG_INCLUDE_DIRS})
+
 set(CMAKE_AUTOMOC TRUE)
 
 include_directories(SYSTEM "${PROJECT_SOURCE_DIR}/deps/include")
@@ -23,12 +26,14 @@ file(GLOB usbmuxd_HEADER ${PROJECT_SOURCE_DIR}/ios/usbmuxd/*.h)
 set(phone-camera_HEADERS
 	phone-camera.h
 	usb-helper.h
-	ios-camera.h)
+	ios-camera.h
+	ffmpeg-decode.h)
 
 set(phone-camera_SOURCES
 	phone-camera.cpp
 	usb-helper.cpp
 	ios-camera.cpp
+	ffmpeg-decode.c
 	plugin-main.cpp)
 
 add_library(phone-camera MODULE
@@ -48,6 +53,7 @@ endforeach()
 target_link_libraries(phone-camera
 	${RELEASE_LINK_LIST}
 	${DEBUG_LINK_LIST}
+	${FFMPEG_LIBRARIES}
 	Setupapi
 	w32-pthreads
 	libobs

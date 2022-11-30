@@ -21,7 +21,7 @@ extern int should_exit;
 std::thread usbmuxd_th;
 bool obs_module_load(void)
 {
-	qRegisterMetaType<QMap<QString, QString>>("QMap<QString, QString>");
+	qRegisterMetaType<QMap<QString, QString>>("QMap<QString, QPair<QString, uint32_t>>");
 
 	usbmuxd_th = std::thread([] { usbmuxd_process(); });
 
