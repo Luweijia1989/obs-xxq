@@ -44,6 +44,9 @@ void iOSCameraTaskThread::run()
 		}
 	}
 	circlebuf_free(&m_dataBuf);
+	if (fd >= 0)
+		usbmuxd_disconnect(fd);
+
 	emit mediaFinish();
 }
 
@@ -129,6 +132,7 @@ iOSCamera::iOSCamera(QObject *parent) : QObject(parent), m_taskThread(new iOSCam
 		}
 	});
 	connect(m_taskThread, &iOSCameraTaskThread::mediaData, this, &iOSCamera::mediaData, Qt::DirectConnection);
+	connect(m_taskThread, &iOSCameraTaskThread::mediaFinish, this, &iOSCamera::mediaFinish, Qt::DirectConnection);
 }
 
 iOSCamera::~iOSCamera()
@@ -152,7 +156,7 @@ QString iOSCamera::getDeviceName(QString udid)
 
 	lockdownd_client_t lockdown = NULL;
 
-	if (LOCKDOWN_E_SUCCESS != lockdownd_client_new(lockdown_device, &lockdown, "obs-ios-camera-plugin")) {
+	if (LOCKDOWN_E_SUCCESS != lockdownd_client_new(lockdown_device, &lockdown, "usbmuxd")) {
 		idevice_free(lockdown_device);
 		return result;
 	}

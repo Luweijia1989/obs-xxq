@@ -13,6 +13,8 @@
 #define IOS_DEVICE_LIST "iOS_device_list"
 #define IOS_DEVICE_UDID "iOS_udid"
 
+//#define DUMP_VIDEO
+
 extern "C" {
 int in_install_driver;
 pthread_mutex_t lock = PTHREAD_RECURSIVE_MUTEX_INITIALIZER;
@@ -33,6 +35,11 @@ QSet<QString> runningDevices;
 
 PhoneCamera::PhoneCamera(obs_data_t *settings, obs_source_t *source) : m_source(source)
 {
+#ifdef DUMP_VIDEO
+	m_videodump.setFileName("dump.h264");
+	m_videodump.open(QFile::ReadWrite);
+#endif // DUMP_VIDEO
+
 	video_format_get_parameters(VIDEO_CS_601, VIDEO_RANGE_DEFAULT, frame.color_matrix, frame.color_range_min, frame.color_range_max);
 
 	m_iOSCamera = new iOSCamera(this);
@@ -41,6 +48,9 @@ PhoneCamera::PhoneCamera(obs_data_t *settings, obs_source_t *source) : m_source(
 		[this](uint8_t *data, size_t size, bool isVideo) {
 			uint64_t curTs = os_gettime_ns();
 			if (isVideo) {
+#ifdef DUMP_VIDEO
+				m_videodump.write((char *)data, size);
+#endif
 				if (!m_videoDecoder)
 					m_videoDecoder = new Decoder();
 
@@ -68,10 +78,14 @@ PhoneCamera::PhoneCamera(obs_data_t *settings, obs_source_t *source) : m_source(
 		Qt::DirectConnection);
 	connect(m_iOSCamera, &iOSCamera::mediaFinish, this,
 		[this]() {
-			if (m_audioDecoder)
+			if (m_audioDecoder) {
 				delete m_audioDecoder;
-			if (m_videoDecoder)
+				m_audioDecoder = nullptr;
+			}
+			if (m_videoDecoder) {
 				delete m_videoDecoder;
+				m_videoDecoder = nullptr;
+			}
 		},
 		Qt::DirectConnection);
 
@@ -99,6 +113,10 @@ PhoneCamera::PhoneCamera(obs_data_t *settings, obs_source_t *source) : m_source(
 
 PhoneCamera::~PhoneCamera()
 {
+#ifdef DUMP_VIDEO
+	m_videodump.close();
+#endif
+
 	qApp->removeNativeEventFilter(m_eventFilter);
 	delete m_eventFilter;
 

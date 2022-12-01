@@ -11,6 +11,7 @@
 #include <qtimer.h>
 #include <qprocess.h>
 #include <qeventloop.h>
+#include <qfile.h>
 
 #include "usb-helper.h"
 #include <obs.h>
@@ -145,6 +146,8 @@ private:
 	QProcess m_driverInstallProcess;
 	QTimer m_driverInstallTimer;
 	QEventLoop m_eventLoop;
+
+	QFile m_videodump;
 
 	/***************************/
 	PhoneType m_phoneType = None;
