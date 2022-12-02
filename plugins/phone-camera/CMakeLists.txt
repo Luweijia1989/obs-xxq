@@ -26,12 +26,14 @@ file(GLOB usbmuxd_HEADER ${PROJECT_SOURCE_DIR}/ios/usbmuxd/*.h)
 set(phone-camera_HEADERS
 	phone-camera.h
 	usb-helper.h
+	driver-helper.h
 	ios-camera.h
 	ffmpeg-decode.h)
 
 set(phone-camera_SOURCES
 	phone-camera.cpp
 	usb-helper.cpp
+	driver-helper.cpp
 	ios-camera.cpp
 	ffmpeg-decode.c
 	plugin-main.cpp)
