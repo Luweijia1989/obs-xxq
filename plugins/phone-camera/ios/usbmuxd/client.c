@@ -270,6 +270,10 @@ int client_accept(int listenfd)
 
 void client_close(struct mux_client *client)
 {
+	pthread_mutex_lock(&client_list_mutex);
+	collection_remove(&client_list, client);
+	pthread_mutex_unlock(&client_list_mutex);
+
 #ifdef SO_PEERCRED
 	if (log_level >= LL_INFO) {
 		struct ucred cr;
@@ -304,9 +308,6 @@ void client_close(struct mux_client *client)
 		free(client->ob_buf);
 	if(client->ib_buf)
 		free(client->ib_buf);
-	pthread_mutex_lock(&client_list_mutex);
-	collection_remove(&client_list, client);
-	pthread_mutex_unlock(&client_list_mutex);
 	free(client);
 }
 
@@ -1056,7 +1057,12 @@ void client_init(void)
 {
 	usbmuxd_log(LL_DEBUG, "client_init");
 	collection_init(&client_list);
-	pthread_mutex_init(&client_list_mutex, NULL);
+
+	pthread_mutexattr_t attr;
+	pthread_mutexattr_init(&attr);
+	pthread_mutexattr_settype(&attr, PTHREAD_MUTEX_RECURSIVE);
+	pthread_mutex_init(&client_list_mutex, &attr);
+	pthread_mutexattr_destroy(&attr);
 }
 
 void client_shutdown(void)
