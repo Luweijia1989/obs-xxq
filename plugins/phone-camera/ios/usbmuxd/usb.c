@@ -881,6 +881,11 @@ int usb_initialize(void)
 	device_polling = 1;
 	res = libusb_init(NULL);
 
+	if (res != 0) {
+		usbmuxd_log(LL_FATAL, "libusb_init failed: %s", libusb_error_name(res));
+		return -1;
+	}
+
 #if LIBUSB_API_VERSION >= 0x01000106
 	libusb_set_option(NULL, LIBUSB_OPTION_LOG_LEVEL,
 			  (log_level >= LL_DEBUG ? LIBUSB_LOG_LEVEL_DEBUG : (log_level >= LL_WARNING ? LIBUSB_LOG_LEVEL_WARNING : LIBUSB_LOG_LEVEL_NONE)));
@@ -891,11 +896,6 @@ int usb_initialize(void)
 #ifdef WIN32
 	usb_win32_init();
 #endif
-
-	if (res != 0) {
-		usbmuxd_log(LL_FATAL, "libusb_init failed: %s", libusb_error_name(res));
-		return -1;
-	}
 
 	collection_init(&device_list);
 
