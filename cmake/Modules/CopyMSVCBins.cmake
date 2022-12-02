@@ -194,6 +194,12 @@ file(GLOB QT_ICU_BIN_FILES
 	"${Qt5Core_DIR}/../../../bin/icu*.dll")
 
 file(GLOB PLIST_BIN_FILES "${PLIST_INCLUDE_DIR}/../bin/plist*.dll")
+file(GLOB LIBIMOBILEDEVICE_BIN_FILES "${LIBIMOBILEDEVICE_INCLUDE_DIR}/../bin/libimobiledevice*.dll")
+file(GLOB LIBUSBMUXD_BIN_FILES "${LIBUSBMUXD_INCLUDE_DIR}/../bin/libusbmuxd.dll")
+
+file(GLOB PLIST_DEBUG_BIN_FILES "${PLIST_INCLUDE_DIR}/../bin/debug/plist*.dll")
+file(GLOB LIBIMOBILEDEVICE_DEBUG_BIN_FILES "${LIBIMOBILEDEVICE_INCLUDE_DIR}/../bin/debug/libimobiledevice*.dll")
+file(GLOB LIBUSBMUXD_DEBUG_BIN_FILES "${LIBUSBMUXD_INCLUDE_DIR}/../bin/debug/libusbmuxd.dll")
 
 set(ALL_BASE_BIN_FILES
 	${FFMPEG_BIN_FILES}
@@ -204,14 +210,19 @@ set(ALL_BASE_BIN_FILES
 	${ZLIB_BIN_FILES}
 	${LIBFDK_BIN_FILES}
 	${FREETYPE_BIN_FILES}
-	${QT_ICU_BIN_FILES}
-	${PLIST_BIN_FILES})
+	${QT_ICU_BIN_FILES})
 
 set(ALL_REL_BIN_FILES
-	${QT_BIN_FILES})
+	${QT_BIN_FILES}
+	${PLIST_BIN_FILES}
+	${LIBIMOBILEDEVICE_BIN_FILES}
+	${LIBUSBMUXD_BIN_FILES})
 
 set(ALL_DBG_BIN_FILES
-	${QT_DEBUG_BIN_FILES})
+	${QT_DEBUG_BIN_FILES}
+	${PLIST_DEBUG_BIN_FILES}
+	${LIBIMOBILEDEVICE_DEBUG_BIN_FILES}
+	${LIBUSBMUXD_DEBUG_BIN_FILES})
 
 set(ALL_PLATFORM_BIN_FILES)
 set(ALL_PLATFORM_REL_BIN_FILES
@@ -268,6 +279,8 @@ message(STATUS "QT Release Iconengine files: ${QT_REL_ICONENGINE_BIN_FILES}")
 message(STATUS "QT Release Imageformat files: ${QT_REL_IMAGEFORMATS_BIN_FILES}")
 message(STATUS "QT ICU files: ${QT_ICU_BIN_FILES}")
 message(STATUS "PLIST files: ${PLIST_BIN_FILES}")
+message(STATUS "libimobiledevice files: ${LIBIMOBILEDEVICE_BIN_FILES}")
+message(STATUS "libusbmuxd files: ${LIBUSBMUXD_BIN_FILES}")
 
 foreach(BinFile ${ALL_BASE_BIN_FILES})
 	message(STATUS "copying ${BinFile} to ${CMAKE_SOURCE_DIR}/additional_install_files/exec${_bin_suffix}")

@@ -22,6 +22,7 @@ class ObsXXQConan(ConanFile):
             
             
         if self.settings.build_type=="Debug":
+            self.copy("*.dll", dst="bin", src="../dependencies2017/win64/bin/debug", keep_path=False)
             self.copy("*.dll", dst="bin", src="build64/libobs/Debug", keep_path=False)
             self.copy("*.pdb", dst="bin", src="build64/libobs/Debug", keep_path=False)
             self.copy("*.dll", dst="bin", src="build64/libobs-d3d11/Debug", keep_path=False)
