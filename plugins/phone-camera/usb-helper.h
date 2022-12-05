@@ -35,3 +35,10 @@ extern char *serial;
 
 bool isAppleDevice(int vid, int pid);
 int isAOADevice(int vid, int pid);
+QString serialNumber(QString path);
+
+enum class PhoneType {
+	None,
+	iOS,
+	Android,
+};

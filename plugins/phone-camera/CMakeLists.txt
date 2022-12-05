@@ -28,6 +28,7 @@ set(phone-camera_HEADERS
 	usb-helper.h
 	driver-helper.h
 	ios-camera.h
+	android-camera.h
 	ffmpeg-decode.h)
 
 set(phone-camera_SOURCES
@@ -35,6 +36,7 @@ set(phone-camera_SOURCES
 	usb-helper.cpp
 	driver-helper.cpp
 	ios-camera.cpp
+	android-camera.cpp
 	ffmpeg-decode.c
 	plugin-main.cpp)
 

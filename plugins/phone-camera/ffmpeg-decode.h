@@ -48,7 +48,7 @@ struct ffmpeg_decode {
 	size_t packet_size;
 };
 
-extern int ffmpeg_decode_init(struct ffmpeg_decode *decode, enum AVCodecID id, bool use_hw);
+extern int ffmpeg_decode_init(struct ffmpeg_decode *decode, enum AVCodecID id, bool use_hw, uint8_t *extra_data, size_t extra_data_size);
 extern void ffmpeg_decode_free(struct ffmpeg_decode *decode);
 
 extern bool ffmpeg_decode_audio(struct ffmpeg_decode *decode, uint8_t *data, size_t size, struct obs_source_audio *audio, bool *got_output);

@@ -26,22 +26,21 @@ public:
 };
 
 class iOSCamera;
+class AndroidCamera;
 class PhoneCamera : public QObject {
 	Q_OBJECT
 public:
-	enum PhoneType {
-		None,
-		iOS,
-		Android,
-	};
 	PhoneCamera(obs_data_t *settings, obs_source_t *source);
 	~PhoneCamera();
 
 	PhoneType type() { return m_phoneType; }
-	const QMap<QString, QPair<QString, uint32_t>> &deviceList() const;
+	QMap<QString, QPair<QString, uint32_t>> deviceList(int type);
+	const obs_source_t *source() const { return m_source; }
 
 public slots:
-	void switchPhoneType(int type);
+	void switchPhoneType();
+	void onMediaData(uint8_t *data, size_t size, int64_t timestamp,  bool isVideo);
+	void onMediaFinish();
 
 private:
 	QFile m_videodump;
@@ -49,6 +48,7 @@ private:
 	/***************************/
 	PhoneType m_phoneType = PhoneType::None;
 	iOSCamera *m_iOSCamera = nullptr;
+	AndroidCamera *m_androidCamera = nullptr;
 	QMap<QString, QPair<QString, uint32_t>> m_iOSDevices;
 
 	obs_source_t *m_source;

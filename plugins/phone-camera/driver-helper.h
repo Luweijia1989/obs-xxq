@@ -89,15 +89,15 @@ public:
 	DriverHelper(QObject *parent = nullptr);
 	~DriverHelper();
 
-	void checkDevices();
-
+	void checkDevices(PhoneType type);
+	QMap<QString, QPair<QString, uint32_t>> androidDevices();
 signals:
-	void driverReady();
+	void driverReady(QString path, PhoneType type);
 
 private:
+	QMap<QString, QString> enumUSBDevice();
 	void initAndroidVids();
-	QList<QString> enumUSBDevice();
-	bool doDriverProcess(QString devicePath, bool checkAoA = false);
+	bool doDriverProcess(PhoneType type, QString devicePath, bool checkAoA = false);
 	void switchDroidToAcc(int vid, int pid, int force);
 
 private:

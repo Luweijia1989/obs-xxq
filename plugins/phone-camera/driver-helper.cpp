@@ -35,7 +35,7 @@ DriverHelper::DriverHelper(QObject *parent) : QObject(parent)
 		qDebug() << "device change, isAdd: " << isAdd << "  , path" << devicePath << "   , installing: " << installingDevices;
 		if (isAdd) {
 			m_eventLoop.quit();
-			doDriverProcess(devicePath);
+			doDriverProcess(PhoneType::None, devicePath);
 		}
 	});
 	qApp->installNativeEventFilter(m_eventFilter);
@@ -46,8 +46,7 @@ DriverHelper::~DriverHelper()
 	qApp->removeNativeEventFilter(m_eventFilter);
 	delete m_eventFilter;
 
-	for (auto iter = m_installs.begin(); iter != m_installs.end(); iter++)
-	{
+	for (auto iter = m_installs.begin(); iter != m_installs.end(); iter++) {
 		QProcess *p = *iter;
 		p->kill();
 		p->waitForFinished();
@@ -55,14 +54,29 @@ DriverHelper::~DriverHelper()
 	m_installs.clear();
 }
 
-void DriverHelper::checkDevices()
+void DriverHelper::checkDevices(PhoneType type)
 {
 	auto list = enumUSBDevice();
 	for (auto iter = list.begin(); iter != list.end(); iter++) {
-		const QString &path = *iter;
-		if (doDriverProcess(path, true))
+		const QString &path = iter.key();
+		if (doDriverProcess(type, path, true))
 			break;
 	}
+}
+
+QMap<QString, QPair<QString, uint32_t>> DriverHelper::androidDevices()
+{
+	auto all = enumUSBDevice();
+	QMap<QString, QPair<QString, uint32_t>> ret;
+	for (auto iter = all.begin(); iter != all.end(); iter++) {
+		auto path = iter.key();
+		bool ok = false;
+		auto vid = path.mid(path.indexOf("vid_") + 4, 4).toInt(&ok, 16);
+		if (m_vids.contains(vid))
+			ret.insert(iter.key(), {iter.value(), 0});
+	}
+
+	return ret;
 }
 
 void DriverHelper::initAndroidVids()
@@ -88,9 +102,9 @@ void DriverHelper::initAndroidVids()
 	}
 }
 
-QList<QString> DriverHelper::enumUSBDevice()
+QMap<QString, QString> DriverHelper::enumUSBDevice()
 {
-	QList<QString> result;
+	QMap<QString, QString> result;
 	HDEVINFO devInfo = SetupDiGetClassDevs(&USB_DEVICE_GUID, NULL, NULL, DIGCF_PRESENT | DIGCF_DEVICEINTERFACE);
 	if (!devInfo)
 		return result;
@@ -154,14 +168,15 @@ QList<QString> DriverHelper::enumUSBDevice()
 			continue;
 		}
 
-		result.append(QString::fromWCharArray(detailData->DevicePath).toLower());
+		auto desc = getDeviceProperty(devInfo, &devData, SPDRP_DEVICEDESC);
+		result.insert(QString::fromWCharArray(detailData->DevicePath).toLower(), desc);
 		free(detailData);
 	}
 	SetupDiDestroyDeviceInfoList(devInfo);
 	return result;
 }
 
-bool DriverHelper::doDriverProcess(QString devicePath, bool checkAoA)
+bool DriverHelper::doDriverProcess(PhoneType type, QString devicePath, bool checkAoA)
 {
 	if (devicePath.isEmpty())
 		return false;
@@ -175,14 +190,29 @@ bool DriverHelper::doDriverProcess(QString devicePath, bool checkAoA)
 	auto vid = devicePath.mid(devicePath.indexOf("vid_") + 4, 4).toInt(&ok, 16);
 	auto pid = devicePath.mid(devicePath.indexOf("pid_") + 4, 4).toInt(&ok, 16);
 
-	if (checkAoA && isAOADevice(vid, pid)) {
-		qDebug() << "start with aoa device connected, should reconnect, device path==>" << devicePath;
-		return false;
+	auto androidValid = [this, checkAoA, vid, pid, devicePath]() {
+		if (checkAoA && isAOADevice(vid, pid)) {
+			qDebug() << "start with aoa device connected, should reconnect, device path==>" << devicePath;
+			return false;
+		}
+
+		return m_vids.contains(vid);
+	};
+
+	bool isAndroid = androidValid();
+	bool isApple = isAppleDevice(vid, pid);
+	if (type == PhoneType::None) {
+		if (!isApple && !isAndroid)
+			return false;
+	} else if (type == PhoneType::iOS) {
+		if (!isApple)
+			return false;
+	} else if (type == PhoneType::Android) {
+		if (!isAndroid)
+			return false;
 	}
 
-	bool isApple = isAppleDevice(vid, pid);
-	if (!isApple && !m_vids.contains(vid))
-		return false;
+	qDebug() << "using device: " << devicePath;
 
 	lock_install();
 	in_install_driver = 1;
@@ -224,12 +254,12 @@ bool DriverHelper::doDriverProcess(QString devicePath, bool checkAoA)
 					if (!t.isActive())
 						qDebug() << "switch aoa, no device add event, indicate a error";
 				} else
-					emit driverReady();
+					emit driverReady(devicePath, PhoneType::Android);
 			} else
 				qDebug() << "Android driver error, try restart";
 		} else {
 			if (success)
-				emit driverReady();
+				emit driverReady(devicePath, PhoneType::iOS);
 			else
 				qDebug() << "iOS driver error, try restart";
 		}

@@ -47,3 +47,9 @@ int isAOADevice(int vid, int pid)
 
 	return 0;
 }
+
+QString serialNumber(QString path)
+{
+	path = path.left(path.lastIndexOf('#'));
+	return path.mid(path.lastIndexOf('#') + 1);
+}

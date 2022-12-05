@@ -2,7 +2,7 @@
 #include <winsock.h>
 #include <usbmuxd.h>
 #include <qdebug.h>
-
+#include <util/platform.h>
 #include <libimobiledevice/lockdown.h>
 
 extern QSet<QString> runningDevices;
@@ -87,7 +87,7 @@ void iOSCameraTaskThread::parseMediaData()
 
 		uint8_t *payload = (uint8_t *)malloc(frame.payloadSize);
 		circlebuf_pop_front(&m_dataBuf, payload, frame.payloadSize);
-		emit mediaData(payload, frame.payloadSize, frame.type == 101);
+		emit mediaData(payload, frame.payloadSize, os_gettime_ns(), frame.type == 101);
 		free(payload);
 	}
 }
@@ -180,8 +180,7 @@ QString iOSCamera::getDeviceName(QString udid)
 
 void iOSCamera::start()
 {
-	if (m_updateDeviceThread->isRunning())
-		return;
+	stop();
 
 	m_updateDeviceThread->start();
 	QMetaObject::invokeMethod(m_updateTimer, "start", Q_ARG(int, 500));
@@ -200,7 +199,12 @@ void iOSCamera::stop()
 
 void iOSCamera::setCurrentDevice(QString udid)
 {
+	if (!m_currentDevice.isEmpty() && !udid.isEmpty() && m_currentDevice == udid)
+		return;
+
+	stop();
 	m_currentDevice = udid;
+	start();
 }
 
 void iOSCamera::onUpdateDeviceList(QMap<QString, QPair<QString, uint32_t>> devices)

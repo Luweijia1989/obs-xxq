@@ -65,7 +65,7 @@ static void init_hw_decoder(struct ffmpeg_decode *d)
 }
 #endif
 
-int ffmpeg_decode_init(struct ffmpeg_decode *decode, enum AVCodecID id, bool use_hw)
+int ffmpeg_decode_init(struct ffmpeg_decode *decode, enum AVCodecID id, bool use_hw, uint8_t *extra_data, size_t extra_data_size)
 {
 	int ret;
 
@@ -79,6 +79,9 @@ int ffmpeg_decode_init(struct ffmpeg_decode *decode, enum AVCodecID id, bool use
 		return -1;
 
 	decode->decoder = avcodec_alloc_context3(decode->codec);
+
+	decode->decoder->extradata = av_memdup(extra_data, extra_data_size);
+	decode->decoder->extradata_size = extra_data_size;
 
 	decode->decoder->thread_count = 0;
 

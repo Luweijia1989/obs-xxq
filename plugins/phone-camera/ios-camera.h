@@ -37,7 +37,7 @@ private:
 
 signals:
 	void connectResult(QString udid, bool success);
-	void mediaData(uint8_t *data, size_t size, bool isVideo);
+	void mediaData(uint8_t *data, size_t size, int64_t timestamp,  bool isVideo);
 	void mediaFinish();
 
 private:
@@ -70,7 +70,7 @@ public slots:
 
 signals:
 	void updateDeviceList(QMap<QString, QPair<QString, uint32_t>> devices);
-	void mediaData(uint8_t *data, size_t size, bool isVideo);
+	void mediaData(uint8_t *data, size_t size, int64_t timestamp,  bool isVideo);
 	void mediaFinish();
 
 private:
