@@ -41,7 +41,7 @@ signals:
 private:
 	bool setupDevice(libusb_device *device, libusb_device_handle *handle);
 	int setupDroid(libusb_device *usbDevice, libusb_device_handle *handle);
-	bool handleMediaData(circlebuf *buffer);
+	bool handleMediaData(circlebuf *buffer, uint8_t **cacheBuffer, size_t *cacheBufferSize);
 
 protected:
 	void run() override;
@@ -50,7 +50,4 @@ private:
 	QString m_devicePath;
 	bool m_running = false;
 	t_accessory_droid m_droid = {0};
-
-	uint8_t *m_cacheBuffer = nullptr;
-	size_t m_cacheBufferSize = 0;
 };

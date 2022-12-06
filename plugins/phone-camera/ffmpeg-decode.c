@@ -81,9 +81,9 @@ int ffmpeg_decode_init(struct ffmpeg_decode *decode, enum AVCodecID id, bool use
 	decode->decoder = avcodec_alloc_context3(decode->codec);
 
 	decode->decoder->extradata = av_memdup(extra_data, extra_data_size);
-	decode->decoder->extradata_size = extra_data_size;
+	decode->decoder->extradata_size = (int)extra_data_size;
 
-	decode->decoder->thread_count = 0;
+	//decode->decoder->thread_count = 0; //may cause frame decode delay
 
 #ifdef USE_NEW_HARDWARE_CODEC_METHOD
 	if (use_hw)

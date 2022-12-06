@@ -35,11 +35,6 @@ void AndroidCamera::stopTask()
 {
 	m_running = false;
 	wait();
-
-	if (m_cacheBuffer) {
-		free(m_cacheBuffer);
-		m_cacheBuffer = nullptr;
-	}
 }
 
 int AndroidCamera::setupDroid(libusb_device *usbDevice, libusb_device_handle *handle)
@@ -145,7 +140,7 @@ bool AndroidCamera::setupDevice(libusb_device *device, libusb_device_handle *han
 	return true;
 }
 
-bool AndroidCamera::handleMediaData(circlebuf *buffer)
+bool AndroidCamera::handleMediaData(circlebuf *buffer, uint8_t **cacheBuffer, size_t *cacheBufferSize)
 {
 	size_t headerSize = 4 + 8 + 1;
 
@@ -159,51 +154,20 @@ bool AndroidCamera::handleMediaData(circlebuf *buffer)
 	if (buffer->size < totalSize)
 		return false;
 
-	if (!m_cacheBuffer) {
-		m_cacheBufferSize = headerSize + pktSize;
-		m_cacheBuffer = (uint8_t *)malloc(m_cacheBufferSize);
-	} else if (m_cacheBufferSize < headerSize + pktSize) {
-		m_cacheBufferSize = headerSize + pktSize;
-		m_cacheBuffer = (uint8_t *)realloc(m_cacheBuffer, m_cacheBufferSize);
+	if (*cacheBufferSize < headerSize + pktSize) {
+		*cacheBufferSize = headerSize + pktSize;
+		*cacheBuffer = (uint8_t *)brealloc(*cacheBuffer, *cacheBufferSize);
 	}
 
-	circlebuf_pop_front(buffer, m_cacheBuffer, headerSize);
-	int type = m_cacheBuffer[4];
+	circlebuf_pop_front(buffer, *cacheBuffer, headerSize);
+	int type = (*cacheBuffer)[4];
 	int64_t pts = 0;
-	memcpy(&pts, m_cacheBuffer + 5, 8);
-	circlebuf_pop_front(buffer, m_cacheBuffer, pktSize);
+	memcpy(&pts, (*cacheBuffer) + 5, 8);
+	circlebuf_pop_front(buffer, *cacheBuffer, pktSize);
 
 	if (type == 1) { //video
-		bool is_pps = pts == ((int64_t)UINT64_C(0x8000000000000000));
-		if (is_pps) {
-			emit mediaData(m_cacheBuffer, pktSize, pts, true);
-			/*struct av_packet_info pack_info = {0};
-			pack_info.size = sizeof(struct media_video_info);
-			pack_info.type = FFM_MEDIA_VIDEO_INFO;
-			pack_info.pts = 0;
-
-			struct media_video_info info;
-			info.video_extra_len = pktSize;
-			memcpy(info.video_extra, m_cacheBuffer, pktSize);
-			ipc_client_write_2(m_client, &pack_info, sizeof(struct av_packet_info), &info, sizeof(struct media_video_info), INFINITE);
-
-			struct media_audio_info audio_info;
-			audio_info.format = AUDIO_FORMAT_16BIT;
-			audio_info.samples_per_sec = 48000;
-			audio_info.speakers = SPEAKERS_STEREO;
-
-			struct av_packet_info audio_pack_info = {0};
-			audio_pack_info.size = sizeof(struct media_audio_info);
-			audio_pack_info.type = FFM_MEDIA_AUDIO_INFO;
-			ipc_client_write_2(m_client, &audio_pack_info, sizeof(struct av_packet_info), &audio_info, sizeof(struct media_audio_info), INFINITE);*/
-		} else {
-			emit mediaData(m_cacheBuffer, pktSize, pts, true);
-			/*struct av_packet_info pack_info = {0};
-			pack_info.size = pktSize;
-			pack_info.type = FFM_PACKET_VIDEO;
-			pack_info.pts = pts * 1000000;
-			ipc_client_write_2(m_client, &pack_info, sizeof(struct av_packet_info), m_cacheBuffer, pack_info.size, INFINITE);*/
-		}
+			 //bool is_pps = pts == ((int64_t)UINT64_C(0x8000000000000000));
+		emit mediaData(*cacheBuffer, pktSize, pts, true);
 	} else {
 		/*struct av_packet_info pack_info = {0};
 		pack_info.size = pktSize;
@@ -267,7 +231,9 @@ void AndroidCamera::run()
 					break;
 			}
 
-			uint8_t *buffer = (uint8_t *)malloc(m_droid.inpacketsize);
+			uint8_t *buffer = (uint8_t *)bmalloc(m_droid.inpacketsize);
+			uint8_t *cacheBuffer = nullptr;
+			size_t cacheBufferSize = 0;
 
 			circlebuf mediaBuffer;
 			circlebuf_init(&mediaBuffer);
@@ -286,7 +252,7 @@ void AndroidCamera::run()
 					circlebuf_push_back(&mediaBuffer, buffer, len);
 
 					while (true) {
-						bool b = handleMediaData(&mediaBuffer);
+						bool b = handleMediaData(&mediaBuffer, &cacheBuffer, &cacheBufferSize);
 
 						if (b)
 							continue;
@@ -299,7 +265,9 @@ void AndroidCamera::run()
 				} else
 					break;
 			}
-
+			if (cacheBuffer)
+				bfree(cacheBuffer);
+			bfree(buffer);
 			circlebuf_free(&mediaBuffer);
 		}
 	}

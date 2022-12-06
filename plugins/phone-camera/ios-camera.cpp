@@ -85,10 +85,10 @@ void iOSCameraTaskThread::parseMediaData()
 
 		circlebuf_pop_front(&m_dataBuf, NULL, headerLength);
 
-		uint8_t *payload = (uint8_t *)malloc(frame.payloadSize);
+		uint8_t *payload = (uint8_t *)bmalloc(frame.payloadSize);
 		circlebuf_pop_front(&m_dataBuf, payload, frame.payloadSize);
 		emit mediaData(payload, frame.payloadSize, os_gettime_ns(), frame.type == 101);
-		free(payload);
+		bfree(payload);
 	}
 }
 

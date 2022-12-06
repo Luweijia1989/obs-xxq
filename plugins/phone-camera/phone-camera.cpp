@@ -49,25 +49,27 @@ PhoneCamera::~PhoneCamera()
 	delete m_iOSCamera;
 }
 
-void PhoneCamera::onMediaData(uint8_t *data, size_t size, int64_t timestamp,  bool isVideo)
+void PhoneCamera::onMediaData(uint8_t *data, size_t size, int64_t timestamp, bool isVideo)
 {
 	if (isVideo) {
 #ifdef DUMP_VIDEO
 		m_videodump.write((char *)data, size);
 #endif
-		if (!m_videoDecoder)
-			m_videoDecoder = new Decoder();
-
-		if (!ffmpeg_decode_valid(*m_videoDecoder)) { // todo 单独的初始化流程
-			if (ffmpeg_decode_init(*m_videoDecoder, AV_CODEC_ID_H264, false, data, size) < 0) {
-				blog(LOG_WARNING, "Could not initialize video decoder");
+		if (timestamp == ((int64_t)UINT64_C(0x8000000000000000))) {
+			if (!ffmpeg_decode_valid(m_videoDecoder)) { // todo 单独的初始化流程
+				if (ffmpeg_decode_init(m_videoDecoder, AV_CODEC_ID_H264, false, data, size) < 0) {
+					blog(LOG_WARNING, "Could not initialize video decoder");
+				}
 			}
 			return;
 		}
 
+		if (!ffmpeg_decode_valid(m_videoDecoder))
+			return;
+
 		bool got_output;
 		long long ts = 0;
-		bool success = ffmpeg_decode_video(*m_videoDecoder, data, size, &ts, VIDEO_RANGE_DEFAULT, &frame, &got_output);
+		bool success = ffmpeg_decode_video(m_videoDecoder, data, size, &ts, VIDEO_RANGE_DEFAULT, &frame, &got_output);
 		if (!success) {
 			blog(LOG_WARNING, "Error decoding video");
 			return;
@@ -82,15 +84,8 @@ void PhoneCamera::onMediaData(uint8_t *data, size_t size, int64_t timestamp,  bo
 
 void PhoneCamera::onMediaFinish()
 {
-	if (m_audioDecoder) {
-		delete m_audioDecoder;
-		m_audioDecoder = nullptr;
-	}
-	if (m_videoDecoder) {
-		delete m_videoDecoder;
-		m_videoDecoder = nullptr;
-	}
-
+	ffmpeg_decode_free(m_audioDecoder);
+	ffmpeg_decode_free(m_videoDecoder);
 	obs_source_output_video2(m_source, nullptr);
 }
 

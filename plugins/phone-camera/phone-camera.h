@@ -51,8 +51,8 @@ private:
 	AndroidCamera *m_androidCamera = nullptr;
 	QMap<QString, QPair<QString, uint32_t>> m_iOSDevices;
 
-	obs_source_t *m_source;
-	Decoder *m_audioDecoder = nullptr;
-	Decoder *m_videoDecoder = nullptr;
+	obs_source_t *m_source = nullptr;
+	Decoder m_audioDecoder;
+	Decoder m_videoDecoder;
 	obs_source_frame2 frame = {0};
 };
