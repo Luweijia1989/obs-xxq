@@ -103,7 +103,7 @@ static void filter_defaults(obs_data_t *settings)
 	obs_data_set_default_int(settings, "mask_every_x_frames", 1);
 }
 
-static void createOrtSession(struct background_removal_filter *tf)
+static bool createOrtSession(struct background_removal_filter *tf)
 {
 	Ort::SessionOptions sessionOptions;
 
@@ -117,7 +117,7 @@ static void createOrtSession(struct background_removal_filter *tf)
 
 	if (modelFilepath_rawPtr == nullptr) {
 		blog(LOG_ERROR, "Unable to get model filename %s from plugin.", MODEL_RVM);
-		return;
+		return false;
 	}
 
 	std::string modelFilepath_s(modelFilepath_rawPtr);
@@ -138,7 +138,7 @@ static void createOrtSession(struct background_removal_filter *tf)
 		tf->session.reset(new Ort::Session(*tf->env, tf->modelFilepath, sessionOptions));
 	} catch (const std::exception &e) {
 		blog(LOG_ERROR, "%s", e.what());
-		return;
+		return false;
 	}
 
 	Ort::AllocatorWithDefaultOptions allocator;
@@ -147,7 +147,7 @@ static void createOrtSession(struct background_removal_filter *tf)
 
 	if (!tf->model->populateInputOutputShapes(tf->session, tf->inputDims, tf->outputDims)) {
 		blog(LOG_ERROR, "Unable to get model input and output shapes");
-		return;
+		return false;
 	}
 
 	for (size_t i = 0; i < tf->inputNames.size(); i++) {
@@ -163,6 +163,7 @@ static void createOrtSession(struct background_removal_filter *tf)
 
 	// Allocate buffers
 	tf->model->allocateTensorBuffers(tf->inputDims, tf->outputDims, tf->outputTensorValues, tf->inputTensorValues, tf->inputTensor, tf->outputTensor);
+	return true;
 }
 
 static void filter_update(void *data, obs_data_t *settings)
@@ -244,7 +245,7 @@ static void process_frame(void *data)
 			width = tf->cache_input_width;
 			height = tf->cache_input_height;
 			size = width * height * 4;
-			buffer = (uint8_t *)malloc(size);
+			buffer = (uint8_t *)bmalloc(size);
 
 			memcpy(buffer, tf->cache_input_buffer.data(), size);
 			tf->input_available = false;
@@ -262,7 +263,10 @@ static void process_frame(void *data)
 			tf->useGPU = newUseGpu;
 			tf->model.reset(new ModelRVM);
 
-			createOrtSession(tf);
+			if (!createOrtSession(tf)) {
+				bfree(buffer);
+				break;
+			}
 		}
 
 		auto ts = os_gettime_ns();
@@ -305,10 +309,8 @@ static void process_frame(void *data)
 		tf->cache_output_width = width;
 		tf->cache_output_height = height;
 		memcpy(tf->cache_output_buffer.data(), buffer, size);
-		free(buffer);
+		bfree(buffer);
 		tf->out_available = true;
-
-		blog(LOG_DEBUG, "=====%lld", (os_gettime_ns() - ts) / 1000000);
 	}
 }
 
