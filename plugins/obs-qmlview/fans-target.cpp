@@ -77,7 +77,7 @@ static void fanstarget_source_update(void *data, obs_data_t *settings)
 	int realfans = obs_data_get_int(settings, "realfans");
 	s->setrealfans(realfans);
 
-	float transparence = (float)obs_data_get_int(settings, "transparence");
+	float transparence = (float)(qMax((int)obs_data_get_int(settings, "transparence"), 1));
 	transparence = transparence / 100.0f;
 	s->settransparence(transparence);
 }

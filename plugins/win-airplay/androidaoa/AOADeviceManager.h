@@ -11,7 +11,7 @@
 #include <QDebug>
 #include <QSet>
 #include <QWidget>
-#include "libusb.h"
+#include <libusb-1.0/libusb.h>
 #include "DriverHelper.h"
 #include "util/circlebuf.h"
 #include <windows.h>

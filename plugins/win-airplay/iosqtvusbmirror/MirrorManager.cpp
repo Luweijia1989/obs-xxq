@@ -1937,9 +1937,8 @@ bool MirrorManager::checkAndChangeMode(int vid, int pid)
 		return ret;
 	}	
 
-	int muxConfigIndex = -1;
 	int qtConfigIndex = -1;
-	findConfigurations(&device->descriptor, device, &muxConfigIndex, &qtConfigIndex);
+	findConfigurations(&device->descriptor, device, &qtConfigIndex);
 	if (qtConfigIndex == -1) {
 		qDebug() << "change Apple device index";
 		auto deviceHandle = usb_open(device);
@@ -1947,12 +1946,33 @@ bool MirrorManager::checkAndChangeMode(int vid, int pid)
 			m_errorMsg = u8"iOS设备未找到， 请保持设备连接。";
 			return ret;
 		}
+
+		//char buf[1024] = { 0 };
+
+		//usb_control_msg(deviceHandle, 0x80, 0x06, 0x201, 0x00, buf, 9, 0);
+		//usb_control_msg(deviceHandle, 0x80, 0x06, 0x202, 0x00, buf, 9, 0);
+		//usb_control_msg(deviceHandle, 0x80, 0x06, 0x203, 0x00, buf, 9, 0);
+		//usb_control_msg(deviceHandle, 0x80, 0x06, 0x203, 0x00, buf, buf[2], 0);
+
+		//usb_control_msg(deviceHandle, 0x00, 0x09, 0x04, 0x00, NULL, 0, 0);
+
+		//usb_control_msg(deviceHandle, 0x80, 0x06, 0x0300, 0x00, buf, 0xff, 0);
+		//usb_control_msg(deviceHandle, 0x80, 0x06, 0x0318, buf[2] + buf[3] * 256, buf, 0xff, 0);
+
+		//usb_control_msg(deviceHandle, 0x80, 0x06, 0x0300, 0x00, buf, 0xff, 0);
+		//usb_control_msg(deviceHandle, 0x80, 0x06, 0x030e, buf[2] + buf[3] * 256, buf, 0xff, 0);
+
+		//usb_control_msg(deviceHandle, 0x80, 0x06, 0x0300, 0x00, buf, 0xff, 0);
+		//usb_control_msg(deviceHandle, 0x80, 0x06, 0x0313, buf[2] + buf[3] * 256, buf, 0xff, 0);
+
 		usb_control_msg(deviceHandle, 0x40, 0x52, 0x00, 0x02, NULL, 0, 0);
 		usb_close(deviceHandle);
 		QThread::msleep(200);
 		QElapsedTimer t;
 		t.start();
 		int loopCount = 0;
+
+		bool sendExtraSwitchCmd = false;
 		while (true) {
 			loopCount++;
 			auto dev = findAppleDevice(vid, pid);
@@ -1964,12 +1984,24 @@ bool MirrorManager::checkAndChangeMode(int vid, int pid)
 				}
 				continue;
 			} else {
-				findConfigurations(&dev->descriptor, dev, &muxConfigIndex, &qtConfigIndex);
-				if (qtConfigIndex == -1)
-					m_errorMsg = u8"进入投屏模式失败，请断开连接，重启手机后再试。";
-				else {
-					openDeviceFunc(dev, qtConfigIndex);
-					ret = true;
+				if (!sendExtraSwitchCmd) {
+					sendExtraSwitchCmd = true;
+					auto deviceHandle = usb_open(dev);
+					char buf[1024] = { 0 };
+					usb_control_msg(deviceHandle, 0x00, 0x09, 0x05, 0x00, NULL, 0, 0);
+					usb_control_msg(deviceHandle, 0xc0, 0x33, 0x00, 0x00, buf, 0x02, 0);
+					usb_close(deviceHandle);
+					loopCount = 0;
+					QThread::msleep(200);
+					continue;
+				} else {
+					findConfigurations(&dev->descriptor, dev, &qtConfigIndex);
+					if (qtConfigIndex == -1)
+						m_errorMsg = u8"进入投屏模式失败，请断开连接，重启手机后再试。";
+					else {
+						openDeviceFunc(dev, qtConfigIndex);
+						ret = true;
+					}
 				}
 				break;
 			}

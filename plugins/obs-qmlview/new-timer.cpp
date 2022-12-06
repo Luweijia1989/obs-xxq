@@ -1,4 +1,4 @@
-﻿#include "new-timer.h"
+#include "new-timer.h"
 #include "renderer.h"
 #include "qmlhelper.h"
 
@@ -58,7 +58,7 @@ static void newtimer_source_update(void *data, obs_data_t *settings)
 	int timeType = obs_data_get_int(settings, "timetype");
 	s->settimetype(timeType);
 
-	float transparence = (float)obs_data_get_int(settings, "transparence");
+	float transparence = (float)(qMax((int)obs_data_get_int(settings, "transparence"), 1));
 	transparence = transparence / 100.0f;
 	s->settransparence(transparence);
 

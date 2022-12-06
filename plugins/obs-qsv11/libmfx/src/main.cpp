@@ -613,35 +613,41 @@ mfxStatus MFXInitEx(mfxInitParam par, mfxSession *session)
 
 mfxStatus MFXClose(mfxSession session)
 {
-    MFX::MFXAutomaticCriticalSection guard(&dispGuard);
-
-    mfxStatus mfxRes = MFX_ERR_INVALID_HANDLE;
-    MFX_DISP_HANDLE *pHandle = (MFX_DISP_HANDLE *) session;
-
-    // check error(s)
-    if (pHandle)
+    try
     {
-        try
-        {
-            // unload the DLL library
-            mfxRes = pHandle->Close();
+	MFX::MFXAutomaticCriticalSection guard(&dispGuard);
 
-            // it is possible, that there is an active child session.
-            // can't unload library in that case.
-            if (MFX_ERR_UNDEFINED_BEHAVIOR != mfxRes)
-            {
-                // release the handle
-                delete pHandle;
-            }
-        }
-        catch(...)
-        {
-            mfxRes = MFX_ERR_INVALID_HANDLE;
-        }
+	mfxStatus mfxRes = MFX_ERR_INVALID_HANDLE;
+	MFX_DISP_HANDLE *pHandle = (MFX_DISP_HANDLE *) session;
+
+	// check error(s)
+	if (pHandle)
+	{
+		try
+		{
+			// unload the DLL library
+			mfxRes = pHandle->Close();
+
+			// it is possible, that there is an active child session.
+			// can't unload library in that case.
+			if (MFX_ERR_UNDEFINED_BEHAVIOR != mfxRes)
+			{
+			// release the handle
+			delete pHandle;
+			}
+		}
+		catch(...)
+		{
+			mfxRes = MFX_ERR_INVALID_HANDLE;
+		}
+	}
+	
+	return mfxRes;
     }
-
-    return mfxRes;
-
+    catch (...)
+    {
+	return MFX_ERR_INVALID_HANDLE;
+    }
 } // mfxStatus MFXClose(mfxSession session)
 
 mfxStatus MFXVideoUSER_Load(mfxSession session, const mfxPluginUID *uid, mfxU32 version)
@@ -1055,21 +1061,28 @@ mfxStatus MFXCloneSession(mfxSession session, mfxSession *clone)
 
 mfxStatus MFXInit(mfxIMPL impl, mfxVersion *pVer, mfxSession *session)
 {
-    mfxInitParam par = {};
-
-    par.Implementation = impl;
-    if (pVer)
+    try
     {
-        par.Version = *pVer;
-    }
-    else
-    {
-        par.Version.Major = DEFAULT_API_VERSION_MAJOR;
-        par.Version.Minor = DEFAULT_API_VERSION_MINOR;
-    }
-    par.ExternalThreads = 0;
+	mfxInitParam par = {};
 
-    return MFXInitEx(par, session);
+	par.Implementation = impl;
+	if (pVer)
+	{
+	par.Version = *pVer;
+	}
+	else
+	{
+	par.Version.Major = DEFAULT_API_VERSION_MAJOR;
+	par.Version.Minor = DEFAULT_API_VERSION_MINOR;
+	}
+	par.ExternalThreads = 0;
+	
+	return MFXInitEx(par, session);
+    }
+    catch (...)
+    {
+	return MFX_ERR_UNKNOWN;
+    }
 }
 
 //
