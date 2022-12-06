@@ -210,8 +210,9 @@ static void initBDResource(std::string appPath)
 	beResourceContext->setApplicationDir(appPath);
 	beResourceContext->initializeContext();
 
+	auto ret = bef_effect_ai_check_license_base(getResourceContext()->getFeatureContext()->getLicensePath().c_str());
 	QFileInfo finfo(getResourceContext()->getFeatureContext()->getLicensePath().c_str());
-	if (!finfo.exists() || finfo.size() == 0) {
+	if (ret != BEF_RESULT_SUC || !finfo.exists() || finfo.size() == 0) {
 		char *authMsg = nullptr;
 		int authMsgLen = 0;
 		bef_effect_ai_get_auth_msg(&authMsg, &authMsgLen);
