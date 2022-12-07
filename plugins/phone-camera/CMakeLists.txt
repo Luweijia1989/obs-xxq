@@ -27,6 +27,7 @@ set(phone-camera_HEADERS
 	phone-camera.h
 	usb-helper.h
 	driver-helper.h
+	media-task.h
 	ios-camera.h
 	android-camera.h
 	ffmpeg-decode.h)

@@ -4,6 +4,7 @@
 #include <qtimer.h>
 #include <qmap>
 #include <util/circlebuf.h>
+#include "media-task.h"
 
 class iOSCameraTaskThread : public QThread {
 	Q_OBJECT
@@ -47,7 +48,7 @@ private:
 	circlebuf m_dataBuf;
 };
 
-class iOSCamera : public QObject {
+class iOSCamera : public MediaTask {
 	Q_OBJECT
 public:
 	enum State {
@@ -58,8 +59,8 @@ public:
 
 	iOSCamera(QObject *parent = nullptr);
 	~iOSCamera();
-	void start();
-	void stop();
+	void startTask() override;
+	void stopTask() override;
 	void setCurrentDevice(QString udid);
 
 private:
@@ -70,8 +71,6 @@ public slots:
 
 signals:
 	void updateDeviceList(QMap<QString, QPair<QString, uint32_t>> devices);
-	void mediaData(uint8_t *data, size_t size, int64_t timestamp,  bool isVideo);
-	void mediaFinish();
 
 private:
 	QThread *m_updateDeviceThread = nullptr;

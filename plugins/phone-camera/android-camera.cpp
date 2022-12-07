@@ -13,8 +13,29 @@ AndroidCamera::~AndroidCamera()
 
 void AndroidCamera::setCurrentDevice(QString devicePath)
 {
-	if (m_devicePath == devicePath)
+	if (devicePath == "disabled") {
+		stopTask();
+		m_devicePath.clear();
 		return;
+	}
+
+	do {
+		if (m_devicePath.isEmpty())
+			break;
+
+		if (devicePath == "auto")
+			return;
+		else {
+			if (m_devicePath == "auto")
+				break;
+			else {
+				if (m_devicePath == devicePath)
+					return;
+				else
+					break;
+			}
+		}
+	} while (1);
 
 	m_devicePath = devicePath;
 	stopTask();
@@ -24,9 +45,10 @@ void AndroidCamera::startTask(QString path)
 {
 	stopTask();
 
-	if (!path.contains(serialNumber(m_devicePath)))
+	if (m_devicePath != "auto" && !path.contains(serialNumber(m_devicePath)))
 		return;
 
+	m_connectedPath = path;
 	m_running = true;
 	start();
 }
@@ -180,9 +202,9 @@ bool AndroidCamera::handleMediaData(circlebuf *buffer, uint8_t **cacheBuffer, si
 
 void AndroidCamera::run()
 {
-	qDebug() << "android camera task start: " << m_devicePath;
+	qDebug() << "android camera task start: " << m_connectedPath;
 
-	runningDevices.insert(m_devicePath);
+	runningDevices.insert(m_connectedPath);
 
 	libusb_context *ctx = nullptr;
 	libusb_device **devs = nullptr;
@@ -205,7 +227,7 @@ void AndroidCamera::run()
 		if (libusb_open(devs[i], &handle) == 0) {
 			uint8_t buffer[256] = {0};
 			if (libusb_get_string_descriptor_ascii(handle, desc.iSerialNumber, buffer, 255) >= 0) {
-				if (!m_devicePath.contains(QString((char *)buffer))) {
+				if (!m_connectedPath.contains(QString((char *)buffer))) {
 					libusb_close(handle);
 					continue;
 				} else {
@@ -285,7 +307,8 @@ void AndroidCamera::run()
 		ctx = NULL;
 	}
 
-	runningDevices.remove(m_devicePath);
+	runningDevices.remove(m_connectedPath);
+	m_connectedPath.clear();
 
 	emit mediaFinish();
 

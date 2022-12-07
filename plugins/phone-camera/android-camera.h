@@ -48,6 +48,7 @@ protected:
 
 private:
 	QString m_devicePath;
+	QString m_connectedPath;
 	bool m_running = false;
 	t_accessory_droid m_droid = {0};
 };

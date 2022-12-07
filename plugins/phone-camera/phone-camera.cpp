@@ -35,8 +35,6 @@ PhoneCamera::PhoneCamera(obs_data_t *settings, obs_source_t *source) : m_source(
 		if (m_phoneType == PhoneType::Android && type == PhoneType::Android)
 			m_androidCamera->startTask(path);
 	});
-
-	switchPhoneType();
 }
 
 PhoneCamera::~PhoneCamera()
@@ -95,14 +93,14 @@ void PhoneCamera::switchPhoneType()
 	obs_data_release(settings);
 
 	PhoneType type = (PhoneType)obs_data_get_int(settings, PHONE_DEVICE_TYPE);
-	if (type == m_phoneType)
-		return;
-
 	QString deviceId = obs_data_get_string(settings, DEVICE_ID);
+
 	m_phoneType = (PhoneType)type;
 	if (type == PhoneType::iOS) {
+		m_androidCamera->setCurrentDevice("disabled");
 		m_iOSCamera->setCurrentDevice(deviceId);
 	} else if (type == PhoneType::Android) {
+		m_iOSCamera->setCurrentDevice("disabled");
 		m_androidCamera->setCurrentDevice(deviceId);
 	}
 
@@ -132,6 +130,7 @@ static void *CreatePhoneCameraInput(obs_data_t *settings, obs_source_t *source)
 
 	try {
 		cameraInput = new PhoneCamera(settings, source);
+		UpdatePhoneCameraInput(cameraInput, settings);
 	} catch (const char *error) {
 		blog(LOG_ERROR, "Could not create device '%s': %s", obs_source_get_name(source), error);
 	}
@@ -166,6 +165,7 @@ static bool UpdateClicked(obs_properties_t *props, obs_property_t *p, void *data
 	obs_property_t *dev_list = obs_properties_get(props, DEVICE_ID);
 	obs_property_list_clear(dev_list);
 
+	obs_property_list_add_string(dev_list, "auto", "auto");
 	for (auto iter = devices.begin(); iter != devices.end(); iter++) {
 		obs_property_list_add_string(dev_list, iter.value().first.toUtf8().data(), iter.key().toUtf8().data());
 	}
@@ -201,7 +201,11 @@ static obs_properties_t *GetPhoneCameraProperties(void *data)
 	return ppts;
 }
 
-static void GetPhoneCameraDefaults(obs_data_t *settings) {}
+static void GetPhoneCameraDefaults(obs_data_t *settings)
+{
+	obs_data_set_default_int(settings, PHONE_DEVICE_TYPE, (int)PhoneType::iOS);
+	obs_data_set_default_string(settings, DEVICE_ID, "auto");
+}
 
 static void SavePhoneCameraInput(void *data, obs_data_t *settings)
 {

@@ -92,7 +92,7 @@ void iOSCameraTaskThread::parseMediaData()
 	}
 }
 
-iOSCamera::iOSCamera(QObject *parent) : QObject(parent), m_taskThread(new iOSCameraTaskThread(this))
+iOSCamera::iOSCamera(QObject *parent) : MediaTask(parent), m_taskThread(new iOSCameraTaskThread(this))
 {
 	connect(this, &iOSCamera::updateDeviceList, this, &iOSCamera::onUpdateDeviceList);
 
@@ -137,7 +137,7 @@ iOSCamera::iOSCamera(QObject *parent) : QObject(parent), m_taskThread(new iOSCam
 
 iOSCamera::~iOSCamera()
 {
-	stop();
+	stopTask();
 
 	m_updateTimer->deleteLater();
 	m_updateDeviceThread->deleteLater();
@@ -178,15 +178,15 @@ QString iOSCamera::getDeviceName(QString udid)
 	return result;
 }
 
-void iOSCamera::start()
+void iOSCamera::startTask()
 {
-	stop();
+	stopTask();
 
 	m_updateDeviceThread->start();
 	QMetaObject::invokeMethod(m_updateTimer, "start", Q_ARG(int, 500));
 }
 
-void iOSCamera::stop()
+void iOSCamera::stopTask()
 {
 	m_taskThread->stopTask();
 
@@ -199,12 +199,33 @@ void iOSCamera::stop()
 
 void iOSCamera::setCurrentDevice(QString udid)
 {
-	if (!m_currentDevice.isEmpty() && !udid.isEmpty() && m_currentDevice == udid)
+	if (udid == "disabled") {
+		stopTask();
+		m_currentDevice.clear();
 		return;
+	}
 
-	stop();
+	do {
+		if (m_currentDevice.isEmpty())
+			break;
+
+		if (udid == "auto")
+			return;
+		else {
+			if (m_currentDevice == "auto")
+				break;
+			else {
+				if (m_currentDevice == udid)
+					return;
+				else
+					break;
+			}
+		}
+	} while (1);
+
+	stopTask();
 	m_currentDevice = udid;
-	start();
+	startTask();
 }
 
 void iOSCamera::onUpdateDeviceList(QMap<QString, QPair<QString, uint32_t>> devices)
@@ -212,18 +233,19 @@ void iOSCamera::onUpdateDeviceList(QMap<QString, QPair<QString, uint32_t>> devic
 	if (m_state == Connected) {
 		// 如果当前设备列表中不包含当前连接的设备（连接设备被移除）
 		// 或者用户更改了想要连接的设备，先把旧任务停掉
-		if (!devices.contains(m_connectedDevice) || (!m_currentDevice.isEmpty() && m_currentDevice != m_connectedDevice)) {
+		if (!devices.contains(m_connectedDevice)) {
 			m_taskThread->stopTask();
 
 			m_state = UnConnected;
 			runningDevices.remove(m_connectedDevice);
+			m_connectedDevice.clear();
 		}
 	} else {
 		for (auto iter = devices.begin(); iter != devices.end(); iter++) {
 			if (runningDevices.contains(iter.key()))
 				continue;
 
-			if (m_currentDevice.isEmpty() || m_currentDevice == iter.key()) {
+			if (m_currentDevice == "auto" || m_currentDevice == iter.key()) {
 				// try connect
 				if (m_state != Connecting) {
 					m_taskThread->startByInfo(iter.key(), iter.value().second);
