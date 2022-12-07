@@ -13,11 +13,12 @@ class ObsXXQConan(ConanFile):
     
         self.copy("*.h", dst="include/libobs", src="libobs", keep_path=True)
         self.copy("*.hpp", dst="include/libobs", src="libobs", keep_path=True)
-        self.copy("*.dll", dst="bin", src="../dependencies2017/win64/bin", keep_path=False)
         
         if self.settings.build_type=="Debug":
+            self.copy("*.dll", dst="bin", src="../dependencies2017/win64/bin", keep_path=False)
             self.copy("*.lib", dst="lib", src="build64/libobs/Debug", keep_path=True)
         else:
+            self.copy("*.dll", dst="bin", src="../dependencies2017/win64/bin", keep_path=False, excludes="debug")
             self.copy("*.lib", dst="lib", src="build64/libobs/RelWithDebInfo", keep_path=True)
             
             
