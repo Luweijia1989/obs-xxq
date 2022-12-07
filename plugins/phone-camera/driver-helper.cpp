@@ -25,6 +25,7 @@ void unlock_install()
 
 extern QSet<QString> installingDevices;
 extern QSet<QString> runningDevices;
+extern QSet<QString> readyDevices;
 
 DriverHelper::DriverHelper(QObject *parent) : QObject(parent)
 {
@@ -36,7 +37,8 @@ DriverHelper::DriverHelper(QObject *parent) : QObject(parent)
 		if (isAdd) {
 			m_eventLoop.quit();
 			doDriverProcess(PhoneType::None, devicePath);
-		}
+		} else
+			readyDevices.remove(devicePath);
 	});
 	qApp->installNativeEventFilter(m_eventFilter);
 }
@@ -254,12 +256,12 @@ bool DriverHelper::doDriverProcess(PhoneType type, QString devicePath, bool chec
 					if (!t.isActive())
 						qDebug() << "switch aoa, no device add event, indicate a error";
 				} else
-					emit driverReady(devicePath, PhoneType::Android);
+					readyDevices.insert(devicePath);
 			} else
 				qDebug() << "Android driver error, try restart";
 		} else {
 			if (success)
-				emit driverReady(devicePath, PhoneType::iOS);
+				readyDevices.insert(devicePath);
 			else
 				qDebug() << "iOS driver error, try restart";
 		}

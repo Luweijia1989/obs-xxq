@@ -48,6 +48,8 @@ void iOSCameraTaskThread::run()
 		usbmuxd_disconnect(fd);
 
 	emit mediaFinish();
+
+	emit end();
 }
 
 void iOSCameraTaskThread::startByInfo(QString udid, uint32_t deviceHandle)
@@ -131,8 +133,9 @@ iOSCamera::iOSCamera(QObject *parent) : MediaTask(parent), m_taskThread(new iOSC
 			m_state = Connected;
 		}
 	});
-	connect(m_taskThread, &iOSCameraTaskThread::mediaData, this, &iOSCamera::mediaData, Qt::DirectConnection);
-	connect(m_taskThread, &iOSCameraTaskThread::mediaFinish, this, &iOSCamera::mediaFinish, Qt::DirectConnection);
+	connect(m_taskThread, &iOSCameraTaskThread::mediaData, this, &MediaTask::mediaData, Qt::DirectConnection);
+	connect(m_taskThread, &iOSCameraTaskThread::mediaFinish, this, &MediaTask::mediaFinish, Qt::DirectConnection);
+	connect(m_taskThread, &iOSCameraTaskThread::end, this, &iOSCamera::stopTask);
 }
 
 iOSCamera::~iOSCamera()
@@ -178,10 +181,9 @@ QString iOSCamera::getDeviceName(QString udid)
 	return result;
 }
 
-void iOSCamera::startTask()
+void iOSCamera::startTask(QString device)
 {
-	stopTask();
-
+	Q_UNUSED(device)
 	m_updateDeviceThread->start();
 	QMetaObject::invokeMethod(m_updateTimer, "start", Q_ARG(int, 500));
 }
@@ -195,60 +197,37 @@ void iOSCamera::stopTask()
 
 	m_updateDeviceThread->quit();
 	m_updateDeviceThread->wait();
+
+	m_state = UnConnected;
+	runningDevices.remove(m_connectedDevice);
+	m_connectedDevice = QString();
 }
 
-void iOSCamera::setCurrentDevice(QString udid)
+bool iOSCamera::setExpectedDevice(QString udid)
 {
-	if (udid == "disabled") {
-		stopTask();
-		m_currentDevice.clear();
-		return;
-	}
-
-	do {
-		if (m_currentDevice.isEmpty())
-			break;
-
-		if (udid == "auto")
-			return;
-		else {
-			if (m_currentDevice == "auto")
-				break;
-			else {
-				if (m_currentDevice == udid)
-					return;
-				else
-					break;
-			}
-		}
-	} while (1);
+	if (!MediaTask::setExpectedDevice(udid))
+		return false;
 
 	stopTask();
-	m_currentDevice = udid;
+	m_expectedDevice = udid;
 	startTask();
+
+	return true;
 }
 
 void iOSCamera::onUpdateDeviceList(QMap<QString, QPair<QString, uint32_t>> devices)
 {
-	if (m_state == Connected) {
-		// 如果当前设备列表中不包含当前连接的设备（连接设备被移除）
-		// 或者用户更改了想要连接的设备，先把旧任务停掉
-		if (!devices.contains(m_connectedDevice)) {
-			m_taskThread->stopTask();
-
-			m_state = UnConnected;
-			runningDevices.remove(m_connectedDevice);
-			m_connectedDevice.clear();
-		}
-	} else {
+	if (m_state != Connected) {
 		for (auto iter = devices.begin(); iter != devices.end(); iter++) {
 			if (runningDevices.contains(iter.key()))
 				continue;
 
-			if (m_currentDevice == "auto" || m_currentDevice == iter.key()) {
+			if (m_expectedDevice == "auto" || m_expectedDevice == iter.key()) {
 				// try connect
 				if (m_state != Connecting) {
+					m_state = Connecting;
 					m_taskThread->startByInfo(iter.key(), iter.value().second);
+					break;
 				}
 			}
 		}

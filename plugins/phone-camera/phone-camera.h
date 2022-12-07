@@ -3,8 +3,7 @@
 #include <pthread.h>
 #include <QString>
 #include <QDebug>
-#include <qapplication.h>
-#include <qdesktopwidget.h>
+#include <qpointer.h>
 #include <qfile.h>
 
 #include "usb-helper.h"
@@ -25,8 +24,7 @@ public:
 	inline ffmpeg_decode *operator->() { return &decode; }
 };
 
-class iOSCamera;
-class AndroidCamera;
+class MediaTask;
 class PhoneCamera : public QObject {
 	Q_OBJECT
 public:
@@ -39,7 +37,7 @@ public:
 
 public slots:
 	void switchPhoneType();
-	void onMediaData(uint8_t *data, size_t size, int64_t timestamp,  bool isVideo);
+	void onMediaData(uint8_t *data, size_t size, int64_t timestamp, bool isVideo);
 	void onMediaFinish();
 
 private:
@@ -47,8 +45,8 @@ private:
 
 	/***************************/
 	PhoneType m_phoneType = PhoneType::None;
-	iOSCamera *m_iOSCamera = nullptr;
-	AndroidCamera *m_androidCamera = nullptr;
+	QPointer<MediaTask> m_mediaTask = nullptr;
+
 	QMap<QString, QPair<QString, uint32_t>> m_iOSDevices;
 
 	obs_source_t *m_source = nullptr;

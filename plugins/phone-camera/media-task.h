@@ -6,21 +6,21 @@ class MediaTask : public QObject {
 	Q_OBJECT
 public:
 	MediaTask(QObject *parent = nullptr) : QObject(parent) {}
-	virtual void startTask() {}
-	virtual void stopTask() {}
-	virtual bool setCurrentDevice(QString device)
+	virtual void startTask(QString device = QString()) {}
+	Q_INVOKABLE virtual void stopTask() {}
+	virtual bool setExpectedDevice(QString device)
 	{
 		do {
-			if (m_currentDevice.isEmpty())
+			if (m_expectedDevice.isEmpty())
 				break;
 
 			if (device == "auto")
 				return false;
 			else {
-				if (m_currentDevice == "auto")
+				if (m_expectedDevice == "auto") //todo check auto device is same with target device
 					break;
 				else {
-					if (m_currentDevice == device)
+					if (m_expectedDevice == device)
 						return false;
 					else
 						break;
@@ -35,5 +35,5 @@ signals:
 	void mediaFinish();
 
 public:
-	QString m_currentDevice;
+	QString m_expectedDevice;
 };

@@ -24,6 +24,7 @@ std::thread usbmuxd_th;
 
 QSet<QString> installingDevices;
 QSet<QString> runningDevices;
+QSet<QString> readyDevices;
 DriverHelper *driverHelper = nullptr;
 
 bool obs_module_load(void)

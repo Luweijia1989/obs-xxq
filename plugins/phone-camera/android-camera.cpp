@@ -3,60 +3,63 @@
 #include <qelapsedtimer.h>
 
 extern QSet<QString> runningDevices;
+extern QSet<QString> readyDevices;
 
-AndroidCamera::AndroidCamera(QObject *parent) : QThread(parent) {}
+AndroidCamera::AndroidCamera(QObject *parent) : MediaTask(parent)
+{
+	connect(&m_scanTimer, &QTimer::timeout, this, [=]() {
+		for (auto iter = readyDevices.begin(); iter != readyDevices.end(); iter++) {
+			if (runningDevices.contains(*iter))
+				continue;
+
+			if (m_expectedDevice != "auto" && !(*iter).contains(serialNumber(m_expectedDevice)))
+				continue;
+
+			m_scanTimer.stop();
+			runningDevices.insert(*iter);
+			startTask(*iter);
+			break;
+		}
+	});
+	m_scanTimer.setInterval(100);
+	m_scanTimer.setSingleShot(false);
+}
 
 AndroidCamera::~AndroidCamera()
 {
 	stopTask();
 }
 
-void AndroidCamera::setCurrentDevice(QString devicePath)
+bool AndroidCamera::setExpectedDevice(QString devicePath)
 {
-	if (devicePath == "disabled") {
-		stopTask();
-		m_devicePath.clear();
-		return;
-	}
+	if (!MediaTask::setExpectedDevice(devicePath))
+		return false;
 
-	do {
-		if (m_devicePath.isEmpty())
-			break;
-
-		if (devicePath == "auto")
-			return;
-		else {
-			if (m_devicePath == "auto")
-				break;
-			else {
-				if (m_devicePath == devicePath)
-					return;
-				else
-					break;
-			}
-		}
-	} while (1);
-
-	m_devicePath = devicePath;
+	m_expectedDevice = devicePath;
 	stopTask();
+	m_scanTimer.start();
+	return true;
 }
 
 void AndroidCamera::startTask(QString path)
 {
-	stopTask();
-
-	if (m_devicePath != "auto" && !path.contains(serialNumber(m_devicePath)))
-		return;
-
 	m_connectedPath = path;
 	m_running = true;
-	start();
+	m_taskTh = std::thread(run, this);
 }
 
 void AndroidCamera::stopTask()
 {
 	m_running = false;
-	wait();
+	if (m_taskTh.joinable())
+		m_taskTh.join();
+	
+	if (m_connectedPath.isEmpty())
+		return;
+
+	runningDevices.remove(m_connectedPath);
+	m_connectedPath = QString();
+	m_scanTimer.start();
 }
 
 int AndroidCamera::setupDroid(libusb_device *usbDevice, libusb_device_handle *handle)
@@ -200,11 +203,15 @@ bool AndroidCamera::handleMediaData(circlebuf *buffer, uint8_t **cacheBuffer, si
 	return true;
 }
 
-void AndroidCamera::run()
+void AndroidCamera::run(void *p)
+{
+	AndroidCamera *camera = (AndroidCamera *)p;
+	camera->taskInternal();
+}
+
+void AndroidCamera::taskInternal()
 {
 	qDebug() << "android camera task start: " << m_connectedPath;
-
-	runningDevices.insert(m_connectedPath);
 
 	libusb_context *ctx = nullptr;
 	libusb_device **devs = nullptr;
@@ -307,10 +314,8 @@ void AndroidCamera::run()
 		ctx = NULL;
 	}
 
-	runningDevices.remove(m_connectedPath);
-	m_connectedPath.clear();
-
 	emit mediaFinish();
 
+	QMetaObject::invokeMethod(this, "stopTask");
 	qDebug() << "android camera end.";
 }

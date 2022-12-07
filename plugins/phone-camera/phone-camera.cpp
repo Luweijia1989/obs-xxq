@@ -21,20 +21,6 @@ PhoneCamera::PhoneCamera(obs_data_t *settings, obs_source_t *source) : m_source(
 #endif // DUMP_VIDEO
 
 	video_format_get_parameters(VIDEO_CS_601, VIDEO_RANGE_DEFAULT, frame.color_matrix, frame.color_range_min, frame.color_range_max);
-
-	m_androidCamera = new AndroidCamera;
-
-	m_iOSCamera = new iOSCamera;
-	connect(m_iOSCamera, &iOSCamera::updateDeviceList, this, [=](QMap<QString, QPair<QString, uint32_t>> devices) { m_iOSDevices = devices; });
-	connect(m_iOSCamera, &iOSCamera::mediaData, this, &PhoneCamera::onMediaData, Qt::DirectConnection);
-	connect(m_iOSCamera, &iOSCamera::mediaFinish, this, &PhoneCamera::onMediaFinish, Qt::DirectConnection);
-	connect(m_androidCamera, &AndroidCamera::mediaData, this, &PhoneCamera::onMediaData, Qt::DirectConnection);
-	connect(m_androidCamera, &AndroidCamera::mediaFinish, this, &PhoneCamera::onMediaFinish, Qt::DirectConnection);
-
-	connect(driverHelper, &DriverHelper::driverReady, this, [=](QString path, PhoneType type) {
-		if (m_phoneType == PhoneType::Android && type == PhoneType::Android)
-			m_androidCamera->startTask(path);
-	});
 }
 
 PhoneCamera::~PhoneCamera()
@@ -43,8 +29,8 @@ PhoneCamera::~PhoneCamera()
 	m_videodump.close();
 #endif
 
-	delete m_androidCamera;
-	delete m_iOSCamera;
+	if (m_mediaTask)
+		m_mediaTask->deleteLater();
 }
 
 void PhoneCamera::onMediaData(uint8_t *data, size_t size, int64_t timestamp, bool isVideo)
@@ -95,15 +81,21 @@ void PhoneCamera::switchPhoneType()
 	PhoneType type = (PhoneType)obs_data_get_int(settings, PHONE_DEVICE_TYPE);
 	QString deviceId = obs_data_get_string(settings, DEVICE_ID);
 
+	if (type != m_phoneType && m_mediaTask)
+		m_mediaTask->deleteLater();
+
 	m_phoneType = (PhoneType)type;
 	if (type == PhoneType::iOS) {
-		m_androidCamera->setCurrentDevice("disabled");
-		m_iOSCamera->setCurrentDevice(deviceId);
-	} else if (type == PhoneType::Android) {
-		m_iOSCamera->setCurrentDevice("disabled");
-		m_androidCamera->setCurrentDevice(deviceId);
-	}
+		auto ios = new iOSCamera;
+		connect(ios, &iOSCamera::updateDeviceList, this, [=](QMap<QString, QPair<QString, uint32_t>> devices) { m_iOSDevices = devices; });
+		m_mediaTask = ios;
+	} else if (type == PhoneType::Android)
+		m_mediaTask = new AndroidCamera;
 
+	connect(m_mediaTask, &MediaTask::mediaData, this, &PhoneCamera::onMediaData, Qt::DirectConnection);
+	connect(m_mediaTask, &MediaTask::mediaFinish, this, &PhoneCamera::onMediaFinish, Qt::DirectConnection);
+
+	m_mediaTask->setExpectedDevice(deviceId);
 	driverHelper->checkDevices(m_phoneType);
 }
 

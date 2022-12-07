@@ -40,6 +40,7 @@ signals:
 	void connectResult(QString udid, bool success);
 	void mediaData(uint8_t *data, size_t size, int64_t timestamp,  bool isVideo);
 	void mediaFinish();
+	void end();
 
 private:
 	bool m_running = false;
@@ -59,9 +60,9 @@ public:
 
 	iOSCamera(QObject *parent = nullptr);
 	~iOSCamera();
-	void startTask() override;
+	void startTask(QString device = QString()) override;
 	void stopTask() override;
-	void setCurrentDevice(QString udid);
+	bool setExpectedDevice(QString udid);
 
 private:
 	QString getDeviceName(QString udid);
@@ -75,7 +76,6 @@ signals:
 private:
 	QThread *m_updateDeviceThread = nullptr;
 	QTimer *m_updateTimer = nullptr;
-	QString m_currentDevice;
 	QString m_connectedDevice;
 	State m_state = UnConnected;
 	iOSCameraTaskThread *m_taskThread = nullptr;

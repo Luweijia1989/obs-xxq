@@ -91,8 +91,6 @@ public:
 
 	void checkDevices(PhoneType type);
 	QMap<QString, QPair<QString, uint32_t>> androidDevices();
-signals:
-	void driverReady(QString path, PhoneType type);
 
 private:
 	QMap<QString, QString> enumUSBDevice();
