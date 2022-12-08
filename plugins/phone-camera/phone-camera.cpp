@@ -1,17 +1,15 @@
 #include "phone-camera.h"
 #include <qfile.h>
+#include <qhostaddress.h>
+#include <qdebug.h>
+#include <qtimer.h>
+#include <qjsonarray.h>
 #include <util/platform.h>
-
-#include "ios-camera.h"
-#include "android-camera.h"
-#include "driver-helper.h"
 
 #define PHONE_DEVICE_TYPE "device_type"
 #define DEVICE_ID "device_id"
 
 //#define DUMP_VIDEO
-
-extern DriverHelper *driverHelper;
 
 PhoneCamera::PhoneCamera(obs_data_t *settings, obs_source_t *source) : m_source(source)
 {
@@ -21,6 +19,30 @@ PhoneCamera::PhoneCamera(obs_data_t *settings, obs_source_t *source) : m_source(
 #endif // DUMP_VIDEO
 
 	video_format_get_parameters(VIDEO_CS_601, VIDEO_RANGE_DEFAULT, frame.color_matrix, frame.color_range_min, frame.color_range_max);
+	auto socket = new QTcpSocket(this);
+	m_socketWrapper = new TcpSocketWrapper(socket);
+	connect(m_socketWrapper, &TcpSocketWrapper::msgReceived, this, [=](QJsonObject msg) {
+		int type = msg["type"].toInt();
+		if ((MsgType)type == MsgType::DeviceListResult) {
+			QJsonArray array = msg["data"].toArray();
+			for (size_t i = 0; i < array.size(); i++) {
+				auto obj = array.at(i).toObject();
+				m_devices.insert(obj["id"].toString(), {obj["name"].toString(), obj["handle"].toString().toULong()});
+			}
+			m_blockEvent.quit();
+		}
+	});
+
+	socket->connectToHost(QHostAddress::LocalHost, 51338);
+	bool ret = socket->waitForConnected(100);
+	qDebug() << "command socket connect result: " << (ret ? "success" : "fail");
+
+	QTcpServer *server = new QTcpServer(this);
+	m_mediaDataServer = new MediaDataServer(server);
+	connect(m_mediaDataServer, &MediaDataServer::mediaData, this, &PhoneCamera::onMediaData);
+	connect(m_mediaDataServer, &MediaDataServer::mediaVideoInfo, this, &PhoneCamera::onMediaVideoInfo);
+	auto success = server->listen(QHostAddress::LocalHost);
+	qDebug() << "media server listen result: " << (success ? "success" : "fail");
 }
 
 PhoneCamera::~PhoneCamera()
@@ -28,41 +50,33 @@ PhoneCamera::~PhoneCamera()
 #ifdef DUMP_VIDEO
 	m_videodump.close();
 #endif
+}
 
-	if (m_mediaTask)
-		m_mediaTask->deleteLater();
+void PhoneCamera::onMediaVideoInfo(const media_video_info &info)
+{
+	ffmpeg_decode_free(m_videoDecoder);
+
+	if (ffmpeg_decode_init(m_videoDecoder, AV_CODEC_ID_H264, false, info.video_extra, info.video_extra_len) < 0) {
+		blog(LOG_WARNING, "Could not initialize video decoder");
+	}
 }
 
 void PhoneCamera::onMediaData(uint8_t *data, size_t size, int64_t timestamp, bool isVideo)
 {
-	if (isVideo) {
-#ifdef DUMP_VIDEO
-		m_videodump.write((char *)data, size);
-#endif
-		if (timestamp == ((int64_t)UINT64_C(0x8000000000000000))) {
-			if (!ffmpeg_decode_valid(m_videoDecoder)) { // todo 单独的初始化流程
-				if (ffmpeg_decode_init(m_videoDecoder, AV_CODEC_ID_H264, false, data, size) < 0) {
-					blog(LOG_WARNING, "Could not initialize video decoder");
-				}
-			}
-			return;
-		}
+	if (!ffmpeg_decode_valid(m_videoDecoder))
+		return;
 
-		if (!ffmpeg_decode_valid(m_videoDecoder))
-			return;
+	bool got_output;
+	long long ts = 0;
+	bool success = ffmpeg_decode_video(m_videoDecoder, data, size, &ts, VIDEO_RANGE_DEFAULT, &frame, &got_output);
+	if (!success) {
+		blog(LOG_WARNING, "Error decoding video");
+		return;
+	}
 
-		bool got_output;
-		long long ts = 0;
-		bool success = ffmpeg_decode_video(m_videoDecoder, data, size, &ts, VIDEO_RANGE_DEFAULT, &frame, &got_output);
-		if (!success) {
-			blog(LOG_WARNING, "Error decoding video");
-			return;
-		}
-
-		if (got_output) {
-			frame.timestamp = timestamp;
-			obs_source_output_video2(m_source, &frame);
-		}
+	if (got_output) {
+		frame.timestamp = timestamp;
+		obs_source_output_video2(m_source, &frame);
 	}
 }
 
@@ -81,32 +95,35 @@ void PhoneCamera::switchPhoneType()
 	PhoneType type = (PhoneType)obs_data_get_int(settings, PHONE_DEVICE_TYPE);
 	QString deviceId = obs_data_get_string(settings, DEVICE_ID);
 
-	if (type != m_phoneType && m_mediaTask)
-		m_mediaTask->deleteLater();
+	QJsonObject req;
+	req["type"] = (int)MsgType::MediaTask;
+	QJsonObject data;
+	data["port"] = m_mediaDataServer->port();
+	data["deviceType"] = (int)type;
+	data["deviceId"] = deviceId;
+	req["data"] = data;
 
-	m_phoneType = (PhoneType)type;
-	if (type == PhoneType::iOS) {
-		auto ios = new iOSCamera;
-		connect(ios, &iOSCamera::updateDeviceList, this, [=](QMap<QString, QPair<QString, uint32_t>> devices) { m_iOSDevices = devices; });
-		m_mediaTask = ios;
-	} else if (type == PhoneType::Android)
-		m_mediaTask = new AndroidCamera;
-
-	connect(m_mediaTask, &MediaTask::mediaData, this, &PhoneCamera::onMediaData, Qt::DirectConnection);
-	connect(m_mediaTask, &MediaTask::mediaFinish, this, &PhoneCamera::onMediaFinish, Qt::DirectConnection);
-
-	m_mediaTask->setExpectedDevice(deviceId);
-	driverHelper->checkDevices(m_phoneType);
+	m_socketWrapper->sendMsg(QJsonDocument(req));
 }
 
 QMap<QString, QPair<QString, uint32_t>> PhoneCamera::deviceList(int type)
 {
-	if (type == (int)PhoneType::iOS)
-		return m_iOSDevices;
-	else if (type == (int)PhoneType::Android)
-		return driverHelper->androidDevices();
+	m_devices.clear();
 
-	return {};
+	QJsonObject req;
+	if (type == (int)PhoneType::iOS)
+		req["type"] = (int)MsgType::iOSDeviceList;
+	else if (type == (int)PhoneType::Android)
+		req["type"] = (int)MsgType::AndroidDeviceList;
+
+	QTimer timer;
+	timer.setSingleShot(true);
+	connect(&timer, &QTimer::timeout, &m_blockEvent, &QEventLoop::quit);
+	m_socketWrapper->sendMsg(QJsonDocument(req));
+	timer.start(100);
+	m_blockEvent.exec(QEventLoop::ExcludeUserInputEvents);
+
+	return m_devices;
 }
 
 static const char *GetPhoneCameraInputName(void *)

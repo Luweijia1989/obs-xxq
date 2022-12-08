@@ -1,6 +1,5 @@
 #pragma once
 
-#include <qtimer.h>
 #include <thread>
 #include <libusb-1.0/libusb.h>
 #include "usb-helper.h"
@@ -31,9 +30,8 @@ class AndroidCamera : public MediaTask {
 public:
 	AndroidCamera(QObject *parent = nullptr);
 	~AndroidCamera();
-	bool setExpectedDevice(QString devicePath) override;
 
-	void startTask(QString path) override;
+	void startTask(QString path, uint32_t handle = 0) override;
 	void stopTask() override;
 
 	static void run(void *p);
@@ -45,9 +43,7 @@ private:
 	void taskInternal();
 
 private:
-	QString m_connectedPath;
 	bool m_running = false;
 	t_accessory_droid m_droid = {0};
 	std::thread m_taskTh;
-	QTimer m_scanTimer;
 };

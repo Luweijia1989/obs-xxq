@@ -5,6 +5,8 @@
 #include <util/platform.h>
 #include <libimobiledevice/lockdown.h>
 
+#include "application.h"
+
 extern QSet<QString> runningDevices;
 
 iOSCameraTaskThread::iOSCameraTaskThread(QObject *parent) : QThread(parent) {}
@@ -48,8 +50,6 @@ void iOSCameraTaskThread::run()
 		usbmuxd_disconnect(fd);
 
 	emit mediaFinish();
-
-	emit end();
 }
 
 void iOSCameraTaskThread::startByInfo(QString udid, uint32_t deviceHandle)
@@ -89,134 +89,48 @@ void iOSCameraTaskThread::parseMediaData()
 
 		uint8_t *payload = (uint8_t *)bmalloc(frame.payloadSize);
 		circlebuf_pop_front(&m_dataBuf, payload, frame.payloadSize);
-		emit mediaData(payload, frame.payloadSize, os_gettime_ns(), frame.type == 101);
+		emit mediaData(QByteArray((char *)payload, frame.payloadSize), os_gettime_ns(), frame.type == 101);
 		bfree(payload);
 	}
 }
 
 iOSCamera::iOSCamera(QObject *parent) : MediaTask(parent), m_taskThread(new iOSCameraTaskThread(this))
 {
-	connect(this, &iOSCamera::updateDeviceList, this, &iOSCamera::onUpdateDeviceList);
-
-	m_updateDeviceThread = new QThread;
-	m_updateTimer = new QTimer();
-	m_updateTimer->setSingleShot(false);
-	m_updateTimer->moveToThread(m_updateDeviceThread);
-
-	QObject::connect(m_updateTimer, &QTimer::timeout, m_updateTimer, [=] {
-		QMap<QString, QPair<QString, uint32_t>> list;
-		usbmuxd_device_info_t *devices = NULL;
-		auto deviceCount = usbmuxd_get_device_list(&devices);
-		if (deviceCount > 0) {
-			for (size_t i = 0; i < deviceCount; i++) {
-				auto device = devices[i];
-				if (device.conn_type == CONNECTION_TYPE_NETWORK)
-					continue;
-
-				QString udid(device.udid);
-				QString name = getDeviceName(udid);
-				list.insert(udid, {name, device.handle});
-			}
-		}
-		usbmuxd_device_list_free(&devices);
-
-		emit updateDeviceList(list);
-	});
-
+	connect(&m_scanTimer, &QTimer::timeout, this, &iOSCamera::onUpdateDeviceList);
 	connect(m_taskThread, &iOSCameraTaskThread::connectResult, this, [this](QString udid, bool success) {
 		if (!success) {
-			m_taskThread->stopTask();
-			m_state = UnConnected;
+			stopTask();
 		} else {
-			m_connectedDevice = udid;
-			runningDevices.insert(udid);
 			m_state = Connected;
 		}
 	});
 	connect(m_taskThread, &iOSCameraTaskThread::mediaData, this, &MediaTask::mediaData, Qt::DirectConnection);
 	connect(m_taskThread, &iOSCameraTaskThread::mediaFinish, this, &MediaTask::mediaFinish, Qt::DirectConnection);
-	connect(m_taskThread, &iOSCameraTaskThread::end, this, &iOSCamera::stopTask);
+	connect(m_taskThread, &iOSCameraTaskThread::finished, this, &iOSCamera::stopTask);
 }
 
 iOSCamera::~iOSCamera()
 {
 	stopTask();
-
-	m_updateTimer->deleteLater();
-	m_updateDeviceThread->deleteLater();
 }
 
-QString iOSCamera::getDeviceName(QString udid)
+void iOSCamera::startTask(QString device, uint32_t handle)
 {
-	QString result;
+	MediaTask::startTask(device, handle);
 
-	idevice_t lockdown_device = NULL;
-	idevice_new_with_options(&lockdown_device, udid.toUtf8().data(), IDEVICE_LOOKUP_USBMUX);
-
-	if (!lockdown_device) {
-		return result;
-	}
-
-	lockdownd_client_t lockdown = NULL;
-
-	if (LOCKDOWN_E_SUCCESS != lockdownd_client_new(lockdown_device, &lockdown, "usbmuxd")) {
-		idevice_free(lockdown_device);
-		return result;
-	}
-
-	char *lockdown_device_name = NULL;
-
-	if ((LOCKDOWN_E_SUCCESS != lockdownd_get_device_name(lockdown, &lockdown_device_name)) || !lockdown_device_name) {
-		idevice_free(lockdown_device);
-		lockdownd_client_free(lockdown);
-		return result;
-	}
-
-	idevice_free(lockdown_device);
-	lockdownd_client_free(lockdown);
-
-	result = lockdown_device_name;
-	free(lockdown_device_name);
-
-	return result;
-}
-
-void iOSCamera::startTask(QString device)
-{
-	Q_UNUSED(device)
-	m_updateDeviceThread->start();
-	QMetaObject::invokeMethod(m_updateTimer, "start", Q_ARG(int, 500));
+	m_taskThread->startByInfo(device, handle);
 }
 
 void iOSCamera::stopTask()
 {
 	m_taskThread->stopTask();
 
-	if (!m_updateDeviceThread->isRunning())
-		return;
-
-	m_updateDeviceThread->quit();
-	m_updateDeviceThread->wait();
-
-	m_state = UnConnected;
-	runningDevices.remove(m_connectedDevice);
-	m_connectedDevice = QString();
+	MediaTask::stopTask();
 }
 
-bool iOSCamera::setExpectedDevice(QString udid)
+void iOSCamera::onUpdateDeviceList()
 {
-	if (!MediaTask::setExpectedDevice(udid))
-		return false;
-
-	stopTask();
-	m_expectedDevice = udid;
-	startTask();
-
-	return true;
-}
-
-void iOSCamera::onUpdateDeviceList(QMap<QString, QPair<QString, uint32_t>> devices)
-{
+	auto devices = static_cast<Application *>(qApp)->iOSDevices();
 	if (m_state != Connected) {
 		for (auto iter = devices.begin(); iter != devices.end(); iter++) {
 			if (runningDevices.contains(iter.key()))
@@ -226,7 +140,7 @@ void iOSCamera::onUpdateDeviceList(QMap<QString, QPair<QString, uint32_t>> devic
 				// try connect
 				if (m_state != Connecting) {
 					m_state = Connecting;
-					m_taskThread->startByInfo(iter.key(), iter.value().second);
+					startTask(iter.key(), iter.value().second);
 					break;
 				}
 			}

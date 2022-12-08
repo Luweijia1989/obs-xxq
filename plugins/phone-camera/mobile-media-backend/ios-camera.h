@@ -1,7 +1,6 @@
 #pragma once
 
 #include <qthread.h>
-#include <qtimer.h>
 #include <qmap>
 #include <util/circlebuf.h>
 #include "media-task.h"
@@ -38,9 +37,8 @@ private:
 
 signals:
 	void connectResult(QString udid, bool success);
-	void mediaData(uint8_t *data, size_t size, int64_t timestamp,  bool isVideo);
+	void mediaData(QByteArray data, int64_t timestamp,  bool isVideo);
 	void mediaFinish();
-	void end();
 
 private:
 	bool m_running = false;
@@ -60,23 +58,13 @@ public:
 
 	iOSCamera(QObject *parent = nullptr);
 	~iOSCamera();
-	void startTask(QString device = QString()) override;
+	void startTask(QString device, uint32_t handle = 0) override;
 	void stopTask() override;
-	bool setExpectedDevice(QString udid);
-
-private:
-	QString getDeviceName(QString udid);
 
 public slots:
-	void onUpdateDeviceList(QMap<QString, QPair<QString, uint32_t>> devices);
-
-signals:
-	void updateDeviceList(QMap<QString, QPair<QString, uint32_t>> devices);
+	void onUpdateDeviceList();
 
 private:
-	QThread *m_updateDeviceThread = nullptr;
-	QTimer *m_updateTimer = nullptr;
-	QString m_connectedDevice;
 	State m_state = UnConnected;
 	iOSCameraTaskThread *m_taskThread = nullptr;
 };

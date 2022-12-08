@@ -1,13 +1,14 @@
 #pragma once
 
-#include <pthread.h>
 #include <QString>
 #include <QDebug>
 #include <qpointer.h>
 #include <qfile.h>
-
-#include "usb-helper.h"
 #include <obs.h>
+#include <qtcpsocket.h>
+#include <qeventloop.h>
+
+#include "common.h"
 
 extern "C" {
 #include "ffmpeg-decode.h"
@@ -24,7 +25,6 @@ public:
 	inline ffmpeg_decode *operator->() { return &decode; }
 };
 
-class MediaTask;
 class PhoneCamera : public QObject {
 	Q_OBJECT
 public:
@@ -37,6 +37,7 @@ public:
 
 public slots:
 	void switchPhoneType();
+	void onMediaVideoInfo(const media_video_info &info);
 	void onMediaData(uint8_t *data, size_t size, int64_t timestamp, bool isVideo);
 	void onMediaFinish();
 
@@ -45,12 +46,15 @@ private:
 
 	/***************************/
 	PhoneType m_phoneType = PhoneType::None;
-	QPointer<MediaTask> m_mediaTask = nullptr;
 
-	QMap<QString, QPair<QString, uint32_t>> m_iOSDevices;
+	QMap<QString, QPair<QString, uint32_t>> m_devices;
 
 	obs_source_t *m_source = nullptr;
 	Decoder m_audioDecoder;
 	Decoder m_videoDecoder;
 	obs_source_frame2 frame = {0};
+
+	TcpSocketWrapper *m_socketWrapper = nullptr;
+	QPointer<MediaDataServer> m_mediaDataServer = nullptr;
+	QEventLoop m_blockEvent;
 };

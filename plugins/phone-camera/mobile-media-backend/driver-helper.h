@@ -10,6 +10,7 @@
 #include <qeventloop.h>
 #include <qset.h>
 
+#include "../common.h"
 #include "usb-helper.h"
 
 class NativeEventFilter : public QObject, public QAbstractNativeEventFilter {

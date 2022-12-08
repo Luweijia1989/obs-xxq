@@ -15,14 +15,10 @@ AndroidCamera::AndroidCamera(QObject *parent) : MediaTask(parent)
 			if (m_expectedDevice != "auto" && !(*iter).contains(serialNumber(m_expectedDevice)))
 				continue;
 
-			m_scanTimer.stop();
-			runningDevices.insert(*iter);
 			startTask(*iter);
 			break;
 		}
 	});
-	m_scanTimer.setInterval(100);
-	m_scanTimer.setSingleShot(false);
 }
 
 AndroidCamera::~AndroidCamera()
@@ -30,20 +26,12 @@ AndroidCamera::~AndroidCamera()
 	stopTask();
 }
 
-bool AndroidCamera::setExpectedDevice(QString devicePath)
+void AndroidCamera::startTask(QString path, uint32_t handle)
 {
-	if (!MediaTask::setExpectedDevice(devicePath))
-		return false;
+	Q_UNUSED(handle)
 
-	m_expectedDevice = devicePath;
-	stopTask();
-	m_scanTimer.start();
-	return true;
-}
+	MediaTask::startTask(path);
 
-void AndroidCamera::startTask(QString path)
-{
-	m_connectedPath = path;
 	m_running = true;
 	m_taskTh = std::thread(run, this);
 }
@@ -53,13 +41,8 @@ void AndroidCamera::stopTask()
 	m_running = false;
 	if (m_taskTh.joinable())
 		m_taskTh.join();
-	
-	if (m_connectedPath.isEmpty())
-		return;
 
-	runningDevices.remove(m_connectedPath);
-	m_connectedPath = QString();
-	m_scanTimer.start();
+	MediaTask::stopTask();
 }
 
 int AndroidCamera::setupDroid(libusb_device *usbDevice, libusb_device_handle *handle)
@@ -192,7 +175,7 @@ bool AndroidCamera::handleMediaData(circlebuf *buffer, uint8_t **cacheBuffer, si
 
 	if (type == 1) { //video
 			 //bool is_pps = pts == ((int64_t)UINT64_C(0x8000000000000000));
-		emit mediaData(*cacheBuffer, pktSize, pts, true);
+		emit mediaData(QByteArray((char *)*cacheBuffer, pktSize), pts, true);
 	} else {
 		/*struct av_packet_info pack_info = {0};
 		pack_info.size = pktSize;
@@ -211,7 +194,7 @@ void AndroidCamera::run(void *p)
 
 void AndroidCamera::taskInternal()
 {
-	qDebug() << "android camera task start: " << m_connectedPath;
+	qDebug() << "android camera task start: " << m_connectedDevice;
 
 	libusb_context *ctx = nullptr;
 	libusb_device **devs = nullptr;
@@ -234,15 +217,18 @@ void AndroidCamera::taskInternal()
 		if (libusb_open(devs[i], &handle) == 0) {
 			uint8_t buffer[256] = {0};
 			if (libusb_get_string_descriptor_ascii(handle, desc.iSerialNumber, buffer, 255) >= 0) {
-				if (!m_connectedPath.contains(QString((char *)buffer))) {
+				if (!m_connectedDevice.contains(QString((char *)buffer))) {
 					libusb_close(handle);
+					handle = nullptr;
 					continue;
 				} else {
 					device = devs[i];
 					break;
 				}
-			} else
+			} else {
 				libusb_close(handle);
+				handle = nullptr;
+			}
 		}
 	}
 

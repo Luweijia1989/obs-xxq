@@ -86,7 +86,7 @@ static const char *lockfile = "/var/run/usbmuxd.pid";
 int should_exit;
 int should_discover;
 int use_logfile = 0;
-int no_preflight = 1;
+int no_preflight = 0;
 
 #if DEBUG || _DEBUG
 static int verbose = 255;
