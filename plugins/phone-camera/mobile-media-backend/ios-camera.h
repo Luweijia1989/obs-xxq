@@ -36,7 +36,6 @@ private:
 	void parseMediaData();
 
 signals:
-	void connectResult(QString udid, bool success);
 	void mediaData(QByteArray data, int64_t timestamp,  bool isVideo);
 	void mediaFinish();
 
@@ -50,12 +49,6 @@ private:
 class iOSCamera : public MediaTask {
 	Q_OBJECT
 public:
-	enum State {
-		UnConnected,
-		Connecting,
-		Connected,
-	};
-
 	iOSCamera(QObject *parent = nullptr);
 	~iOSCamera();
 	void startTask(QString device, uint32_t handle = 0) override;
@@ -65,6 +58,5 @@ public slots:
 	void onUpdateDeviceList();
 
 private:
-	State m_state = UnConnected;
 	iOSCameraTaskThread *m_taskThread = nullptr;
 };

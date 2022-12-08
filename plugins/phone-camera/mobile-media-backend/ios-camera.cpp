@@ -24,13 +24,10 @@ void iOSCameraTaskThread::run()
 			connectCount++;
 			if (fd < 0) {
 				if (connectCount > 5) {
-					emit connectResult(m_udid, false);
 					break;
 				}
 				QThread::msleep(50);
 				continue;
-			} else {
-				emit connectResult(m_udid, true);
 			}
 		} else {
 			int ret = usbmuxd_recv_timeout(fd, readBuf.data(), 1024 * 1024, &received, 100);
@@ -97,13 +94,6 @@ void iOSCameraTaskThread::parseMediaData()
 iOSCamera::iOSCamera(QObject *parent) : MediaTask(parent), m_taskThread(new iOSCameraTaskThread(this))
 {
 	connect(&m_scanTimer, &QTimer::timeout, this, &iOSCamera::onUpdateDeviceList);
-	connect(m_taskThread, &iOSCameraTaskThread::connectResult, this, [this](QString udid, bool success) {
-		if (!success) {
-			stopTask();
-		} else {
-			m_state = Connected;
-		}
-	});
 	connect(m_taskThread, &iOSCameraTaskThread::mediaData, this, &MediaTask::mediaData, Qt::DirectConnection);
 	connect(m_taskThread, &iOSCameraTaskThread::mediaFinish, this, &MediaTask::mediaFinish, Qt::DirectConnection);
 	connect(m_taskThread, &iOSCameraTaskThread::finished, this, &iOSCamera::stopTask);
@@ -131,19 +121,14 @@ void iOSCamera::stopTask()
 void iOSCamera::onUpdateDeviceList()
 {
 	auto devices = static_cast<Application *>(qApp)->iOSDevices();
-	if (m_state != Connected) {
-		for (auto iter = devices.begin(); iter != devices.end(); iter++) {
-			if (runningDevices.contains(iter.key()))
-				continue;
+	for (auto iter = devices.begin(); iter != devices.end(); iter++) {
+		if (runningDevices.contains(iter.key()))
+			continue;
 
-			if (m_expectedDevice == "auto" || m_expectedDevice == iter.key()) {
-				// try connect
-				if (m_state != Connecting) {
-					m_state = Connecting;
-					startTask(iter.key(), iter.value().second);
-					break;
-				}
-			}
+		if (m_expectedDevice == "auto" || m_expectedDevice == iter.key()) {
+			// try connect
+			startTask(iter.key(), iter.value().second);
+			break;
 		}
 	}
 }
