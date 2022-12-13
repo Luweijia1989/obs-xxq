@@ -616,7 +616,7 @@ void DShowInput::OutputSourceFrame(obs_source_t *source, struct obs_source_frame
 		bool needBeauty = false;
 		if (filter) {
 			auto settings = obs_source_get_settings(filter);
-			bool needBeauty = obs_data_get_int(settings, "need_beauty") == 1;
+			needBeauty = obs_data_get_int(settings, "need_beauty") == 1;
 			obs_data_release(settings);
 		}
 		if (removeFilter || needBeauty) {
