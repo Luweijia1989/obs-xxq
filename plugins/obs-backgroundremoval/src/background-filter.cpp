@@ -1,6 +1,7 @@
 #include <obs-module.h>
 #include <util/circlebuf.h>
 #include <thread>
+#include <util/windows/win-version.h>
 
 #if defined(__APPLE__)
 #include <onnxruntime/core/session/onnxruntime_cxx_api.h>
@@ -314,8 +315,28 @@ static void process_frame(void *data)
 	}
 }
 
+uint32_t GetWindowsVersion()
+{
+    static uint32_t ver = 0;
+
+    if(ver == 0)
+    {
+        struct win_version_info ver_info;
+
+        get_win_ver(&ver_info);
+        ver = (ver_info.major << 8) | ver_info.minor;
+    }
+
+    return ver;
+}
+
 static void *filter_create(obs_data_t *settings, obs_source_t *source)
 {
+	uint32_t winVer = GetWindowsVersion();
+	if (winVer > 0 && winVer < 0x602) {
+		return nullptr;
+	}
+
 	struct background_removal_filter *tf = new struct background_removal_filter;
 
 	tf->source = source;
