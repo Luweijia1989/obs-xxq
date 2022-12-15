@@ -611,11 +611,15 @@ static bool VideoDataSizeValid(int w, int h, size_t size, VideoFormat format)
 void DShowInput::OutputSourceFrame(obs_source_t *source, struct obs_source_frame2 *frame)
 {
 	auto filter = obs_source_filter_get_by_name(source, "YPPBeautyFilter");
-	if (filter) {
-		auto settings = obs_source_get_settings(filter);
-		bool needBeauty = obs_data_get_int(settings, "need_beauty") == 1;
-		obs_data_release(settings);
-		if (needBeauty) {
+	auto removeFilter = obs_source_filter_get_by_name(source, "YPPBackgroundRemovealFilter");
+	if (filter || removeFilter) {
+		bool needBeauty = false;
+		if (filter) {
+			auto settings = obs_source_get_settings(filter);
+			needBeauty = obs_data_get_int(settings, "need_beauty") == 1;
+			obs_data_release(settings);
+		}
+		if (removeFilter || needBeauty) {
 			if (frame->format != VIDEO_FORMAT_RGBA) {
 				if (conversion.width != frame->width
 					|| conversion.height != frame->height

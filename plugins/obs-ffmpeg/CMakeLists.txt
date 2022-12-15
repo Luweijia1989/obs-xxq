@@ -72,9 +72,9 @@ target_link_libraries(obs-ffmpeg
 	media-playback
 	${obs-ffmpeg_PLATFORM_DEPS}
 	${FFMPEG_LIBRARIES})
-	
 target_link_libraries(obs-ffmpeg Librist::Librist Libsrt::Libsrt)
 target_link_libraries(obs-ffmpeg ws2_32.lib)
+set_target_properties(obs-ffmpeg PROPERTIES FOLDER "plugins/obs-ffmpeg")
 
 install_obs_plugin_with_data(obs-ffmpeg data)
 

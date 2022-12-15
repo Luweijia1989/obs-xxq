@@ -32,6 +32,7 @@ endif()
 
 set_target_properties(get-graphics-offsets
 	PROPERTIES
+		FOLDER "plugins/win-capture"
 		OUTPUT_NAME "get-graphics-offsets${_output_suffix}")
 
 install_obs_datatarget(get-graphics-offsets "obs-plugins/win-capture")

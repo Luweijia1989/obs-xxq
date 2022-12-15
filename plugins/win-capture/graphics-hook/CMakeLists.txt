@@ -100,6 +100,7 @@ endif()
 
 set_target_properties(graphics-hook
 	PROPERTIES
+		FOLDER "plugins/win-capture"
 		OUTPUT_NAME "graphics-hook${_output_suffix}")
 
 install_obs_datatarget(graphics-hook "obs-plugins/win-capture")

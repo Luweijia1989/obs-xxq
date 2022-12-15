@@ -405,6 +405,8 @@ if (APPLE)
 	)
 endif()
 
+set_target_properties(obs PROPERTIES FOLDER "frontend")
+
 define_graphic_modules(obs)
 
 install_obs_core(obs)

@@ -32,3 +32,4 @@ set(CAPTION_HEADERS
 )
 
 add_library(caption STATIC ${CAPTION_SOURCES})
+set_target_properties(libcaption PROPERTIES FOLDER "deps")

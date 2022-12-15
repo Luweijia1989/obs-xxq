@@ -54,5 +54,6 @@ target_link_libraries(beauty-filter
 	debug ${PROJECT_SOURCE_DIR}/bytedance/angle_dynamic/${_bit_suffix}/Debug/dynamic_angle.lib
 	optimized ${PROJECT_SOURCE_DIR}/bytedance/angle_dynamic/${_bit_suffix}/Release/dynamic_angle.lib
 	${FFMPEG_LIBRARIES})
+set_target_properties(beauty-filter PROPERTIES FOLDER "plugins")
 
 install_obs_plugin(beauty-filter data)
