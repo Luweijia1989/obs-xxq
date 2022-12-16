@@ -1,5 +1,4 @@
 #include "usb-helper.h"
-#include <winusb.h>
 #include <qthread.h>
 #include <libusb-1.0/libusb.h>
 

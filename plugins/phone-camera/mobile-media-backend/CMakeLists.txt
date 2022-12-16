@@ -13,12 +13,17 @@ find_package(Qt5Network REQUIRED)
 set(CMAKE_AUTOMOC TRUE)
 
 include_directories(SYSTEM ${PLIST_INCLUDE_DIR})
+include_directories(${PROJECT_SOURCE_DIR}/ios/screenmirror)
+include_directories(${PROJECT_SOURCE_DIR}/ios/usbmuxd)
 
 add_definitions("-DHAVE_LIBIMOBILEDEVICE")
 add_definitions("-DHAVE_ENUM_IDEVICE_CONNECTION_TYPE")
 
 file(GLOB usbmuxd_SRC ${PROJECT_SOURCE_DIR}/ios/usbmuxd/*.c)
 file(GLOB usbmuxd_HEADER ${PROJECT_SOURCE_DIR}/ios/usbmuxd/*.h)
+
+file(GLOB screenmirror_SRC ${PROJECT_SOURCE_DIR}/ios/screenmirror/*.c)
+file(GLOB screenmirror_HEADER ${PROJECT_SOURCE_DIR}/ios/screenmirror/*.h)
 
 set(mobile-media-backend_HEADERS
 	../common.h
@@ -28,6 +33,7 @@ set(mobile-media-backend_HEADERS
 	media-task.h
 	media-source.h
 	ios-camera.h
+	ios-screen-mirror-task-thread.h
 	android-camera.h)
 
 set(mobile-media-backend_SOURCES
@@ -37,13 +43,16 @@ set(mobile-media-backend_SOURCES
 	driver-helper.cpp
 	media-source.cpp
 	ios-camera.cpp
+	ios-screen-mirror-task-thread.cpp
 	android-camera.cpp)
 
 add_executable(mobile-media-backend
 	${mobile-media-backend_SOURCES}
 	${mobile-media-backend_HEADERS}
 	${usbmuxd_SRC}
-	${usbmuxd_HEADER})
+	${usbmuxd_HEADER}
+	${screenmirror_SRC}
+	${screenmirror_HEADER})
 
 foreach(lib ${PLIST_LIBRARIES} ${OpenSSL_LIBRARIES} ${FDKAAC_LIBRARIES} ${IMOBILEDEVICE_LIBRARIES} ${LIBUSBMUXD_LIBRARIES} ${LIB_USB_LIBRARIES})
     list (APPEND RELEASE_LINK_LIST optimized ${lib})

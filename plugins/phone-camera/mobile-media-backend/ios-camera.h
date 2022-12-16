@@ -5,7 +5,37 @@
 #include <util/circlebuf.h>
 #include "media-task.h"
 
-class iOSCameraTaskThread : public QThread {
+class TaskThread : public QThread {
+	Q_OBJECT
+public:
+	TaskThread(QObject *parent = nullptr) : QThread(parent) {}
+	virtual ~TaskThread() {}
+	virtual void startTask(QString udid, uint32_t deviceHandle)
+	{
+		m_running = true;
+		m_deviceHandle = deviceHandle;
+		m_udid = udid;
+
+		start();
+	}
+
+	virtual void stopTask()
+	{
+		m_running = false;
+		wait();
+	}
+
+signals:
+	void mediaData(QByteArray data, int64_t timestamp, bool isVideo);
+	void mediaFinish();
+
+public:
+	bool m_running = false;
+	uint32_t m_deviceHandle = 0;
+	QString m_udid;
+};
+
+class iOSCameraTaskThread : public TaskThread {
 	Q_OBJECT
 public:
 	// This is what we send as the header for each frame.
@@ -29,20 +59,11 @@ public:
 
 	iOSCameraTaskThread(QObject *parent = nullptr);
 	void run() override;
-	void startByInfo(QString udid, uint32_t deviceHandle);
-	void stopTask();
 
 private:
 	void parseMediaData();
 
-signals:
-	void mediaData(QByteArray data, int64_t timestamp,  bool isVideo);
-	void mediaFinish();
-
 private:
-	bool m_running = false;
-	uint32_t m_deviceHandle = 0;
-	QString m_udid;
 	circlebuf m_dataBuf;
 };
 
@@ -58,5 +79,5 @@ public slots:
 	void onUpdateDeviceList();
 
 private:
-	iOSCameraTaskThread *m_taskThread = nullptr;
+	TaskThread *m_taskThread = nullptr;
 };

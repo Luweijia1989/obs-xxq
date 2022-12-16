@@ -320,7 +320,6 @@ static int main_loop(int listenfd)
 
 	fdlist_create(&pollfds);
 	while(!should_exit) {
-		usbmuxd_log(LL_FLOOD, "main_loop iteration");
 #ifndef WIN32
 		to = usb_get_timeout();
 		usbmuxd_log(LL_FLOOD, "USB timeout is %d ms", to);
@@ -340,7 +339,6 @@ static int main_loop(int listenfd)
 #endif
 
 		client_get_fds(&pollfds);
-		usbmuxd_log(LL_FLOOD, "fd count is %d", pollfds.count);
 
 #ifdef WIN32
 		cnt = ppoll(pollfds.fds, pollfds.count, 100);
@@ -351,7 +349,6 @@ static int main_loop(int listenfd)
 		cnt = ppoll(pollfds.fds, pollfds.count, &tspec, &empty_sigset);
 #endif
 
-		usbmuxd_log(LL_FLOOD, "poll() returned %d", cnt);
 		if(cnt == -1) {
 			if(errno == EINTR) {
 				if(should_exit) {

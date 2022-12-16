@@ -73,6 +73,49 @@ void usb_win32_set_configuration(const char serial[], uint8_t configuration)
 	usb_close(device);
 }
 
+void usb_win32_activate_quicktime(const char serial[])
+{
+	usbmuxd_log(LL_INFO, "usb_win32_activate_quicktime for device %s using libusb-win32", serial);
+
+	usb_dev_handle* device = usb_win32_open(serial);
+
+	if (device == NULL) {
+		return;
+	}
+
+	int res = usb_control_msg(device, 0x40, 0x52, 0x00, 0x02, NULL, 0, 0);
+
+	usb_close(device);
+}
+
+void usb_win32_extra_cmd(const char serial[])
+{
+	usb_dev_handle* device = usb_win32_open(serial);
+
+	if (device == NULL) {
+		return;
+	}
+
+	char buf[1024] = {0};
+	usb_control_msg(device, 0x00, 0x09, 0x05, 0x00, NULL, 0, 0);
+	usb_control_msg(device, 0xc0, 0x33, 0x00, 0x00, buf, 0x02, 0);
+
+	usb_close(device);
+}
+
+void ubs_win32_extra_cmd_end(const char serial[])
+{
+	usb_dev_handle* device = usb_win32_open(serial);
+
+	if (device == NULL) {
+		return;
+	}
+
+	usb_control_msg(device, 0x40, 0x52, 0x00, 0x00, NULL, 0, 100);
+
+	usb_close(device);
+}
+
 usb_dev_handle *usb_win32_open(const char serial[])
 {
 	struct usb_bus *bus;

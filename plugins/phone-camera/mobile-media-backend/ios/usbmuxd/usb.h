@@ -28,6 +28,7 @@
 #define INTERFACE_CLASS 255
 #define INTERFACE_SUBCLASS 254
 #define INTERFACE_PROTOCOL 2
+#define INTERFACE_QUICKTIMECLASS 42
 
 // libusb fragments packets larger than this (usbfs limitation)
 // on input, this creates race conditions and other issues
@@ -64,7 +65,7 @@ void usb_get_fds(struct fdlist *list);
 #endif
 
 int usb_get_timeout(void);
-int usb_send(struct usb_device *dev, const unsigned char *buf, int length);
+int usb_send(struct usb_device *dev, const unsigned char *buf, int length, int for_mirror);
 int usb_discover(void);
 void usb_autodiscover(int enable);
 int usb_process(void);

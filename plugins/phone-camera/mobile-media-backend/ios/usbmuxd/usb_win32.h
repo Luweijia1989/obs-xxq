@@ -6,4 +6,7 @@
 void usb_win32_init();
 int usb_win32_get_configuration(const char serial[], uint8_t *configuration);
 void usb_win32_set_configuration(const char serial[], uint8_t configuration);
+void usb_win32_activate_quicktime(const char serial[]);
+void usb_win32_extra_cmd(const char serial[]);
+void ubs_win32_extra_cmd_end(const char serial[]);
 #endif

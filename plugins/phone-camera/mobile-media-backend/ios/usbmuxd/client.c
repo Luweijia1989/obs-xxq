@@ -58,6 +58,7 @@
 #include "client.h"
 #include "device.h"
 #include "conf.h"
+#include "mirror-devices.h"
 
 #define CMD_BUF_SIZE	0x10000
 #define REPLY_BUF_SIZE	0x10000
@@ -910,6 +911,61 @@ static int client_command(struct mux_client *client, struct usbmuxd_header *hdr)
 				client->state = CLIENT_CONNECTING1;
 			}
 			return 0;
+		case MESSAGE_CUSTOM:
+		{
+			usbmuxd_log(LL_ERROR, "Client %d custom command received, %d", client->fd, hdr->message);
+			payload = (char*)(hdr) + sizeof(struct usbmuxd_header);
+			payload_size = hdr->length - sizeof(struct usbmuxd_header);
+			plist_t dict = NULL;
+			plist_from_xml(payload, payload_size, &dict);
+			if (!dict) {
+				usbmuxd_log(LL_ERROR, "Could not parse plist from payload!");
+				return -1;
+			} else {
+				char *cmdtype = NULL;
+				plist_t node = plist_dict_get_item(dict, "CmdType");
+				if (!node || plist_get_node_type(node) != PLIST_STRING) {
+					usbmuxd_log(LL_ERROR, "Could not read valid CmdType node from plist!");
+					plist_free(dict);
+					return -1;
+				}
+
+				plist_get_string_val(node, &cmdtype);
+				if (!cmdtype) {
+					usbmuxd_log(LL_ERROR, "Could not extract MessageType from plist!");
+					plist_free(dict);
+					return -1;
+				}
+
+				char *device_id = NULL;
+				plist_t device_id_node = plist_dict_get_item(dict, "DeviceId");
+				if (!device_id_node || plist_get_node_type(device_id_node) != PLIST_STRING) {
+					usbmuxd_log(LL_ERROR, "Could not read valid DeviceId node from plist!");
+					plist_free(dict);
+					free(cmdtype);
+					return -1;
+				}
+
+				plist_get_string_val(device_id_node, &device_id);
+				if (!device_id) {
+					usbmuxd_log(LL_ERROR, "Could not extract DeviceId from plist!");
+					plist_free(dict);
+					free(cmdtype);
+					return -1;
+				}
+
+				if (strcmp(cmdtype, "Start") == 0) {
+					mirror_devices_add(device_id, client->fd);
+				} else if (strcmp(cmdtype, "Stop") == 0) {
+					mirror_devices_remove(device_id);
+				}
+
+				free(cmdtype);
+				free(device_id);
+				plist_free(dict);
+			}
+		}
+			break;
 		default:
 			usbmuxd_log(LL_ERROR, "Client %d invalid command %d", client->fd, hdr->message);
 			if(send_result(client, hdr->tag, RESULT_BADCOMMAND) < 0)

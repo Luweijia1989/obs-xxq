@@ -243,7 +243,7 @@ static int send_packet(struct mux_device *dev, enum mux_protocol proto, void *he
 	if(data && length)
 		memcpy(buffer + mux_header_size + hdrlen, data, length);
 
-	if((res = usb_send(dev->usbdev, buffer, total)) < 0) {
+	if((res = usb_send(dev->usbdev, buffer, total, 0)) < 0) {
 		usbmuxd_log(LL_ERROR, "usb_send failed while sending packet (len %d) to device %d: %d", total, dev->id, res);
 		free(buffer);
 		return res;

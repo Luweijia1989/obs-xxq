@@ -60,6 +60,7 @@ enum usbmuxd_msgtype {
 	MESSAGE_DEVICE_PAIRED = 6,
 	//???
 	MESSAGE_PLIST = 8,
+	MESSAGE_CUSTOM = 9,
 };
 
 PACK(

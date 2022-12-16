@@ -40,6 +40,8 @@
 #include "log.h"
 #include "device.h"
 #include "utils.h"
+#include "media_process.h"
+#include "mirror-devices.h"
 
 #if (defined(LIBUSB_API_VERSION) && (LIBUSB_API_VERSION >= 0x01000102)) || (defined(LIBUSBX_API_VERSION) && (LIBUSBX_API_VERSION >= 0x01000102))
 #define HAVE_LIBUSB_HOTPLUG_API 1
@@ -70,17 +72,29 @@ const char *libusb_strerror(int errcode)
 
 int libusb_verbose = 0;
 
+enum mirror_status {
+	not_in_mirror,
+	in_mirror,
+	to_stop_mirror,
+};
+
 struct usb_device {
 	libusb_device_handle *dev;
 	uint8_t bus, address;
 	char serial[256];
+	char serial_usb[256];
 	int alive;
 	uint8_t interface, ep_in, ep_out;
+	uint8_t interface_fa, ep_in_fa, ep_out_fa;
 	struct collection rx_xfers;
+	struct collection rx_xfers_for_mirror;
 	struct collection tx_xfers;
 	int wMaxPacketSize;
 	uint64_t speed;
 	struct libusb_device_descriptor devdesc;
+	void *mirror_ctx;
+	enum mirror_status status;
+	int fd;
 };
 
 static struct collection device_list;
@@ -116,6 +130,13 @@ static void usb_disconnect(struct usb_device *dev)
 	}
 	ENDFOREACH
 
+	FOREACH(struct libusb_transfer * xfer, &dev->rx_xfers_for_mirror)
+	{
+		usbmuxd_log(LL_DEBUG, "usb_disconnect: cancelling RX xfer for mirror %p", xfer);
+		libusb_cancel_transfer(xfer);
+	}
+	ENDFOREACH
+
 	FOREACH(struct libusb_transfer * xfer, &dev->tx_xfers)
 	{
 		usbmuxd_log(LL_DEBUG, "usb_disconnect: cancelling TX xfer %p", xfer);
@@ -136,8 +157,21 @@ static void usb_disconnect(struct usb_device *dev)
 		}
 	}
 
+	while (collection_count(&dev->rx_xfers_for_mirror)) {
+		struct timeval tv;
+		int res;
+
+		tv.tv_sec = 0;
+		tv.tv_usec = 1000;
+		if ((res = libusb_handle_events_timeout(NULL, &tv)) < 0) {
+			usbmuxd_log(LL_ERROR, "libusb_handle_events_timeout for usb_disconnect failed: %s", libusb_error_name(res));
+			break;
+		}
+	}
+
 	collection_free(&dev->tx_xfers);
 	collection_free(&dev->rx_xfers);
+	collection_free(&dev->rx_xfers_for_mirror);
 	libusb_release_interface(dev->dev, dev->interface);
 	libusb_close(dev->dev);
 	dev->dev = NULL;
@@ -200,11 +234,11 @@ static void LIBUSB_CALL tx_callback(struct libusb_transfer *xfer)
 	libusb_free_transfer(xfer);
 }
 
-int usb_send(struct usb_device *dev, const unsigned char *buf, int length)
+int usb_send(struct usb_device *dev, const unsigned char *buf, int length, int for_mirror)
 {
 	int res;
 	struct libusb_transfer *xfer = libusb_alloc_transfer(0);
-	libusb_fill_bulk_transfer(xfer, dev->dev, dev->ep_out, (void *)buf, length, tx_callback, dev, 0);
+	libusb_fill_bulk_transfer(xfer, dev->dev, for_mirror == 0 ? dev->ep_out : dev->ep_out_fa, (void *)buf, length, tx_callback, dev, 0);
 	if ((res = libusb_submit_transfer(xfer)) < 0) {
 		usbmuxd_log(LL_ERROR, "Failed to submit TX transfer %p len %d to device %d-%d: %s", buf, length, dev->bus, dev->address,
 			    libusb_error_name(res));
@@ -217,7 +251,7 @@ int usb_send(struct usb_device *dev, const unsigned char *buf, int length)
 		// Send Zero Length Packet
 		xfer = libusb_alloc_transfer(0);
 		void *buffer = malloc(1);
-		libusb_fill_bulk_transfer(xfer, dev->dev, dev->ep_out, buffer, 0, tx_callback, dev, 0);
+		libusb_fill_bulk_transfer(xfer, dev->dev, for_mirror == 0 ? dev->ep_out :  dev->ep_out_fa, buffer, 0, tx_callback, dev, 0);
 		if ((res = libusb_submit_transfer(xfer)) < 0) {
 			usbmuxd_log(LL_ERROR, "Failed to submit TX ZLP transfer to device %d-%d: %s", dev->bus, dev->address, libusb_error_name(res));
 			libusb_free_transfer(xfer);
@@ -228,16 +262,32 @@ int usb_send(struct usb_device *dev, const unsigned char *buf, int length)
 	return 0;
 }
 
-// Callback from read operation
-// Under normal operation this issues a new read transfer request immediately,
-// doing a kind of read-callback loop
-static void LIBUSB_CALL rx_callback(struct libusb_transfer *xfer)
+static void clear_mirror_transfer(struct libusb_transfer *xfer)
 {
 	struct usb_device *dev = xfer->user_data;
-	usbmuxd_log(LL_SPEW, "RX callback dev %d-%d len %d status %d", dev->bus, dev->address, xfer->actual_length, xfer->status);
+
+	destory_mirror_info(dev->mirror_ctx);
+
+	free(xfer->buffer);
+	collection_remove(&dev->rx_xfers_for_mirror, xfer);
+	libusb_free_transfer(xfer);
+
+	// we can't usb_disconnect here due to a deadlock, so instead mark it as dead and reap it after processing events
+	// we'll do device_remove there too
+	dev->alive = 0;
+}
+
+static void LIBUSB_CALL rx_callback_for_mirror(struct libusb_transfer *xfer)
+{
+	struct usb_device *dev = xfer->user_data;
+	if (!dev->mirror_ctx)
+		dev->mirror_ctx = create_mirror_info(dev);
+	usbmuxd_log(LL_SPEW, "RX callback for mirror dev %d-%d len %d status %d", dev->bus, dev->address, xfer->actual_length, xfer->status);
 	if (xfer->status == LIBUSB_TRANSFER_COMPLETED && xfer->actual_length != 0) {
-		device_data_input(dev, xfer->buffer, xfer->actual_length);
-		libusb_submit_transfer(xfer);
+		onMirrorData(dev->mirror_ctx, xfer->buffer, xfer->actual_length);
+		int res = libusb_submit_transfer(xfer);
+		if (res != 0)
+			clear_mirror_transfer(xfer);
 	} else {
 		switch (xfer->status) {
 		case LIBUSB_TRANSFER_COMPLETED: //shut up compiler
@@ -267,13 +317,84 @@ static void LIBUSB_CALL rx_callback(struct libusb_transfer *xfer)
 			break;
 		}
 
-		free(xfer->buffer);
-		collection_remove(&dev->rx_xfers, xfer);
-		libusb_free_transfer(xfer);
+		clear_mirror_transfer(xfer);
+	}
+}
 
-		// we can't usb_disconnect here due to a deadlock, so instead mark it as dead and reap it after processing events
-		// we'll do device_remove there too
-		dev->alive = 0;
+// Start a read-callback loop for this device
+static int start_rx_loop_for_mirror(struct usb_device *dev)
+{
+	int res;
+	void *buf;
+	struct libusb_transfer *xfer = libusb_alloc_transfer(0);
+	buf = malloc(USB_MRU);
+	libusb_fill_bulk_transfer(xfer, dev->dev, dev->ep_in_fa, buf, USB_MRU, rx_callback_for_mirror, dev, 0);
+	if ((res = libusb_submit_transfer(xfer)) != 0) {
+		usbmuxd_log(LL_ERROR, "Failed to submit RX transfer to device for mirror %d-%d: %s", dev->bus, dev->address, libusb_error_name(res));
+		libusb_free_transfer(xfer);
+		return res;
+	}
+
+	collection_add(&dev->rx_xfers_for_mirror, xfer);
+
+	return 0;
+}
+
+static void clear_transfer(struct libusb_transfer *xfer)
+{
+	struct usb_device *dev = xfer->user_data;
+
+	free(xfer->buffer);
+	collection_remove(&dev->rx_xfers, xfer);
+	libusb_free_transfer(xfer);
+
+	// we can't usb_disconnect here due to a deadlock, so instead mark it as dead and reap it after processing events
+	// we'll do device_remove there too
+	dev->alive = 0;
+}
+
+// Callback from read operation
+// Under normal operation this issues a new read transfer request immediately,
+// doing a kind of read-callback loop
+static void LIBUSB_CALL rx_callback(struct libusb_transfer *xfer)
+{
+	struct usb_device *dev = xfer->user_data;
+	usbmuxd_log(LL_SPEW, "RX callback dev %d-%d len %d status %d", dev->bus, dev->address, xfer->actual_length, xfer->status);
+	if (xfer->status == LIBUSB_TRANSFER_COMPLETED && xfer->actual_length != 0) {
+		device_data_input(dev, xfer->buffer, xfer->actual_length);
+		int res = libusb_submit_transfer(xfer);
+		if (res != 0)
+			clear_transfer(xfer);
+	} else {
+		switch (xfer->status) {
+		case LIBUSB_TRANSFER_COMPLETED: //shut up compiler
+		case LIBUSB_TRANSFER_ERROR:
+			// funny, this happens when we disconnect the device while waiting for a transfer, sometimes
+			usbmuxd_log(LL_INFO, "Device %d-%d RX aborted due to error or disconnect", dev->bus, dev->address);
+			break;
+		case LIBUSB_TRANSFER_TIMED_OUT:
+			usbmuxd_log(LL_ERROR, "RX transfer timed out for device %d-%d", dev->bus, dev->address);
+			break;
+		case LIBUSB_TRANSFER_CANCELLED:
+			usbmuxd_log(LL_DEBUG, "Device %d-%d RX transfer cancelled", dev->bus, dev->address);
+			break;
+		case LIBUSB_TRANSFER_STALL:
+			usbmuxd_log(LL_ERROR, "RX transfer stalled for device %d-%d", dev->bus, dev->address);
+			break;
+		case LIBUSB_TRANSFER_NO_DEVICE:
+			// other times, this happens, and also even when we abort the transfer after device removal
+			usbmuxd_log(LL_INFO, "Device %d-%d RX aborted due to disconnect", dev->bus, dev->address);
+			break;
+		case LIBUSB_TRANSFER_OVERFLOW:
+			usbmuxd_log(LL_ERROR, "RX transfer overflow for device %d-%d", dev->bus, dev->address);
+			break;
+		// and nothing happens (this never gets called) if the device is freed after a disconnect! (bad)
+		default:
+			// this should never be reached.
+			break;
+		}
+
+		clear_transfer(xfer);
 	}
 }
 
@@ -329,7 +450,7 @@ static void LIBUSB_CALL get_serial_callback(struct libusb_transfer *transfer)
 		usbdev->serial[8] = '-';
 		usbdev->serial[di + 1] = '\0';
 	}
-
+	usbmuxd_log(LL_INFO, "Got serial '%s' for device %d-%d", usbdev->serial, usbdev->bus, usbdev->address);
 	/* Finish setup now */
 	if (device_add(usbdev) < 0) {
 		usb_disconnect(usbdev);
@@ -403,6 +524,30 @@ static int usb_device_add(libusb_device *dev)
 	FOREACH(struct usb_device * usbdev, &device_list)
 	{
 		if (usbdev->bus == bus && usbdev->address == address) {
+			int fd = mirror_devices_fd_from_udid(usbdev->serial_usb);
+			if (fd != -1) { // request mirror, check mirror status whether need a mirror start
+				if (usbdev->status != in_mirror) {
+					usbmuxd_log(LL_DEBUG, "Receive mirror start request, rescan device: %s", usbdev->serial_usb);
+					libusb_release_interface(usbdev->dev, usbdev->interface);
+					return -1;
+				}
+			} else { // check mirror status, if in mirror, need stop mirror
+				if (usbdev->status == in_mirror) {
+					if (usbdev->mirror_ctx)
+						mirror_end(usbdev->mirror_ctx);
+
+					usbdev->status = to_stop_mirror;
+				} else if (usbdev->status == to_stop_mirror) {
+					//important: call release interface to make cancel transfer success
+					usbmuxd_log(LL_DEBUG, "Stop mirror, device: %s", usbdev->serial_usb);
+					libusb_release_interface(usbdev->dev, usbdev->interface);
+					libusb_release_interface(usbdev->dev, usbdev->interface_fa);
+					ubs_win32_extra_cmd_end(usbdev->serial_usb);
+
+					usb_win32_set_configuration(usbdev->serial_usb, 4);
+					return -1;
+				}
+			}
 			usbdev->alive = 1;
 			found = 1;
 			break;
@@ -443,6 +588,22 @@ static int usb_device_add(libusb_device *dev)
 		libusb_close(handle);
 		return -1;
 	}
+
+	char serial[40];
+	if ((res = libusb_get_string_descriptor_ascii(handle, devdesc.iSerialNumber, (uint8_t *)serial, 40)) <= 0) {
+		usbmuxd_log(LL_WARNING, "Could not get the UDID for device %d-%d: %s", bus, address, libusb_strerror(res));
+		libusb_close(handle);
+		return -1;
+	}
+
+	int fd = mirror_devices_fd_from_udid(serial);
+	int mirror_request = (fd != -1);
+	if (mirror_request && devdesc.bNumConfigurations != 5) {
+		usb_win32_activate_quicktime(serial);
+		libusb_close(handle);
+		return -2;
+	}
+
 	if (current_config != desired_config) {
 #ifndef WIN32
 		// Detaching the kernel driver is not a Win32-concept; this functionality is not implemented on Windows.
@@ -472,13 +633,6 @@ static int usb_device_add(libusb_device *dev)
 
 		usbmuxd_log(LL_INFO, "Setting configuration for device %d-%d, from %d to %d", bus, address, current_config, desired_config);
 #ifdef WIN32
-		char serial[40];
-		if ((res = libusb_get_string_descriptor_ascii(handle, devdesc.iSerialNumber, (uint8_t *)serial, 40)) <= 0) {
-			usbmuxd_log(LL_WARNING, "Could not get the UDID for device %d-%d: %s", bus, address, libusb_strerror(res));
-			libusb_close(handle);
-			return -1;
-		}
-
 		usb_win32_set_configuration(serial, desired_config);
 
 		// Because the change was done via libusb-win32, we need to refresh the device on libusb;
@@ -495,6 +649,9 @@ static int usb_device_add(libusb_device *dev)
 #endif
 	}
 
+	if (mirror_request)
+		usb_win32_extra_cmd(serial);
+
 	struct libusb_config_descriptor *config;
 	if ((res = libusb_get_active_config_descriptor(dev, &config)) != 0) {
 		usbmuxd_log(LL_WARNING, "Could not get configuration descriptor for device %d-%d: %s", bus, address, libusb_error_name(res));
@@ -506,36 +663,58 @@ static int usb_device_add(libusb_device *dev)
 	usbdev = malloc(sizeof(struct usb_device));
 	memset(usbdev, 0, sizeof(*usbdev));
 
+	int interface_found = 0, interface_found_fa = 0;
 	for (j = 0; j < config->bNumInterfaces; j++) {
 		const struct libusb_interface_descriptor *intf = &config->interface[j].altsetting[0];
-		if (intf->bInterfaceClass != INTERFACE_CLASS || intf->bInterfaceSubClass != INTERFACE_SUBCLASS ||
-		    intf->bInterfaceProtocol != INTERFACE_PROTOCOL)
-			continue;
-		if (intf->bNumEndpoints != 2) {
-			usbmuxd_log(LL_WARNING, "Endpoint count mismatch for interface %d of device %d-%d", intf->bInterfaceNumber, bus, address);
-			continue;
-		}
-		if ((intf->endpoint[0].bEndpointAddress & 0x80) == LIBUSB_ENDPOINT_OUT && (intf->endpoint[1].bEndpointAddress & 0x80) == LIBUSB_ENDPOINT_IN) {
-			usbdev->interface = intf->bInterfaceNumber;
-			usbdev->ep_out = intf->endpoint[0].bEndpointAddress;
-			usbdev->ep_in = intf->endpoint[1].bEndpointAddress;
-			usbmuxd_log(LL_INFO, "Found interface %d with endpoints %02x/%02x for device %d-%d", usbdev->interface, usbdev->ep_out, usbdev->ep_in,
-				    bus, address);
-			break;
-		} else if ((intf->endpoint[1].bEndpointAddress & 0x80) == LIBUSB_ENDPOINT_OUT &&
-			   (intf->endpoint[0].bEndpointAddress & 0x80) == LIBUSB_ENDPOINT_IN) {
-			usbdev->interface = intf->bInterfaceNumber;
-			usbdev->ep_out = intf->endpoint[1].bEndpointAddress;
-			usbdev->ep_in = intf->endpoint[0].bEndpointAddress;
-			usbmuxd_log(LL_INFO, "Found interface %d with swapped endpoints %02x/%02x for device %d-%d", usbdev->interface, usbdev->ep_out,
-				    usbdev->ep_in, bus, address);
-			break;
-		} else {
-			usbmuxd_log(LL_WARNING, "Endpoint type mismatch for interface %d of device %d-%d", intf->bInterfaceNumber, bus, address);
+		if (intf->bInterfaceClass == INTERFACE_CLASS && intf->bInterfaceSubClass == INTERFACE_SUBCLASS &&
+		    intf->bInterfaceProtocol == INTERFACE_PROTOCOL) {
+			if (intf->bNumEndpoints != 2) {
+				usbmuxd_log(LL_WARNING, "Endpoint count mismatch for interface %d of device %d-%d", intf->bInterfaceNumber, bus, address);
+				continue;
+			}
+			if ((intf->endpoint[0].bEndpointAddress & 0x80) == LIBUSB_ENDPOINT_OUT &&
+			    (intf->endpoint[1].bEndpointAddress & 0x80) == LIBUSB_ENDPOINT_IN) {
+				usbdev->interface = intf->bInterfaceNumber;
+				usbdev->ep_out = intf->endpoint[0].bEndpointAddress;
+				usbdev->ep_in = intf->endpoint[1].bEndpointAddress;
+				interface_found = 1;
+				usbmuxd_log(LL_INFO, "Found interface %d with endpoints %02x/%02x for device %d-%d", usbdev->interface, usbdev->ep_out,
+					    usbdev->ep_in, bus, address);
+			} else if ((intf->endpoint[1].bEndpointAddress & 0x80) == LIBUSB_ENDPOINT_OUT &&
+				   (intf->endpoint[0].bEndpointAddress & 0x80) == LIBUSB_ENDPOINT_IN) {
+				usbdev->interface = intf->bInterfaceNumber;
+				usbdev->ep_out = intf->endpoint[1].bEndpointAddress;
+				usbdev->ep_in = intf->endpoint[0].bEndpointAddress;
+				interface_found = 1;
+				usbmuxd_log(LL_INFO, "Found interface %d with swapped endpoints %02x/%02x for device %d-%d", usbdev->interface, usbdev->ep_out,
+					    usbdev->ep_in, bus, address);
+			} else {
+				usbmuxd_log(LL_WARNING, "Endpoint type mismatch for interface %d of device %d-%d", intf->bInterfaceNumber, bus, address);
+			}
+		} else if (intf->bInterfaceClass == INTERFACE_CLASS && intf->bInterfaceSubClass == INTERFACE_QUICKTIMECLASS) {
+			if (intf->bNumEndpoints != 2) {
+				usbmuxd_log(LL_WARNING, "Endpoint count mismatch for interface %d of device %d-%d", intf->bInterfaceNumber, bus, address);
+				continue;
+			}
+			if ((intf->endpoint[0].bEndpointAddress & 0x80) == LIBUSB_ENDPOINT_OUT &&
+			    (intf->endpoint[1].bEndpointAddress & 0x80) == LIBUSB_ENDPOINT_IN) {
+				usbdev->interface_fa = intf->bInterfaceNumber;
+				usbdev->ep_out_fa = intf->endpoint[0].bEndpointAddress;
+				usbdev->ep_in_fa = intf->endpoint[1].bEndpointAddress;
+				interface_found_fa = 1;
+			} else if ((intf->endpoint[1].bEndpointAddress & 0x80) == LIBUSB_ENDPOINT_OUT &&
+				   (intf->endpoint[0].bEndpointAddress & 0x80) == LIBUSB_ENDPOINT_IN) {
+				usbdev->interface_fa = intf->bInterfaceNumber;
+				usbdev->ep_out_fa = intf->endpoint[1].bEndpointAddress;
+				usbdev->ep_in_fa = intf->endpoint[0].bEndpointAddress;
+				interface_found_fa = 1;
+			} else {
+				usbmuxd_log(LL_WARNING, "Endpoint type mismatch for interface %d of device %d-%d", intf->bInterfaceNumber, bus, address);
+			}
 		}
 	}
 
-	if (j == config->bNumInterfaces) {
+	if (!interface_found || (mirror_request && !interface_found_fa)) {
 		usbmuxd_log(LL_WARNING, "Could not find a suitable USB interface for device %d-%d", bus, address);
 		libusb_free_config_descriptor(config);
 		libusb_close(handle);
@@ -547,6 +726,14 @@ static int usb_device_add(libusb_device *dev)
 
 	if ((res = libusb_claim_interface(handle, usbdev->interface)) != 0) {
 		usbmuxd_log(LL_WARNING, "Could not claim interface %d for device %d-%d: %s", usbdev->interface, bus, address, libusb_error_name(res));
+		libusb_close(handle);
+		free(usbdev);
+		return -1;
+	}
+
+	if (mirror_request && (res = libusb_claim_interface(handle, usbdev->interface_fa)) != 0) {
+		usbmuxd_log(LL_WARNING, "Could not claim interface_fa====>mirror %d for device %d-%d: %s", usbdev->interface_fa, bus, address,
+			    libusb_error_name(res));
 		libusb_close(handle);
 		free(usbdev);
 		return -1;
@@ -569,6 +756,7 @@ static int usb_device_add(libusb_device *dev)
 	}
 	memset(transfer_buffer, '\0', 1024 + LIBUSB_CONTROL_SETUP_SIZE + 8);
 
+	memcpy(usbdev->serial_usb, serial, 40);
 	usbdev->serial[0] = 0;
 	usbdev->bus = bus;
 	usbdev->address = address;
@@ -624,8 +812,20 @@ static int usb_device_add(libusb_device *dev)
 
 	collection_init(&usbdev->tx_xfers);
 	collection_init(&usbdev->rx_xfers);
+	collection_init(&usbdev->rx_xfers_for_mirror);
 
 	collection_add(&device_list, usbdev);
+
+	if (mirror_request) {
+		if (start_rx_loop_for_mirror(usbdev) < 0)
+			usbmuxd_log(LL_WARNING, "Failed to start RX loop for mirror");
+		else {
+			usbmuxd_log(LL_DEBUG, "Success to start a new mirror task!!!");
+			usbdev->fd = fd;
+			usbdev->status = in_mirror;
+		}
+	} else
+		usbdev->status = not_in_mirror;
 
 	return 0;
 }
@@ -888,7 +1088,9 @@ int usb_initialize(void)
 
 #if LIBUSB_API_VERSION >= 0x01000106
 	libusb_set_option(NULL, LIBUSB_OPTION_LOG_LEVEL,
-			  (log_level >= LL_DEBUG ? LIBUSB_LOG_LEVEL_DEBUG : (log_level >= LL_WARNING ? LIBUSB_LOG_LEVEL_WARNING : LIBUSB_LOG_LEVEL_NONE)));
+			  LIBUSB_LOG_LEVEL_NONE);
+	/*libusb_set_option(NULL, LIBUSB_OPTION_LOG_LEVEL,
+			  (log_level >= LL_DEBUG ? LIBUSB_LOG_LEVEL_DEBUG : (log_level >= LL_WARNING ? LIBUSB_LOG_LEVEL_WARNING : LIBUSB_LOG_LEVEL_NONE)));*/
 #else
 	libusb_set_debug(NULL, (log_level >= LL_DEBUG ? LIBUSB_LOG_LEVEL_DEBUG : (log_level >= LL_WARNING ? LIBUSB_LOG_LEVEL_WARNING : LIBUSB_LOG_LEVEL_NONE)));
 #endif
