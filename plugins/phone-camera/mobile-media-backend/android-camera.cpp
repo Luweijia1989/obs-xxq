@@ -23,7 +23,7 @@ AndroidCamera::AndroidCamera(QObject *parent) : MediaTask(parent)
 
 AndroidCamera::~AndroidCamera()
 {
-	stopTask();
+	stopTask(true);
 }
 
 void AndroidCamera::startTask(QString path, uint32_t handle)
@@ -36,13 +36,13 @@ void AndroidCamera::startTask(QString path, uint32_t handle)
 	m_taskTh = std::thread(run, this);
 }
 
-void AndroidCamera::stopTask()
+void AndroidCamera::stopTask(bool finalStop)
 {
 	m_running = false;
 	if (m_taskTh.joinable())
 		m_taskTh.join();
 
-	MediaTask::stopTask();
+	MediaTask::stopTask(finalStop);
 }
 
 int AndroidCamera::setupDroid(libusb_device *usbDevice, libusb_device_handle *handle)
@@ -302,6 +302,6 @@ void AndroidCamera::taskInternal()
 
 	emit mediaFinish();
 
-	QMetaObject::invokeMethod(this, "stopTask");
+	QMetaObject::invokeMethod(this, "stopTask", Q_ARG(bool, false));
 	qDebug() << "android camera end.";
 }

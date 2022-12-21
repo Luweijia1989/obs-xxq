@@ -35,7 +35,7 @@ public:
 			}
 		} while (1);
 
-		stopTask();
+		stopTask(true);
 		m_expectedDevice = device;
 		m_scanTimer.start();
 	}
@@ -49,11 +49,12 @@ public:
 		runningDevices.insert(path);
 	}
 
-	Q_INVOKABLE virtual void stopTask()
+	Q_INVOKABLE virtual void stopTask(bool finalStop)
 	{
 		runningDevices.remove(m_connectedDevice);
 		m_connectedDevice = QString();
-		m_scanTimer.start();
+		if (!finalStop)
+			m_scanTimer.start();
 	}
 signals:
 	void mediaData(QByteArray data, int64_t timestamp, bool isVideo);

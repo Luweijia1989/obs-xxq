@@ -32,7 +32,7 @@ public:
 	~AndroidCamera();
 
 	void startTask(QString path, uint32_t handle = 0) override;
-	void stopTask() override;
+	void stopTask(bool finalStop) override;
 
 	static void run(void *p);
 

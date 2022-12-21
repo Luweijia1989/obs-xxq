@@ -37,7 +37,7 @@ void iOSScreenMirrorTaskThread::sendCmd(bool isStart)
 	plist_free(dict);
 
 	if (!isStart)
-		m_mirrorSocket->close();
+		m_mirrorSocket->waitForBytesWritten(100);
 }
 
 void iOSScreenMirrorTaskThread::startTask(QString udid, uint32_t deviceHandle)
@@ -72,7 +72,8 @@ void iOSScreenMirrorTaskThread::startTask(QString udid, uint32_t deviceHandle)
 void iOSScreenMirrorTaskThread::stopTask()
 {
 	if (m_mirrorSocket) {
-		m_mirrorSocket->deleteLater();
+		sendCmd(false);
+		delete m_mirrorSocket;
 		m_mirrorSocket = nullptr;
 	}
 	iOSTask::stopTask();

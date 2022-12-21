@@ -103,12 +103,12 @@ iOSCamera::iOSCamera(QObject *parent) : MediaTask(parent), m_taskThread(new iOSS
 	connect(&m_scanTimer, &QTimer::timeout, this, &iOSCamera::onUpdateDeviceList);
 	connect(m_taskThread, &iOSTask::mediaData, this, &MediaTask::mediaData);
 	connect(m_taskThread, &iOSTask::mediaFinish, this, &MediaTask::mediaFinish);
-	connect(m_taskThread, &iOSTask::finished, this, &iOSCamera::stopTask);
+	connect(m_taskThread, &iOSTask::finished, this, [this]() { stopTask(false); });
 }
 
 iOSCamera::~iOSCamera()
 {
-	stopTask();
+	stopTask(true);
 }
 
 void iOSCamera::startTask(QString device, uint32_t handle)
@@ -117,11 +117,10 @@ void iOSCamera::startTask(QString device, uint32_t handle)
 	m_taskThread->startTask(device, handle);
 }
 
-void iOSCamera::stopTask()
+void iOSCamera::stopTask(bool finalStop)
 {
 	m_taskThread->stopTask();
-
-	MediaTask::stopTask();
+	MediaTask::stopTask(finalStop);
 }
 
 void iOSCamera::onUpdateDeviceList()

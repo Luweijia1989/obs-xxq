@@ -47,8 +47,6 @@ PhoneCamera::~PhoneCamera()
 #ifdef DUMP_VIDEO
 	m_videodump.close();
 #endif
-
-	delete m_mediaDataServer;
 }
 
 void PhoneCamera::onMediaVideoInfo(const media_video_info &info)
@@ -119,6 +117,12 @@ void PhoneCamera::switchPhoneType()
 	m_socketWrapper->sendMsg(QJsonDocument(req));
 }
 
+void PhoneCamera::taskEnd()
+{
+	m_mediaDataServer->stopServer();
+	delete m_mediaDataServer;
+}
+
 QMap<QString, QPair<QString, uint32_t>> PhoneCamera::deviceList(int type)
 {
 	m_devices.clear();
@@ -162,7 +166,9 @@ static void *CreatePhoneCameraInput(obs_data_t *settings, obs_source_t *source)
 
 static void DestroyPhoneCameraInput(void *data)
 {
-	delete reinterpret_cast<PhoneCamera *>(data);
+	auto p = reinterpret_cast<PhoneCamera *>(data);
+	p->taskEnd();
+	delete p;
 }
 
 static void DeactivatePhoneCameraInput(void *data)

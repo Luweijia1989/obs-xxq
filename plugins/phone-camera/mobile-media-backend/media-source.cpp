@@ -11,8 +11,7 @@ MediaSource::MediaSource(QObject *parent) : QObject(parent) {}
 
 MediaSource::~MediaSource()
 {
-	if (m_mediaTask)
-		m_mediaTask->deleteLater();
+	qDebug() << "MediaSource destroyed.";
 }
 
 void MediaSource::connectToHost(int port)
@@ -24,6 +23,8 @@ void MediaSource::connectToHost(int port)
 	m_socket->connectToHost(QHostAddress::LocalHost, port);
 	bool ret = m_socket->waitForConnected(100);
 	qDebug() << "MediaSource connect to media server, ret: " << (ret ? "success" : "fail");
+	if (!ret)
+		m_socket->deleteLater();
 }
 
 void MediaSource::setCurrentDevice(PhoneType type, QString deviceId)
@@ -33,10 +34,9 @@ void MediaSource::setCurrentDevice(PhoneType type, QString deviceId)
 
 	m_phoneType = (PhoneType)type;
 	if (type == PhoneType::iOS) {
-		auto ios = new iOSCamera;
-		m_mediaTask = ios;
+		m_mediaTask = new iOSCamera(this);
 	} else if (type == PhoneType::Android)
-		m_mediaTask = new AndroidCamera;
+		m_mediaTask = new AndroidCamera(this);
 
 	connect(m_mediaTask, &MediaTask::mediaData, this, [=](QByteArray data, int64_t timestamp, bool isVideo) {
 		if (m_socket->state() != QTcpSocket::ConnectedState)

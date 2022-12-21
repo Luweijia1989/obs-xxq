@@ -101,8 +101,6 @@ Application::Application(int &argc, char **argv) : QApplication(argc, argv)
 	connect(&m_controlServer, &QTcpServer::newConnection, this, &Application::onNewConnection);
 	m_controlServer.listen(QHostAddress::LocalHost, 51338);
 
-	
-
 	//QTimer::singleShot(100, this, [=](){
 	//	QJsonObject data;
 	//	data["port"] = 123;
@@ -133,7 +131,7 @@ void Application::onNewConnection()
 		if (type == (int)MsgType::iOSDeviceList || type == (int)MsgType::AndroidDeviceList)
 			sendDeviceList(wrapper, type);
 		else if (type == (int)MsgType::MediaTask) {
-			onMediaTask(msg["data"].toObject());
+			onMediaTaskStart(msg["data"].toObject());
 		}
 	});
 }
@@ -156,7 +154,7 @@ void Application::sendDeviceList(TcpSocketWrapper *wrapper, int type)
 	wrapper->sendMsg(doc);
 }
 
-void Application::onMediaTask(const QJsonObject &req)
+void Application::onMediaTaskStart(const QJsonObject &req)
 {
 	int tcpPort = req["port"].toInt();
 	PhoneType type = (PhoneType)req["deviceType"].toInt();
@@ -168,8 +166,12 @@ void Application::onMediaTask(const QJsonObject &req)
 	else {
 		source = new MediaSource();
 		m_mediaSources.insert(tcpPort, source);
-		connect(source, &MediaSource::destroyed, this, [=]() { m_mediaSources.remove(tcpPort); });
+		connect(source, &MediaSource::destroyed, this, [=]() {
+			m_mediaSources.remove(tcpPort);
+		});
 		source->connectToHost(tcpPort);
 	}
 	source->setCurrentDevice(type, id);
+
+	qDebug() << "onMediaTaskStart, port: " << tcpPort;
 }

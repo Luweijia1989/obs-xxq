@@ -3,6 +3,7 @@
 #include <qthread.h>
 #include <qset.h>
 #include <qmutex.h>
+#include <qeventloop.h>
 
 struct peer {
 	int fd;
@@ -23,6 +24,7 @@ public:
 	bool connectToHost(QString ip, int port);
 	void close();
 	void send(char *data, int size);
+	void waitForBytesWritten(uint32_t timeout = 1000);
 
 private:
 	int createSocket();
@@ -42,13 +44,14 @@ private:
 	peer *m_peer = nullptr;
 	bool m_shouldExit = false;
 	QMutex m_dataLock;
+	QEventLoop m_eventloop;
 };
 
 class TcpServer : public QThread {
 	Q_OBJECT
 public:
 	TcpServer(QObject *parent = nullptr);
-	~TcpServer();
+	virtual ~TcpServer();
 
 	bool startServer(int port = 0);
 	void stopServer();

@@ -2,6 +2,7 @@
 #include <WinSock2.h>
 #include <Windows.h>
 #include <qdebug.h>
+#include <qtimer.h>
 
 enum fdowner { FD_LISTEN, FD_CLIENT, FD_CONNECTED };
 
@@ -49,7 +50,7 @@ static void fdlist_reset(struct fdlist *list)
 	list->count = 0;
 }
 
-TcpClient::TcpClient(QObject *parent) : QThread(parent) {}
+TcpClient::TcpClient(QObject *parent) : QThread(parent), m_dataLock(QMutex::Recursive) {}
 
 TcpClient::~TcpClient()
 {
@@ -108,6 +109,15 @@ void TcpClient::send(char *data, int size)
 	memcpy(m_peer->ob_buf + m_peer->ob_size, data, size);
 	m_peer->ob_size += size;
 	m_peer->events |= POLLOUT;
+}
+
+void TcpClient::waitForBytesWritten(uint32_t timeout)
+{
+	QTimer timer;
+	timer.setSingleShot(true);
+	connect(&timer, &QTimer::timeout, &m_eventloop, &QEventLoop::quit);
+	timer.start(timeout);
+	m_eventloop.exec();
 }
 
 int TcpClient::createSocket()
@@ -173,6 +183,8 @@ void TcpClient::socketWrite()
 		m_peer->ob_size -= res;
 		memmove(m_peer->ob_buf, m_peer->ob_buf + res, m_peer->ob_size);
 	}
+
+	m_eventloop.quit();
 }
 
 void TcpClient::socketClose()
@@ -242,10 +254,7 @@ void TcpClient::run()
 
 TcpServer::TcpServer(QObject *parent) : QThread(parent) {}
 
-TcpServer::~TcpServer()
-{
-	stopServer();
-}
+TcpServer::~TcpServer() {}
 
 bool TcpServer::startServer(int port)
 {

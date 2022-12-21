@@ -75,7 +75,7 @@ public:
 	iOSCamera(QObject *parent = nullptr);
 	~iOSCamera();
 	void startTask(QString device, uint32_t handle = 0) override;
-	void stopTask() override;
+	void stopTask(bool finalStop) override;
 
 public slots:
 	void onUpdateDeviceList();
