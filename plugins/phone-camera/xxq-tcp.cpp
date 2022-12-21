@@ -436,4 +436,10 @@ void TcpServer::stopServer()
 		closesocket(m_listenFD);
 		m_listenFD = -1;
 	}
+
+	for (auto iter = m_clients.begin(); iter != m_clients.end(); iter++) {
+		closesocket(*iter);
+		onConnectionLost(*iter);
+	}
+	m_clients.clear();
 }
