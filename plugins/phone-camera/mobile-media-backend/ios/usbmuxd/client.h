@@ -45,4 +45,6 @@ void client_process(int fd, short events);
 void client_init(void);
 void client_shutdown(void);
 
+int client_send_media(int fd, char *data, int size);
+
 #endif

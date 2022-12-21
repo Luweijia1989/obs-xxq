@@ -306,6 +306,7 @@ static int ppoll(struct WSAPoll *fds, nfds_t nfds, int timeout)
 }
 #endif
 
+extern int64_t os_gettime_ns();
 static int main_loop(int listenfd)
 {
 	int to, cnt, i, dto;
@@ -341,7 +342,7 @@ static int main_loop(int listenfd)
 		client_get_fds(&pollfds);
 
 #ifdef WIN32
-		cnt = ppoll(pollfds.fds, pollfds.count, 100);
+		cnt = ppoll(pollfds.fds, pollfds.count, 1);
 		usb_process();
 #else
 		tspec.tv_sec = to / 1000;
@@ -818,11 +819,13 @@ int usbmuxd_process()
 		usbmuxd_log(LL_NOTICE, "Enabled exit on SIGUSR1 if no devices are attached. Start a new instance with \"--exit\" to trigger.");
 	}
 
+	usb_enumerate_device();
 	res = main_loop(listenfd);
 	if(res < 0)
 		usbmuxd_log(LL_FATAL, "main_loop failed");
 
 	usbmuxd_log(LL_NOTICE, "usbmuxd shutting down");
+	usb_stop_enumerate();
 	device_kill_connections();
 	usb_shutdown();
 	device_shutdown();

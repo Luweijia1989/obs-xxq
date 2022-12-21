@@ -18,6 +18,7 @@ include_directories(${PROJECT_SOURCE_DIR}/ios/usbmuxd)
 
 add_definitions("-DHAVE_LIBIMOBILEDEVICE")
 add_definitions("-DHAVE_ENUM_IDEVICE_CONNECTION_TYPE")
+add_definitions("-DWIN32_LEAN_AND_MEAN")
 
 file(GLOB usbmuxd_SRC ${PROJECT_SOURCE_DIR}/ios/usbmuxd/*.c)
 file(GLOB usbmuxd_HEADER ${PROJECT_SOURCE_DIR}/ios/usbmuxd/*.h)
@@ -27,6 +28,7 @@ file(GLOB screenmirror_HEADER ${PROJECT_SOURCE_DIR}/ios/screenmirror/*.h)
 
 set(mobile-media-backend_HEADERS
 	../common.h
+	../xxq-tcp.h
 	application.h
 	usb-helper.h
 	driver-helper.h
@@ -38,6 +40,7 @@ set(mobile-media-backend_HEADERS
 
 set(mobile-media-backend_SOURCES
 	main.cpp
+	../xxq-tcp.cpp
 	application.cpp
 	usb-helper.cpp
 	driver-helper.cpp
@@ -73,6 +76,7 @@ target_link_libraries(mobile-media-backend
 	Qt5::Widgets
 	Qt5::Network
 	Winusb
+	Ws2_32
 	)
 
 install_obs_core(mobile-media-backend)

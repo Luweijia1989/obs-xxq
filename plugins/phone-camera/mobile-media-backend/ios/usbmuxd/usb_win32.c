@@ -41,7 +41,7 @@ int usb_win32_get_configuration(const char serial[], uint8_t *configuration)
 		return -1;
 	}
 
-	byte config = -1;
+	char config = -1;
 	int res = usb_control_msg(device, USB_RECIP_DEVICE | USB_ENDPOINT_IN, USB_REQ_GET_CONFIGURATION, 0, 0, &config, 1, 5000 /* LIBUSB_DEFAULT_TIMEOUT */);
 
 	if (res < 0) {
@@ -99,19 +99,6 @@ void usb_win32_extra_cmd(const char serial[])
 	char buf[1024] = {0};
 	usb_control_msg(device, 0x00, 0x09, 0x05, 0x00, NULL, 0, 0);
 	usb_control_msg(device, 0xc0, 0x33, 0x00, 0x00, buf, 0x02, 0);
-
-	usb_close(device);
-}
-
-void ubs_win32_extra_cmd_end(const char serial[])
-{
-	usb_dev_handle* device = usb_win32_open(serial);
-
-	if (device == NULL) {
-		return;
-	}
-
-	usb_control_msg(device, 0x40, 0x52, 0x00, 0x00, NULL, 0, 100);
 
 	usb_close(device);
 }

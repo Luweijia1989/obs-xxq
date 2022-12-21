@@ -1,6 +1,7 @@
 #include "media_process.h"
 #include "usb.h"
 #include "log.h"
+#include "packet.h"
 #include <math.h>
 
 struct mirror_info *create_mirror_info(struct usb_device *dev)
@@ -31,12 +32,26 @@ void destory_mirror_info(struct mirror_info *info)
 	circlebuf_free(&info->m_mediaCache);
 }
 
+static void send_media_data(struct mirror_info *info, uint8_t type, int64_t timestamp, uint8_t *payload, size_t payload_size)
+{
+	struct media_header header = {0};
+	uint32_t size = sizeof(struct media_header) + payload_size;
+	char *send_buffer = malloc(size);
+	header.type = type;
+	header.payload_size = payload_size;
+	header.timestamp = timestamp;
+	memcpy(send_buffer, &header, sizeof(struct media_header));
+	memcpy(send_buffer + sizeof(struct media_header), payload, payload_size);
+	usb_send_media_data(info->dev, send_buffer, size);
+	free(send_buffer);
+}
+
 void sendAudioInfo(struct mirror_info *info, uint32_t sampleRate, enum speaker_layout layout) {}
+
 void sendData(struct mirror_info *info, struct CMSampleBuffer *buf)
 {
 	if (buf->HasFormatDescription) {
-		/*emit m_task->mediaData(QByteArray((char *)buf->FormatDescription.PPS, buf->FormatDescription.PPS_len), ((int64_t)UINT64_C(0x8000000000000000)),
-				       true);*/
+		send_media_data(info, 0, 0x8000000000000000, buf->FormatDescription.PPS, buf->FormatDescription.PPS_len);
 	}
 
 	if (buf->SampleData_len <= 0)
@@ -48,13 +63,15 @@ void sendData(struct mirror_info *info, struct CMSampleBuffer *buf)
 		while (true) {
 			if (info->m_audioDataCacheBuf.size >= 4096) {
 				circlebuf_pop_front(&info->m_audioDataCacheBuf, info->m_audioPopBuffer, 4096);
-
+				send_media_data(info, 1, 0, info->m_audioPopBuffer, 4096);
 			} else
 				break;
 		}
 	} else {
 		if (buf->OutputPresentationTimestamp.CMTimeValue > 17446044073700192000)
 			buf->OutputPresentationTimestamp.CMTimeValue = 0;
+
+		send_media_data(info, 0, 0, buf->SampleData, buf->SampleData_len);
 	}
 }
 
@@ -270,14 +287,9 @@ void handleAsyncPacket(void *ctx, uint8_t *buf, int length)
 	case TBAS:
 		usbmuxd_log(LL_DEBUG, "TBAS");
 		break;
-	case RELS: {
+	case RELS:
 		usbmuxd_log(LL_DEBUG, "RELS");
-		uint8_t *d1;
-		size_t d1_len;
-		NewAsynHPD0(&d1, &d1_len);
-		usb_send(mi->dev, (char *)d1, d1_len, 1);
-	}
-		   break;
+		break;
 	default:
 		usbmuxd_log(LL_DEBUG, "UNKNOWN");
 		break;
@@ -345,24 +357,5 @@ void onMirrorData(void *ctx, uint8_t *data, uint32_t size)
 			free(temp_buf);
 		} else
 			break;
-	}
-}
-
-void mirror_end(void *ctx)
-{
-	struct mirror_info *mi = ctx;
-
-	{
-		uint8_t *d1;
-		size_t d1_len;
-		NewAsynHPA0(mi->deviceAudioClockRef, &d1, &d1_len);
-		usb_send(mi->dev, (char *)d1, d1_len, 1);
-	}
-
-	{
-		uint8_t *d1;
-		size_t d1_len;
-		NewAsynHPD0(&d1, &d1_len);
-		usb_send(mi->dev, (char *)d1, d1_len, 1);
 	}
 }

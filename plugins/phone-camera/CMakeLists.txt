@@ -11,9 +11,11 @@ set(CMAKE_AUTOMOC TRUE)
 set(phone-camera_HEADERS
 	phone-camera.h
 	ffmpeg-decode.h
-	common.h)
+	common.h
+	xxq-tcp.h)
 
 set(phone-camera_SOURCES
+	xxq-tcp.cpp
 	phone-camera.cpp
 	ffmpeg-decode.c
 	plugin-main.cpp)
@@ -28,6 +30,7 @@ target_link_libraries(phone-camera
 	Qt5::Gui
 	Qt5::Widgets
 	Qt5::Network
+	Ws2_32
 	)
 
 install_obs_plugin(phone-camera)

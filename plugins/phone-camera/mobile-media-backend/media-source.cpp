@@ -18,6 +18,7 @@ MediaSource::~MediaSource()
 void MediaSource::connectToHost(int port)
 {
 	m_socket = new QTcpSocket;
+	m_socket->setSocketOption(QAbstractSocket::LowDelayOption, 1);
 	setParent(m_socket);
 	connect(m_socket, &QTcpSocket::disconnected, m_socket, &QTcpSocket::deleteLater);
 	m_socket->connectToHost(QHostAddress::LocalHost, port);
@@ -55,6 +56,13 @@ void MediaSource::setCurrentDevice(PhoneType type, QString deviceId)
 				info.size = data.size();
 				m_socket->write((char *)&info, sizeof(av_packet_info));
 			}
+			m_socket->write(data);
+		} else {
+			av_packet_info info;
+			info.type = av_packet_type::FFM_PACKET_AUDIO;
+			info.pts = timestamp;
+			info.size = data.size();
+			m_socket->write((char *)&info, sizeof(av_packet_info));
 			m_socket->write(data);
 		}
 	});

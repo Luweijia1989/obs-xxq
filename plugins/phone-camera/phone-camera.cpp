@@ -10,7 +10,6 @@
 #define DEVICE_ID "device_id"
 
 //#define DUMP_VIDEO
-
 PhoneCamera::PhoneCamera(obs_data_t *settings, obs_source_t *source) : m_source(source)
 {
 #ifdef DUMP_VIDEO
@@ -37,12 +36,10 @@ PhoneCamera::PhoneCamera(obs_data_t *settings, obs_source_t *source) : m_source(
 	bool ret = socket->waitForConnected(100);
 	qDebug() << "command socket connect result: " << (ret ? "success" : "fail");
 
-	QTcpServer *server = new QTcpServer(this);
-	m_mediaDataServer = new MediaDataServer(server);
-	connect(m_mediaDataServer, &MediaDataServer::mediaData, this, &PhoneCamera::onMediaData);
-	connect(m_mediaDataServer, &MediaDataServer::mediaVideoInfo, this, &PhoneCamera::onMediaVideoInfo);
-	auto success = server->listen(QHostAddress::LocalHost);
-	qDebug() << "media server listen result: " << (success ? "success" : "fail");
+	m_mediaDataServer = new MediaDataServer;
+	connect(m_mediaDataServer, &MediaDataServer::mediaData, this, &PhoneCamera::onMediaData, Qt::DirectConnection);
+	connect(m_mediaDataServer, &MediaDataServer::mediaVideoInfo, this, &PhoneCamera::onMediaVideoInfo, Qt::DirectConnection);
+	m_mediaDataServer->startServer();
 }
 
 PhoneCamera::~PhoneCamera()
@@ -50,10 +47,15 @@ PhoneCamera::~PhoneCamera()
 #ifdef DUMP_VIDEO
 	m_videodump.close();
 #endif
+
+	delete m_mediaDataServer;
 }
 
 void PhoneCamera::onMediaVideoInfo(const media_video_info &info)
 {
+	if (info.video_extra_len == 0)
+		return;
+
 	ffmpeg_decode_free(m_videoDecoder);
 
 	if (ffmpeg_decode_init(m_videoDecoder, AV_CODEC_ID_H264, false, info.video_extra, info.video_extra_len) < 0) {
@@ -63,20 +65,31 @@ void PhoneCamera::onMediaVideoInfo(const media_video_info &info)
 
 void PhoneCamera::onMediaData(uint8_t *data, size_t size, int64_t timestamp, bool isVideo)
 {
-	if (!ffmpeg_decode_valid(m_videoDecoder))
-		return;
+	if (isVideo) {
+		if (!ffmpeg_decode_valid(m_videoDecoder))
+			return;
+		
+		bool got_output;
+		long long ts = 0;
+		bool success = ffmpeg_decode_video(m_videoDecoder, data, size, &ts, VIDEO_RANGE_DEFAULT, &frame, &got_output);
+		if (!success) {
+			blog(LOG_WARNING, "Error decoding video");
+			return;
+		}
 
-	bool got_output;
-	long long ts = 0;
-	bool success = ffmpeg_decode_video(m_videoDecoder, data, size, &ts, VIDEO_RANGE_DEFAULT, &frame, &got_output);
-	if (!success) {
-		blog(LOG_WARNING, "Error decoding video");
-		return;
-	}
-
-	if (got_output) {
-		frame.timestamp = timestamp;
-		obs_source_output_video2(m_source, &frame);
+		if (got_output) {
+			frame.timestamp = timestamp;
+			obs_source_output_video2(m_source, &frame);
+		}
+	} else {
+		obs_source_audio audio;
+		audio.format = AUDIO_FORMAT_16BIT;
+		audio.samples_per_sec = 48000;
+		audio.speakers = SPEAKERS_STEREO;
+		audio.frames = size / (2 * sizeof(short));
+		audio.timestamp = os_gettime_ns();
+		audio.data[0] = data;
+		obs_source_output_audio(m_source, &audio);
 	}
 }
 

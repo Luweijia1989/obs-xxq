@@ -5,37 +5,32 @@
 #include <util/circlebuf.h>
 #include "media-task.h"
 
-class TaskThread : public QThread {
+class iOSTask : public QObject {
 	Q_OBJECT
 public:
-	TaskThread(QObject *parent = nullptr) : QThread(parent) {}
-	virtual ~TaskThread() {}
+	iOSTask(QObject *parent = nullptr) : QObject(parent) {}
+	virtual ~iOSTask() {}
 	virtual void startTask(QString udid, uint32_t deviceHandle)
 	{
-		m_running = true;
 		m_deviceHandle = deviceHandle;
 		m_udid = udid;
-
-		start();
 	}
 
 	virtual void stopTask()
 	{
-		m_running = false;
-		wait();
 	}
 
 signals:
 	void mediaData(QByteArray data, int64_t timestamp, bool isVideo);
 	void mediaFinish();
+	void finished();
 
 public:
-	bool m_running = false;
 	uint32_t m_deviceHandle = 0;
 	QString m_udid;
 };
 
-class iOSCameraTaskThread : public TaskThread {
+class iOSCameraTaskThread : public iOSTask {
 	Q_OBJECT
 public:
 	// This is what we send as the header for each frame.
@@ -58,13 +53,20 @@ public:
 	} PortalFrame;
 
 	iOSCameraTaskThread(QObject *parent = nullptr);
-	void run() override;
+
+	void startTask(QString udid, uint32_t deviceHandle) override;
+	void stopTask() override;
+
+	static void run(void *p);
 
 private:
 	void parseMediaData();
+	void taskInternal();
 
 private:
 	circlebuf m_dataBuf;
+	bool m_running = false;
+	std::thread m_taskTh;
 };
 
 class iOSCamera : public MediaTask {
@@ -79,5 +81,5 @@ public slots:
 	void onUpdateDeviceList();
 
 private:
-	TaskThread *m_taskThread = nullptr;
+	iOSTask *m_taskThread = nullptr;
 };

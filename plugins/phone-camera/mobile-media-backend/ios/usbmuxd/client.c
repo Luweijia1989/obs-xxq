@@ -1144,3 +1144,40 @@ void client_shutdown(void)
 	pthread_mutex_destroy(&client_list_mutex);
 	collection_free(&client_list);
 }
+
+int client_send_media(int fd, char *data, int size)
+{
+	struct mux_client *client = NULL;
+	pthread_mutex_lock(&client_list_mutex);
+	FOREACH(struct mux_client *lc, &client_list) {
+		if(lc->fd == fd) {
+			client = lc;
+			break;
+		}
+	} ENDFOREACH
+	pthread_mutex_unlock(&client_list_mutex);
+
+	if(!client) {
+		usbmuxd_log(LL_INFO, "client_process: fd %d not found in client list", fd);
+		return -1;
+	}
+
+	uint32_t available = client->ob_capacity - client->ob_size;
+	/* the output buffer _should_ be large enough, but just in case */
+	if(available < size) {
+		unsigned char* new_buf;
+		uint32_t new_size = ((client->ob_capacity + size + 4096) / 4096) * 4096;
+		usbmuxd_log(LL_DEBUG, "%s: Enlarging client %d output buffer %d -> %d", __func__, client->fd, client->ob_capacity, new_size);
+		new_buf = realloc(client->ob_buf, new_size);
+		if (!new_buf) {
+			usbmuxd_log(LL_FATAL, "%s: Failed to realloc.", __func__);
+			return -1;
+		}
+		client->ob_buf = new_buf;
+		client->ob_capacity = new_size;
+	}
+	memcpy(client->ob_buf + client->ob_size, data, size);
+	client->ob_size += size;
+	client->events |= POLLOUT;
+	return size;
+}

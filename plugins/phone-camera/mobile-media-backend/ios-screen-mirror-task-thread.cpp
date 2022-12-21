@@ -2,23 +2,11 @@
 #include <qdebug.h>
 #include <qelapsedtimer.h>
 #include <util/circlebuf.h>
-#include "IOS/usbmuxd/usbmuxd-proto.h"
+#include "ios/usbmuxd/usbmuxd-proto.h"
 #include <plist/plist.h>
+#include "ios/screenmirror/packet.h"
 
-iOSScreenMirrorTaskThread::iOSScreenMirrorTaskThread(QObject *parent) : TaskThread(parent)
-{
-	m_mirrorSocket = new QTcpSocket();
-	//connect(this, &QThread::finished, m_mirrorSocket, &QTcpSocket::deleteLater);
-	connect(m_mirrorSocket, &QTcpSocket::readyRead, m_mirrorSocket, [=]() { QByteArray data = m_mirrorSocket->readAll(); });
-	connect(m_mirrorSocket, &QTcpSocket::destroyed, m_mirrorSocket, [=]() { qDebug() << "ffffffffffffff"; });
-	connect(m_mirrorSocket, &QTcpSocket::connected, m_mirrorSocket, [=]() {
-		sendCmd(true);
-	});
-	connect(m_mirrorSocket, &QTcpSocket::disconnected, this, [=](){
-		m_eventLoop.quit();
-	});
-	m_mirrorSocket->moveToThread(this);
-}
+iOSScreenMirrorTaskThread::iOSScreenMirrorTaskThread(QObject *parent) : iOSTask(parent) {}
 
 void iOSScreenMirrorTaskThread::sendCmd(bool isStart)
 {
@@ -42,80 +30,50 @@ void iOSScreenMirrorTaskThread::sendCmd(bool isStart)
 		auto sendBuffer = (uint8_t *)malloc(size);
 		memcpy(sendBuffer, &hdr, sizeof(hdr));
 		memcpy(sendBuffer + sizeof(hdr), xml, xmlsize);
-		m_mirrorSocket->write((char *)sendBuffer, size);
-		m_mirrorSocket->waitForBytesWritten(1000);
+		m_mirrorSocket->send((char *)sendBuffer, size);
 		free(sendBuffer);
 		free(xml);
 	}
 	plist_free(dict);
 
 	if (!isStart)
-		m_mirrorSocket->disconnectFromHost();
+		m_mirrorSocket->close();
 }
 
 void iOSScreenMirrorTaskThread::startTask(QString udid, uint32_t deviceHandle)
 {
-	TaskThread::startTask(udid, deviceHandle);
+	iOSTask::startTask(udid, deviceHandle);
 
-	QMetaObject::invokeMethod(m_mirrorSocket, [=]() { m_mirrorSocket->connectToHost(QHostAddress::LocalHost, USBMUXD_SOCKET_PORT); });
+	m_mediaCache.clear();
+	m_mirrorSocket = new TcpClient();
+	connect(m_mirrorSocket, &TcpClient::finished, this, &iOSTask::finished);
+	connect(m_mirrorSocket, &TcpClient::connected, this, [=]() { sendCmd(true); }, Qt::DirectConnection);
+	connect(m_mirrorSocket, &TcpClient::onData, this,
+		[=](char *data, int size) {
+			m_mediaCache.append(data, size);
+			while (true) {
+				if (m_mediaCache.size() < sizeof(media_header))
+					break;
+
+				media_header header = {0};
+				memcpy(&header, m_mediaCache.data(), sizeof(media_header));
+				if (m_mediaCache.size() < sizeof(media_header) + header.payload_size)
+					break;
+
+				auto media = m_mediaCache.mid(sizeof(media_header), header.payload_size);
+				emit mediaData(media, header.timestamp, header.type == 0);
+				m_mediaCache.remove(0, sizeof(media_header) + header.payload_size);
+			}
+		},
+		Qt::DirectConnection);
+	m_mirrorSocket->connectToHost("127.0.0.1", USBMUXD_SOCKET_PORT);
 }
 
 void iOSScreenMirrorTaskThread::stopTask()
 {
-	if (!isRunning())
-		return;
-
-	QMetaObject::invokeMethod(m_mirrorSocket, [=]() {
-		sendCmd(false);
-	});
-
-	m_eventLoop.exec();
-
-	quit();
-	TaskThread::stopTask();
-
-	if (!m_inMirror)
-		return;
-
-	//{
-	//	uint8_t *d1;
-	//	size_t d1_len;
-	//	NewAsynHPA0(mp->deviceAudioClockRef, &d1, &d1_len);
-	//	writeUBSData(ep_out_fa, (char *)d1, d1_len, 1000);
-	//	free(d1);
-	//}
-
-	//{
-	//	uint8_t *d1;
-	//	size_t d1_len;
-	//	NewAsynHPD0(&d1, &d1_len);
-	//	writeUBSData(ep_out_fa, (char *)d1, d1_len, 1000);
-	//	free(d1);
-	//}
-
-	//QTimer timer;
-	//timer.setSingleShot(true);
-	//connect(&timer, &QTimer::timeout, &mp->quitBlockEvent, &QEventLoop::quit);
-	//timer.start(1000);
-	//mp->quitBlockEvent.exec();
-
-	//{
-	//	uint8_t *d1;
-	//	size_t d1_len;
-	//	NewAsynHPD0(&d1, &d1_len);
-	//	writeUBSData(ep_out_fa, (char *)d1, d1_len, 1000);
-	//	free(d1);
-	//	qDebug("OK. Ready to release USB Device.");
-	//}
-
-	//usb_release_interface(m_handle, m_interface_fa);
-	//usb_control_msg(m_handle, 0x40, 0x52, 0x00, 0x00, NULL, 0, 1000 /* LIBUSB_DEFAULT_TIMEOUT */);
-	//usb_set_configuration(m_handle, 4);
-
-	//TaskThread::stopTask();
-
-	//usb_close(m_handle);
-	//m_handle = nullptr;
-
-	//delete mp;
+	if (m_mirrorSocket) {
+		m_mirrorSocket->deleteLater();
+		m_mirrorSocket = nullptr;
+	}
+	iOSTask::stopTask();
 }

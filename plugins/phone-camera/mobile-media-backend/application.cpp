@@ -100,6 +100,16 @@ Application::Application(int &argc, char **argv) : QApplication(argc, argv)
 
 	connect(&m_controlServer, &QTcpServer::newConnection, this, &Application::onNewConnection);
 	m_controlServer.listen(QHostAddress::LocalHost, 51338);
+
+	
+
+	//QTimer::singleShot(100, this, [=](){
+	//	QJsonObject data;
+	//	data["port"] = 123;
+	//	data["deviceType"] = (int)PhoneType::iOS;
+	//	data["deviceId"] = "auto";
+	//	onMediaTask(data);
+	//});
 }
 
 Application::~Application()

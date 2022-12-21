@@ -2,13 +2,14 @@
 
 #include "ios-camera.h"
 #include <qeventloop.h>
-#include "../common.h"
 #include <media-io/audio-io.h>
 #include <qtcpsocket.h>
-
+#include <qpointer.h>
+#include "../common.h"
+#include "../xxq-tcp.h"
 
 class ScreenMirrorInfo;
-class iOSScreenMirrorTaskThread : public TaskThread {
+class iOSScreenMirrorTaskThread : public iOSTask {
 	Q_OBJECT
 public:
 	iOSScreenMirrorTaskThread(QObject *parent = nullptr);
@@ -20,7 +21,7 @@ private:
 	void sendCmd(bool isStart);
 
 private:
-	bool m_inMirror = false;
-	QTcpSocket *m_mirrorSocket = nullptr;
+	TcpClient *m_mirrorSocket = nullptr;
+	QByteArray m_mediaCache;
 	QEventLoop m_eventLoop;
 };

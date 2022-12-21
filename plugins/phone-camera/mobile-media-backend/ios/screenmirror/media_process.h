@@ -43,5 +43,3 @@ void sendData(struct mirror_info *info, struct CMSampleBuffer *buf);
 void handleSyncPacket(void *ctx, uint8_t *buf, int length);
 void handleAsyncPacket(void *ctx, uint8_t *buf, int length);
 void onMirrorData(void *ctx, uint8_t *data, uint32_t size);
-
-void mirror_end(void *ctx);

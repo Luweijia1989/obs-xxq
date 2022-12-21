@@ -6,6 +6,10 @@
 #include <qdebug.h>
 #include <qjsondocument.h>
 #include <qjsonobject.h>
+#include <qthread.h>
+#include <qeventloop.h>
+
+#include "xxq-tcp.h"
 
 enum class av_packet_type {
 	FFM_PACKET_VIDEO,
@@ -113,65 +117,70 @@ private:
 	QTcpSocket *m_socket;
 };
 
-class MediaDataServer : public QObject {
+class MediaDataServer : public TcpServer {
 	Q_OBJECT
 public:
-	MediaDataServer(QTcpServer *server) : m_server(server)
+	MediaDataServer(QObject *parent = nullptr) : TcpServer(parent) {}
+
+	virtual void onClientData(int fd, char *data, int size)
 	{
-		setParent(m_server);
+		if (fd != m_connectFd)
+			return;
 
-		connect(m_server, &QTcpServer::newConnection, this, [=]() {
-			if (!m_server->hasPendingConnections() || m_client)
-				return;
+		m_mediaData.append(data, size);
+		while (m_mediaData.size() > sizeof(av_packet_info)) {
+			av_packet_info header = {0};
+			memcpy(&header, m_mediaData.data(), sizeof(av_packet_info));
+			if (m_mediaData.size() < header.size + sizeof(av_packet_info))
+				break;
 
-			m_client = m_server->nextPendingConnection();
-			connect(m_client, &QTcpSocket::disconnected, this, [=]() {
-				m_mediaData.clear();
-				m_client->deleteLater();
-			});
-
-			connect(m_client, &QTcpSocket::readyRead, this, [=]() {
-				m_mediaData.append(m_client->readAll());
-				while (m_mediaData.size() > sizeof(av_packet_info)) {
-					av_packet_info header = {0};
-					memcpy(&header, m_mediaData.data(), sizeof(av_packet_info));
-					if (m_mediaData.size() < header.size + sizeof(av_packet_info))
-						break;
-
-					m_mediaData.remove(0, sizeof(av_packet_info));
-					switch (header.type) {
-					case av_packet_type::FFM_PACKET_VIDEO:
-						emit mediaData((uint8_t *)m_mediaData.data(), header.size, header.pts, true);
-						break;
-					case av_packet_type::FFM_PACKET_AUDIO:
-						emit mediaData((uint8_t *)m_mediaData.data(), header.size, header.pts, false);
-						break;
-					case av_packet_type::FFM_MEDIA_VIDEO_INFO: {
-						media_video_info vInfo;
-						memcpy(vInfo.video_extra, m_mediaData.data(), header.size);
-						vInfo.video_extra_len = header.size;
-						emit mediaVideoInfo(vInfo);
-					} break;
-					case av_packet_type::FFM_MEDIA_AUDIO_INFO: {
-						media_audio_info aInfo;
-						memcpy(&aInfo, m_mediaData.data(), sizeof(media_audio_info));
-						emit mediaAudioInfo(aInfo);
-					} break;
-					case av_packet_type::FFM_MIRROR_STATUS: {
-						int status = -1;
-						memcpy(&status, m_mediaData.data(), sizeof(int));
-						emit mediaStatus((media_status)status);
-					} break;
-					default:
-						break;
-					}
-					m_mediaData.remove(0, header.size);
-				}
-			});
-		});
+			m_mediaData.remove(0, sizeof(av_packet_info));
+			switch (header.type) {
+			case av_packet_type::FFM_PACKET_VIDEO:
+				emit mediaData((uint8_t *)m_mediaData.data(), header.size, header.pts, true);
+				break;
+			case av_packet_type::FFM_PACKET_AUDIO:
+				emit mediaData((uint8_t *)m_mediaData.data(), header.size, header.pts, false);
+				break;
+			case av_packet_type::FFM_MEDIA_VIDEO_INFO: {
+				media_video_info vInfo;
+				memcpy(vInfo.video_extra, m_mediaData.data(), header.size);
+				vInfo.video_extra_len = header.size;
+				emit mediaVideoInfo(vInfo);
+			} break;
+			case av_packet_type::FFM_MEDIA_AUDIO_INFO: {
+				media_audio_info aInfo;
+				memcpy(&aInfo, m_mediaData.data(), sizeof(media_audio_info));
+				emit mediaAudioInfo(aInfo);
+			} break;
+			case av_packet_type::FFM_MIRROR_STATUS: {
+				int status = -1;
+				memcpy(&status, m_mediaData.data(), sizeof(int));
+				emit mediaStatus((media_status)status);
+			} break;
+			default:
+				break;
+			}
+			m_mediaData.remove(0, header.size);
+		}
 	}
 
-	quint16 port() { return m_server->serverPort(); }
+	virtual bool onNewConnection(int fd)
+	{
+		if (m_connectFd == -1) {
+			m_connectFd = fd;
+			m_mediaData.clear();
+			return true;
+		} else
+			return false;
+	}
+
+	virtual void onConnectionLost(int fd)
+	{
+		if (m_connectFd == fd) {
+			m_connectFd = -1;
+		}
+	}
 
 signals:
 	void mediaData(uint8_t *data, size_t size, int64_t pts, bool isVideo);
@@ -180,7 +189,6 @@ signals:
 	void mediaStatus(media_status status);
 
 private:
-	QTcpServer *m_server = nullptr;
-	QPointer<QTcpSocket> m_client = nullptr;
 	QByteArray m_mediaData;
+	int m_connectFd = -1;
 };

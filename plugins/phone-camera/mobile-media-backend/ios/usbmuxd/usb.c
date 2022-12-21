@@ -36,6 +36,8 @@
 #include <libusb.h>
 #endif
 
+#include <pthread.h>
+
 #include "usb.h"
 #include "log.h"
 #include "device.h"
@@ -75,7 +77,6 @@ int libusb_verbose = 0;
 enum mirror_status {
 	not_in_mirror,
 	in_mirror,
-	to_stop_mirror,
 };
 
 struct usb_device {
@@ -195,7 +196,7 @@ static void reap_dead_devices(void)
 static void LIBUSB_CALL tx_callback(struct libusb_transfer *xfer)
 {
 	struct usb_device *dev = xfer->user_data;
-	usbmuxd_log(LL_SPEW, "TX callback dev %d-%d len %d -> %d status %d", dev->bus, dev->address, xfer->length, xfer->actual_length, xfer->status);
+	//usbmuxd_log(LL_SPEW, "TX callback dev %d-%d len %d -> %d status %d", dev->bus, dev->address, xfer->length, xfer->actual_length, xfer->status);
 	if (xfer->status != LIBUSB_TRANSFER_COMPLETED) {
 		switch (xfer->status) {
 		case LIBUSB_TRANSFER_COMPLETED: //shut up compiler
@@ -282,7 +283,7 @@ static void LIBUSB_CALL rx_callback_for_mirror(struct libusb_transfer *xfer)
 	struct usb_device *dev = xfer->user_data;
 	if (!dev->mirror_ctx)
 		dev->mirror_ctx = create_mirror_info(dev);
-	usbmuxd_log(LL_SPEW, "RX callback for mirror dev %d-%d len %d status %d", dev->bus, dev->address, xfer->actual_length, xfer->status);
+	//usbmuxd_log(LL_SPEW, "RX callback for mirror dev %d-%d len %d status %d", dev->bus, dev->address, xfer->actual_length, xfer->status);
 	if (xfer->status == LIBUSB_TRANSFER_COMPLETED && xfer->actual_length != 0) {
 		onMirrorData(dev->mirror_ctx, xfer->buffer, xfer->actual_length);
 		int res = libusb_submit_transfer(xfer);
@@ -359,7 +360,7 @@ static void clear_transfer(struct libusb_transfer *xfer)
 static void LIBUSB_CALL rx_callback(struct libusb_transfer *xfer)
 {
 	struct usb_device *dev = xfer->user_data;
-	usbmuxd_log(LL_SPEW, "RX callback dev %d-%d len %d status %d", dev->bus, dev->address, xfer->actual_length, xfer->status);
+	//usbmuxd_log(LL_SPEW, "RX callback dev %d-%d len %d status %d", dev->bus, dev->address, xfer->actual_length, xfer->status);
 	if (xfer->status == LIBUSB_TRANSFER_COMPLETED && xfer->actual_length != 0) {
 		device_data_input(dev, xfer->buffer, xfer->actual_length);
 		int res = libusb_submit_transfer(xfer);
@@ -512,6 +513,14 @@ static void LIBUSB_CALL get_langid_callback(struct libusb_transfer *transfer)
 	}
 }
 
+int usb_send_media_data(struct usb_device *dev, char *buf, int length)
+{
+	if (dev->fd == -1)
+		return -1;
+
+	return client_send_media(dev->fd, buf, length);
+}
+
 static int usb_device_add(libusb_device *dev)
 {
 	int j, res;
@@ -532,21 +541,8 @@ static int usb_device_add(libusb_device *dev)
 					return -1;
 				}
 			} else { // check mirror status, if in mirror, need stop mirror
-				if (usbdev->status == in_mirror) {
-					if (usbdev->mirror_ctx)
-						mirror_end(usbdev->mirror_ctx);
-
-					usbdev->status = to_stop_mirror;
-				} else if (usbdev->status == to_stop_mirror) {
-					//important: call release interface to make cancel transfer success
-					usbmuxd_log(LL_DEBUG, "Stop mirror, device: %s", usbdev->serial_usb);
-					libusb_release_interface(usbdev->dev, usbdev->interface);
-					libusb_release_interface(usbdev->dev, usbdev->interface_fa);
-					ubs_win32_extra_cmd_end(usbdev->serial_usb);
-
-					usb_win32_set_configuration(usbdev->serial_usb, 4);
-					return -1;
-				}
+				if (usbdev->status == in_mirror)
+					libusb_reset_device(usbdev->dev);
 			}
 			usbdev->alive = 1;
 			found = 1;
@@ -896,6 +892,35 @@ int usb_discover(void)
 	unlock_install();
 
 	return valid_count;
+}
+
+pthread_t enum_th;
+int enum_exit = 0;
+static void enum_proc(void *arg)
+{
+	/*while (!enum_exit)
+	{
+		if (dev_poll_remain_ms() <= 0) {
+			int res = usb_discover_2();
+			if (res < 0) {
+				usbmuxd_log(LL_ERROR, "usb_discover failed: %s", libusb_error_name(res));
+			}
+	}
+	}*/
+
+	return NULL;
+}
+
+void usb_enumerate_device()
+{
+	enum_exit = 0;
+	int res = pthread_create(&enum_th, NULL, enum_proc, NULL);
+}
+
+void usb_stop_enumerate()
+{
+	enum_exit = 1;
+	pthread_join(enum_th, NULL);
 }
 
 const char *usb_get_serial(struct usb_device *dev)

@@ -10,9 +10,29 @@
 
 extern QSet<QString> runningDevices;
 
-iOSCameraTaskThread::iOSCameraTaskThread(QObject *parent) : TaskThread(parent) {}
+iOSCameraTaskThread::iOSCameraTaskThread(QObject *parent) : iOSTask(parent) {}
 
-void iOSCameraTaskThread::run()
+void iOSCameraTaskThread::run(void *p)
+{
+	iOSCameraTaskThread *t = (iOSCameraTaskThread *)p;
+	t->taskInternal();
+}
+
+void iOSCameraTaskThread::startTask(QString udid, uint32_t deviceHandle)
+{
+	iOSTask::startTask(udid, deviceHandle);
+	m_running = true;
+	m_taskTh = std::thread(run, this);
+}
+
+void iOSCameraTaskThread::stopTask()
+{
+	m_running = false;
+	if (m_taskTh.joinable())
+		m_taskTh.join();
+}
+
+void iOSCameraTaskThread::taskInternal()
 {
 	uint32_t connectCount = 0;
 	int fd = -1;
@@ -48,6 +68,7 @@ void iOSCameraTaskThread::run()
 		usbmuxd_disconnect(fd);
 
 	emit mediaFinish();
+	emit finished();
 }
 
 void iOSCameraTaskThread::parseMediaData()
@@ -80,9 +101,9 @@ void iOSCameraTaskThread::parseMediaData()
 iOSCamera::iOSCamera(QObject *parent) : MediaTask(parent), m_taskThread(new iOSScreenMirrorTaskThread(this))
 {
 	connect(&m_scanTimer, &QTimer::timeout, this, &iOSCamera::onUpdateDeviceList);
-	connect(m_taskThread, &TaskThread::mediaData, this, &MediaTask::mediaData, Qt::DirectConnection);
-	connect(m_taskThread, &TaskThread::mediaFinish, this, &MediaTask::mediaFinish, Qt::DirectConnection);
-	connect(m_taskThread, &TaskThread::finished, this, &iOSCamera::stopTask);
+	connect(m_taskThread, &iOSTask::mediaData, this, &MediaTask::mediaData);
+	connect(m_taskThread, &iOSTask::mediaFinish, this, &MediaTask::mediaFinish);
+	connect(m_taskThread, &iOSTask::finished, this, &iOSCamera::stopTask);
 }
 
 iOSCamera::~iOSCamera()
@@ -93,7 +114,6 @@ iOSCamera::~iOSCamera()
 void iOSCamera::startTask(QString device, uint32_t handle)
 {
 	MediaTask::startTask(device, handle);
-
 	m_taskThread->startTask(device, handle);
 }
 
