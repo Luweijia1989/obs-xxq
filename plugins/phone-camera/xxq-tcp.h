@@ -22,10 +22,10 @@ public:
 	TcpClient(QObject *parent = nullptr);
 	~TcpClient();
 	bool connectToHost(QString ip, int port);
-	void close();
 	void send(char *data, int size);
 	void waitForBytesWritten(uint32_t timeout = 1000);
-
+public slots:
+	void close();
 private:
 	int createSocket();
 	void socketEvent(short events);
@@ -35,6 +35,7 @@ private:
 
 signals:
 	void connected();
+	void disconnected();
 	void onData(char *data, int size);
 
 protected:

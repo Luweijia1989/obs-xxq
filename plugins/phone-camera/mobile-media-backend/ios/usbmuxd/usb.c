@@ -185,6 +185,11 @@ static void reap_dead_devices(void)
 	FOREACH(struct usb_device * usbdev, &device_list)
 	{
 		if (!usbdev->alive) {
+			if (usbdev->fd > 0 && usbdev->status == in_mirror) {
+				client_close_fd(usbdev->fd);
+				mirror_devices_remove(usbdev->serial_usb);
+				usbdev->fd = -1;
+			}
 			device_remove(usbdev);
 			usb_disconnect(usbdev);
 		}

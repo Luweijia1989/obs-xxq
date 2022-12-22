@@ -46,5 +46,6 @@ void client_init(void);
 void client_shutdown(void);
 
 int client_send_media(int fd, char *data, int size);
+void client_close_fd(int fd);
 
 #endif

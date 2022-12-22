@@ -50,7 +50,10 @@ static void fdlist_reset(struct fdlist *list)
 	list->count = 0;
 }
 
-TcpClient::TcpClient(QObject *parent) : QThread(parent), m_dataLock(QMutex::Recursive) {}
+TcpClient::TcpClient(QObject *parent) : QThread(parent), m_dataLock(QMutex::Recursive)
+{
+	connect(this, &TcpClient::disconnected, this, &TcpClient::close);
+}
 
 TcpClient::~TcpClient()
 {
@@ -90,6 +93,7 @@ bool TcpClient::connectToHost(QString ip, int port)
 	m_peer->ib_capacity = 0x10000;
 	m_peer->events = POLLIN;
 
+	m_shouldExit = false;
 	start();
 	return true;
 }
@@ -150,8 +154,8 @@ void TcpClient::socketData()
 			qDebug("Receive from client fd %d failed: %s", m_peer->fd, strerror(errno));
 		else
 			qDebug("Client %d connection closed", m_peer->fd);
-		socketClose();
 
+		emit disconnected();
 		return;
 	}
 
@@ -168,7 +172,7 @@ void TcpClient::socketWrite()
 	auto res = ::send(m_peer->fd, m_peer->ob_buf, m_peer->ob_size, 0);
 	if (res <= 0) {
 		qDebug("Sending to client fd %d failed: %d %s", m_peer->fd, res, strerror(errno));
-		socketClose();
+		emit disconnected();
 		return;
 	}
 	if ((uint32_t)res == m_peer->ob_size) {
@@ -202,7 +206,7 @@ void TcpClient::socketEvent(short events)
 	} else if (events & POLLOUT) { //not both in case client died as part of process_recv
 		socketWrite();
 	} else if (events & POLLERR || events & POLLHUP) {
-		socketClose();
+		emit disconnected();
 	}
 }
 

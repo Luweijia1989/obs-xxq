@@ -1181,3 +1181,21 @@ int client_send_media(int fd, char *data, int size)
 	client->events |= POLLOUT;
 	return size;
 }
+
+void client_close_fd(int fd)
+{
+	struct mux_client *c = NULL;
+	pthread_mutex_lock(&client_list_mutex);
+	FOREACH(struct mux_client *lc, &client_list) {
+		if (fd == lc->fd) {
+			c = lc;
+			break;
+		}
+	} ENDFOREACH
+	pthread_mutex_unlock(&client_list_mutex);
+
+	if (!c)
+		return;
+
+	client_close(c);
+}
