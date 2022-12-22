@@ -105,10 +105,7 @@ void TcpClient::close()
 void TcpClient::send(char *data, int size)
 {
 	QMutexLocker locker(&m_dataLock);
-
-	memcpy(m_peer->ob_buf + m_peer->ob_size, data, size);
-	m_peer->ob_size += size;
-	m_peer->events |= POLLOUT;
+	m_sendCache.append(data, size);
 }
 
 void TcpClient::waitForBytesWritten(uint32_t timeout)
@@ -163,8 +160,6 @@ void TcpClient::socketData()
 
 void TcpClient::socketWrite()
 {
-	QMutexLocker locker(&m_dataLock);
-
 	if (!m_peer->ob_size) {
 		qDebug("Client %d OUT process but nothing to send?", m_peer->fd);
 		m_peer->events &= ~POLLOUT;
@@ -197,6 +192,7 @@ void TcpClient::socketClose()
 	free(m_peer->ob_buf);
 	free(m_peer);
 	m_peer = nullptr;
+	m_connected = false;
 }
 
 void TcpClient::socketEvent(short events)
@@ -215,16 +211,28 @@ void TcpClient::run()
 	struct fdlist pollfds;
 	fdlist_create(&pollfds);
 
-	bool cnd = false;
 	while (!m_shouldExit) {
+		{
+			QMutexLocker locker(&m_dataLock);
+			if (m_sendCache.size() > 0) {
+				if (!m_connected)
+					m_sendCache.clear();
+				else {
+					int available_size = m_peer->ob_capacity - m_peer->ob_size;
+					int copy_size = m_sendCache.size() < available_size ? m_sendCache.size() : available_size;
+					memcpy(m_peer->ob_buf + m_peer->ob_size, m_sendCache.data(), copy_size);
+					m_peer->ob_size += copy_size;
+					m_peer->events |= POLLOUT;
+					m_sendCache.remove(0, copy_size);
+				}
+			}
+		}
 
 		fdlist_reset(&pollfds);
-		if (!cnd)
+		if (!m_connected)
 			fdlist_add(&pollfds, FD_CONNECTED, m_peer->fd, POLLOUT);
 
-		m_dataLock.lock();
 		fdlist_add(&pollfds, FD_CLIENT, m_peer->fd, m_peer->events);
-		m_dataLock.unlock();
 
 		auto cnt = WSAPoll(pollfds.fds, pollfds.count, 10);
 
@@ -238,7 +246,7 @@ void TcpClient::run()
 			for (int i = 0; i < pollfds.count; i++) {
 				if (pollfds.fds[i].revents) {
 					if (pollfds.owners[i] == FD_CONNECTED) {
-						cnd = true;
+						m_connected = true;
 						emit connected();
 					}
 

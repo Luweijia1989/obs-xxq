@@ -43,7 +43,9 @@ protected:
 private:
 	peer *m_peer = nullptr;
 	bool m_shouldExit = false;
+	bool m_connected = false;
 	QMutex m_dataLock;
+	QByteArray m_sendCache;
 	QEventLoop m_eventloop;
 };
 

@@ -15,7 +15,8 @@ extern int should_exit;
 
 QSet<QString> installingDevices;
 QSet<QString> runningDevices;
-QSet<QString> readyDevices;
+QSet<QString> iOSDevices;
+QSet<QString> AndroidDevices;
 
 static QJsonArray deviceList2Json(const QMap<QString, QPair<QString, uint32_t>> devices)
 {

@@ -3,12 +3,12 @@
 #include <qelapsedtimer.h>
 
 extern QSet<QString> runningDevices;
-extern QSet<QString> readyDevices;
+extern QSet<QString> AndroidDevices;
 
 AndroidCamera::AndroidCamera(QObject *parent) : MediaTask(parent)
 {
 	connect(&m_scanTimer, &QTimer::timeout, this, [=]() {
-		for (auto iter = readyDevices.begin(); iter != readyDevices.end(); iter++) {
+		for (auto iter = AndroidDevices.begin(); iter != AndroidDevices.end(); iter++) {
 			if (runningDevices.contains(*iter))
 				continue;
 
@@ -284,6 +284,7 @@ void AndroidCamera::taskInternal()
 				bfree(cacheBuffer);
 			bfree(buffer);
 			circlebuf_free(&mediaBuffer);
+			libusb_reset_device(handle);
 		}
 	}
 
@@ -291,10 +292,10 @@ void AndroidCamera::taskInternal()
 		libusb_close(handle);
 
 	if (devs) {
-		libusb_free_device_list(devs, devsCount);
+		libusb_free_device_list(devs, 1);
 		devs = NULL;
 	}
-
+	
 	if (ctx != NULL) {
 		libusb_exit(ctx); //close the session
 		ctx = NULL;

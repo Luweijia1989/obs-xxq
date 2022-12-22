@@ -47,7 +47,7 @@ void iOSScreenMirrorTaskThread::startTask(QString udid, uint32_t deviceHandle)
 	m_mediaCache.clear();
 	m_mirrorSocket = new TcpClient();
 	connect(m_mirrorSocket, &TcpClient::finished, this, &iOSTask::finished);
-	connect(m_mirrorSocket, &TcpClient::connected, this, [=]() { sendCmd(true); }, Qt::DirectConnection);
+	connect(m_mirrorSocket, &TcpClient::connected, this, [=]() { sendCmd(true); });
 	connect(m_mirrorSocket, &TcpClient::onData, this,
 		[=](char *data, int size) {
 			m_mediaCache.append(data, size);
