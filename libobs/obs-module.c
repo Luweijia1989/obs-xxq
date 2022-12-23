@@ -17,6 +17,7 @@
 
 #include "util/platform.h"
 #include "util/dstr.h"
+#include "util/windows/win-version.h"
 
 #include "obs-defs.h"
 #include "obs-internal.h"
@@ -82,6 +83,15 @@ int obs_open_module(obs_module_t **module, const char *path,
 {
 	struct obs_module mod = {0};
 	int errorcode;
+
+	if (strstr(path, "obs-backgroundremoval.dll") != NULL) {
+		struct win_version_info ver;
+		get_win_ver(&ver);
+
+		bool win8_or_above = ver.major > 6 || (ver.major == 6 && ver.minor >= 2);
+		if (!win8_or_above)
+			return MODULE_ERROR;
+	}
 
 	if (!module || !path || !obs)
 		return MODULE_ERROR;
