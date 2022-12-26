@@ -30,14 +30,11 @@ void iOSScreenMirrorTaskThread::sendCmd(bool isStart)
 		auto sendBuffer = (uint8_t *)malloc(size);
 		memcpy(sendBuffer, &hdr, sizeof(hdr));
 		memcpy(sendBuffer + sizeof(hdr), xml, xmlsize);
-		m_mirrorSocket->send((char *)sendBuffer, size);
+		m_mirrorSocket->write((char *)sendBuffer, size, isStart ? 0 : 100);
 		free(sendBuffer);
 		free(xml);
 	}
 	plist_free(dict);
-
-	if (!isStart)
-		m_mirrorSocket->waitForBytesWritten(100);
 }
 
 void iOSScreenMirrorTaskThread::startTask(QString udid, uint32_t deviceHandle)
@@ -46,11 +43,10 @@ void iOSScreenMirrorTaskThread::startTask(QString udid, uint32_t deviceHandle)
 
 	m_mediaCache.clear();
 	m_mirrorSocket = new TcpClient();
-	connect(m_mirrorSocket, &TcpClient::finished, this, &iOSTask::finished);
-	connect(m_mirrorSocket, &TcpClient::connected, this, [=]() { sendCmd(true); });
+	connect(m_mirrorSocket, &TcpClient::disconnected, this, &iOSTask::finished);
 	connect(m_mirrorSocket, &TcpClient::onData, this,
-		[=](char *data, int size) {
-			m_mediaCache.append(data, size);
+		[=](uint8_t *data, int size) {
+			m_mediaCache.append((char *)data, size);
 			while (true) {
 				if (m_mediaCache.size() < sizeof(media_header))
 					break;
@@ -66,7 +62,12 @@ void iOSScreenMirrorTaskThread::startTask(QString udid, uint32_t deviceHandle)
 			}
 		},
 		Qt::DirectConnection);
-	m_mirrorSocket->connectToHost("127.0.0.1", USBMUXD_SOCKET_PORT);
+	if (m_mirrorSocket->connectToHost("127.0.0.1", USBMUXD_SOCKET_PORT, 100))
+		sendCmd(true);
+	else {
+		qDebug() << "error in connect to usbmuxd exe";
+		emit finished();
+	}
 }
 
 void iOSScreenMirrorTaskThread::stopTask()

@@ -39,7 +39,7 @@ PhoneCamera::PhoneCamera(obs_data_t *settings, obs_source_t *source) : m_source(
 	m_mediaDataServer = new MediaDataServer;
 	connect(m_mediaDataServer, &MediaDataServer::mediaData, this, &PhoneCamera::onMediaData, Qt::DirectConnection);
 	connect(m_mediaDataServer, &MediaDataServer::mediaVideoInfo, this, &PhoneCamera::onMediaVideoInfo, Qt::DirectConnection);
-	m_mediaDataServer->startServer();
+	m_mediaDataServer->start();
 }
 
 PhoneCamera::~PhoneCamera()
@@ -119,7 +119,6 @@ void PhoneCamera::switchPhoneType()
 
 void PhoneCamera::taskEnd()
 {
-	m_mediaDataServer->stopServer();
 	delete m_mediaDataServer;
 }
 

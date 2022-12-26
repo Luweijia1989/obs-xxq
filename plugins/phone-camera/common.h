@@ -117,12 +117,18 @@ private:
 	QTcpSocket *m_socket;
 };
 
-class MediaDataServer : public TcpServer {
+class MediaDataServer : public TcpServer, public SocketEventListener {
 	Q_OBJECT
 public:
-	MediaDataServer(QObject *parent = nullptr) : TcpServer(parent) {}
+	MediaDataServer(QObject *parent = nullptr) : TcpServer(parent) { setSocketEventListener(this); }
 
-	virtual void onClientData(int fd, char *data, int size)
+	~MediaDataServer()
+	{
+		setSocketEventListener(nullptr);
+		stop();
+	}
+
+	virtual void onClientData(evutil_socket_t fd, char *data, int size)
 	{
 		if (fd != m_connectFd)
 			return;
@@ -165,9 +171,9 @@ public:
 		}
 	}
 
-	virtual bool onNewConnection(int fd)
+	virtual bool onNewConnection(evutil_socket_t fd)
 	{
-		if (m_connectFd == -1) {
+		if (m_connectFd == 0) {
 			m_connectFd = fd;
 			m_mediaData.clear();
 			return true;
@@ -175,10 +181,10 @@ public:
 			return false;
 	}
 
-	virtual void onConnectionLost(int fd)
+	virtual void onConnectionLost(evutil_socket_t fd)
 	{
 		if (m_connectFd == fd) {
-			m_connectFd = -1;
+			m_connectFd = 0;
 		}
 	}
 
@@ -190,5 +196,5 @@ signals:
 
 private:
 	QByteArray m_mediaData;
-	int m_connectFd = -1;
+	evutil_socket_t m_connectFd = 0;
 };

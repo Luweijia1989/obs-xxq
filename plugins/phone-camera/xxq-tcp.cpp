@@ -1,457 +1,446 @@
 #include "xxq-tcp.h"
-#include <WinSock2.h>
-#include <Windows.h>
 #include <qdebug.h>
-#include <qtimer.h>
+#include <iostream>
 
-enum fdowner { FD_LISTEN, FD_CLIENT, FD_CONNECTED };
+#include <event2/event.h>
+#include <event2/thread.h>
+#include <event2/bufferevent.h>
+#include <event2/listener.h>
+#include <event2/buffer.h>
 
-struct fdlist {
-	int count;
-	int capacity;
-	enum fdowner *owners;
-	struct pollfd *fds;
-};
-
-static void fdlist_create(struct fdlist *list)
+EventBase::EventBase()
 {
-	list->count = 0;
-	list->capacity = 4;
-	list->owners = (enum fdowner *)malloc(sizeof(*list->owners) * list->capacity);
-	list->fds = (struct pollfd *)malloc(sizeof(*list->fds) * list->capacity);
+	qRegisterMetaType<intptr_t>("intptr_t");
+
+	WSADATA winsockInfo;
+	WSAStartup(MAKEWORD(2, 2), &winsockInfo);
+
+	evthread_use_windows_threads();
+	auto config = event_config_new();
+	m_eventBase = event_base_new_with_config(config);
+	event_config_free(config);
+
+	m_eventThread = std::thread(eventLoop, this);
 }
 
-static void fdlist_add(struct fdlist *list, enum fdowner owner, int fd, short events)
+EventBase::~EventBase()
 {
-	if (list->count == list->capacity) {
-		list->capacity *= 2;
-		list->owners = (enum fdowner *)realloc(list->owners, sizeof(*list->owners) * list->capacity);
-		list->fds = (struct pollfd *)realloc(list->fds, sizeof(*list->fds) * list->capacity);
+	if (m_eventThread.joinable()) {
+		event_base_loopbreak(m_eventBase);
+		m_eventThread.join();
 	}
-	list->owners[list->count] = owner;
-	list->fds[list->count].fd = fd;
-	list->fds[list->count].events = events;
-	list->fds[list->count].revents = 0;
-	list->count++;
 }
 
-static void fdlist_free(struct fdlist *list)
+void EventBase::eventLoop(EventBase *e)
 {
-	list->count = 0;
-	list->capacity = 0;
-	free(list->owners);
-	list->owners = NULL;
-	free(list->fds);
-	list->fds = NULL;
+	event_base_loop(e->m_eventBase, EVLOOP_NO_EXIT_ON_EMPTY);
+
+	std::cout << __FILE__ << __FUNCTION__ << "end event loop";
 }
 
-static void fdlist_reset(struct fdlist *list)
+TcpClient::TcpClient(QObject *parent) : QObject(parent), base(EventBase::getInstance()->eventBase())
 {
-	list->count = 0;
-}
-
-TcpClient::TcpClient(QObject *parent) : QThread(parent), m_dataLock(QMutex::Recursive)
-{
-	connect(this, &TcpClient::disconnected, this, &TcpClient::close);
+	for (size_t i = 0; i < 3; i++) {
+		conditions.append(new QWaitCondition);
+	}
 }
 
 TcpClient::~TcpClient()
 {
-	close();
+	disconnectFromHost(100);
+	qDeleteAll(conditions);
+	conditions.clear();
 }
 
-bool TcpClient::connectToHost(QString ip, int port)
+void TcpClient::customEventCallback(evutil_socket_t fd, short what, void *arg)
 {
-	auto fd = createSocket();
-	if (fd < 0)
-		return false;
-
-	struct sockaddr_in addr;
-	memset(&addr, 0, sizeof(addr));
-
-	addr.sin_family = AF_INET;
-	addr.sin_addr.s_addr = inet_addr(ip.toUtf8().data());
-	addr.sin_port = htons(port);
-	auto res = ::connect(fd, (SOCKADDR *)&addr, sizeof(addr));
-	if (res == SOCKET_ERROR) {
-		auto err = WSAGetLastError();
-		if (err != WSAEWOULDBLOCK) {
-			closesocket(fd);
-			return false;
-		}
+	Q_UNUSED(fd)
+	Q_UNUSED(what)
+	Event *e = (Event *)arg;
+	TcpClient *client = (TcpClient *)e->user_data;
+	if (e->type == (int)Type::Connect) {
+		client->connectInternal();
+	} else if (e->type == (int)Type::Disconnect) {
+		client->disconnectInternal();
+	} else if (e->type == (int)Type::Write) {
+		if (client->m_bev && e->buffer && e->size)
+			bufferevent_write(client->m_bev, e->buffer, e->size);
 	}
 
-	m_peer = (struct peer *)malloc(sizeof(struct peer));
-	memset(m_peer, 0, sizeof(struct peer));
-
-	m_peer->fd = fd;
-	m_peer->ob_buf = (char *)malloc(0x10000);
-	m_peer->ob_size = 0;
-	m_peer->ob_capacity = 0x10000;
-	m_peer->ib_buf = (char *)malloc(0x10000);
-	m_peer->ib_size = 0;
-	m_peer->ib_capacity = 0x10000;
-	m_peer->events = POLLIN;
-
-	m_shouldExit = false;
-	start();
-	return true;
+	event_free(e->e);
+	if (e->buffer)
+		free(e->buffer);
+	delete e;
 }
 
-void TcpClient::close()
+bool TcpClient::eventInternal(int type, int timeout, const char *data, int size)
 {
-	m_shouldExit = true;
-	wait();
+	auto e = new Event;
+	e->user_data = this;
+	e->type = type;
+	e->block = timeout != 0;
+	if (data && size) {
+		e->buffer = (char *)malloc(size);
+		memcpy(e->buffer, data, size);
+		e->size = size;
+	}
 
-	socketClose();
+	e->e = event_new(base, -1, 0, customEventCallback, e);
+	event_active(e->e, 0, 0);
+
+	bool res = true;
+	if (timeout != 0) {
+		mutex.lock();
+		res = conditions[type]->wait(&mutex, timeout);
+		mutex.unlock();
+	}
+
+	return res;
 }
 
-void TcpClient::send(char *data, int size)
+void TcpClient::wake(Type type)
 {
-	QMutexLocker locker(&m_dataLock);
-	m_sendCache.append(data, size);
+	mutex.lock();
+	conditions[(int)type]->notify_one();
+	mutex.unlock();
 }
 
-void TcpClient::waitForBytesWritten(uint32_t timeout)
+void TcpClient::eventCallback(struct bufferevent *bev, short events, void *ptr)
 {
-	QTimer timer;
-	timer.setSingleShot(true);
-	connect(&timer, &QTimer::timeout, &m_eventloop, &QEventLoop::quit);
-	timer.start(timeout);
-	m_eventloop.exec();
-}
+	TcpClient *c = (TcpClient *)ptr;
+	if (events & BEV_EVENT_CONNECTED) {
+		c->wake(Type::Connect);
+		emit c->connected();
+	} else if (events & BEV_EVENT_TIMEOUT) {
 
-int TcpClient::createSocket()
-{
-	WSADATA wsaData = {0};
-	auto ret = WSAStartup(MAKEWORD(2, 2), &wsaData);
-	if (ret != 0) {
-		qDebug() << "WSAStartup error";
-		return -1;
-	}
-
-	SOCKET fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-	if (fd == INVALID_SOCKET) {
-		qDebug() << "create socket error: " << WSAGetLastError();
-		return -1;
-	}
-
-	u_long iMode = 1;
-	ret = ioctlsocket(fd, FIONBIO, &iMode);
-	if (ret != NO_ERROR) {
-		qDebug() << "set nonblock socket error: " << ret;
-		return -1;
-	}
-
-	return fd;
-}
-
-void TcpClient::socketData()
-{
-	int res = recv(m_peer->fd, m_peer->ib_buf, m_peer->ib_capacity, 0);
-	if (res <= 0) {
-		if (res < 0)
-			qDebug("Receive from client fd %d failed: %s", m_peer->fd, strerror(errno));
-		else
-			qDebug("Client %d connection closed", m_peer->fd);
-
-		emit disconnected();
-		return;
-	}
-
-	emit onData(m_peer->ib_buf, res);
-}
-
-void TcpClient::socketWrite()
-{
-	if (!m_peer->ob_size) {
-		qDebug("Client %d OUT process but nothing to send?", m_peer->fd);
-		m_peer->events &= ~POLLOUT;
-		return;
-	}
-	auto res = ::send(m_peer->fd, m_peer->ob_buf, m_peer->ob_size, 0);
-	if (res <= 0) {
-		qDebug("Sending to client fd %d failed: %d %s", m_peer->fd, res, strerror(errno));
-		emit disconnected();
-		return;
-	}
-	if ((uint32_t)res == m_peer->ob_size) {
-		m_peer->ob_size = 0;
-		m_peer->events &= ~POLLOUT;
 	} else {
-		m_peer->ob_size -= res;
-		memmove(m_peer->ob_buf, m_peer->ob_buf + res, m_peer->ob_size);
+		c->disconnectInternal();
+		emit c->disconnected();
 	}
-
-	m_eventloop.quit();
 }
-
-void TcpClient::socketClose()
+void TcpClient::readCallback(struct bufferevent *bev, void *ctx)
 {
-	if (!m_peer)
-		return;
+	TcpClient *client = (TcpClient *)ctx;
+	struct evbuffer *buf = bufferevent_get_input(client->m_bev);
+	uint8_t readbuf[4096] = {0};
+	int read = 0;
 
-	closesocket(m_peer->fd);
-	free(m_peer->ib_buf);
-	free(m_peer->ob_buf);
-	free(m_peer);
-	m_peer = nullptr;
-	m_connected = false;
-}
-
-void TcpClient::socketEvent(short events)
-{
-	if (events & POLLIN) {
-		socketData();
-	} else if (events & POLLOUT) { //not both in case client died as part of process_recv
-		socketWrite();
-	} else if (events & POLLERR || events & POLLHUP) {
-		emit disconnected();
+	while ((read = evbuffer_remove(buf, &readbuf, sizeof(readbuf))) > 0) {
+		emit client->onData(readbuf, read);
 	}
 }
 
-void TcpClient::run()
+void TcpClient::writeCallback(struct bufferevent *bev, void *ctx)
 {
-	struct fdlist pollfds;
-	fdlist_create(&pollfds);
+	Q_UNUSED(bev)
+	TcpClient *client = (TcpClient *)ctx;
+	client->wake(Type::Write);
+}
 
-	while (!m_shouldExit) {
-		{
-			QMutexLocker locker(&m_dataLock);
-			if (m_sendCache.size() > 0) {
-				if (!m_connected)
-					m_sendCache.clear();
-				else {
-					int available_size = m_peer->ob_capacity - m_peer->ob_size;
-					int copy_size = m_sendCache.size() < available_size ? m_sendCache.size() : available_size;
-					memcpy(m_peer->ob_buf + m_peer->ob_size, m_sendCache.data(), copy_size);
-					m_peer->ob_size += copy_size;
-					m_peer->events |= POLLOUT;
-					m_sendCache.remove(0, copy_size);
-				}
-			}
-		}
+void TcpClient::connectInternal()
+{
+	m_bev = bufferevent_socket_new(EventBase::getInstance()->eventBase(), -1, 0);
 
-		fdlist_reset(&pollfds);
-		if (!m_connected)
-			fdlist_add(&pollfds, FD_CONNECTED, m_peer->fd, POLLOUT);
+	bufferevent_setcb(m_bev, readCallback, writeCallback, eventCallback, this);
+	bufferevent_enable(m_bev, EV_READ | EV_WRITE);
 
-		fdlist_add(&pollfds, FD_CLIENT, m_peer->fd, m_peer->events);
+	struct sockaddr_in sin;
 
-		auto cnt = WSAPoll(pollfds.fds, pollfds.count, 10);
+	memset(&sin, 0, sizeof(sin));
+	sin.sin_family = AF_INET;
+	sin.sin_port = htons(port);
+	inet_pton(AF_INET, ip.toUtf8().data(), &sin.sin_addr.s_addr);
 
-		if (cnt == -1) {
-			if (errno == EINTR) {
-				if (m_shouldExit) {
-					break;
-				}
+	if (bufferevent_socket_connect(m_bev, (struct sockaddr *)&sin, sizeof(sin)) < 0) {
+		qDebug() << "connect to host: " << ip << " error";
+	}
+}
+
+bool TcpClient::connectToHost(const char *ip, int port, uint32_t timeout)
+{
+	this->ip = ip;
+	this->port = port;
+	return eventInternal((int)Type::Connect, timeout);
+}
+
+void TcpClient::disconnectInternal()
+{
+	if (m_bev) {
+		EVUTIL_CLOSESOCKET(bufferevent_getfd(m_bev));
+		bufferevent_free(m_bev);
+		m_bev = nullptr;
+	}
+
+	wake(Type::Disconnect);
+}
+
+void TcpClient::disconnectFromHost(uint32_t timeout)
+{
+	eventInternal((int)Type::Disconnect, timeout);
+}
+
+bool TcpClient::write(char *data, int size, uint32_t timeout)
+{
+	return eventInternal((int)Type::Write, timeout, data, size);
+}
+
+inline Connection::Connection(evutil_socket_t fd, bufferevent *bev, TcpServer *server)
+{
+	this->bev = bev;
+	this->fd = fd;
+	this->server = server;
+	printf("Created connection with server ref: %p\n", server);
+}
+
+inline void Connection::send(const char *data, size_t numBytes)
+{
+	if (bufferevent_write(bev, data, numBytes) == -1) {
+		printf("Error while sending in Connection::send()\n");
+	}
+}
+
+inline void Connection::onRead(char *data, size_t size)
+{
+	QMutexLocker locker(&server->listener_mutex);
+	if (server->event_listener)
+		server->event_listener->onClientData(fd, data, size);
+}
+#include <qtimer.h>
+TcpServer::TcpServer(QObject *parent) : QObject(parent), base(EventBase::getInstance()->eventBase()), listener(NULL)
+{
+	for (size_t i = 0; i < 3; i++) {
+		conditions.append(new QWaitCondition);
+	}
+
+	QTimer *t = new QTimer;
+	connect(t, &QTimer::timeout, this, [=](){
+		char *s = "hello";
+		sendToAllClients(s, strlen(s));
+	});
+	t->start(10);
+}
+
+TcpServer::~TcpServer()
+{
+	stop();
+
+	qDeleteAll(conditions);
+	conditions.clear();
+}
+
+bool TcpServer::start(int port)
+{
+	listen_port = port;
+	listen_res = false;
+	eventInternal((int)Type::Listen, -1);
+
+	return listen_res;
+}
+
+void TcpServer::stop(int timeout)
+{
+	eventInternal((int)Type::Close, timeout);
+}
+
+int TcpServer::port()
+{
+	return listen_port;
+}
+
+void TcpServer::sendToAllClients(const char *data, int len, int timeout)
+{
+	eventInternal((int)Type::Write, timeout, data, len);
+}
+
+void TcpServer::sendTo(evutil_socket_t fd, const char *data, int len, int timeout)
+{
+	eventInternal((int)Type::Write, timeout, data, len, fd);
+}
+
+void TcpServer::setSocketEventListener(SocketEventListener *listener)
+{
+	QMutexLocker locker(&listener_mutex);
+	event_listener = listener;
+}
+
+// ------------------------------------
+
+bool TcpServer::eventInternal(int type, int timeout, const char *data, int size, evutil_socket_t fd)
+{
+	auto e = new Event;
+	e->user_data = this;
+	e->type = type;
+	e->block = timeout != 0;
+	if (data && size) {
+		e->buffer = (char *)malloc(size);
+		memcpy(e->buffer, data, size);
+		e->size = size;
+		e->fd = fd;
+	}
+	e->e = event_new(base, -1, 0, customEventCallback, e);
+	event_active(e->e, 0, 0);
+
+	bool res = true;
+	if (timeout != 0) {
+		mutex.lock();
+		res = conditions[type]->wait(&mutex, timeout);
+		mutex.unlock();
+	}
+
+	return res;
+}
+
+void TcpServer::wake(Type type)
+{
+	mutex.lock();
+	conditions[(int)type]->notify_one();
+	mutex.unlock();
+}
+
+void TcpServer::customEventCallback(evutil_socket_t fd, short what, void *arg)
+{
+	Q_UNUSED(fd)
+	Q_UNUSED(what)
+	Event *e = (Event *)arg;
+	TcpServer *server = (TcpServer *)e->user_data;
+	if (e->type == (int)Type::Listen) {
+		server->listenInternal();
+	} else if (e->type == (int)Type::Close) {
+		server->stopInternal();
+	} else if (e->type == (int)Type::Write) {
+		auto &connections = server->connections;
+		if (e->fd == 0) {
+			auto it = connections.begin();
+			while (it != connections.end()) {
+				it.value()->send(e->buffer, e->size);
+				++it;
 			}
 		} else {
-			for (int i = 0; i < pollfds.count; i++) {
-				if (pollfds.fds[i].revents) {
-					if (pollfds.owners[i] == FD_CONNECTED) {
-						m_connected = true;
-						emit connected();
-					}
-
-					if (pollfds.owners[i] == FD_CLIENT)
-						socketEvent(pollfds.fds[i].revents);
-				}
+			if (connections.contains(e->fd)) {
+				connections[e->fd]->send(e->buffer, e->size);
 			}
 		}
 	}
 
-	fdlist_free(&pollfds);
+	event_free(e->e);
+	if (e->buffer)
+		free(e->buffer);
+	delete e;
 }
 
-TcpServer::TcpServer(QObject *parent) : QThread(parent) {}
-
-TcpServer::~TcpServer() {}
-
-bool TcpServer::startServer(int port)
+void TcpServer::listenInternal()
 {
-	m_port = port;
-	m_listenFD = createSocket();
-	if (m_listenFD < 0)
-		return false;
+	struct sockaddr_in sin;
+	memset(&sin, 0, sizeof(sin));
+	sin.sin_family = AF_INET;
+	inet_pton(AF_INET, "0.0.0.0", &sin.sin_addr.s_addr);
+	sin.sin_port = htons(listen_port);
 
-	start();
-	return true;
-}
+	listener = evconnlistener_new_bind(base, TcpServer::listenerCallback, (void *)this, LEV_OPT_REUSEABLE | LEV_OPT_CLOSE_ON_FREE, -1,
+					   (struct sockaddr *)&sin, sizeof(sin));
 
-int TcpServer::createSocket()
-{
-	WSADATA wsaData = {0};
-	auto ret = WSAStartup(MAKEWORD(2, 2), &wsaData);
-	if (ret != 0) {
-		qDebug() << "WSAStartup error";
-		return -1;
-	}
-
-	SOCKET listenfd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-	if (listenfd == INVALID_SOCKET) {
-		qDebug() << "create socket error: " << WSAGetLastError();
-		return -1;
-	}
-
-	u_long iMode = 1;
-	ret = ioctlsocket(listenfd, FIONBIO, &iMode);
-	if (ret != NO_ERROR) {
-		qDebug() << "set nonblock socket error: " << ret;
-		return -1;
-	}
-
-	struct sockaddr_in bind_addr;
-	memset(&bind_addr, 0, sizeof(bind_addr));
-
-	bind_addr.sin_family = AF_INET;
-	bind_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
-	bind_addr.sin_port = htons(m_port);
-
-	if (bind(listenfd, (struct sockaddr *)&bind_addr, sizeof(bind_addr)) != 0) {
-		qDebug() << "bind socket error: " << WSAGetLastError();
-		return -1;
-	}
-
-	if (listen(listenfd, 256) != 0) {
-		qDebug() << "listen socket error: " << strerror(errno);
-		return -1;
+	if (!listener) {
+		printf("Cannot create listener.\n");
+		wake(Type::Listen);
+		return;
 	}
 
 	struct sockaddr_in addr;
 	int len = sizeof(addr);
-	getsockname(listenfd, (struct sockaddr *)&addr, &len);
-	m_port = ntohs(addr.sin_port);
-
-	return listenfd;
+	getsockname(evconnlistener_get_fd(listener), (struct sockaddr *)&addr, &len);
+	listen_port = ntohs(addr.sin_port);
+	listen_res = true;
+	wake(Type::Listen);
 }
 
-int TcpServer::clientAccept()
+void TcpServer::stopInternal()
 {
-	struct sockaddr_in addr;
-	int cfd;
-	int len = sizeof(struct sockaddr_in);
-	cfd = accept(m_listenFD, (struct sockaddr *)&addr, &len);
-	if (cfd == INVALID_SOCKET) {
-		return -1;
+	for (auto iter = connections.begin(); iter != connections.end(); iter++) {
+		Connection *conn = iter.value();
+		EVUTIL_CLOSESOCKET(conn->fd);
+		bufferevent_free(conn->bev);
+		delete conn;
 	}
 
-	if (!onNewConnection(cfd)) {
-		closesocket(cfd);
-		return -2;
+	connections.clear();
+
+	if (listener) {
+		evconnlistener_free(listener);
+		listener = nullptr;
 	}
 
-	u_long iMode = 1;
-	ioctlsocket(cfd, FIONBIO, &iMode);
-
-	int bufsize = 0x20000;
-	if (setsockopt(cfd, SOL_SOCKET, SO_SNDBUF, (const char *)&bufsize, sizeof(int)) == -1) {
-		qDebug() << "error set socket send buffer";
-	}
-	if (setsockopt(cfd, SOL_SOCKET, SO_RCVBUF, (const char *)&bufsize, sizeof(int)) == -1) {
-		qDebug() << "error set socket recv buffer";
-	}
-
-	int yes = 1;
-	setsockopt(cfd, IPPROTO_TCP, TCP_NODELAY, (const char *)&yes, sizeof(int));
-
-	return cfd;
+	wake(Type::Close);
 }
 
-void TcpServer::clientClose(int fd)
+void TcpServer::listenerCallback(struct evconnlistener *listener, evutil_socket_t fd, struct sockaddr *saddr, int socklen, void *data)
 {
-	closesocket(fd);
-	m_clients.remove(fd);
+	TcpServer *server = static_cast<TcpServer *>(data);
 
-	onConnectionLost(fd);
-}
+	{
+		QMutexLocker locker(&server->listener_mutex);
+		if (server->event_listener && !server->event_listener->onNewConnection(fd)) {
+			EVUTIL_CLOSESOCKET(fd);
+			return;
+		}
+	}
 
-void TcpServer::clientRecv(int fd)
-{
-	char buf[0x10000] = {0};
-
-	int res = recv(fd, buf, 0x10000, 0);
-	if (res <= 0) {
-		if (res < 0)
-			qDebug("Receive from client fd %d failed: %s", fd, strerror(errno));
-		else
-			qDebug("Client %d connection closed", fd);
-		clientClose(fd);
-
+	auto bev = bufferevent_socket_new(server->base, fd, 0);
+	if (!bev) {
+		printf("Error constructing bufferevent!\n");
 		return;
 	}
 
-	onClientData(fd, buf, res);
+	Connection *conn = new Connection(fd, bev, server);
+	bufferevent_setcb(bev, TcpServer::readCallback, TcpServer::writeCallback, TcpServer::eventCallback, (void *)conn);
+	bufferevent_enable(bev, EV_WRITE);
+	bufferevent_enable(bev, EV_READ);
+
+	server->connections.insert(fd, conn);
 }
 
-void TcpServer::clientProcess(int fd, short events)
+void TcpServer::writeCallback(struct bufferevent *bev, void *data)
 {
-	if (events & POLLIN) {
-		clientRecv(fd);
-	} else if (events & POLLOUT) { //not both in case client died as part of process_recv
+	struct evbuffer *output = bufferevent_get_output(bev);
+	if (evbuffer_get_length(output) == 0) {
+	}
+	Connection *conn = static_cast<Connection *>(data);
+	conn->server->wake(Type::Write);
+}
 
-	} else if (events & POLLERR || events & POLLHUP) {
-		clientClose(fd);
+void TcpServer::readCallback(struct bufferevent *bev, void *connection)
+{
+	Connection *conn = static_cast<Connection *>(connection);
+	struct evbuffer *buf = bufferevent_get_input(bev);
+	char readbuf[4096] = {0};
+	size_t read = 0;
+
+	while ((read = evbuffer_remove(buf, &readbuf, sizeof(readbuf))) > 0) {
+		conn->onRead(readbuf, read);
 	}
 }
 
-void TcpServer::run()
+void TcpServer::eventCallback(struct bufferevent *bev, short events, void *data)
 {
-	struct fdlist pollfds;
-	fdlist_create(&pollfds);
+	Connection *conn = static_cast<Connection *>(data);
+	TcpServer *server = static_cast<TcpServer *>(conn->server);
 
-	while (!m_shouldExit) {
-
-		fdlist_reset(&pollfds);
-		fdlist_add(&pollfds, FD_LISTEN, m_listenFD, POLLIN);
-
-		for (auto iter = m_clients.begin(); iter != m_clients.end(); iter++)
-			fdlist_add(&pollfds, FD_CLIENT, *iter, POLLIN);
-
-		auto cnt = WSAPoll(pollfds.fds, pollfds.count, 10);
-
-		if (cnt == -1) {
-			if (errno == EINTR) {
-				if (m_shouldExit) {
-					break;
-				}
-			}
-		} else {
-			for (int i = 0; i < pollfds.count; i++) {
-				if (pollfds.fds[i].revents) {
-					if (pollfds.owners[i] == FD_LISTEN) {
-						auto fd = clientAccept();
-						if (fd < 0) {
-							if (fd == -1) {
-								fdlist_free(&pollfds);
-								goto END;
-							}
-						} else
-							m_clients.insert(fd);
-					}
-					if (pollfds.owners[i] == FD_CLIENT)
-						clientProcess(pollfds.fds[i].fd, pollfds.fds[i].revents);
-				}
+	auto fd = conn->fd;
+	if (!(events & BEV_EVENT_TIMEOUT) || (!events & BEV_EVENT_CONNECTED)) {
+		{
+			auto &connections = server->connections;
+			if (connections.contains(fd)) {
+				Connection *conn = connections[fd];
+				EVUTIL_CLOSESOCKET(fd);
+				bufferevent_free(conn->bev);
+				connections.remove(fd);
+				delete conn;
 			}
 		}
-	}
-END:
-	fdlist_free(&pollfds);
-}
 
-void TcpServer::stopServer()
-{
-	m_shouldExit = true;
-	wait();
-
-	if (m_listenFD > 0) {
-		closesocket(m_listenFD);
-		m_listenFD = -1;
+		QMutexLocker locker(&server->listener_mutex);
+		if (server->event_listener)
+			server->event_listener->onConnectionLost(fd);
+	} else {
+		printf("unhandled.\n");
 	}
-
-	for (auto iter = m_clients.begin(); iter != m_clients.end(); iter++) {
-		closesocket(*iter);
-		onConnectionLost(*iter);
-	}
-	m_clients.clear();
 }

@@ -1,0 +1,18 @@
+find_path(LIBEVENT_INCLUDE_DIR NAMES event.h HINTS "${DepsPath}/include")
+
+find_library(LIB_EVENT NAMES event PATHS "${DepsPath}/bin")
+find_library(LIB_EVENT_CORE NAMES event_core PATHS "${DepsPath}/bin")
+find_library(LIB_EVENT_EXTRA NAMES event_extra PATHS "${DepsPath}/bin")
+find_library(LIB_EVENT_DEBUG NAMES event PATHS "${DepsPath}/bin/debug")
+find_library(LIB_EVENT_CORE_DEBUG NAMES event_core PATHS "${DepsPath}/bin/debug")
+find_library(LIB_EVENT_EXTRA_DEBUG NAMES event_extra PATHS "${DepsPath}/bin/debug")
+
+if(LIB_EVENT AND LIB_EVENT_CORE AND LIB_EVENT_EXTRA AND LIB_EVENT_DEBUG AND LIB_EVENT_CORE_DEBUG AND LIB_EVENT_EXTRA_DEBUG)
+	set(LIB_EVENT_INCLUDE_DIRS ${LIBEVENT_INCLUDE_DIR})
+	set(LIB_EVENT_LIBRARIES ${LIB_EVENT} ${LIB_EVENT_CORE} ${LIB_EVENT_EXTRA} Iphlpapi)
+	set(LIB_EVENT_DEBUG_LIBRARIES ${LIB_EVENT_DEBUG} ${LIB_EVENT_CORE_DEBUG} ${LIB_EVENT_EXTRA_DEBUG} Iphlpapi)
+endif()
+
+include(FindPackageHandleStandardArgs)
+find_package_handle_standard_args(LibEVENT DEFAULT_MSG LIB_EVENT_LIBRARIES LIB_EVENT_DEBUG_LIBRARIES LIB_EVENT_INCLUDE_DIRS)
+mark_as_advanced(LIB_EVENT_INCLUDE_DIRS LIB_EVENT_LIBRARIES LIB_EVENT_DEBUG_LIBRARIES)
