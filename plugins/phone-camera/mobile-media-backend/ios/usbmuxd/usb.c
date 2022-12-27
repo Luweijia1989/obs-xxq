@@ -44,10 +44,14 @@
 #include "utils.h"
 #include "media_process.h"
 #include "mirror-devices.h"
+#include "../../usb-device-reset-helper.h"
 
-#if (defined(LIBUSB_API_VERSION) && (LIBUSB_API_VERSION >= 0x01000102)) || (defined(LIBUSBX_API_VERSION) && (LIBUSBX_API_VERSION >= 0x01000102))
-#define HAVE_LIBUSB_HOTPLUG_API 1
-#endif
+//change device scan to another thread, usb_device_add param from libusb_device to libusb_device_handle.
+//disable hotplug detect
+
+//#if (defined(LIBUSB_API_VERSION) && (LIBUSB_API_VERSION >= 0x01000102)) || (defined(LIBUSBX_API_VERSION) && (LIBUSBX_API_VERSION >= 0x01000102))
+//#define HAVE_LIBUSB_HOTPLUG_API 1
+//#endif
 
 #if !defined(LIBUSB_API_VERSION) || LIBUSB_API_VERSION < 0x01000103
 #include <stdio.h>
@@ -64,7 +68,7 @@ const char *libusb_strerror(int errcode)
 
 // interval for device connection/disconnection polling, in milliseconds
 // we need this because there is currently no asynchronous device discovery mechanism in libusb
-#define DEVICE_POLL_TIME 1000
+#define DEVICE_POLL_TIME 100
 
 // Number of parallel bulk transfers we have running for reading data from the device.
 // Older versions of usbmuxd kept only 1, which leads to a mostly dormant USB port.
@@ -99,12 +103,56 @@ struct usb_device {
 };
 
 static struct collection device_list;
+static struct collection device_handle_list;
+static struct collection device_opened_handle_list;
 
 static struct timeval next_dev_poll_time;
 
 static int devlist_failures;
 static int device_polling;
 static int device_hotplug = 1;
+
+static pthread_mutex_t devices_lock = PTHREAD_RECURSIVE_MUTEX_INITIALIZER;
+static pthread_mutex_t wait_mutex = PTHREAD_MUTEX_INITIALIZER;
+static pthread_cond_t wait_cond = PTHREAD_COND_INITIALIZER;
+
+#define DELTA_EPOCH_IN_MICROSECS 11644473600000000Ui64
+struct timezone {
+	int tz_minuteswest; /* minutes W of Greenwich */
+	int tz_dsttime;     /* type of dst correction */
+};
+
+int gettimeofday(struct timeval *tv, struct timezone *tz)
+{
+	FILETIME ft;
+	unsigned __int64 tmpres = 0;
+	static int tzflag = 0;
+
+	if (NULL != tv) {
+		GetSystemTimeAsFileTime(&ft);
+
+		tmpres |= ft.dwHighDateTime;
+		tmpres <<= 32;
+		tmpres |= ft.dwLowDateTime;
+
+		tmpres /= 10; /*convert into microseconds*/
+		/*converting file time to unix epoch*/
+		tmpres -= DELTA_EPOCH_IN_MICROSECS;
+		tv->tv_sec = (long)(tmpres / 1000000UL);
+		tv->tv_usec = (long)(tmpres % 1000000UL);
+	}
+
+	if (NULL != tz) {
+		if (!tzflag) {
+			_tzset();
+			tzflag++;
+		}
+		tz->tz_minuteswest = _timezone / 60;
+		tz->tz_dsttime = _daylight;
+	}
+
+	return 0;
+}
 
 void usb_set_log_level(int level)
 {
@@ -121,6 +169,10 @@ static void usb_disconnect(struct usb_device *dev)
 	if (!dev->dev) {
 		return;
 	}
+
+	pthread_mutex_lock(&devices_lock);
+	collection_remove(&device_opened_handle_list, dev->dev);
+	pthread_mutex_unlock(&devices_lock);
 
 	// kill the rx xfer and tx xfers and try to make sure the callbacks
 	// get called before we free the device
@@ -257,7 +309,7 @@ int usb_send(struct usb_device *dev, const unsigned char *buf, int length, int f
 		// Send Zero Length Packet
 		xfer = libusb_alloc_transfer(0);
 		void *buffer = malloc(1);
-		libusb_fill_bulk_transfer(xfer, dev->dev, for_mirror == 0 ? dev->ep_out :  dev->ep_out_fa, buffer, 0, tx_callback, dev, 0);
+		libusb_fill_bulk_transfer(xfer, dev->dev, for_mirror == 0 ? dev->ep_out : dev->ep_out_fa, buffer, 0, tx_callback, dev, 0);
 		if ((res = libusb_submit_transfer(xfer)) < 0) {
 			usbmuxd_log(LL_ERROR, "Failed to submit TX ZLP transfer to device %d-%d: %s", dev->bus, dev->address, libusb_error_name(res));
 			libusb_free_transfer(xfer);
@@ -526,8 +578,10 @@ int usb_send_media_data(struct usb_device *dev, char *buf, int length)
 	return client_send_media(dev->fd, buf, length);
 }
 
-static int usb_device_add(libusb_device *dev)
+static int usb_device_add(libusb_device_handle *handle)
 {
+	libusb_device *dev = libusb_get_device(handle);
+
 	int j, res;
 	// the following are non-blocking operations on the device list
 	uint8_t bus = libusb_get_bus_number(dev);
@@ -546,8 +600,9 @@ static int usb_device_add(libusb_device *dev)
 					return -1;
 				}
 			} else { // check mirror status, if in mirror, need stop mirror
-				if (usbdev->status == in_mirror)
-					libusb_reset_device(usbdev->dev);
+				if (usbdev->status == in_mirror) {
+					usb_device_reset(usbdev->serial_usb);
+				}
 			}
 			usbdev->alive = 1;
 			found = 1;
@@ -562,38 +617,19 @@ static int usb_device_add(libusb_device *dev)
 		usbmuxd_log(LL_WARNING, "Could not get device descriptor for device %d-%d: %s", bus, address, libusb_error_name(res));
 		return -1;
 	}
-	if (devdesc.idVendor != VID_APPLE)
-		return -1;
-	if ((devdesc.idProduct != PID_APPLE_T2_COPROCESSOR) && ((devdesc.idProduct < PID_RANGE_LOW) || (devdesc.idProduct > PID_RANGE_MAX)))
-		return -1;
-	libusb_device_handle *handle;
+
 	usbmuxd_log(LL_INFO, "Found new device with v/p %04x:%04x at %d-%d", devdesc.idVendor, devdesc.idProduct, bus, address);
-	// No blocking operation can follow: it may be run in the libusb hotplug callback and libusb will refuse any
-	// blocking call
-	if ((res = libusb_open(dev, &handle)) != 0) {
-		if (res == LIBUSB_ERROR_NOT_SUPPORTED) {
-			usbmuxd_log(
-				LL_WARNING,
-				"Could not open device %d-%d. Libusb has reported it does not support the device. If on Windows, did you install the libusb drivers for the device?",
-				bus, address, libusb_strerror(res));
-		} else {
-			usbmuxd_log(LL_WARNING, "Could not open device %d-%d: %d", bus, address, libusb_error_name(res));
-		}
-		return -1;
-	}
 
 	int desired_config = devdesc.bNumConfigurations;
 	int current_config = 0;
 	if ((res = libusb_get_configuration(handle, &current_config)) != 0) {
 		usbmuxd_log(LL_WARNING, "Could not get configuration for device %d-%d: %s", bus, address, libusb_error_name(res));
-		libusb_close(handle);
 		return -1;
 	}
 
 	char serial[40];
 	if ((res = libusb_get_string_descriptor_ascii(handle, devdesc.iSerialNumber, (uint8_t *)serial, 40)) <= 0) {
 		usbmuxd_log(LL_WARNING, "Could not get the UDID for device %d-%d: %s", bus, address, libusb_strerror(res));
-		libusb_close(handle);
 		return -1;
 	}
 
@@ -601,7 +637,6 @@ static int usb_device_add(libusb_device *dev)
 	int mirror_request = (fd != -1);
 	if (mirror_request && devdesc.bNumConfigurations != 5) {
 		usb_win32_activate_quicktime(serial);
-		libusb_close(handle);
 		return -2;
 	}
 
@@ -639,12 +674,10 @@ static int usb_device_add(libusb_device *dev)
 		// Because the change was done via libusb-win32, we need to refresh the device on libusb;
 		// otherwise, it will not pick up the new configuration and endpoints.
 		// For now, let the next loop do this for us.
-		libusb_close(handle);
 		return -2;
 #else
 		if ((res = libusb_set_configuration(handle, desired_config)) != 0) {
 			usbmuxd_log(LL_WARNING, "Could not set configuration %d for device %d-%d: %s", desired_config, bus, address, libusb_error_name(res));
-			libusb_close(handle);
 			return -1;
 		}
 #endif
@@ -656,7 +689,6 @@ static int usb_device_add(libusb_device *dev)
 	struct libusb_config_descriptor *config;
 	if ((res = libusb_get_active_config_descriptor(dev, &config)) != 0) {
 		usbmuxd_log(LL_WARNING, "Could not get configuration descriptor for device %d-%d: %s", bus, address, libusb_error_name(res));
-		libusb_close(handle);
 		return -1;
 	}
 
@@ -718,7 +750,6 @@ static int usb_device_add(libusb_device *dev)
 	if (!interface_found || (mirror_request && !interface_found_fa)) {
 		usbmuxd_log(LL_WARNING, "Could not find a suitable USB interface for device %d-%d", bus, address);
 		libusb_free_config_descriptor(config);
-		libusb_close(handle);
 		free(usbdev);
 		return -1;
 	}
@@ -727,7 +758,6 @@ static int usb_device_add(libusb_device *dev)
 
 	if ((res = libusb_claim_interface(handle, usbdev->interface)) != 0) {
 		usbmuxd_log(LL_WARNING, "Could not claim interface %d for device %d-%d: %s", usbdev->interface, bus, address, libusb_error_name(res));
-		libusb_close(handle);
 		free(usbdev);
 		return -1;
 	}
@@ -735,7 +765,6 @@ static int usb_device_add(libusb_device *dev)
 	if (mirror_request && (res = libusb_claim_interface(handle, usbdev->interface_fa)) != 0) {
 		usbmuxd_log(LL_WARNING, "Could not claim interface_fa====>mirror %d for device %d-%d: %s", usbdev->interface_fa, bus, address,
 			    libusb_error_name(res));
-		libusb_close(handle);
 		free(usbdev);
 		return -1;
 	}
@@ -743,7 +772,6 @@ static int usb_device_add(libusb_device *dev)
 	transfer = libusb_alloc_transfer(0);
 	if (!transfer) {
 		usbmuxd_log(LL_WARNING, "Failed to allocate transfer for device %d-%d: %s", bus, address, libusb_error_name(res));
-		libusb_close(handle);
 		free(usbdev);
 		return -1;
 	}
@@ -751,7 +779,6 @@ static int usb_device_add(libusb_device *dev)
 	unsigned char *transfer_buffer = malloc(1024 + LIBUSB_CONTROL_SETUP_SIZE + 8);
 	if (!transfer_buffer) {
 		usbmuxd_log(LL_WARNING, "Failed to allocate transfer buffer for device %d-%d: %s", bus, address, libusb_error_name(res));
-		libusb_close(handle);
 		free(usbdev);
 		return -1;
 	}
@@ -805,7 +832,6 @@ static int usb_device_add(libusb_device *dev)
 	if ((res = libusb_submit_transfer(transfer)) < 0) {
 		usbmuxd_log(LL_ERROR, "Could not request transfer for device %d-%d: %s", usbdev->bus, usbdev->address, libusb_error_name(res));
 		libusb_free_transfer(transfer);
-		libusb_close(handle);
 		free(transfer_buffer);
 		free(usbdev);
 		return -1;
@@ -836,38 +862,9 @@ extern void lock_install();
 extern void unlock_install();
 int usb_discover(void)
 {
-	lock_install();
-	if (in_install_driver) {
-		unlock_install();
+	if (pthread_mutex_trylock(&devices_lock) != 0) {
 		return 0;
 	}
-
-	int cnt, i;
-	int valid_count = 0;
-	libusb_device **devs;
-
-	cnt = libusb_get_device_list(NULL, &devs);
-	if (cnt < 0) {
-		usbmuxd_log(LL_WARNING, "Could not get device list: %d", cnt);
-		devlist_failures++;
-		// sometimes libusb fails getting the device list if you've just removed something
-		if (devlist_failures > 5) {
-			usbmuxd_log(LL_FATAL, "Too many errors getting device list");
-			return cnt;
-		} else {
-			get_tick_count(&next_dev_poll_time);
-			next_dev_poll_time.tv_usec += DEVICE_POLL_TIME * 1000;
-			next_dev_poll_time.tv_sec += next_dev_poll_time.tv_usec / 1000000;
-			next_dev_poll_time.tv_usec = next_dev_poll_time.tv_usec % 1000000;
-			return 0;
-		}
-	}
-	devlist_failures = 0;
-
-	usbmuxd_log(LL_SPEW, "usb_discover: scanning %d devices", cnt);
-
-	usb_find_busses();
-	usb_find_devices();
 
 	// Mark all devices as dead, and do a mark-sweep like
 	// collection of dead devices
@@ -876,42 +873,104 @@ int usb_discover(void)
 
 	// Enumerate all USB devices and mark the ones we already know
 	// about as live, again
-	for (i = 0; i < cnt; i++) {
-		libusb_device *dev = devs[i];
-		if (usb_device_add(dev) < 0) {
-			continue;
-		}
-		valid_count++;
+	int valid_count = 0;
+	FOREACH(libusb_device_handle * handle, &device_opened_handle_list)
+	{
+		if (usb_device_add(handle) >= 0)
+			valid_count++;
 	}
+	ENDFOREACH
+
+	FOREACH(libusb_device_handle * handle, &device_handle_list)
+	{
+		if (usb_device_add(handle) < 0) {
+			libusb_close(handle);
+		} else {
+			valid_count++;
+			collection_add(&device_opened_handle_list, handle);
+		}
+
+		collection_remove(&device_handle_list, handle);
+	}
+	ENDFOREACH
 
 	// Clean out any device we didn't mark back as live
 	reap_dead_devices();
-
-	libusb_free_device_list(devs, 1);
 
 	get_tick_count(&next_dev_poll_time);
 	next_dev_poll_time.tv_usec += DEVICE_POLL_TIME * 1000;
 	next_dev_poll_time.tv_sec += next_dev_poll_time.tv_usec / 1000000;
 	next_dev_poll_time.tv_usec = next_dev_poll_time.tv_usec % 1000000;
 
-	unlock_install();
+	pthread_mutex_unlock(&devices_lock);
 
 	return valid_count;
 }
 
 pthread_t enum_th;
 int enum_exit = 0;
-static void enum_proc(void *arg)
+static void *enum_proc(void *arg)
 {
-	/*while (!enum_exit)
-	{
-		if (dev_poll_remain_ms() <= 0) {
-			int res = usb_discover_2();
-			if (res < 0) {
-				usbmuxd_log(LL_ERROR, "usb_discover failed: %s", libusb_error_name(res));
+	while (!enum_exit) {
+		struct timeval now;
+		struct timespec wait_time;
+		pthread_mutex_lock(&wait_mutex);
+		gettimeofday(&now, NULL);
+		wait_time.tv_sec = now.tv_sec;
+		wait_time.tv_nsec = now.tv_usec * 1000 + DEVICE_POLL_TIME * 1000000;
+		pthread_cond_timedwait(&wait_cond, &wait_mutex, &wait_time);
+		pthread_mutex_unlock(&wait_mutex);
+
+		if (!enum_exit)
+			break;
+
+		lock_install();
+		if (in_install_driver) {
+			unlock_install();
+			return 0;
+		}
+		libusb_device **list;
+		pthread_mutex_lock(&devices_lock);
+		if (collection_count(&device_handle_list) == 0) {
+			auto devsCount = libusb_get_device_list(NULL, &list);
+			for (size_t i = 0; i < devsCount; i++) {
+				libusb_device_handle *opened_handle = NULL;
+				FOREACH(libusb_device_handle * opened, &device_opened_handle_list)
+				{
+					libusb_device *device = libusb_get_device(opened);
+					uint8_t bus = libusb_get_bus_number(device);
+					uint8_t address = libusb_get_device_address(device);
+					if (libusb_get_bus_number(list[i]) == bus && libusb_get_device_address(list[i]) == address) {
+						opened_handle = opened;
+						break;
+					}
+				}
+				ENDFOREACH
+
+				if (!opened_handle) {
+					struct libusb_device_descriptor devdesc;
+					if (libusb_get_device_descriptor(list[i], &devdesc) == LIBUSB_SUCCESS) {
+						if (devdesc.idVendor != VID_APPLE)
+							continue;
+						if ((devdesc.idProduct != PID_APPLE_T2_COPROCESSOR) &&
+						    ((devdesc.idProduct < PID_RANGE_LOW) || (devdesc.idProduct > PID_RANGE_MAX)))
+							continue;
+
+						libusb_device_handle *handle = NULL;
+						auto res = libusb_open(list[i], &handle);
+						if (res == LIBUSB_SUCCESS)
+							collection_add(&device_handle_list, handle);
+					}
+				}
 			}
+			libusb_free_device_list(list, 1);
+
+			usb_find_devices();
+		}
+
+		pthread_mutex_unlock(&devices_lock);
+		unlock_install();
 	}
-	}*/
 
 	return NULL;
 }
@@ -925,6 +984,9 @@ void usb_enumerate_device()
 void usb_stop_enumerate()
 {
 	enum_exit = 1;
+	pthread_mutex_lock(&wait_mutex);
+	pthread_cond_signal(&wait_cond);
+	pthread_mutex_unlock(&wait_mutex);
 	pthread_join(enum_th, NULL);
 }
 
@@ -1117,8 +1179,7 @@ int usb_initialize(void)
 	}
 
 #if LIBUSB_API_VERSION >= 0x01000106
-	libusb_set_option(NULL, LIBUSB_OPTION_LOG_LEVEL,
-			  LIBUSB_LOG_LEVEL_NONE);
+	libusb_set_option(NULL, LIBUSB_OPTION_LOG_LEVEL, LIBUSB_LOG_LEVEL_NONE);
 	/*libusb_set_option(NULL, LIBUSB_OPTION_LOG_LEVEL,
 			  (log_level >= LL_DEBUG ? LIBUSB_LOG_LEVEL_DEBUG : (log_level >= LL_WARNING ? LIBUSB_LOG_LEVEL_WARNING : LIBUSB_LOG_LEVEL_NONE)));*/
 #else
@@ -1130,6 +1191,8 @@ int usb_initialize(void)
 #endif
 
 	collection_init(&device_list);
+	collection_init(&device_handle_list);
+	collection_init(&device_opened_handle_list);
 
 #ifdef HAVE_LIBUSB_HOTPLUG_API
 	if (libusb_has_capability(LIBUSB_CAP_HAS_HOTPLUG)) {
@@ -1170,5 +1233,7 @@ void usb_shutdown(void)
 	}
 	ENDFOREACH
 	collection_free(&device_list);
+	collection_free(&device_handle_list);
+	collection_free(&device_opened_handle_list);
 	libusb_exit(NULL);
 }

@@ -1,6 +1,7 @@
 #include "android-camera.h"
 #include <qdebug.h>
 #include <qelapsedtimer.h>
+#include "../../usb-device-reset-helper.h"
 
 extern QSet<QString> runningDevices;
 extern QSet<QString> AndroidDevices;
@@ -196,6 +197,7 @@ void AndroidCamera::taskInternal()
 {
 	qDebug() << "android camera task start: " << m_connectedDevice;
 
+	unsigned char serial[256] = {0};
 	libusb_context *ctx = nullptr;
 	libusb_device **devs = nullptr;
 	int devsCount = 0;
@@ -215,9 +217,8 @@ void AndroidCamera::taskInternal()
 
 		handle = nullptr;
 		if (libusb_open(devs[i], &handle) == 0) {
-			uint8_t buffer[256] = {0};
-			if (libusb_get_string_descriptor_ascii(handle, desc.iSerialNumber, buffer, 255) >= 0) {
-				if (!m_connectedDevice.contains(QString((char *)buffer))) {
+			if (libusb_get_string_descriptor_ascii(handle, desc.iSerialNumber, serial, 255) >= 0) {
+				if (!m_connectedDevice.contains(QString((char *)serial))) {
 					libusb_close(handle);
 					handle = nullptr;
 					continue;
@@ -284,7 +285,7 @@ void AndroidCamera::taskInternal()
 				bfree(cacheBuffer);
 			bfree(buffer);
 			circlebuf_free(&mediaBuffer);
-			libusb_reset_device(handle);
+			usb_device_reset((const char *)serial);
 		}
 	}
 
@@ -295,7 +296,7 @@ void AndroidCamera::taskInternal()
 		libusb_free_device_list(devs, 1);
 		devs = NULL;
 	}
-	
+
 	if (ctx != NULL) {
 		libusb_exit(ctx); //close the session
 		ctx = NULL;

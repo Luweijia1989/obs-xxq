@@ -283,7 +283,7 @@ bool DriverHelper::doDriverProcess(PhoneType type, QString devicePath, bool chec
 	timer->setSingleShot(true);
 	timer->setInterval(60 * 10 * 1000);
 
-	process->start("driver-installer.exe", p);
+	process->start("device-helper.exe", p);
 	timer->start();
 
 	return true;

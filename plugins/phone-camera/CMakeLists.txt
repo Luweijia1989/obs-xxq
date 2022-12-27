@@ -46,5 +46,5 @@ target_link_libraries(phone-camera
 
 install_obs_plugin(phone-camera)
 
-add_subdirectory(driver-installer)
+add_subdirectory(device-helper)
 add_subdirectory(mobile-media-backend)
