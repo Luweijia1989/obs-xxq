@@ -7,9 +7,9 @@
 #include <libusb-1.0/libusb.h>
 #include <Setupapi.h>
 #include <Devpkey.h>
+#include "usb-device-reset-helper.h"
 
 extern "C" {
-int in_install_driver;
 pthread_mutex_t lock = PTHREAD_RECURSIVE_MUTEX_INITIALIZER;
 
 void lock_install()
@@ -35,6 +35,7 @@ DriverHelper::DriverHelper(QObject *parent) : QObject(parent)
 	m_eventFilter = new NativeEventFilter;
 	connect(m_eventFilter, &NativeEventFilter::deviceChange, this, [=](QString devicePath, bool isAdd) {
 		qDebug() << "device change, isAdd: " << isAdd << "  , path" << devicePath << "   , installing: " << installingDevices;
+		add_usb_device_change_event();
 		if (isAdd) {
 			m_eventLoop.quit();
 			doDriverProcess(PhoneType::None, devicePath);
@@ -220,7 +221,6 @@ bool DriverHelper::doDriverProcess(PhoneType type, QString devicePath, bool chec
 	qDebug() << "using device: " << devicePath;
 
 	lock_install();
-	in_install_driver = 1;
 
 	installingDevices.insert(devicePath);
 
@@ -269,12 +269,13 @@ bool DriverHelper::doDriverProcess(PhoneType type, QString devicePath, bool chec
 				qDebug() << "iOS driver error, try restart";
 		}
 
-		in_install_driver = 0;
 		unlock_install();
 
 		process->deleteLater();
 		timer->deleteLater();
 		m_installs.remove(process);
+
+		add_usb_device_change_event();
 	});
 
 	connect(timer, &QTimer::timeout, this, [=]() { process->kill(); });

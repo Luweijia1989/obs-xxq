@@ -170,10 +170,6 @@ static void usb_disconnect(struct usb_device *dev)
 		return;
 	}
 
-	pthread_mutex_lock(&devices_lock);
-	collection_remove(&device_opened_handle_list, dev->dev);
-	pthread_mutex_unlock(&devices_lock);
-
 	// kill the rx xfer and tx xfers and try to make sure the callbacks
 	// get called before we free the device
 	FOREACH(struct libusb_transfer * xfer, &dev->rx_xfers)
@@ -227,6 +223,12 @@ static void usb_disconnect(struct usb_device *dev)
 	collection_free(&dev->rx_xfers_for_mirror);
 	libusb_release_interface(dev->dev, dev->interface);
 	libusb_close(dev->dev);
+
+	pthread_mutex_lock(&devices_lock);
+	collection_remove(&device_opened_handle_list, dev->dev);
+	pthread_mutex_unlock(&devices_lock);
+	add_usb_device_change_event();
+
 	dev->dev = NULL;
 	collection_remove(&device_list, dev);
 	free(dev);
@@ -637,6 +639,7 @@ static int usb_device_add(libusb_device_handle *handle)
 	int mirror_request = (fd != -1);
 	if (mirror_request && devdesc.bNumConfigurations != 5) {
 		usb_win32_activate_quicktime(serial);
+		add_usb_device_change_event();
 		return -2;
 	}
 
@@ -674,6 +677,7 @@ static int usb_device_add(libusb_device_handle *handle)
 		// Because the change was done via libusb-win32, we need to refresh the device on libusb;
 		// otherwise, it will not pick up the new configuration and endpoints.
 		// For now, let the next loop do this for us.
+		add_usb_device_change_event();
 		return -2;
 #else
 		if ((res = libusb_set_configuration(handle, desired_config)) != 0) {
@@ -857,7 +861,6 @@ static int usb_device_add(libusb_device_handle *handle)
 	return 0;
 }
 
-extern int in_install_driver;
 extern void lock_install();
 extern void unlock_install();
 int usb_discover(void)
@@ -921,14 +924,15 @@ static void *enum_proc(void *arg)
 		pthread_cond_timedwait(&wait_cond, &wait_mutex, &wait_time);
 		pthread_mutex_unlock(&wait_mutex);
 
-		if (!enum_exit)
+		if (enum_exit)
 			break;
 
 		lock_install();
-		if (in_install_driver) {
+		if (!consume_usb_device_change_event()) {
 			unlock_install();
-			return 0;
+			continue;
 		}
+
 		libusb_device **list;
 		pthread_mutex_lock(&devices_lock);
 		if (collection_count(&device_handle_list) == 0) {
