@@ -67,6 +67,11 @@ static QString getDeviceName(QString udid)
 	return result;
 }
 
+Application *App()
+{
+	return static_cast<Application *>(qApp);
+}
+
 void Application::usbmuxdDeviceEvent(const usbmuxd_event_t *event, void *user_data)
 {
 	Application *app = (Application *)user_data;
@@ -91,7 +96,7 @@ void Application::usbmuxdDeviceEvent(const usbmuxd_event_t *event, void *user_da
 	}
 }
 
-Application::Application(int &argc, char **argv) : QApplication(argc, argv)
+Application::Application(int &argc, char **argv) : QApplication(argc, argv), m_mediaObjects({{PhoneType::iOS, {}}, {PhoneType::Android, {}}})
 {
 	qRegisterMetaType<QMap<QString, QString>>("QMap<QString, QPair<QString, uint32_t>>");
 	qRegisterMetaType<int64_t>("int64_t");
@@ -167,12 +172,27 @@ void Application::onMediaTaskStart(const QJsonObject &req)
 	else {
 		source = new MediaSource();
 		m_mediaSources.insert(tcpPort, source);
-		connect(source, &MediaSource::destroyed, this, [=]() {
-			m_mediaSources.remove(tcpPort);
-		});
+		connect(source, &MediaSource::destroyed, this, [=]() { m_mediaSources.remove(tcpPort); });
 		source->connectToHost(tcpPort);
 	}
 	source->setCurrentDevice(type, id);
 
 	qDebug() << "onMediaTaskStart, port: " << tcpPort;
+}
+
+bool Application::mediaAvailable(PhoneType type)
+{
+	auto &objs = m_mediaObjects[type];
+	return !objs.isEmpty();
+}
+
+void Application::mediaObjectRegister(PhoneType type, void *obj, bool add)
+{
+	for (auto iter = m_mediaObjects.begin(); iter != m_mediaObjects.end(); iter++) {
+		auto &objs = iter.value();
+		if (iter.key() == type && add)
+			objs.insert(obj);
+		else
+			objs.remove(obj);
+	}
 }

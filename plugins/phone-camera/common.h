@@ -90,7 +90,7 @@ public:
 		connect(socket, &QTcpSocket::disconnected, this, [=]() { socket->deleteLater(); });
 	}
 
-	~TcpSocketWrapper() { qDebug() << "=========== TcpSocketWrapper destroyed."; }
+	~TcpSocketWrapper() { qDebug() << "TcpSocketWrapper destroyed."; }
 
 	QTcpSocket *socket() { return m_socket; }
 	void sendMsg(const QJsonDocument &msg)

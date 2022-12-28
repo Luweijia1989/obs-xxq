@@ -21,6 +21,8 @@ public:
 		QMutexLocker locker(&m_devicesMutex);
 		return m_iOSDevices;
 	}
+	bool mediaAvailable(PhoneType type);
+	void mediaObjectRegister(PhoneType type, void *obj, bool add);
 
 public slots:
 	void onNewConnection();
@@ -37,4 +39,7 @@ private:
 
 	QTcpServer m_controlServer;
 	QMap<int, MediaSource *> m_mediaSources;
+	QMap<PhoneType, QSet<void *>> m_mediaObjects;
 };
+
+Application *App();

@@ -16,15 +16,18 @@ MediaSource::~MediaSource()
 
 void MediaSource::connectToHost(int port)
 {
-	m_socket = new QTcpSocket;
-	m_socket->setSocketOption(QAbstractSocket::LowDelayOption, 1);
-	setParent(m_socket);
-	connect(m_socket, &QTcpSocket::disconnected, m_socket, &QTcpSocket::deleteLater);
+	m_socket = new QTcpSocket(this);
+	connect(m_socket, &QTcpSocket::disconnected, this, [=](){
+		qDebug() << "MediaSource socket disconnected.";
+		App()->mediaObjectRegister(m_phoneType, this, false);
+		deleteLater();
+	});
+	m_socket->setSocketOption(QAbstractSocket::LowDelayOption, 1);\
 	m_socket->connectToHost(QHostAddress::LocalHost, port);
 	bool ret = m_socket->waitForConnected(100);
 	qDebug() << "MediaSource connect to media server, ret: " << (ret ? "success" : "fail");
 	if (!ret)
-		m_socket->deleteLater();
+		deleteLater();
 }
 
 void MediaSource::setCurrentDevice(PhoneType type, QString deviceId)
@@ -32,6 +35,7 @@ void MediaSource::setCurrentDevice(PhoneType type, QString deviceId)
 	if (type != m_phoneType && m_mediaTask)
 		m_mediaTask->deleteLater();
 
+	App()->mediaObjectRegister(type, this, true);
 	m_phoneType = (PhoneType)type;
 	if (type == PhoneType::iOS) {
 		m_mediaTask = new iOSCamera(this);
@@ -69,5 +73,5 @@ void MediaSource::setCurrentDevice(PhoneType type, QString deviceId)
 	//connect(m_mediaTask, &MediaTask::mediaFinish, this, &PhoneCamera::onMediaFinish, Qt::DirectConnection);
 
 	m_mediaTask->setExpectedDevice(deviceId);
-	static_cast<Application *>(qApp)->driverHelper().checkDevices(m_phoneType);
+	App()->driverHelper().checkDevices();
 }

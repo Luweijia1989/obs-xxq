@@ -8,6 +8,7 @@
 #include <Setupapi.h>
 #include <Devpkey.h>
 #include "usb-device-reset-helper.h"
+#include "application.h"
 
 extern "C" {
 pthread_mutex_t lock = PTHREAD_RECURSIVE_MUTEX_INITIALIZER;
@@ -38,7 +39,7 @@ DriverHelper::DriverHelper(QObject *parent) : QObject(parent)
 		add_usb_device_change_event();
 		if (isAdd) {
 			m_eventLoop.quit();
-			doDriverProcess(PhoneType::None, devicePath);
+			doDriverProcess(devicePath);
 		} else {
 			iOSDevices.remove(devicePath);
 			AndroidDevices.remove(devicePath);
@@ -60,12 +61,12 @@ DriverHelper::~DriverHelper()
 	m_installs.clear();
 }
 
-void DriverHelper::checkDevices(PhoneType type)
+void DriverHelper::checkDevices()
 {
 	auto list = enumUSBDevice();
 	for (auto iter = list.begin(); iter != list.end(); iter++) {
 		const QString &path = iter.key();
-		if (doDriverProcess(type, path, true))
+		if (doDriverProcess(path, true))
 			break;
 	}
 }
@@ -182,7 +183,7 @@ QMap<QString, QString> DriverHelper::enumUSBDevice()
 	return result;
 }
 
-bool DriverHelper::doDriverProcess(PhoneType type, QString devicePath, bool checkAoA)
+bool DriverHelper::doDriverProcess(QString devicePath, bool checkAoA)
 {
 	if (devicePath.isEmpty())
 		return false;
@@ -207,16 +208,15 @@ bool DriverHelper::doDriverProcess(PhoneType type, QString devicePath, bool chec
 
 	bool isAndroid = androidValid();
 	bool isApple = isAppleDevice(vid, pid);
-	if (type == PhoneType::None) {
-		if (!isApple && !isAndroid)
+
+	if (isAndroid) {
+		if (!App()->mediaAvailable(PhoneType::Android))
 			return false;
-	} else if (type == PhoneType::iOS) {
-		if (!isApple)
+	} else if (isApple) {
+		if (!App()->mediaAvailable(PhoneType::iOS))
 			return false;
-	} else if (type == PhoneType::Android) {
-		if (!isAndroid)
-			return false;
-	}
+	} else
+		return false;
 
 	qDebug() << "using device: " << devicePath;
 

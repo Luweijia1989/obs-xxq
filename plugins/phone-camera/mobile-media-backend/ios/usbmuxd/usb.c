@@ -639,7 +639,6 @@ static int usb_device_add(libusb_device_handle *handle)
 	int mirror_request = (fd != -1);
 	if (mirror_request && devdesc.bNumConfigurations != 5) {
 		usb_win32_activate_quicktime(serial);
-		add_usb_device_change_event();
 		return -2;
 	}
 
@@ -677,7 +676,6 @@ static int usb_device_add(libusb_device_handle *handle)
 		// Because the change was done via libusb-win32, we need to refresh the device on libusb;
 		// otherwise, it will not pick up the new configuration and endpoints.
 		// For now, let the next loop do this for us.
-		add_usb_device_change_event();
 		return -2;
 #else
 		if ((res = libusb_set_configuration(handle, desired_config)) != 0) {
@@ -888,6 +886,7 @@ int usb_discover(void)
 	{
 		if (usb_device_add(handle) < 0) {
 			libusb_close(handle);
+			add_usb_device_change_event();
 		} else {
 			valid_count++;
 			collection_add(&device_opened_handle_list, handle);
@@ -971,7 +970,7 @@ static void *enum_proc(void *arg)
 
 			usb_find_devices();
 		}
-
+		
 		pthread_mutex_unlock(&devices_lock);
 		unlock_install();
 	}
