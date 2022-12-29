@@ -28,7 +28,7 @@ struct mirror_info {
 	struct CMTime lastEatFrameReceivedLocalAudioClockTime;
 
 	struct circlebuf m_audioDataCacheBuf;
-	char *m_audioPopBuffer;
+	uint8_t *m_audioPopBuffer;
 	struct circlebuf m_mediaCache;
 
 	struct usb_device *dev;
@@ -43,3 +43,15 @@ void sendData(struct mirror_info *info, struct CMSampleBuffer *buf);
 void handleSyncPacket(void *ctx, uint8_t *buf, int length);
 void handleAsyncPacket(void *ctx, uint8_t *buf, int length);
 void onMirrorData(void *ctx, uint8_t *data, uint32_t size);
+
+struct android_mirror_info {
+	struct circlebuf media_cache;
+	uint8_t *cache_buf;
+	size_t cache_buf_size;
+
+	struct usb_device *dev;
+};
+
+struct android_mirror_info *create_android_mirror_info(struct usb_device *dev);
+void destroy_android_mirror_info(struct android_mirror_info *info);
+void on_android_mirror_data(void *ctx, uint8_t *data, uint32_t size);

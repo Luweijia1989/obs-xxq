@@ -1,7 +1,6 @@
 #pragma once
 
 #include "ios-camera.h"
-#include <qeventloop.h>
 #include <media-io/audio-io.h>
 #include <qtcpsocket.h>
 #include <qpointer.h>
@@ -23,5 +22,4 @@ private:
 private:
 	TcpClient *m_mirrorSocket = nullptr;
 	QByteArray m_mediaCache;
-	QEventLoop m_eventLoop;
 };

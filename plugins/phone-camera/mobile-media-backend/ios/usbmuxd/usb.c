@@ -100,6 +100,8 @@ struct usb_device {
 	void *mirror_ctx;
 	enum mirror_status status;
 	int fd;
+	int first_send;
+	int is_iOS;
 };
 
 static struct collection device_list;
@@ -152,6 +154,14 @@ int gettimeofday(struct timeval *tv, struct timezone *tz)
 	}
 
 	return 0;
+}
+
+int usb_is_aoa_device(uint16_t vid, uint16_t pid)
+{
+	if (vid == VID_GOOGLE && (pid == PID_AOA_ACC || pid == PID_AOA_ACC_ADB || pid == PID_AOA_ACC_AU || pid == PID_AOA_ACC_AU_ADB))
+		return 1;
+	else
+		return 0;
 }
 
 void usb_set_log_level(int level)
@@ -222,11 +232,12 @@ static void usb_disconnect(struct usb_device *dev)
 	collection_free(&dev->rx_xfers);
 	collection_free(&dev->rx_xfers_for_mirror);
 	libusb_release_interface(dev->dev, dev->interface);
-	libusb_close(dev->dev);
 
 	pthread_mutex_lock(&devices_lock);
+	libusb_close(dev->dev);
 	collection_remove(&device_opened_handle_list, dev->dev);
 	pthread_mutex_unlock(&devices_lock);
+
 	add_usb_device_change_event();
 
 	dev->dev = NULL;
@@ -326,7 +337,12 @@ static void clear_mirror_transfer(struct libusb_transfer *xfer)
 {
 	struct usb_device *dev = xfer->user_data;
 
-	destory_mirror_info(dev->mirror_ctx);
+	if (dev->is_iOS)
+		destory_mirror_info(dev->mirror_ctx);
+	else
+		destroy_android_mirror_info(dev->mirror_ctx);
+
+	dev->mirror_ctx = NULL;
 
 	free(xfer->buffer);
 	collection_remove(&dev->rx_xfers_for_mirror, xfer);
@@ -340,11 +356,20 @@ static void clear_mirror_transfer(struct libusb_transfer *xfer)
 static void LIBUSB_CALL rx_callback_for_mirror(struct libusb_transfer *xfer)
 {
 	struct usb_device *dev = xfer->user_data;
-	if (!dev->mirror_ctx)
-		dev->mirror_ctx = create_mirror_info(dev);
+	if (!dev->mirror_ctx) {
+		if (dev->is_iOS)
+			dev->mirror_ctx = create_mirror_info(dev);
+		else
+			dev->mirror_ctx = create_android_mirror_info(dev);
+	}
+
 	//usbmuxd_log(LL_SPEW, "RX callback for mirror dev %d-%d len %d status %d", dev->bus, dev->address, xfer->actual_length, xfer->status);
 	if (xfer->status == LIBUSB_TRANSFER_COMPLETED && xfer->actual_length != 0) {
-		onMirrorData(dev->mirror_ctx, xfer->buffer, xfer->actual_length);
+		if (dev->is_iOS)
+			onMirrorData(dev->mirror_ctx, xfer->buffer, xfer->actual_length);
+		else
+			on_android_mirror_data(dev->mirror_ctx, xfer->buffer, xfer->actual_length);
+
 		int res = libusb_submit_transfer(xfer);
 		if (res != 0)
 			clear_mirror_transfer(xfer);
@@ -388,7 +413,7 @@ static int start_rx_loop_for_mirror(struct usb_device *dev)
 	void *buf;
 	struct libusb_transfer *xfer = libusb_alloc_transfer(0);
 	buf = malloc(USB_MRU);
-	libusb_fill_bulk_transfer(xfer, dev->dev, dev->ep_in_fa, buf, USB_MRU, rx_callback_for_mirror, dev, 0);
+	libusb_fill_bulk_transfer(xfer, dev->dev, dev->is_iOS ? dev->ep_in_fa : dev->ep_in, buf, USB_MRU, rx_callback_for_mirror, dev, 0);
 	if ((res = libusb_submit_transfer(xfer)) != 0) {
 		usbmuxd_log(LL_ERROR, "Failed to submit RX transfer to device for mirror %d-%d: %s", dev->bus, dev->address, libusb_error_name(res));
 		libusb_free_transfer(xfer);
@@ -580,8 +605,230 @@ int usb_send_media_data(struct usb_device *dev, char *buf, int length)
 	return client_send_media(dev->fd, buf, length);
 }
 
+static void LIBUSB_CALL android_tx_callback(struct libusb_transfer *xfer)
+{
+	struct usb_device *dev = xfer->user_data;
+	if (xfer->status != LIBUSB_TRANSFER_COMPLETED) {
+		switch (xfer->status) {
+		case LIBUSB_TRANSFER_COMPLETED: //shut up compiler
+		case LIBUSB_TRANSFER_ERROR:
+			// funny, this happens when we disconnect the device while waiting for a transfer, sometimes
+			usbmuxd_log(LL_INFO, "Device %d-%d TX aborted due to error or disconnect", dev->bus, dev->address);
+			break;
+		case LIBUSB_TRANSFER_TIMED_OUT:
+			usbmuxd_log(LL_ERROR, "TX transfer timed out for device %d-%d", dev->bus, dev->address);
+			break;
+		case LIBUSB_TRANSFER_CANCELLED:
+			usbmuxd_log(LL_DEBUG, "Device %d-%d TX transfer cancelled", dev->bus, dev->address);
+			break;
+		case LIBUSB_TRANSFER_STALL:
+			usbmuxd_log(LL_ERROR, "TX transfer stalled for device %d-%d", dev->bus, dev->address);
+			break;
+		case LIBUSB_TRANSFER_NO_DEVICE:
+			// other times, this happens, and also even when we abort the transfer after device removal
+			usbmuxd_log(LL_INFO, "Device %d-%d TX aborted due to disconnect", dev->bus, dev->address);
+			break;
+		case LIBUSB_TRANSFER_OVERFLOW:
+			usbmuxd_log(LL_ERROR, "TX transfer overflow for device %d-%d", dev->bus, dev->address);
+			break;
+		// and nothing happens (this never gets called) if the device is freed after a disconnect! (bad)
+		default:
+			// this should never be reached.
+			break;
+		}
+		// we can't usb_disconnect here due to a deadlock, so instead mark it as dead and reap it after processing events
+		// we'll do device_remove there too
+		dev->alive = 0;
+	} else {
+		if (!dev->first_send) {
+			dev->first_send = 1;
+			start_rx_loop_for_mirror(dev);
+		}
+	}
+	if (xfer->buffer)
+		free(xfer->buffer);
+	collection_remove(&dev->tx_xfers, xfer);
+	libusb_free_transfer(xfer);
+}
+
+static int usb_android_send(struct usb_device *usbdev, void *data, int size)
+{
+	int res;
+	struct libusb_transfer *xfer = libusb_alloc_transfer(0);
+	libusb_fill_bulk_transfer(xfer, usbdev->dev, usbdev->ep_out, data, size, android_tx_callback, usbdev, 0);
+	if ((res = libusb_submit_transfer(xfer)) < 0) {
+		libusb_free_transfer(xfer);
+		return res;
+	}
+	collection_add(&usbdev->tx_xfers, xfer);
+	return 0;
+}
+
+static int usb_android_task_start(struct usb_device *usbdev, int fd)
+{
+	usbdev->fd = fd;
+	usbdev->status = in_mirror;
+	usbdev->first_send = 0;
+
+	uint8_t *fc = malloc(1);
+	fc[0] = 1;
+	if (usb_android_send(usbdev, fc, 1) < 0)
+		free(fc);
+
+	return 0;
+}
+
+// -1 error, 0 not android device, 1 sucess
+static int usb_android_device_add(libusb_device_handle *handle)
+{
+	libusb_device *dev = libusb_get_device(handle);
+	struct libusb_device_descriptor desc;
+	if (libusb_get_device_descriptor(dev, &desc) != LIBUSB_SUCCESS)
+		return -1;
+
+	if (!usb_is_aoa_device(desc.idVendor, desc.idProduct))
+		return 0;
+
+	uint8_t bus = libusb_get_bus_number(dev);
+	uint8_t address = libusb_get_device_address(dev);
+	int found = 0;
+	FOREACH(struct usb_device * usbdev, &device_list)
+	{
+		if (usbdev->bus == bus && usbdev->address == address) {
+			int fd = mirror_devices_fd_from_udid(usbdev->serial_usb);
+			if (fd == -1) {
+				if (usbdev->status == in_mirror) {
+					usb_device_reset(usbdev->serial_usb);
+					return -1; //Android reset sometimes not work, force remove it;
+				}
+			} else {
+				if (usbdev->status != in_mirror) {
+					usbmuxd_log(LL_DEBUG, "Receive mirror start request, rescan device: %s", usbdev->serial_usb);
+					usb_android_task_start(usbdev, fd);
+				} else {
+					if (usbdev->first_send) {
+						int64_t ts = os_gettime_ns();
+						static int64_t last_ts = 0;
+
+						if (ts - last_ts > 100000000) {
+							last_ts = ts;
+							uint8_t *fc = malloc(1);
+							fc[0] = 2;
+							if (usb_android_send(usbdev, fc, 1) < 0)
+								free(fc);
+						}
+					}
+				}
+			}
+			usbdev->alive = 1;
+			found = 1;
+			break;
+		}
+	}
+	ENDFOREACH
+	if (found)
+		return 1;
+
+	if (desc.bDeviceClass == 0x09)
+		return -1;
+
+	int res = -1;
+	char serial[40];
+	if ((res = libusb_get_string_descriptor_ascii(handle, desc.iSerialNumber, (uint8_t *)serial, 40)) <= 0) {
+		usbmuxd_log(LL_WARNING, "Could not get the UDID for android device %d-%d: %s", bus, address, libusb_strerror(res));
+		return -1;
+	}
+
+	struct libusb_config_descriptor *config;
+	if ((res = libusb_get_active_config_descriptor(dev, &config)) != 0) {
+		usbmuxd_log(LL_WARNING, "Could not get configuration descriptor for device %d-%d: %s", bus, address, libusb_error_name(res));
+		return -1;
+	}
+
+	struct usb_device *usbdev;
+	usbdev = malloc(sizeof(struct usb_device));
+	memset(usbdev, 0, sizeof(*usbdev));
+
+	int interface_found = 0;
+	for (int j = 0; j < config->bNumInterfaces; j++) {
+		const struct libusb_interface *inter = &config->interface[j];
+		if (inter == NULL) {
+			continue;
+		}
+
+		for (j = 0; j < inter->num_altsetting; j++) {
+			const struct libusb_interface_descriptor *interdesc = &inter->altsetting[j];
+			if (interdesc->bNumEndpoints == 2 && interdesc->bInterfaceClass == 0xff && interdesc->bInterfaceSubClass == 0xff &&
+			    (usbdev->ep_in <= 0 || usbdev->ep_out <= 0)) {
+				for (int k = 0; k < (int)interdesc->bNumEndpoints; k++) {
+					const struct libusb_endpoint_descriptor *epdesc = &interdesc->endpoint[k];
+					if (epdesc->bmAttributes != 0x02) {
+						break;
+					}
+					if ((epdesc->bEndpointAddress & LIBUSB_ENDPOINT_IN) && usbdev->ep_in <= 0) {
+						usbdev->ep_in = epdesc->bEndpointAddress;
+					} else if ((!(epdesc->bEndpointAddress & LIBUSB_ENDPOINT_IN)) && usbdev->ep_out <= 0) {
+						usbdev->ep_out = epdesc->bEndpointAddress;
+					} else {
+						break;
+					}
+				}
+				if (usbdev->ep_in && usbdev->ep_out) {
+					usbdev->interface = interdesc->bInterfaceNumber;
+					interface_found = 1;
+				}
+			}
+		}
+	}
+
+	if (!interface_found) {
+		usbmuxd_log(LL_WARNING, "Could not find a suitable USB interface for android device %d-%d", bus, address);
+		libusb_free_config_descriptor(config);
+		free(usbdev);
+		return -1;
+	}
+
+	libusb_free_config_descriptor(config);
+
+	if ((res = libusb_claim_interface(handle, usbdev->interface)) != 0) {
+		usbmuxd_log(LL_WARNING, "Could not claim interface %d for android device %d-%d: %s", usbdev->interface, bus, address, libusb_error_name(res));
+		free(usbdev);
+		return -1;
+	}
+
+	memcpy(usbdev->serial_usb, serial, 40);
+	usbdev->serial[0] = 0;
+	usbdev->bus = bus;
+	usbdev->address = address;
+	usbdev->devdesc = desc;
+	usbdev->dev = handle;
+	usbdev->alive = 1;
+	usbdev->speed = 480000000;
+	usbdev->wMaxPacketSize = libusb_get_max_packet_size(dev, usbdev->ep_out);
+	if (usbdev->wMaxPacketSize <= 0) {
+		usbmuxd_log(LL_ERROR, "Could not determine wMaxPacketSize for android device %d-%d, setting to 64", usbdev->bus, usbdev->address);
+		usbdev->wMaxPacketSize = 64;
+	} else {
+		usbmuxd_log(LL_INFO, "Using wMaxPacketSize=%d for android device %d-%d", usbdev->wMaxPacketSize, usbdev->bus, usbdev->address);
+	}
+
+	collection_init(&usbdev->tx_xfers);
+	collection_init(&usbdev->rx_xfers);
+	collection_init(&usbdev->rx_xfers_for_mirror);
+
+	usbdev->is_iOS = 0;
+	collection_add(&device_list, usbdev);
+	usbdev->status = not_in_mirror;
+
+	return 1;
+}
+
 static int usb_device_add(libusb_device_handle *handle)
 {
+	int r = usb_android_device_add(handle);
+	if (r != 0)
+		return r;
+
 	libusb_device *dev = libusb_get_device(handle);
 
 	int j, res;
@@ -843,6 +1090,7 @@ static int usb_device_add(libusb_device_handle *handle)
 	collection_init(&usbdev->rx_xfers);
 	collection_init(&usbdev->rx_xfers_for_mirror);
 
+	usbdev->is_iOS = 1;
 	collection_add(&device_list, usbdev);
 
 	if (mirror_request) {
@@ -935,8 +1183,8 @@ static void *enum_proc(void *arg)
 		libusb_device **list;
 		pthread_mutex_lock(&devices_lock);
 		if (collection_count(&device_handle_list) == 0) {
-			auto devsCount = libusb_get_device_list(NULL, &list);
-			for (size_t i = 0; i < devsCount; i++) {
+			ssize_t devsCount = libusb_get_device_list(NULL, &list);
+			for (ssize_t i = 0; i < devsCount; i++) {
 				libusb_device_handle *opened_handle = NULL;
 				FOREACH(libusb_device_handle * opened, &device_opened_handle_list)
 				{
@@ -953,16 +1201,15 @@ static void *enum_proc(void *arg)
 				if (!opened_handle) {
 					struct libusb_device_descriptor devdesc;
 					if (libusb_get_device_descriptor(list[i], &devdesc) == LIBUSB_SUCCESS) {
-						if (devdesc.idVendor != VID_APPLE)
-							continue;
-						if ((devdesc.idProduct != PID_APPLE_T2_COPROCESSOR) &&
-						    ((devdesc.idProduct < PID_RANGE_LOW) || (devdesc.idProduct > PID_RANGE_MAX)))
-							continue;
-
-						libusb_device_handle *handle = NULL;
-						auto res = libusb_open(list[i], &handle);
-						if (res == LIBUSB_SUCCESS)
-							collection_add(&device_handle_list, handle);
+						if (usb_is_aoa_device(devdesc.idVendor, devdesc.idProduct) ||
+						    (devdesc.idVendor == VID_APPLE &&
+						     (devdesc.idProduct == PID_APPLE_T2_COPROCESSOR ||
+						      (devdesc.idProduct >= PID_RANGE_LOW && devdesc.idProduct <= PID_RANGE_MAX)))) {
+							libusb_device_handle *handle = NULL;
+							int res = libusb_open(list[i], &handle);
+							if (res == LIBUSB_SUCCESS)
+								collection_add(&device_handle_list, handle);
+						}
 					}
 				}
 			}
@@ -970,7 +1217,7 @@ static void *enum_proc(void *arg)
 
 			usb_find_devices();
 		}
-		
+
 		pthread_mutex_unlock(&devices_lock);
 		unlock_install();
 	}
@@ -981,7 +1228,7 @@ static void *enum_proc(void *arg)
 void usb_enumerate_device()
 {
 	enum_exit = 0;
-	int res = pthread_create(&enum_th, NULL, enum_proc, NULL);
+	pthread_create(&enum_th, NULL, enum_proc, NULL);
 }
 
 void usb_stop_enumerate()

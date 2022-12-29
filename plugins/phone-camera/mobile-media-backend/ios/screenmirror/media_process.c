@@ -11,7 +11,7 @@ struct mirror_info *create_mirror_info(struct usb_device *dev)
 
 	info->dev = dev;
 	circlebuf_init(&info->m_audioDataCacheBuf);
-	info->m_audioPopBuffer = (char *)malloc(4096 * sizeof(char));
+	info->m_audioPopBuffer = malloc(4096 * sizeof(uint8_t));
 	circlebuf_init(&info->m_mediaCache);
 
 	return info;
@@ -32,7 +32,7 @@ void destory_mirror_info(struct mirror_info *info)
 	circlebuf_free(&info->m_mediaCache);
 }
 
-static void send_media_data(struct mirror_info *info, uint8_t type, int64_t timestamp, uint8_t *payload, size_t payload_size)
+static void send_media_data(struct usb_device *dev, uint8_t type, int64_t timestamp, uint8_t *payload, size_t payload_size)
 {
 	struct media_header header = {0};
 	uint32_t size = sizeof(struct media_header) + payload_size;
@@ -42,7 +42,7 @@ static void send_media_data(struct mirror_info *info, uint8_t type, int64_t time
 	header.timestamp = timestamp;
 	memcpy(send_buffer, &header, sizeof(struct media_header));
 	memcpy(send_buffer + sizeof(struct media_header), payload, payload_size);
-	usb_send_media_data(info->dev, send_buffer, size);
+	usb_send_media_data(dev, send_buffer, size);
 	free(send_buffer);
 }
 
@@ -51,7 +51,7 @@ void sendAudioInfo(struct mirror_info *info, uint32_t sampleRate, enum speaker_l
 void sendData(struct mirror_info *info, struct CMSampleBuffer *buf)
 {
 	if (buf->HasFormatDescription) {
-		send_media_data(info, 0, 0x8000000000000000, buf->FormatDescription.PPS, buf->FormatDescription.PPS_len);
+		send_media_data(info->dev, 0, 0x8000000000000000, buf->FormatDescription.PPS, buf->FormatDescription.PPS_len);
 	}
 
 	if (buf->SampleData_len <= 0)
@@ -63,7 +63,7 @@ void sendData(struct mirror_info *info, struct CMSampleBuffer *buf)
 		while (true) {
 			if (info->m_audioDataCacheBuf.size >= 4096) {
 				circlebuf_pop_front(&info->m_audioDataCacheBuf, info->m_audioPopBuffer, 4096);
-				send_media_data(info, 1, 0, info->m_audioPopBuffer, 4096);
+				send_media_data(info->dev, 1, 0, info->m_audioPopBuffer, 4096);
 			} else
 				break;
 		}
@@ -71,7 +71,7 @@ void sendData(struct mirror_info *info, struct CMSampleBuffer *buf)
 		if (buf->OutputPresentationTimestamp.CMTimeValue > 17446044073700192000)
 			buf->OutputPresentationTimestamp.CMTimeValue = 0;
 
-		send_media_data(info, 0, 0, buf->SampleData, buf->SampleData_len);
+		send_media_data(info->dev, 0, 0, buf->SampleData, buf->SampleData_len);
 	}
 }
 
@@ -356,6 +356,79 @@ void onMirrorData(void *ctx, uint8_t *data, uint32_t size)
 			frameReceived(ctx, temp_buf + 4, len - 4);
 			free(temp_buf);
 		} else
+			break;
+	}
+}
+
+struct android_mirror_info *create_android_mirror_info(struct usb_device *dev)
+{
+	struct android_mirror_info *info = malloc(sizeof(struct android_mirror_info));
+	memset(info, 0, sizeof(struct android_mirror_info));
+
+	info->dev = dev;
+	circlebuf_init(&info->media_cache);
+
+	return info;
+}
+
+void destroy_android_mirror_info(struct android_mirror_info *info)
+{
+	if (!info)
+		return;
+
+	circlebuf_free(&info->media_cache);
+	if (info->cache_buf)
+		free(info->cache_buf);
+
+	free(info);
+}
+
+static bool handle_android_media_data(void *ctx)
+{
+	struct android_mirror_info *mi = ctx;
+
+	size_t headerSize = 4 + 8 + 1;
+
+	if (mi->media_cache.size < headerSize)
+		return false;
+
+	size_t pktSize = 0;
+	circlebuf_peek_front(&mi->media_cache, &pktSize, 4);
+
+	size_t totalSize = pktSize + headerSize;
+	if (mi->media_cache.size < totalSize)
+		return false;
+
+	if (mi->cache_buf_size < headerSize + pktSize) {
+		mi->cache_buf_size = headerSize + pktSize;
+		mi->cache_buf = realloc(mi->cache_buf, mi->cache_buf_size);
+	}
+
+	circlebuf_pop_front(&mi->media_cache, mi->cache_buf, headerSize);
+	int type = (mi->cache_buf)[4];
+	int64_t pts = 0;
+	memcpy(&pts, mi->cache_buf + 5, 8);
+	circlebuf_pop_front(&mi->media_cache, mi->cache_buf, pktSize);
+
+	if (type == 1) { //video
+		send_media_data(mi->dev, 0, pts, mi->cache_buf, pktSize);
+	} else {
+		send_media_data(mi->dev, 1, 0, mi->cache_buf, pktSize);
+	}
+	return true;
+}
+
+void on_android_mirror_data(void *ctx, uint8_t *data, uint32_t size)
+{
+	struct android_mirror_info *mi = ctx;
+	circlebuf_push_back(&mi->media_cache, data, size);
+
+	while (1) {
+		bool b = handle_android_media_data(ctx);
+
+		if (b)
+			continue;
+		else
 			break;
 	}
 }

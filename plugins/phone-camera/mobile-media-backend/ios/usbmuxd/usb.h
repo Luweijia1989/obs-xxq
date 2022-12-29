@@ -49,6 +49,12 @@
 #define PID_RANGE_MAX 0x12af
 #define PID_APPLE_T2_COPROCESSOR 0x8600
 
+#define VID_GOOGLE 0x18D1
+#define PID_AOA_ACC 0x2D00
+#define PID_AOA_ACC_ADB 0x2D01
+#define PID_AOA_ACC_AU 0x2D04
+#define PID_AOA_ACC_AU_ADB 0x2D05
+
 struct usb_device;
 
 void usb_set_log_level(int level);

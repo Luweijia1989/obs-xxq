@@ -29,6 +29,7 @@ EventBase::~EventBase()
 		event_base_loopbreak(m_eventBase);
 		m_eventThread.join();
 	}
+	event_base_free(m_eventBase);
 }
 
 void EventBase::eventLoop(EventBase *e)

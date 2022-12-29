@@ -4,6 +4,8 @@
 #include <qbytearray.h>
 #include <qtimer.h>
 #include <qset.h>
+#include <plist/plist.h>
+#include "ios/usbmuxd/usbmuxd-proto.h"
 
 extern QSet<QString> runningDevices;
 class MediaTask : public QObject {
@@ -65,3 +67,30 @@ public:
 	QString m_connectedDevice;
 	QTimer m_scanTimer;
 };
+
+static inline QByteArray usbmuxdTaskCMD(QString deviceId, bool isStart)
+{
+	QByteArray result;
+	plist_t dict = plist_new_dict();
+	plist_dict_set_item(dict, "CmdType", plist_new_string(isStart ? "Start" : "Stop"));
+	plist_dict_set_item(dict, "DeviceId", plist_new_string(deviceId.toUtf8().data()));
+
+	char *xml = NULL;
+	uint32_t xmlsize = 0;
+	plist_to_xml(dict, &xml, &xmlsize);
+	if (xml) {
+		struct usbmuxd_header hdr;
+		auto size = sizeof(hdr) + xmlsize;
+		hdr.version = 1;
+		hdr.length = size;
+		hdr.message = MESSAGE_CUSTOM;
+		hdr.tag = 1;
+		result.resize(size);
+		memcpy(result.data(), &hdr, sizeof(hdr));
+		memcpy(result.data() + sizeof(hdr), xml, xmlsize);
+		free(xml);
+	}
+	plist_free(dict);
+
+	return result;
+}

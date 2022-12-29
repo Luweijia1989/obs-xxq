@@ -12,29 +12,8 @@ void iOSScreenMirrorTaskThread::sendCmd(bool isStart)
 {
 	QString tid = m_udid.replace('-', "").toUpper();
 
-	plist_t dict = plist_new_dict();
-	plist_dict_set_item(dict, "CmdType", plist_new_string(isStart ? "Start" : "Stop"));
-	plist_dict_set_item(dict, "DeviceId", plist_new_string(tid.toUtf8().data()));
-
-	int res = -1;
-	char *xml = NULL;
-	uint32_t xmlsize = 0;
-	plist_to_xml(dict, &xml, &xmlsize);
-	if (xml) {
-		struct usbmuxd_header hdr;
-		auto size = sizeof(hdr) + xmlsize;
-		hdr.version = 1;
-		hdr.length = size;
-		hdr.message = MESSAGE_CUSTOM;
-		hdr.tag = 1;
-		auto sendBuffer = (uint8_t *)malloc(size);
-		memcpy(sendBuffer, &hdr, sizeof(hdr));
-		memcpy(sendBuffer + sizeof(hdr), xml, xmlsize);
-		m_mirrorSocket->write((char *)sendBuffer, size, isStart ? 0 : 100);
-		free(sendBuffer);
-		free(xml);
-	}
-	plist_free(dict);
+	auto data = usbmuxdTaskCMD(tid, isStart);
+	m_mirrorSocket->write(data.data(), data.size(), isStart ? 0 : 100);
 }
 
 void iOSScreenMirrorTaskThread::startTask(QString udid, uint32_t deviceHandle)
