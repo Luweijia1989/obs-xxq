@@ -1,4 +1,4 @@
-#include "usb-device-reset-helper.h"
+#include "c-util.h"
 #include <qprocess.h>
 #include <qmutex.h>
 

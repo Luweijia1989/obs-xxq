@@ -7,7 +7,7 @@
 #include <libusb-1.0/libusb.h>
 #include <Setupapi.h>
 #include <Devpkey.h>
-#include "usb-device-reset-helper.h"
+#include "c-util.h"
 #include "application.h"
 
 extern "C" {

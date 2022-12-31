@@ -32,7 +32,7 @@ set(mobile-media-backend_HEADERS
 	../xxq-tcp.h
 	application.h
 	usb-helper.h
-	usb-device-reset-helper.h
+	c-util.h
 	driver-helper.h
 	media-task.h
 	media-source.h
@@ -45,7 +45,7 @@ set(mobile-media-backend_SOURCES
 	../xxq-tcp.cpp
 	application.cpp
 	usb-helper.cpp
-	usb-device-reset-helper.cpp
+	c-util.cpp
 	driver-helper.cpp
 	media-source.cpp
 	ios-camera.cpp

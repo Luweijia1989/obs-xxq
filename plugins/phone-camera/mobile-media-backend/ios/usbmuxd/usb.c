@@ -44,7 +44,7 @@
 #include "utils.h"
 #include "media_process.h"
 #include "mirror-devices.h"
-#include "../../usb-device-reset-helper.h"
+#include "../../c-util.h"
 
 //change device scan to another thread, usb_device_add param from libusb_device to libusb_device_handle.
 //disable hotplug detect
@@ -918,7 +918,7 @@ static int usb_device_add(libusb_device_handle *handle)
 
 		usbmuxd_log(LL_INFO, "Setting configuration for device %d-%d, from %d to %d", bus, address, current_config, desired_config);
 #ifdef WIN32
-		usb_win32_set_configuration(serial, desired_config);
+		usb_win32_set_configuration(serial, (uint8_t)desired_config);
 
 		// Because the change was done via libusb-win32, we need to refresh the device on libusb;
 		// otherwise, it will not pick up the new configuration and endpoints.
@@ -1159,8 +1159,10 @@ int usb_discover(void)
 
 pthread_t enum_th;
 int enum_exit = 0;
+extern int usb_find_devices(void);
 static void *enum_proc(void *arg)
 {
+	(void *)arg;
 	while (!enum_exit) {
 		struct timeval now;
 		struct timespec wait_time;
