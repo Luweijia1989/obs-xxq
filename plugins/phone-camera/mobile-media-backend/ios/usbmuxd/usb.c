@@ -251,6 +251,8 @@ static void reap_dead_devices(void)
 	{
 		if (!usbdev->alive) {
 			if (usbdev->fd > 0 && usbdev->status == in_mirror) {
+				send_state(usbdev->fd, 1);
+
 				client_close_fd(usbdev->fd);
 				mirror_devices_remove(usbdev->serial_usb);
 				usbdev->fd = -1;
@@ -605,6 +607,11 @@ int usb_send_media_data(struct usb_device *dev, char *buf, int length)
 	return client_send_media(dev->fd, buf, length);
 }
 
+int usb_send_state(int fd, char *buf, int length)
+{
+	return client_send_media(fd, buf, length);
+}
+
 static void LIBUSB_CALL android_tx_callback(struct libusb_transfer *xfer)
 {
 	struct usb_device *dev = xfer->user_data;
@@ -704,6 +711,7 @@ static int usb_android_device_add(libusb_device_handle *handle)
 			} else {
 				if (usbdev->status != in_mirror) {
 					usbmuxd_log(LL_DEBUG, "Receive mirror start request, rescan device: %s", usbdev->serial_usb);
+					send_state(fd, 0);
 					usb_android_task_start(usbdev, fd);
 				} else {
 					if (usbdev->first_send) {
@@ -885,6 +893,7 @@ static int usb_device_add(libusb_device_handle *handle)
 	int fd = mirror_devices_fd_from_udid(serial);
 	int mirror_request = (fd != -1);
 	if (mirror_request && devdesc.bNumConfigurations != 5) {
+		send_state(fd, 0);
 		usb_win32_activate_quicktime(serial);
 		return -2;
 	}

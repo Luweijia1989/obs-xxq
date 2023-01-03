@@ -32,6 +32,7 @@ void destory_mirror_info(struct mirror_info *info)
 	circlebuf_free(&info->m_mediaCache);
 }
 
+//type 0->video 1->audio 2->state
 static void send_media_data(struct usb_device *dev, uint8_t type, int64_t timestamp, uint8_t *payload, size_t payload_size)
 {
 	struct media_header header = {0};
@@ -46,7 +47,29 @@ static void send_media_data(struct usb_device *dev, uint8_t type, int64_t timest
 	free(send_buffer);
 }
 
-void sendAudioInfo(struct mirror_info *info, uint32_t sampleRate, enum speaker_layout layout) {}
+// state 0->start 1->stop
+void send_state(int fd, int state)
+{
+	struct media_header header = {0};
+	uint32_t size = sizeof(struct media_header) + sizeof(int);
+	char *send_buffer = malloc(size);
+	header.type = 2;
+	header.payload_size = sizeof(int);
+	header.timestamp = 0;
+	memcpy(send_buffer, &header, sizeof(struct media_header));
+	memcpy(send_buffer + sizeof(struct media_header), &state, sizeof(int));
+	usb_send_state(fd, send_buffer, size);
+	free(send_buffer);
+}
+
+void sendAudioInfo(struct mirror_info *info, uint32_t sampleRate, enum speaker_layout layout)
+{
+	uint32_t buf[3] = {0};
+	buf[0] = AUDIO_FORMAT_16BIT;
+	buf[1] = sampleRate;
+	buf[2] = layout;
+	send_media_data(info->dev, 1, 0x8000000000000000, buf, sizeof(buf));
+}
 
 void sendData(struct mirror_info *info, struct CMSampleBuffer *buf)
 {
@@ -245,7 +268,7 @@ void handleAsyncPacket(void *ctx, uint8_t *buf, int length)
 				mi->lastEatFrameReceivedDeviceAudioClockTime = eatPacket.CMSampleBuf.OutputPresentationTimestamp;
 				mi->lastEatFrameReceivedLocalAudioClockTime = GetTime(&mi->localAudioClock);
 			}
-
+			
 			sendData(mi, &eatPacket.CMSampleBuf);
 
 			if (mi->audioSamplesReceived % 100 == 0) {

@@ -34,6 +34,8 @@ void iOSCameraTaskThread::stopTask()
 
 void iOSCameraTaskThread::taskInternal()
 {
+	emit mediaState(true);
+
 	uint32_t connectCount = 0;
 	int fd = -1;
 	std::vector<char> readBuf(1024 * 1024);
@@ -67,7 +69,7 @@ void iOSCameraTaskThread::taskInternal()
 	if (fd >= 0)
 		usbmuxd_disconnect(fd);
 
-	emit mediaFinish();
+	emit mediaState(false);
 	emit finished();
 }
 
@@ -93,7 +95,7 @@ void iOSCameraTaskThread::parseMediaData()
 
 		uint8_t *payload = (uint8_t *)bmalloc(frame.payloadSize);
 		circlebuf_pop_front(&m_dataBuf, payload, frame.payloadSize);
-		emit mediaData(QByteArray((char *)payload, frame.payloadSize), os_gettime_ns(), frame.type == 101);
+		emit mediaData((char *)payload, frame.payloadSize, os_gettime_ns(), frame.type == 101);
 		bfree(payload);
 	}
 }
@@ -101,8 +103,8 @@ void iOSCameraTaskThread::parseMediaData()
 iOSCamera::iOSCamera(QObject *parent) : MediaTask(parent), m_taskThread(new iOSScreenMirrorTaskThread(this))
 {
 	connect(&m_scanTimer, &QTimer::timeout, this, &iOSCamera::onUpdateDeviceList);
-	connect(m_taskThread, &iOSTask::mediaData, this, &MediaTask::mediaData);
-	connect(m_taskThread, &iOSTask::mediaFinish, this, &MediaTask::mediaFinish);
+	connect(m_taskThread, &iOSTask::mediaData, this, &MediaTask::mediaData, Qt::DirectConnection);
+	connect(m_taskThread, &iOSTask::mediaState, this, &MediaTask::mediaState, Qt::DirectConnection);
 	connect(m_taskThread, &iOSTask::finished, this, [this]() { stopTask(false); });
 }
 

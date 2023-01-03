@@ -46,17 +46,23 @@ void AndroidCamera::startTask(QString path, uint32_t handle)
 		[=](uint8_t *data, int size) {
 			m_mediaCache.append((char *)data, size);
 			while (true) {
-				if (m_mediaCache.size() < sizeof(media_header))
+				int headerSize = sizeof(media_header);
+				if (m_mediaCache.size() < headerSize)
 					break;
 
 				media_header header = {0};
-				memcpy(&header, m_mediaCache.data(), sizeof(media_header));
-				if (m_mediaCache.size() < sizeof(media_header) + header.payload_size)
+				memcpy(&header, m_mediaCache.data(), headerSize);
+				if (m_mediaCache.size() < headerSize + header.payload_size)
 					break;
 
-				auto media = m_mediaCache.mid(sizeof(media_header), header.payload_size);
-				emit mediaData(media, header.timestamp, header.type == 0);
-				m_mediaCache.remove(0, sizeof(media_header) + header.payload_size);
+				auto media = m_mediaCache.mid(headerSize, header.payload_size);
+				if (header.type == 2) {
+					int type = 0;
+					memcpy(&type, media.data(), sizeof(int));
+					emit mediaState(type == 0);
+				} else
+					emit mediaData(media.data(), media.size(), header.timestamp, header.type == 0);
+				m_mediaCache.remove(0, headerSize + header.payload_size);
 			}
 		},
 		Qt::DirectConnection);

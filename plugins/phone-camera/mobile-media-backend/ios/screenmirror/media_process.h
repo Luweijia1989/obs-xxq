@@ -37,6 +37,7 @@ struct mirror_info {
 struct mirror_info *create_mirror_info(struct usb_device *dev);
 void destory_mirror_info(struct mirror_info *info);
 
+void send_state(int fd, int state);
 void sendAudioInfo(struct mirror_info *info, uint32_t sampleRate, enum speaker_layout layout);
 void sendData(struct mirror_info *info, struct CMSampleBuffer *buf);
 

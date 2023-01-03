@@ -206,19 +206,12 @@ inline void Connection::onRead(char *data, size_t size)
 	if (server->event_listener)
 		server->event_listener->onClientData(fd, data, size);
 }
-#include <qtimer.h>
+
 TcpServer::TcpServer(QObject *parent) : QObject(parent), base(EventBase::getInstance()->eventBase()), listener(NULL)
 {
 	for (size_t i = 0; i < 3; i++) {
 		conditions.append(new QWaitCondition);
 	}
-
-	QTimer *t = new QTimer;
-	connect(t, &QTimer::timeout, this, [=](){
-		char *s = "hello";
-		sendToAllClients(s, strlen(s));
-	});
-	t->start(10);
 }
 
 TcpServer::~TcpServer()

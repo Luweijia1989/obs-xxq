@@ -5,6 +5,7 @@
 
 #include "media-task.h"
 #include "../common.h"
+#include "../xxq-tcp.h"
 
 class QTcpSocket;
 class MediaSource : public QObject {
@@ -16,7 +17,7 @@ public:
 	void setCurrentDevice(PhoneType type, QString deviceId);
 
 private:
-	QTcpSocket *m_socket = nullptr;
+	TcpClient *m_socket = nullptr;
 	QPointer<MediaTask> m_mediaTask = nullptr;
 	PhoneType m_phoneType = PhoneType::None;
 };

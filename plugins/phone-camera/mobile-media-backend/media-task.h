@@ -59,8 +59,8 @@ public:
 			m_scanTimer.start();
 	}
 signals:
-	void mediaData(QByteArray data, int64_t timestamp, bool isVideo);
-	void mediaFinish();
+	void mediaData(char *data, int size, int64_t timestamp, bool isVideo);
+	void mediaState(bool start);
 
 public:
 	QString m_expectedDevice;

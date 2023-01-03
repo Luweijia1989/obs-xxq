@@ -39,6 +39,7 @@ public slots:
 	void switchPhoneType();
 	void taskEnd();
 	void onMediaVideoInfo(const media_video_info &info);
+	void onMediaAudioInfo(const media_audio_info &info);
 	void onMediaData(uint8_t *data, size_t size, int64_t timestamp, bool isVideo);
 	void onMediaFinish();
 
@@ -52,6 +53,7 @@ private:
 
 	obs_source_t *m_source = nullptr;
 	Decoder m_audioDecoder;
+	media_audio_info m_audioInfo;
 	Decoder m_videoDecoder;
 	obs_source_frame2 frame = {0};
 

@@ -39,6 +39,7 @@ PhoneCamera::PhoneCamera(obs_data_t *settings, obs_source_t *source) : m_source(
 	m_mediaDataServer = new MediaDataServer;
 	connect(m_mediaDataServer, &MediaDataServer::mediaData, this, &PhoneCamera::onMediaData, Qt::DirectConnection);
 	connect(m_mediaDataServer, &MediaDataServer::mediaVideoInfo, this, &PhoneCamera::onMediaVideoInfo, Qt::DirectConnection);
+	connect(m_mediaDataServer, &MediaDataServer::mediaAudioInfo, this, &PhoneCamera::onMediaAudioInfo, Qt::DirectConnection);
 	m_mediaDataServer->start();
 }
 
@@ -61,6 +62,11 @@ void PhoneCamera::onMediaVideoInfo(const media_video_info &info)
 	}
 }
 
+void PhoneCamera::onMediaAudioInfo(const media_audio_info &info)
+{
+	m_audioInfo = info;
+}
+
 void PhoneCamera::onMediaData(uint8_t *data, size_t size, int64_t timestamp, bool isVideo)
 {
 	if (isVideo) {
@@ -81,10 +87,10 @@ void PhoneCamera::onMediaData(uint8_t *data, size_t size, int64_t timestamp, boo
 		}
 	} else {
 		obs_source_audio audio;
-		audio.format = AUDIO_FORMAT_16BIT;
-		audio.samples_per_sec = 48000;
-		audio.speakers = SPEAKERS_STEREO;
-		audio.frames = size / (2 * sizeof(short));
+		audio.format = m_audioInfo.format;
+		audio.samples_per_sec = m_audioInfo.samples_per_sec;
+		audio.speakers = m_audioInfo.speakers;
+		audio.frames = get_audio_frames(audio.format, audio.speakers, size);
 		audio.timestamp = os_gettime_ns();
 		audio.data[0] = data;
 		obs_source_output_audio(m_source, &audio);

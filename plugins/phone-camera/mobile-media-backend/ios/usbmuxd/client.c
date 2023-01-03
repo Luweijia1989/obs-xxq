@@ -309,6 +309,10 @@ void client_close(struct mux_client *client)
 		device_abort_connect(client->connect_device, client);
 	}
 
+	//check out buffer, try send if any
+	if(client->ob_size)
+		send(client->fd, client->ob_buf, client->ob_size, 0);
+
 #ifdef WIN32
 	closesocket(client->fd);
 #else
