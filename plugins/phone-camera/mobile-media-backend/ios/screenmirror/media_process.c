@@ -48,7 +48,7 @@ static void send_media_data(struct usb_device *dev, uint8_t type, int64_t timest
 }
 
 // state 0->start 1->stop
-void send_state(int fd, int state)
+void send_state(struct usb_device *dev, int state)
 {
 	struct media_header header = {0};
 	uint32_t size = sizeof(struct media_header) + sizeof(int);
@@ -58,7 +58,7 @@ void send_state(int fd, int state)
 	header.timestamp = 0;
 	memcpy(send_buffer, &header, sizeof(struct media_header));
 	memcpy(send_buffer + sizeof(struct media_header), &state, sizeof(int));
-	usb_send_state(fd, send_buffer, size);
+	usb_send_media_data(dev, send_buffer, size);
 	free(send_buffer);
 }
 

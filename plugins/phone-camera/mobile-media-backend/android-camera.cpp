@@ -2,6 +2,7 @@
 #include <qdebug.h>
 #include <qelapsedtimer.h>
 #include "ios/screenmirror/packet.h"
+#include "c-util.h"
 
 extern QSet<QString> runningDevices;
 extern QSet<QString> AndroidDevices;
@@ -33,56 +34,55 @@ AndroidCamera::~AndroidCamera()
 	stopTask(true);
 }
 
+void AndroidCamera::mirrorDataInternal(char *buf, int size)
+{
+	m_mediaCache.append(buf, size);
+	while (true) {
+		int headerSize = sizeof(media_header);
+		if (m_mediaCache.size() < headerSize)
+			break;
+
+		media_header header = {0};
+		memcpy(&header, m_mediaCache.data(), headerSize);
+		if (m_mediaCache.size() < headerSize + header.payload_size)
+			break;
+
+		auto media = m_mediaCache.mid(headerSize, header.payload_size);
+		if (header.type == 2) {
+			int type = 0;
+			memcpy(&type, media.data(), sizeof(int));
+			emit mediaState(type == 0);
+		} else
+			emit mediaData(media.data(), media.size(), header.timestamp, header.type == 0);
+		m_mediaCache.remove(0, headerSize + header.payload_size);
+	}
+}
+
+void AndroidCamera::mirrorData(char *buf, int size, void *cb_data)
+{
+	AndroidCamera *s = (AndroidCamera *)cb_data;
+	s->mirrorDataInternal(buf, size);
+}
+
+void AndroidCamera::deviceLost(void *cb)
+{
+	AndroidCamera *s = (AndroidCamera *)cb;
+	QMetaObject::invokeMethod(s, [=]() { s->stopTask(false); });
+}
+
 void AndroidCamera::startTask(QString path, uint32_t handle)
 {
 	Q_UNUSED(handle)
 
 	MediaTask::startTask(path);
-
 	m_mediaCache.clear();
-	m_mirrorSocket = new TcpClient();
-	connect(m_mirrorSocket, &TcpClient::disconnected, this, [=] { stopTask(false); });
-	connect(m_mirrorSocket, &TcpClient::onData, this,
-		[=](uint8_t *data, int size) {
-			m_mediaCache.append((char *)data, size);
-			while (true) {
-				int headerSize = sizeof(media_header);
-				if (m_mediaCache.size() < headerSize)
-					break;
 
-				media_header header = {0};
-				memcpy(&header, m_mediaCache.data(), headerSize);
-				if (m_mediaCache.size() < headerSize + header.payload_size)
-					break;
-
-				auto media = m_mediaCache.mid(headerSize, header.payload_size);
-				if (header.type == 2) {
-					int type = 0;
-					memcpy(&type, media.data(), sizeof(int));
-					emit mediaState(type == 0);
-				} else
-					emit mediaData(media.data(), media.size(), header.timestamp, header.type == 0);
-				m_mediaCache.remove(0, headerSize + header.payload_size);
-			}
-		},
-		Qt::DirectConnection);
-	if (m_mirrorSocket->connectToHost("127.0.0.1", USBMUXD_SOCKET_PORT, 100)) {
-		auto data = usbmuxdTaskCMD(serialNumber(m_connectedDevice), true);
-		m_mirrorSocket->write(data.data(), data.size(), 0);
-	} else {
-		qDebug() << "error in connect to usbmuxd exe";
-		stopTask(false);
-	}
+	add_media_callback(serialNumber(m_connectedDevice).toUtf8().data(), AndroidCamera::mirrorData, AndroidCamera::deviceLost,this);
+	qDebug() << "Android camera startTask";
 }
 
 void AndroidCamera::stopTask(bool finalStop)
 {
-	if (m_mirrorSocket) {
-		auto data = usbmuxdTaskCMD(serialNumber(m_connectedDevice), false);
-		m_mirrorSocket->write(data.data(), data.size(), 100);
-		delete m_mirrorSocket;
-		m_mirrorSocket = nullptr;
-	}
-
+	remove_media_callback(serialNumber(m_connectedDevice).toUtf8());
 	MediaTask::stopTask(finalStop);
 }

@@ -40,7 +40,7 @@ set(mobile-media-backend_HEADERS
 	ios-screen-mirror-task-thread.h
 	android-camera.h)
 
-set(mobile-media-backend_SOURCES
+set(mobile-media-backend_SOURCES 
 	main.cpp
 	../xxq-tcp.cpp
 	application.cpp

@@ -43,7 +43,6 @@
 #include "device.h"
 #include "utils.h"
 #include "media_process.h"
-#include "mirror-devices.h"
 #include "../../c-util.h"
 
 //change device scan to another thread, usb_device_add param from libusb_device to libusb_device_handle.
@@ -99,7 +98,6 @@ struct usb_device {
 	struct libusb_device_descriptor devdesc;
 	void *mirror_ctx;
 	enum mirror_status status;
-	int fd;
 	int first_send;
 	int is_iOS;
 };
@@ -250,12 +248,9 @@ static void reap_dead_devices(void)
 	FOREACH(struct usb_device * usbdev, &device_list)
 	{
 		if (!usbdev->alive) {
-			if (usbdev->fd > 0 && usbdev->status == in_mirror) {
-				send_state(usbdev->fd, 1);
-
-				client_close_fd(usbdev->fd);
-				mirror_devices_remove(usbdev->serial_usb);
-				usbdev->fd = -1;
+			if (usbdev->status == in_mirror) {
+				send_state(usbdev, 1);
+				process_device_lost(usbdev->serial_usb);
 			}
 			device_remove(usbdev);
 			usb_disconnect(usbdev);
@@ -601,15 +596,8 @@ static void LIBUSB_CALL get_langid_callback(struct libusb_transfer *transfer)
 
 int usb_send_media_data(struct usb_device *dev, char *buf, int length)
 {
-	if (dev->fd == -1)
-		return -1;
-
-	return client_send_media(dev->fd, buf, length);
-}
-
-int usb_send_state(int fd, char *buf, int length)
-{
-	return client_send_media(fd, buf, length);
+	process_media_data(dev->serial_usb, buf, length);
+	return 0;
 }
 
 static void LIBUSB_CALL android_tx_callback(struct libusb_transfer *xfer)
@@ -671,9 +659,8 @@ static int usb_android_send(struct usb_device *usbdev, void *data, int size)
 	return 0;
 }
 
-static int usb_android_task_start(struct usb_device *usbdev, int fd)
+static int usb_android_task_start(struct usb_device *usbdev)
 {
-	usbdev->fd = fd;
 	usbdev->status = in_mirror;
 	usbdev->first_send = 0;
 
@@ -702,8 +689,8 @@ static int usb_android_device_add(libusb_device_handle *handle)
 	FOREACH(struct usb_device * usbdev, &device_list)
 	{
 		if (usbdev->bus == bus && usbdev->address == address) {
-			int fd = mirror_devices_fd_from_udid(usbdev->serial_usb);
-			if (fd == -1) {
+			bool in = media_callback_installed(usbdev->serial_usb);
+			if (!in) {
 				if (usbdev->status == in_mirror) {
 					usb_device_reset(usbdev->serial_usb);
 					return -1; //Android reset sometimes not work, force remove it;
@@ -711,8 +698,8 @@ static int usb_android_device_add(libusb_device_handle *handle)
 			} else {
 				if (usbdev->status != in_mirror) {
 					usbmuxd_log(LL_DEBUG, "Receive mirror start request, rescan device: %s", usbdev->serial_usb);
-					send_state(fd, 0);
-					usb_android_task_start(usbdev, fd);
+					send_state(usbdev, 0);
+					usb_android_task_start(usbdev);
 				} else {
 					if (usbdev->first_send) {
 						int64_t ts = os_gettime_ns();
@@ -849,8 +836,8 @@ static int usb_device_add(libusb_device_handle *handle)
 	FOREACH(struct usb_device * usbdev, &device_list)
 	{
 		if (usbdev->bus == bus && usbdev->address == address) {
-			int fd = mirror_devices_fd_from_udid(usbdev->serial_usb);
-			if (fd != -1) { // request mirror, check mirror status whether need a mirror start
+			bool in = media_callback_installed(usbdev->serial_usb);
+			if (in) { // request mirror, check mirror status whether need a mirror start
 				if (usbdev->status != in_mirror) {
 					usbmuxd_log(LL_DEBUG, "Receive mirror start request, rescan device: %s", usbdev->serial_usb);
 					libusb_release_interface(usbdev->dev, usbdev->interface);
@@ -890,10 +877,12 @@ static int usb_device_add(libusb_device_handle *handle)
 		return -1;
 	}
 
-	int fd = mirror_devices_fd_from_udid(serial);
-	int mirror_request = (fd != -1);
+	bool mirror_request = media_callback_installed(serial);
 	if (mirror_request && devdesc.bNumConfigurations != 5) {
-		send_state(fd, 0);
+		struct usb_device d;
+		memset(&d, 0, sizeof(struct usb_device));
+		memcpy(d.serial_usb, serial, strlen(serial));
+		send_state(&d, 0);
 		usb_win32_activate_quicktime(serial);
 		return -2;
 	}
@@ -1107,7 +1096,6 @@ static int usb_device_add(libusb_device_handle *handle)
 			usbmuxd_log(LL_WARNING, "Failed to start RX loop for mirror");
 		else {
 			usbmuxd_log(LL_DEBUG, "Success to start a new mirror task!!!");
-			usbdev->fd = fd;
 			usbdev->status = in_mirror;
 		}
 	} else

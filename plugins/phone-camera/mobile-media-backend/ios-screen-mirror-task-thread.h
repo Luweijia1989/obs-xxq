@@ -5,7 +5,6 @@
 #include <qtcpsocket.h>
 #include <qpointer.h>
 #include "../common.h"
-#include "../xxq-tcp.h"
 
 class ScreenMirrorInfo;
 class iOSScreenMirrorTaskThread : public iOSTask {
@@ -16,10 +15,12 @@ public:
 	virtual void stopTask() override;
 	virtual void startTask(QString udid, uint32_t deviceHandle) override;
 
-private:
-	void sendCmd(bool isStart);
+	static void mirrorData(char *buf, int size, void *cb_data);
+	static void deviceLost(void *cb_data);
 
 private:
-	TcpClient *m_mirrorSocket = nullptr;
+	void mirrorDataInternal(char *buf, int size);
+
+private:
 	QByteArray m_mediaCache;
 };
