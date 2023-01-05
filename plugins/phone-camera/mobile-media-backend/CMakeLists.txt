@@ -30,6 +30,7 @@ file(GLOB screenmirror_HEADER ${PROJECT_SOURCE_DIR}/ios/screenmirror/*.h)
 set(mobile-media-backend_HEADERS
 	../common.h
 	../xxq-tcp.h
+	../ipc.h
 	application.h
 	usb-helper.h
 	c-util.h
@@ -43,6 +44,7 @@ set(mobile-media-backend_HEADERS
 set(mobile-media-backend_SOURCES 
 	main.cpp
 	../xxq-tcp.cpp
+	../ipc.c
 	application.cpp
 	usb-helper.cpp
 	c-util.cpp

@@ -5,6 +5,7 @@
 #include <qtimer.h>
 #include <qjsonarray.h>
 #include <util/platform.h>
+#include <quuid.h>
 
 #define PHONE_DEVICE_TYPE "device_type"
 #define DEVICE_ID "device_id"
@@ -36,11 +37,8 @@ PhoneCamera::PhoneCamera(obs_data_t *settings, obs_source_t *source) : m_source(
 	bool ret = socket->waitForConnected(100);
 	qDebug() << "command socket connect result: " << (ret ? "success" : "fail");
 
-	m_mediaDataServer = new MediaDataServer;
-	connect(m_mediaDataServer, &MediaDataServer::mediaData, this, &PhoneCamera::onMediaData, Qt::DirectConnection);
-	connect(m_mediaDataServer, &MediaDataServer::mediaVideoInfo, this, &PhoneCamera::onMediaVideoInfo, Qt::DirectConnection);
-	connect(m_mediaDataServer, &MediaDataServer::mediaAudioInfo, this, &PhoneCamera::onMediaAudioInfo, Qt::DirectConnection);
-	m_mediaDataServer->start();
+	m_name = QUuid::createUuid().toString(QUuid::WithoutBraces);
+	ipc_server_create(&m_ipcServer, m_name.toUtf8().data(), PhoneCamera::ipcCallback, this);
 }
 
 PhoneCamera::~PhoneCamera()
@@ -48,6 +46,52 @@ PhoneCamera::~PhoneCamera()
 #ifdef DUMP_VIDEO
 	m_videodump.close();
 #endif
+}
+
+void PhoneCamera::ipcCallback(void *param, uint8_t *data, size_t size)
+{
+	PhoneCamera *p = (PhoneCamera *)param;
+	p->ipcCallbackInternal(data, size);
+}
+
+void PhoneCamera::ipcCallbackInternal(uint8_t *data, size_t size)
+{
+	m_mediaData.append((char *)data, size);
+	while (m_mediaData.size() > sizeof(av_packet_info)) {
+		av_packet_info header = {0};
+		memcpy(&header, m_mediaData.data(), sizeof(av_packet_info));
+		if (m_mediaData.size() < header.size + sizeof(av_packet_info))
+			break;
+
+		m_mediaData.remove(0, sizeof(av_packet_info));
+		switch (header.type) {
+		case av_packet_type::FFM_PACKET_VIDEO:
+			onMediaData((uint8_t *)m_mediaData.data(), header.size, header.pts, true);
+			break;
+		case av_packet_type::FFM_PACKET_AUDIO:
+			onMediaData((uint8_t *)m_mediaData.data(), header.size, header.pts, false);
+			break;
+		case av_packet_type::FFM_MEDIA_VIDEO_INFO: {
+			media_video_info vInfo;
+			memcpy(vInfo.video_extra, m_mediaData.data(), header.size);
+			vInfo.video_extra_len = header.size;
+			onMediaVideoInfo(vInfo);
+		} break;
+		case av_packet_type::FFM_MEDIA_AUDIO_INFO: {
+			media_audio_info aInfo;
+			memcpy(&aInfo, m_mediaData.data(), sizeof(media_audio_info));
+			onMediaAudioInfo(aInfo);
+		} break;
+		case av_packet_type::FFM_MIRROR_STATUS: {
+			int status = -1;
+			memcpy(&status, m_mediaData.data(), sizeof(int));
+			onMediaStatus((media_status)status);
+		} break;
+		default:
+			break;
+		}
+		m_mediaData.remove(0, header.size);
+	}
 }
 
 void PhoneCamera::onMediaVideoInfo(const media_video_info &info)
@@ -66,13 +110,15 @@ void PhoneCamera::onMediaAudioInfo(const media_audio_info &info)
 {
 	m_audioInfo = info;
 }
-
+#include <qelapsedtimer.h>
 void PhoneCamera::onMediaData(uint8_t *data, size_t size, int64_t timestamp, bool isVideo)
 {
 	if (isVideo) {
+		QElapsedTimer t;
+		t.start();
 		if (!ffmpeg_decode_valid(m_videoDecoder))
 			return;
-		
+
 		bool got_output;
 		long long ts = 0;
 		bool success = ffmpeg_decode_video(m_videoDecoder, data, size, &ts, VIDEO_RANGE_DEFAULT, &frame, &got_output);
@@ -85,6 +131,7 @@ void PhoneCamera::onMediaData(uint8_t *data, size_t size, int64_t timestamp, boo
 			frame.timestamp = timestamp;
 			obs_source_output_video2(m_source, &frame);
 		}
+		blog(LOG_DEBUG, "======== %lld", t.elapsed());
 	} else {
 		obs_source_audio audio;
 		audio.format = m_audioInfo.format;
@@ -96,6 +143,8 @@ void PhoneCamera::onMediaData(uint8_t *data, size_t size, int64_t timestamp, boo
 		obs_source_output_audio(m_source, &audio);
 	}
 }
+
+void PhoneCamera::onMediaStatus(media_status status) {}
 
 void PhoneCamera::onMediaFinish()
 {
@@ -115,7 +164,7 @@ void PhoneCamera::switchPhoneType()
 	QJsonObject req;
 	req["type"] = (int)MsgType::MediaTask;
 	QJsonObject data;
-	data["port"] = m_mediaDataServer->port();
+	data["name"] = m_name;
 	data["deviceType"] = (int)type;
 	data["deviceId"] = deviceId;
 	req["data"] = data;
@@ -125,7 +174,7 @@ void PhoneCamera::switchPhoneType()
 
 void PhoneCamera::taskEnd()
 {
-	delete m_mediaDataServer;
+	ipc_server_destroy(&m_ipcServer);
 }
 
 QMap<QString, QPair<QString, uint32_t>> PhoneCamera::deviceList(int type)

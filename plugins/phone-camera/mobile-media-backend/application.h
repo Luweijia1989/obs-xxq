@@ -38,7 +38,7 @@ private:
 	QMutex m_devicesMutex;
 
 	QTcpServer m_controlServer;
-	QMap<int, MediaSource *> m_mediaSources;
+	QMap<QString, MediaSource *> m_mediaSources;
 	QMap<PhoneType, QSet<void *>> m_mediaObjects;
 };
 

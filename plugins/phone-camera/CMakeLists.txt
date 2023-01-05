@@ -10,12 +10,14 @@ include_directories(${FFMPEG_INCLUDE_DIRS})
 set(CMAKE_AUTOMOC TRUE)
 
 set(phone-camera_HEADERS
+	ipc.h
 	phone-camera.h
 	ffmpeg-decode.h
 	common.h
 	xxq-tcp.h)
 
 set(phone-camera_SOURCES
+	ipc.c
 	xxq-tcp.cpp
 	phone-camera.cpp
 	ffmpeg-decode.c

@@ -9,6 +9,7 @@
 #include <qeventloop.h>
 
 #include "common.h"
+#include "ipc.h"
 
 extern "C" {
 #include "ffmpeg-decode.h"
@@ -35,12 +36,18 @@ public:
 	QMap<QString, QPair<QString, uint32_t>> deviceList(int type);
 	const obs_source_t *source() const { return m_source; }
 
+	static void ipcCallback(void *param, uint8_t *data, size_t size);
+
+private:
+	void ipcCallbackInternal(uint8_t *data, size_t size);
+
 public slots:
 	void switchPhoneType();
 	void taskEnd();
 	void onMediaVideoInfo(const media_video_info &info);
 	void onMediaAudioInfo(const media_audio_info &info);
 	void onMediaData(uint8_t *data, size_t size, int64_t timestamp, bool isVideo);
+	void onMediaStatus(media_status status);
 	void onMediaFinish();
 
 private:
@@ -58,6 +65,8 @@ private:
 	obs_source_frame2 frame = {0};
 
 	TcpSocketWrapper *m_socketWrapper = nullptr;
-	QPointer<MediaDataServer> m_mediaDataServer = nullptr;
+	QString m_name;
+	struct IPCServer *m_ipcServer = nullptr;
+	QByteArray m_mediaData;
 	QEventLoop m_blockEvent;
 };
