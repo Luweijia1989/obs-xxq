@@ -594,10 +594,9 @@ static void LIBUSB_CALL get_langid_callback(struct libusb_transfer *transfer)
 	}
 }
 
-int usb_send_media_data(struct usb_device *dev, char *buf, int length)
+void usb_send_media_data(struct usb_device *dev, char *buf, int length)
 {
 	process_media_data(dev->serial_usb, buf, length);
-	return 0;
 }
 
 static void LIBUSB_CALL android_tx_callback(struct libusb_transfer *xfer)
