@@ -268,7 +268,7 @@ void handleAsyncPacket(void *ctx, uint8_t *buf, int length)
 				mi->lastEatFrameReceivedDeviceAudioClockTime = eatPacket.CMSampleBuf.OutputPresentationTimestamp;
 				mi->lastEatFrameReceivedLocalAudioClockTime = GetTime(&mi->localAudioClock);
 			}
-			
+
 			sendData(mi, &eatPacket.CMSampleBuf);
 
 			if (mi->audioSamplesReceived % 100 == 0) {
@@ -434,6 +434,14 @@ static bool handle_android_media_data(void *ctx)
 	circlebuf_pop_front(&mi->media_cache, mi->cache_buf, pktSize);
 
 	if (type == 1) { //video
+		if (pts == ((int64_t)UINT64_C(0x8000000000000000))) {
+			uint32_t buf[3] = {0};
+			buf[0] = AUDIO_FORMAT_16BIT;
+			buf[1] = 48000;
+			buf[2] = SPEAKERS_STEREO;
+			send_media_data(mi->dev, 1, 0x8000000000000000, (uint8_t *)buf, sizeof(buf));
+		}
+
 		send_media_data(mi->dev, 0, pts, mi->cache_buf, pktSize);
 	} else {
 		send_media_data(mi->dev, 1, 0, mi->cache_buf, pktSize);
