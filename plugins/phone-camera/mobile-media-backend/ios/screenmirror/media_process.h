@@ -31,6 +31,9 @@ struct mirror_info {
 	uint8_t *m_audioPopBuffer;
 	struct circlebuf m_mediaCache;
 
+	int64_t audio_frame_duration;
+	int64_t audio_start_timestamp;
+	uint64_t audio_frames_sent;
 	struct usb_device *dev;
 };
 
@@ -50,6 +53,7 @@ struct android_mirror_info {
 	uint8_t *cache_buf;
 	size_t cache_buf_size;
 
+	bool audio_info_sent;
 	struct usb_device *dev;
 };
 

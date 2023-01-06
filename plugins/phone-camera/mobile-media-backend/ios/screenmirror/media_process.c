@@ -69,6 +69,7 @@ void sendAudioInfo(struct mirror_info *info, uint32_t sampleRate, enum speaker_l
 	buf[1] = sampleRate;
 	buf[2] = layout;
 	send_media_data(info->dev, 1, 0x8000000000000000, buf, sizeof(buf));
+	info->audio_frame_duration = audio_frames_to_ns(sampleRate, get_audio_frames(AUDIO_FORMAT_16BIT, layout, 4096));
 }
 
 void sendData(struct mirror_info *info, struct CMSampleBuffer *buf)
@@ -86,7 +87,12 @@ void sendData(struct mirror_info *info, struct CMSampleBuffer *buf)
 		while (true) {
 			if (info->m_audioDataCacheBuf.size >= 4096) {
 				circlebuf_pop_front(&info->m_audioDataCacheBuf, info->m_audioPopBuffer, 4096);
-				send_media_data(info->dev, 1, 0, info->m_audioPopBuffer, 4096);
+				if (info->audio_frame_duration) { // must send audio info first, then audio data
+					if (!info->audio_start_timestamp)
+						info->audio_start_timestamp = os_gettime_ns();
+					send_media_data(info->dev, 1, info->audio_start_timestamp + info->audio_frame_duration * (info->audio_frames_sent++),
+							info->m_audioPopBuffer, 4096);
+				}
 			} else
 				break;
 		}
@@ -94,7 +100,7 @@ void sendData(struct mirror_info *info, struct CMSampleBuffer *buf)
 		if (buf->OutputPresentationTimestamp.CMTimeValue > 17446044073700192000)
 			buf->OutputPresentationTimestamp.CMTimeValue = 0;
 
-		send_media_data(info->dev, 0, 0, buf->SampleData, buf->SampleData_len);
+		send_media_data(info->dev, 0, os_gettime_ns(), buf->SampleData, buf->SampleData_len);
 	}
 }
 
@@ -434,17 +440,19 @@ static bool handle_android_media_data(void *ctx)
 	circlebuf_pop_front(&mi->media_cache, mi->cache_buf, pktSize);
 
 	if (type == 1) { //video
-		if (pts == ((int64_t)UINT64_C(0x8000000000000000))) {
+		if (pts == ((int64_t)UINT64_C(0x8000000000000000)) && !mi->audio_info_sent) {
 			uint32_t buf[3] = {0};
 			buf[0] = AUDIO_FORMAT_16BIT;
 			buf[1] = 48000;
 			buf[2] = SPEAKERS_STEREO;
 			send_media_data(mi->dev, 1, 0x8000000000000000, (uint8_t *)buf, sizeof(buf));
+			mi->audio_info_sent = true;
 		}
 
 		send_media_data(mi->dev, 0, pts, mi->cache_buf, pktSize);
 	} else {
-		send_media_data(mi->dev, 1, 0, mi->cache_buf, pktSize);
+		if (mi->audio_info_sent)
+			send_media_data(mi->dev, 1, pts, mi->cache_buf, pktSize);
 	}
 	return true;
 }

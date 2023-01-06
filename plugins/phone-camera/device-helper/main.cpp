@@ -65,7 +65,14 @@ int main(int argc, char *argv[])
 		QObject::connect(&helper, &DriverHelper::installProgress, &widget, &InformationWidget::onInstallStatus);
 		QObject::connect(&helper, &DriverHelper::installError, &widget, &InformationWidget::onInstallError);
 		QObject::connect(&helper, &DriverHelper::changeTip, &widget, &InformationWidget::onChangeTip);
-		QObject::connect(&helper, &DriverHelper::complete, [](int status) { qApp->exit(status); });
+		QObject::connect(
+			&helper, &DriverHelper::complete, &app,
+			[&thread](int status) {
+				thread.quit();
+				thread.wait();
+				qApp->exit(status);
+			},
+			Qt::QueuedConnection);
 
 		QMetaObject::invokeMethod(&helper, "checkInstall", Q_ARG(bool, isAppleDevice), Q_ARG(int, vid), Q_ARG(int, pid), Q_ARG(QString, path));
 

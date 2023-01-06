@@ -108,14 +108,13 @@ void PhoneCamera::onMediaVideoInfo(const media_video_info &info)
 
 void PhoneCamera::onMediaAudioInfo(const media_audio_info &info)
 {
+	blog(LOG_DEBUG, "onMediaAudioInfo");
 	m_audioInfo = info;
 }
-#include <qelapsedtimer.h>
+
 void PhoneCamera::onMediaData(uint8_t *data, size_t size, int64_t timestamp, bool isVideo)
 {
 	if (isVideo) {
-		QElapsedTimer t;
-		t.start();
 		if (!ffmpeg_decode_valid(m_videoDecoder))
 			return;
 
@@ -131,14 +130,13 @@ void PhoneCamera::onMediaData(uint8_t *data, size_t size, int64_t timestamp, boo
 			frame.timestamp = timestamp;
 			obs_source_output_video2(m_source, &frame);
 		}
-		blog(LOG_DEBUG, "======== %lld", t.elapsed());
 	} else {
 		obs_source_audio audio;
 		audio.format = m_audioInfo.format;
 		audio.samples_per_sec = m_audioInfo.samples_per_sec;
 		audio.speakers = m_audioInfo.speakers;
 		audio.frames = get_audio_frames(audio.format, audio.speakers, size);
-		audio.timestamp = os_gettime_ns();
+		audio.timestamp = timestamp;
 		audio.data[0] = data;
 		obs_source_output_audio(m_source, &audio);
 	}
