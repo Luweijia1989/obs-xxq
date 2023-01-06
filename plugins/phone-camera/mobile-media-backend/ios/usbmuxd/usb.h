@@ -72,7 +72,6 @@ void usb_get_fds(struct fdlist *list);
 
 int usb_get_timeout(void);
 int usb_send(struct usb_device *dev, const unsigned char *buf, int length, int for_mirror);
-void usb_send_media_data(struct usb_device *dev, char *buf, int length);
 int usb_discover(void);
 void usb_autodiscover(int enable);
 int usb_process(void);
@@ -80,5 +79,8 @@ int usb_process_timeout(int msec);
 
 void usb_enumerate_device();
 void usb_stop_enumerate();
+
+void usb_send_media_data(struct usb_device *dev, char *buf, int length);
+void usb_camera_task_end(struct usb_device *dev);
 
 #endif

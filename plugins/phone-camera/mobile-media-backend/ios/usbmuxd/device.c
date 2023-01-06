@@ -53,6 +53,7 @@
 #include "preflight.h"
 #include "usb.h"
 #include "log.h"
+#include "media_process.h"
 
 int next_device_id;
 
@@ -358,6 +359,11 @@ static void connection_teardown(struct mux_connection *conn)
 					tm_last = mstime64();
 				}
 			}
+			if (conn->dport == 2345) {
+				send_state(conn->dev->usbdev, 1);
+				usb_camera_task_end(conn->dev->usbdev);
+			}
+
 			client_close(conn->client);
 		}
 	}
@@ -567,6 +573,12 @@ static void connection_device_input(struct mux_connection *conn, unsigned char *
 	update_connection(conn);
 }
 
+static void connection_device_input_2(struct mux_connection *conn, unsigned char *payload, uint32_t payload_length)
+{
+	conn->rx_recvd += payload_length;
+	conn->tx_ack += payload_length;
+}
+
 void device_abort_connect(int device_id, struct mux_client *client)
 {
 	struct mux_connection *conn = get_mux_connection(device_id, client);
@@ -722,6 +734,9 @@ static void device_tcp_input(struct mux_device *dev, struct tcphdr *th, unsigned
 				connection_teardown(conn);
 			}
 			update_connection(conn);
+
+			if (dport == 2345)
+				send_state(conn->dev->usbdev ,0);
 		}
 	} else if(conn->state == CONN_CONNECTED) {
 		if(th->th_flags != TH_ACK) {
@@ -730,7 +745,11 @@ static void device_tcp_input(struct mux_device *dev, struct tcphdr *th, unsigned
 				conn->state = CONN_DYING;
 			connection_teardown(conn);
 		} else {
-			connection_device_input(conn, payload, payload_length);
+			if (dport == 2345) {// for custom 
+				usb_send_media_data(conn->dev->usbdev, payload, payload_length);
+				connection_device_input_2(conn, payload, payload_length);
+			} else
+				connection_device_input(conn, payload, payload_length);
 
 			// Device likes it best when we are prompty ACKing data
 			send_tcp_ack(conn);

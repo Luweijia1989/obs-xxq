@@ -1485,3 +1485,8 @@ void usb_shutdown(void)
 	collection_free(&device_opened_handle_list);
 	libusb_exit(NULL);
 }
+
+void usb_camera_task_end(struct usb_device *dev)
+{
+	process_device_lost(dev->serial_usb);
+}
