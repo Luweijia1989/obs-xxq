@@ -16,3 +16,6 @@
 [submodule "plugins/obs-outputs/ftl-sdk"]
 	path = plugins/obs-outputs/ftl-sdk
 	url = https://github.com/Mixer/ftl-sdk.git
+[submodule "xxq-obs-deps"]
+	path = xxq-obs-deps
+	url = git@git.yupaopao.com:luweijia/obs-deps.git
