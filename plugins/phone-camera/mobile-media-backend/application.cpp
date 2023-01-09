@@ -96,7 +96,8 @@ void Application::usbmuxdDeviceEvent(const usbmuxd_event_t *event, void *user_da
 	}
 }
 
-Application::Application(int &argc, char **argv) : QApplication(argc, argv), m_mediaObjects({{PhoneType::iOS, {}}, {PhoneType::Android, {}}})
+Application::Application(int &argc, char **argv)
+	: QApplication(argc, argv), m_mediaObjects({{PhoneType::iOS, {}}, {PhoneType::iOSCamera, {}}, {PhoneType::Android, {}}})
 {
 	qRegisterMetaType<QMap<QString, QString>>("QMap<QString, QPair<QString, uint32_t>>");
 	qRegisterMetaType<int64_t>("int64_t");
@@ -106,14 +107,6 @@ Application::Application(int &argc, char **argv) : QApplication(argc, argv), m_m
 
 	connect(&m_controlServer, &QTcpServer::newConnection, this, &Application::onNewConnection);
 	m_controlServer.listen(QHostAddress::LocalHost, 51338);
-
-	/*QTimer::singleShot(100, this, [=](){
-		QJsonObject data;
-		data["port"] = 123;
-		data["deviceType"] = (int)PhoneType::iOS;
-		data["deviceId"] = "auto";
-		onMediaTaskStart(data);
-	});*/
 }
 
 Application::~Application()
