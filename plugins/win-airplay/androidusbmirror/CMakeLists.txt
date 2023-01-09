@@ -24,7 +24,8 @@ target_link_libraries(android-usb-mirror
 	libobs
 	Ws2_32
 	w32-pthreads)
-	 
+set_target_properties(android-usb-mirror PROPERTIES FOLDER "plugins/win-airplay")
+
 install_obs_core(android-usb-mirror)
 
 function(install_dependency target)

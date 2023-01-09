@@ -57,5 +57,6 @@ target_link_libraries(airplay-server
 	Shlwapi
 	w32-pthreads
 	mirror-ipc)
+set_target_properties(airplay-server PROPERTIES FOLDER "plugins/win-airplay")
 
 install_obs_core(airplay-server)

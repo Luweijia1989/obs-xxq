@@ -32,6 +32,7 @@ target_link_libraries(rtmp-services
 	libobs
 	file-updater
 	${OBS_JANSSON_IMPORT})
+set_target_properties(rtmp-services PROPERTIES FOLDER "plugins")
 
 target_include_directories(rtmp-services
 	PUBLIC

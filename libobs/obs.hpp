@@ -1,4 +1,4 @@
-﻿/******************************************************************************
+/******************************************************************************
     Copyright (C) 2013 by Hugh Bailey <obs.jim@gmail.com>
 
     This program is free software: you can redistribute it and/or modify
@@ -24,6 +24,31 @@
 /* RAII wrappers */
 
 template<typename T, void addref(T), void release(T)> class OBSRef;
+template<typename T, void release(T)> class OBSRefAutoRelease;
+
+using OBSSourceAutoRelease =
+	OBSRefAutoRelease<obs_source_t *, obs_source_release>;
+using OBSSceneAutoRelease = OBSRefAutoRelease<obs_scene_t *, obs_scene_release>;
+using OBSSceneItemAutoRelease =
+	OBSRefAutoRelease<obs_sceneitem_t *, obs_sceneitem_release>;
+using OBSDataAutoRelease = OBSRefAutoRelease<obs_data_t *, obs_data_release>;
+using OBSDataArrayAutoRelease =
+	OBSRefAutoRelease<obs_data_array_t *, obs_data_array_release>;
+using OBSOutputAutoRelease =
+	OBSRefAutoRelease<obs_output_t *, obs_output_release>;
+using OBSEncoderAutoRelease =
+	OBSRefAutoRelease<obs_encoder_t *, obs_encoder_release>;
+using OBSServiceAutoRelease =
+	OBSRefAutoRelease<obs_service_t *, obs_service_release>;
+
+using OBSWeakSourceAutoRelease =
+	OBSRefAutoRelease<obs_weak_source_t *, obs_weak_source_release>;
+using OBSWeakOutputAutoRelease =
+	OBSRefAutoRelease<obs_weak_output_t *, obs_weak_output_release>;
+using OBSWeakEncoderAutoRelease =
+	OBSRefAutoRelease<obs_weak_encoder_t *, obs_weak_encoder_release>;
+using OBSWeakServiceAutoRelease =
+	OBSRefAutoRelease<obs_weak_service_t *, obs_weak_service_release>;
 
 using OBSSource = OBSRef<obs_source_t *, obs_source_addref, obs_source_release>;
 using OBSScene = OBSRef<obs_scene_t *, obs_scene_addref, obs_scene_release>;
@@ -46,7 +71,47 @@ using OBSWeakEncoder = OBSRef<obs_weak_encoder_t *, obs_weak_encoder_addref,
 			      obs_weak_encoder_release>;
 using OBSWeakService = OBSRef<obs_weak_service_t *, obs_weak_service_addref,
 			      obs_weak_service_release>;
+///////////////////////////////////////////////////////////////////////
+template<typename T, void release(T)> class OBSRefAutoRelease {
+protected:
+	T val;
 
+public:
+	inline OBSRefAutoRelease() : val(nullptr) {}
+	inline OBSRefAutoRelease(T val_) : val(val_) {}
+	OBSRefAutoRelease(const OBSRefAutoRelease &ref) = delete;
+	inline OBSRefAutoRelease(OBSRefAutoRelease &&ref) : val(ref.val)
+	{
+		ref.val = nullptr;
+	}
+
+	inline ~OBSRefAutoRelease() { release(val); }
+
+	inline operator T() const { return val; }
+	inline T Get() const { return val; }
+
+	inline bool operator==(T p) const { return val == p; }
+	inline bool operator!=(T p) const { return val != p; }
+
+	inline OBSRefAutoRelease &operator=(OBSRefAutoRelease &&ref)
+	{
+		if (this != &ref) {
+			release(val);
+			val = ref.val;
+			ref.val = nullptr;
+		}
+
+		return *this;
+	}
+
+	inline OBSRefAutoRelease &operator=(T new_val)
+	{
+		release(val);
+		val = new_val;
+		return *this;
+	}
+};
+///////////////////////////////////////////////////////////////////////
 template<typename T, void addref(T), void release(T)> class OBSRef {
 	T val;
 

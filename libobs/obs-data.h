@@ -1,4 +1,4 @@
-﻿/******************************************************************************
+/******************************************************************************
     Copyright (C) 2014 by Hugh Bailey <obs.jim@gmail.com>
 
     This program is free software: you can redistribute it and/or modify
@@ -70,6 +70,7 @@ EXPORT void obs_data_addref(obs_data_t *data);
 EXPORT void obs_data_release(obs_data_t *data);
 
 EXPORT const char *obs_data_get_json(obs_data_t *data);
+EXPORT const char *obs_data_get_last_json(obs_data_t *data);
 EXPORT bool obs_data_save_json(obs_data_t *data, const char *file);
 EXPORT bool obs_data_save_json_safe(obs_data_t *data, const char *file,
 				    const char *temp_ext,
@@ -168,6 +169,9 @@ EXPORT void obs_data_array_insert(obs_data_array_t *array, size_t idx,
 EXPORT void obs_data_array_push_back_array(obs_data_array_t *array,
 					   obs_data_array_t *array2);
 EXPORT void obs_data_array_erase(obs_data_array_t *array, size_t idx);
+EXPORT void obs_data_array_enum(obs_data_array_t *array,
+				void (*cb)(obs_data_t *data, void *param),
+				void *param);
 
 /* ------------------------------------------------------------------------- */
 /* Item status inspection */

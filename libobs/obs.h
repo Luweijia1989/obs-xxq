@@ -920,6 +920,8 @@ EXPORT obs_properties_t *obs_source_properties(const obs_source_t *source);
 
 /** Updates settings for this source */
 EXPORT void obs_source_update(obs_source_t *source, obs_data_t *settings);
+EXPORT void obs_source_reset_settings(obs_source_t *source,
+				      obs_data_t *settings);
 
 /** Renders a video source. */
 EXPORT void obs_source_video_render(obs_source_t *source);
@@ -1510,7 +1512,7 @@ EXPORT obs_sceneitem_t *obs_scene_find_source(obs_scene_t *scene,
 					      const char *name);
 
 EXPORT obs_sceneitem_t *obs_scene_find_sceneitem_by_id(obs_scene_t *scene,
-						       int64_t id);
+						       int64_t id, const char *name);
 
 /** Enumerates sources within a scene */
 EXPORT void obs_scene_enum_items(obs_scene_t *scene,
@@ -1646,6 +1648,14 @@ obs_sceneitem_get_scale_filter(obs_sceneitem_t *item);
 
 EXPORT void obs_sceneitem_force_update_transform(obs_sceneitem_t *item);
 
+/** Gets the group from its source, or NULL if not a group */
+EXPORT obs_scene_t *obs_group_from_source(const obs_source_t *source);
+static inline obs_scene_t *
+obs_group_or_scene_from_source(const obs_source_t *source)
+{
+	obs_scene_t *s = obs_scene_from_source(source);
+	return s ? s : obs_group_from_source(source);
+}
 EXPORT void obs_sceneitem_defer_update_begin(obs_sceneitem_t *item);
 EXPORT void obs_sceneitem_defer_update_end(obs_sceneitem_t *item);
 
@@ -2125,10 +2135,10 @@ EXPORT const char *obs_encoder_get_id(const obs_encoder_t *encoder);
 EXPORT uint32_t obs_get_encoder_caps(const char *encoder_id);
 EXPORT uint32_t obs_encoder_get_caps(const obs_encoder_t *encoder);
 
-EXPORT void obs_encoder_set_sei(obs_encoder_t *encoder, char *sei,
-				int len);
+EXPORT void obs_encoder_set_sei(obs_encoder_t *encoder, char *sei, int len);
 EXPORT void obs_encoder_clear_sei(obs_encoder_t *encoder);
-EXPORT bool obs_encoder_get_sei(obs_encoder_t *encoder, uint8_t *sei, int *sei_len);
+EXPORT bool obs_encoder_get_sei(obs_encoder_t *encoder, uint8_t *sei,
+				int *sei_len);
 
 #ifndef SWIG
 /** Duplicates an encoder packet */
@@ -2327,6 +2337,19 @@ EXPORT void obs_rtc_update_frame(int channel, char *data, uint32_t width,
 				 uint32_t height);
 EXPORT void obs_rtc_clear_frame(int channel);
 EXPORT void obs_rtc_reset_frame(int channel);
+
+////undo/redo add code////
+/** Tries to find the sceneitem of the source in a given scene. Returns NULL if not found */
+EXPORT obs_sceneitem_t *obs_scene_sceneitem_from_source(obs_scene_t *scene,
+							obs_source_t *source);
+/**  Gets a sceneitem's order in its scene */
+EXPORT int obs_sceneitem_get_order_position(obs_sceneitem_t *item);
+
+/** Save all the transform states for a current scene's sceneitems */
+EXPORT obs_data_t *obs_scene_save_transform_states(obs_scene_t *scene,
+						   bool all_items);
+/** Load all the transform states of sceneitems in that scene */
+EXPORT void obs_scene_load_transform_states(const char *state);
 
 #ifdef __cplusplus
 }

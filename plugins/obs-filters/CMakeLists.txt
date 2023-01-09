@@ -86,5 +86,6 @@ target_link_libraries(obs-filters PRIVATE ${obs-filters_PLATFORM_DEPS})
 target_link_libraries(obs-filters PRIVATE ${obs-filters_LIBSPEEXDSP_LIBRARIES})
 target_link_libraries(obs-filters PRIVATE ${LIBSPEEXDSP_LIBRARIES})
 target_link_libraries(obs-filters PRIVATE Librnnoise::Librnnoise)
+set_target_properties(obs-filters PROPERTIES FOLDER "plugins")
 
 install_obs_plugin_with_data(obs-filters data)

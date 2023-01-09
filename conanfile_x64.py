@@ -13,15 +13,17 @@ class ObsXXQConan(ConanFile):
     
         self.copy("*.h", dst="include/libobs", src="libobs", keep_path=True)
         self.copy("*.hpp", dst="include/libobs", src="libobs", keep_path=True)
-        self.copy("*.dll", dst="bin", src="../dependencies2017/win64/bin", keep_path=False)
         
         if self.settings.build_type=="Debug":
+            self.copy("*.dll", dst="bin", src="../dependencies2017/win64/bin", keep_path=False)
             self.copy("*.lib", dst="lib", src="build64/libobs/Debug", keep_path=True)
         else:
+            self.copy("*.dll", dst="bin", src="../dependencies2017/win64/bin", keep_path=False, excludes="debug")
             self.copy("*.lib", dst="lib", src="build64/libobs/RelWithDebInfo", keep_path=True)
             
             
         if self.settings.build_type=="Debug":
+            self.copy("*.dll", dst="bin", src="../dependencies2017/win64/bin/debug", keep_path=False)
             self.copy("*.dll", dst="bin", src="build64/libobs/Debug", keep_path=False)
             self.copy("*.pdb", dst="bin", src="build64/libobs/Debug", keep_path=False)
             self.copy("*.dll", dst="bin", src="build64/libobs-d3d11/Debug", keep_path=False)
@@ -51,6 +53,8 @@ class ObsXXQConan(ConanFile):
             self.copy("*.pdb", dst="bin", src="build64/plugins/win-airplay/androidaoa/Debug", keep_path=False)
             self.copy("*.exe", dst="bin", src="build64/plugins/win-airplay/rtmp-server/Debug", keep_path=False)
             self.copy("*.pdb", dst="bin", src="build64/plugins/win-airplay/rtmp-server/Debug", keep_path=False)
+            self.copy("DirectML.dll", dst="bin", src="plugins/obs-backgroundremoval/dep/microsoft.ai.directml/1.9.1/bin/x64-win", keep_path=False)
+            self.copy("onnxruntime.dll", dst="bin", src="plugins/obs-backgroundremoval/dep/microsoft.ml.onnxruntime.directml/1.12.1/runtimes/win-x64/native", keep_path=False)
            
             self.copy("*.dll", dst="plugins/obs-plugins/64bit", src="build64/plugins/coreaudio-encoder/Debug", keep_path=False)
             self.copy("*.pdb", dst="plugins/obs-plugins/64bit", src="build64/plugins/coreaudio-encoder/Debug", keep_path=False)
@@ -92,6 +96,8 @@ class ObsXXQConan(ConanFile):
             self.copy("*.pdb", dst="plugins/obs-plugins/64bit", src="build64/plugins/win-airplay/Debug", keep_path=False)
             self.copy("*.dll", dst="plugins/obs-plugins/64bit", src="build64/plugins/beauty-filter/Debug", keep_path=False)
             self.copy("*.pdb", dst="plugins/obs-plugins/64bit", src="build64/plugins/beauty-filter/Debug", keep_path=False)
+            self.copy("*.dll", dst="plugins/obs-plugins/64bit", src="build64/plugins/obs-backgroundremoval/Debug", keep_path=False)
+            self.copy("*.pdb", dst="plugins/obs-plugins/64bit", src="build64/plugins/obs-backgroundremoval/Debug", keep_path=False)
             self.copy("*.dll", dst="plugins/data/obs-plugins/win-capture", src="build64/plugins/win-capture/graphics-hook/Debug", keep_path=False)
             self.copy("*.pdb*", dst="plugins/data/obs-plugins/win-capture", src="build64/plugins/win-capture/graphics-hook/Debug", keep_path=False)
             self.copy("*.dll", dst="plugins/data/obs-plugins/win-capture", src="build32/plugins/win-capture/graphics-hook/Debug", keep_path=False)
@@ -134,6 +140,8 @@ class ObsXXQConan(ConanFile):
             self.copy("*.pdb", dst="bin", src="build64/plugins/win-airplay/androidaoa/RelWithDebInfo", keep_path=False)
             self.copy("*.exe", dst="bin", src="build64/plugins/win-airplay/rtmp-server/RelWithDebInfo", keep_path=False)
             self.copy("*.pdb", dst="bin", src="build64/plugins/win-airplay/rtmp-server/RelWithDebInfo", keep_path=False)
+            self.copy("DirectML.dll", dst="bin", src="plugins/obs-backgroundremoval/dep/microsoft.ai.directml/1.9.1/bin/x64-win", keep_path=False)
+            self.copy("onnxruntime.dll", dst="bin", src="plugins/obs-backgroundremoval/dep/microsoft.ml.onnxruntime.directml/1.12.1/runtimes/win-x64/native", keep_path=False)
            
             self.copy("*.dll", dst="plugins/obs-plugins/64bit", src="build64/plugins/coreaudio-encoder/RelWithDebInfo", keep_path=False)
             self.copy("*.pdb", dst="plugins/obs-plugins/64bit", src="build64/plugins/coreaudio-encoder/RelWithDebInfo", keep_path=False)
@@ -175,6 +183,8 @@ class ObsXXQConan(ConanFile):
             self.copy("*.pdb", dst="plugins/obs-plugins/64bit", src="build64/plugins/win-airplay/RelWithDebInfo", keep_path=False)
             self.copy("*.dll", dst="plugins/obs-plugins/64bit", src="build64/plugins/beauty-filter/RelWithDebInfo", keep_path=False)
             self.copy("*.pdb", dst="plugins/obs-plugins/64bit", src="build64/plugins/beauty-filter/RelWithDebInfo", keep_path=False)
+            self.copy("*.dll", dst="plugins/obs-plugins/64bit", src="build64/plugins/obs-backgroundremoval/RelWithDebInfo", keep_path=False)
+            self.copy("*.pdb", dst="plugins/obs-plugins/64bit", src="build64/plugins/obs-backgroundremoval/RelWithDebInfo", keep_path=False)
             self.copy("*.dll", dst="plugins/data/obs-plugins/win-capture", src="build64/plugins/win-capture/graphics-hook/RelWithDebInfo", keep_path=False)
             self.copy("*.pdb", dst="plugins/data/obs-plugins/win-capture", src="build64/plugins/win-capture/graphics-hook/RelWithDebInfo", keep_path=False)
             self.copy("*.dll", dst="plugins/data/obs-plugins/win-capture", src="build32/plugins/win-capture/graphics-hook/RelWithDebInfo", keep_path=False)
@@ -210,6 +220,7 @@ class ObsXXQConan(ConanFile):
         self.copy("*.*", dst="plugins/data/obs-plugins/win-mf", src="plugins/win-mf/data", keep_path=True)
         self.copy("*.*", dst="plugins/data/obs-plugins/win-wasapi", src="plugins/win-wasapi/data", keep_path=True)
         self.copy("*.exe", dst="plugins/data/obs-plugins/win-capture", src="win-capture-data", keep_path=True)
+        self.copy("rvm_mobilenetv3_fp32.onnx", dst="plugins/data/obs-plugins/obs-backgroundremoval", src="plugins/obs-backgroundremoval/data", keep_path=True)
         
         if self.settings.build_type!="Debug":
             os.system("cd signtool && python sign_x64.py " + self.package_folder)

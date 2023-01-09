@@ -366,6 +366,7 @@ else()
       ${JANSSON_HDR_PRIVATE} 
       ${JANSSON_HDR_PUBLIC})
 endif()
+set_target_properties(jansson PROPERTIES FOLDER "deps")
 
 if (JANSSON_EXAMPLES)
 	add_executable(simple_parse "${PROJECT_SOURCE_DIR}/examples/simple_parse.c")

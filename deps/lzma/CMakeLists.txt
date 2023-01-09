@@ -145,3 +145,4 @@ add_library(lzma STATIC
 	${liblzma_lzma_SOURCES}
 	${liblzma_rangecoder_SOURCES}
 	${liblzma_simple_SOURCES})
+set_target_properties(lzma PROPERTIES FOLDER "deps")

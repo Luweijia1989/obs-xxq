@@ -1,4 +1,4 @@
-﻿/******************************************************************************
+/******************************************************************************
     Copyright (C) 2014 by Hugh Bailey <obs.jim@gmail.com>
 
     This program is free software: you can redistribute it and/or modify
@@ -742,6 +742,11 @@ const char *obs_data_get_json(obs_data_t *data)
 	return data->json;
 }
 
+const char *obs_data_get_last_json(obs_data_t *data)
+{
+	return data ? data->json : NULL;
+}
+
 bool obs_data_save_json(obs_data_t *data, const char *file)
 {
 	const char *json = obs_data_get_json(data);
@@ -1358,6 +1363,16 @@ void obs_data_array_erase(obs_data_array_t *array, size_t idx)
 	if (array) {
 		obs_data_release(array->objects.array[idx]);
 		da_erase(array->objects, idx);
+	}
+}
+
+void obs_data_array_enum(obs_data_array_t *array,
+			 void (*cb)(obs_data_t *data, void *param), void *param)
+{
+	if (array && cb) {
+		for (size_t i = 0; i < array->objects.num; i++) {
+			cb(array->objects.array[i], param);
+		}
 	}
 }
 

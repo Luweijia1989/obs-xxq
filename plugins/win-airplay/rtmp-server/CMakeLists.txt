@@ -31,5 +31,6 @@ target_link_libraries(rtmp-server
 	debug ${PROJECT_SOURCE_DIR}/third-party/lib/${_lib_bit_suffix}/debug/fdk-aac.lib
 	optimized ${PROJECT_SOURCE_DIR}/third-party/lib/${_lib_bit_suffix}/relwithdebinfo/fdk-aac.lib
 	mirror-ipc)
+set_target_properties(rtmp-server PROPERTIES FOLDER "plugins/win-airplay")
 
 install_obs_core(rtmp-server)

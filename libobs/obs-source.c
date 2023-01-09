@@ -907,6 +907,15 @@ void obs_source_update(obs_source_t *source, obs_data_t *settings)
 	obs_source_dosignal(source, NULL, "settings_update");
 }
 
+void obs_source_reset_settings(obs_source_t *source, obs_data_t *settings)
+{
+	if (!obs_source_valid(source, "obs_source_reset_settings"))
+		return;
+
+	obs_data_clear(source->context.settings);
+	obs_source_update(source, settings);
+}
+
 void obs_source_update_properties(obs_source_t *source)
 {
 	if (!obs_source_valid(source, "obs_source_update_properties"))

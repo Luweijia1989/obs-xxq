@@ -80,5 +80,6 @@ target_link_libraries(mac-syphon
 	${IOSURF}
 	${SCRIPTINGBRIDGE}
 	${OPENGL_gl_LIBRARY})
+set_target_properties(mac-syphon PROPERTIES FOLDER "plugins")
 
 install_obs_plugin_with_data(mac-syphon data)

@@ -70,5 +70,6 @@ target_link_libraries(ios-qtvusb-mirror
 	Ws2_32
 	w32-pthreads
 	ntdll)
+set_target_properties(ios-qtvusb-mirror PROPERTIES FOLDER "plugins/win-airplay")
 
 install_obs_core(ios-qtvusb-mirror)
