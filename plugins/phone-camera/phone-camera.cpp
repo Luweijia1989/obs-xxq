@@ -270,6 +270,7 @@ static obs_properties_t *GetPhoneCameraProperties(void *data)
 
 	obs_property_t *pd = obs_properties_add_list(ppts, PHONE_DEVICE_TYPE, "device type", OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_INT);
 	obs_property_list_add_int(pd, "iOS", (int)PhoneType::iOS);
+	obs_property_list_add_int(pd, "iOS-Camera", (int)PhoneType::iOSCamera);
 	obs_property_list_add_int(pd, "Android", (int)PhoneType::Android);
 	obs_property_set_modified_callback(pd, TypeSelectionChanged);
 

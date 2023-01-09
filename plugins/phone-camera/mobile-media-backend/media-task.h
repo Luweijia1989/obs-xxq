@@ -4,93 +4,42 @@
 #include <qbytearray.h>
 #include <qtimer.h>
 #include <qset.h>
-#include <plist/plist.h>
-#include "ios/usbmuxd/usbmuxd-proto.h"
+#include "../common.h"
 
-extern QSet<QString> runningDevices;
 class MediaTask : public QObject {
 	Q_OBJECT
 public:
-	MediaTask(QObject *parent = nullptr) : QObject(parent)
-	{
-		m_scanTimer.setInterval(100);
-		m_scanTimer.setSingleShot(false);
-	}
+	MediaTask(PhoneType type, QObject *parent = nullptr);
+	~MediaTask();
 
-	void setExpectedDevice(QString device)
-	{
-		do {
-			if (m_expectedDevice.isEmpty())
-				break;
+	void setExpectedDevice(QString device);
 
-			if (device == "auto")
-				return;
-			else {
-				if (m_expectedDevice == "auto") //todo check auto device is same with target device
-					break;
-				else {
-					if (m_expectedDevice == device)
-						return;
-					else
-						break;
-				}
-			}
-		} while (1);
+	virtual void startTask(QString path, uint32_t handle = 0);
+	Q_INVOKABLE virtual void stopTask(bool finalStop);
 
-		stopTask(true);
-		m_expectedDevice = device;
-		m_scanTimer.start();
-	}
+	static void deviceData(char *buf, int size, void *cb_data);
+	static void deviceLost(void *cb_data);
 
-	virtual void startTask(QString path, uint32_t handle = 0)
-	{
-		Q_UNUSED(handle)
+private:
+	void deviceDataInternal(char *buf, int size);
 
-		m_scanTimer.stop();
-		m_connectedDevice = path;
-		runningDevices.insert(path);
-	}
+public slots:
+	void onScanTimerTimeout();
 
-	Q_INVOKABLE virtual void stopTask(bool finalStop)
-	{
-		runningDevices.remove(m_connectedDevice);
-		m_connectedDevice = QString();
-		if (!finalStop)
-			m_scanTimer.start();
-	}
 signals:
 	void mediaData(char *data, int size, int64_t timestamp, bool isVideo);
 	void mediaState(bool start);
 
 public:
+	PhoneType m_phoneType = PhoneType::None;
 	QString m_expectedDevice;
 	QString m_connectedDevice;
 	QTimer m_scanTimer;
+	bool m_taskStarted = false;
+
+	QTimer m_usbmuxdConnectTimer;
+	uint32_t m_iOSDeviceHandle = 0;
+	int m_usbmuxdFD = -1;
+	QString m_finalId;
+	QByteArray m_mediaCache;
 };
-
-static inline QByteArray usbmuxdTaskCMD(QString deviceId, bool isStart)
-{
-	QByteArray result;
-	plist_t dict = plist_new_dict();
-	plist_dict_set_item(dict, "CmdType", plist_new_string(isStart ? "Start" : "Stop"));
-	plist_dict_set_item(dict, "DeviceId", plist_new_string(deviceId.toUtf8().data()));
-
-	char *xml = NULL;
-	uint32_t xmlsize = 0;
-	plist_to_xml(dict, &xml, &xmlsize);
-	if (xml) {
-		struct usbmuxd_header hdr;
-		auto size = sizeof(hdr) + xmlsize;
-		hdr.version = 1;
-		hdr.length = size;
-		hdr.message = MESSAGE_CUSTOM;
-		hdr.tag = 1;
-		result.resize(size);
-		memcpy(result.data(), &hdr, sizeof(hdr));
-		memcpy(result.data() + sizeof(hdr), xml, xmlsize);
-		free(xml);
-	}
-	plist_free(dict);
-
-	return result;
-}

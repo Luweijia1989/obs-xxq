@@ -213,7 +213,7 @@ bool DriverHelper::doDriverProcess(QString devicePath, bool checkAoA)
 		if (!App()->mediaAvailable(PhoneType::Android))
 			return false;
 	} else if (isApple) {
-		if (!App()->mediaAvailable(PhoneType::iOS))
+		if (!App()->mediaAvailable(PhoneType::iOS) && !App()->mediaAvailable(PhoneType::iOSCamera))
 			return false;
 	} else
 		return false;

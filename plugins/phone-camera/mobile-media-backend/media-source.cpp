@@ -5,8 +5,6 @@
 #include <media-io/audio-io.h>
 
 #include "application.h"
-#include "ios-camera.h"
-#include "android-camera.h"
 
 MediaSource::MediaSource(QObject *parent) : QObject(parent) {}
 
@@ -29,10 +27,7 @@ void MediaSource::setCurrentDevice(PhoneType type, QString deviceId)
 
 	App()->mediaObjectRegister(type, this, true);
 	m_phoneType = (PhoneType)type;
-	if (type == PhoneType::iOS) {
-		m_mediaTask = new iOSCamera(this);
-	} else if (type == PhoneType::Android)
-		m_mediaTask = new AndroidCamera(this);
+	m_mediaTask = new MediaTask(m_phoneType, this);
 
 	connect(
 		m_mediaTask, &MediaTask::mediaData, this,

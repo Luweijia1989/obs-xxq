@@ -2,6 +2,7 @@
 #include <qprocess.h>
 #include <qmutex.h>
 #include <qmap.h>
+#include <qset.h>
 
 static QMutex g_mutex;
 static uint32_t g_event_count = 1;
@@ -41,6 +42,14 @@ struct MediaCbInfo {
 	void *cb_data;
 };
 QMap<QString, MediaCbInfo> g_mediaCBs;
+QSet<QString> g_exceptions;
+
+void add_exceptions(const char *serial)
+{
+	QMutexLocker locker(&g_mediaCBMutex);
+	g_exceptions.insert(serial);
+}
+
 void add_media_callback(const char *serial, media_data_cb cb, device_lost lost_cb, void *cb_data)
 {
 	QMutexLocker locker(&g_mediaCBMutex);
@@ -51,6 +60,7 @@ void remove_media_callback(const char *serial)
 {
 	QMutexLocker locker(&g_mediaCBMutex);
 	g_mediaCBs.remove(serial);
+	g_exceptions.remove(serial);
 }
 
 void process_media_data(const char *serial, char *buf, int size)
@@ -80,5 +90,5 @@ void process_device_lost(const char *serial)
 bool media_callback_installed(const char *serial)
 {
 	QMutexLocker locker(&g_mediaCBMutex);
-	return g_mediaCBs.contains(serial);
+	return g_mediaCBs.contains(serial) && !g_exceptions.contains(serial);
 }

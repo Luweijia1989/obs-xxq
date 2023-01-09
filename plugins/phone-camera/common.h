@@ -55,6 +55,7 @@ enum class PhoneType {
 	None,
 	iOS,
 	Android,
+	iOSCamera,
 };
 
 enum class MsgType {

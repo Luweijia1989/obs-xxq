@@ -36,10 +36,7 @@ set(mobile-media-backend_HEADERS
 	c-util.h
 	driver-helper.h
 	media-task.h
-	media-source.h
-	ios-camera.h
-	ios-screen-mirror-task-thread.h
-	android-camera.h)
+	media-source.h)
 
 set(mobile-media-backend_SOURCES 
 	main.cpp
@@ -49,10 +46,8 @@ set(mobile-media-backend_SOURCES
 	usb-helper.cpp
 	c-util.cpp
 	driver-helper.cpp
-	media-source.cpp
-	ios-camera.cpp
-	ios-screen-mirror-task-thread.cpp
-	android-camera.cpp)
+	media-task.cpp
+	media-source.cpp)
 
 add_executable(mobile-media-backend
 	${mobile-media-backend_SOURCES}
