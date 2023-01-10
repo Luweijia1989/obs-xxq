@@ -79,4 +79,6 @@ target_link_libraries(mobile-media-backend
 	Ws2_32
 	)
 
+set_target_properties(mobile-media-backend PROPERTIES FOLDER "plugins/phone-camera")
+
 install_obs_core(mobile-media-backend)

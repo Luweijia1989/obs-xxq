@@ -46,6 +46,8 @@ target_link_libraries(phone-camera
 	Ws2_32
 	)
 
+set_target_properties(phone-camera PROPERTIES FOLDER "plugins/phone-camera")
+
 install_obs_plugin(phone-camera)
 
 add_subdirectory(device-helper)

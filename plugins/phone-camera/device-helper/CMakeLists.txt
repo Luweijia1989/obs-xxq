@@ -38,4 +38,6 @@ target_link_libraries(device-helper
 	Qt5::Widgets
 	)
 
+set_target_properties(device-helper PROPERTIES FOLDER "plugins/phone-camera")
+
 install_obs_core(device-helper)
