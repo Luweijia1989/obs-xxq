@@ -73,6 +73,7 @@ if(NOT Qt5Widgets_FOUND)
 	endif()
 endif()
 
+add_definitions(-D_HAS_STD_BYTE=0)
 
 include_directories(${FFMPEG_INCLUDE_DIRS})
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
@@ -80,6 +81,7 @@ include_directories(SYSTEM "obs-frontend-api")
 include_directories(SYSTEM "${CMAKE_SOURCE_DIR}/libobs")
 include_directories(SYSTEM "${CMAKE_SOURCE_DIR}/deps/libff")
 include_directories(SYSTEM "${CMAKE_SOURCE_DIR}/deps/json11")
+include_directories("C:/Users/luweijia/.conan/data/Cicada-Player_x64/0.0.1/bixin/stable/package/8cf01e2f50fcd6b63525e70584df0326550364e1/include")
 if(BROWSER_AVAILABLE_INTERNAL)
 	include_directories(SYSTEM "${CMAKE_SOURCE_DIR}/plugins/obs-browser/panel")
 endif()
@@ -387,6 +389,7 @@ target_link_libraries(obs
 	Qt5::Widgets
 	Qt5::Svg
 	obs-frontend-api
+	"C:/Users/luweijia/.conan/data/Cicada-Player_x64/0.0.1/bixin/stable/package/8cf01e2f50fcd6b63525e70584df0326550364e1/lib/media_player.lib"
 	${FFMPEG_LIBRARIES}
 	${LIBCURL_LIBRARIES}
 	${obs_PLATFORM_LIBRARIES})

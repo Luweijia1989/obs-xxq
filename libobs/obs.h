@@ -2351,6 +2351,10 @@ EXPORT obs_data_t *obs_scene_save_transform_states(obs_scene_t *scene,
 /** Load all the transform states of sceneitems in that scene */
 EXPORT void obs_scene_load_transform_states(const char *state);
 
+// audio format must be: 48000hz, 2channels, sl6. size must be > 480frames * 4
+EXPORT void obs_add_playing_audio_data(uint8_t *data, int size);
+EXPORT bool obs_get_playing_audio_data(uint8_t *data, int req_size);
+
 #ifdef __cplusplus
 }
 #endif

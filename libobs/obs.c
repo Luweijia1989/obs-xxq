@@ -663,6 +663,8 @@ static bool obs_init_audio(struct audio_output_info *ai)
 		return false;
 	if (pthread_mutex_init(&audio->monitoring_mutex, &attr) != 0)
 		return false;
+	if (pthread_mutex_init(&audio->playing_data_mutex, NULL) != 0)
+		return false;
 
 	audio->user_volume = 1.0f;
 
@@ -704,6 +706,9 @@ static void obs_free_audio(void)
 	bfree(audio->monitoring_device_name);
 	bfree(audio->monitoring_device_id);
 	pthread_mutex_destroy(&audio->monitoring_mutex);
+
+	pthread_mutex_destroy(&audio->playing_data_mutex);
+	circlebuf_free(&audio->playing_datas);
 
 	memset(audio, 0, sizeof(struct obs_core_audio));
 }
@@ -951,6 +956,7 @@ static bool obs_init(const char *locale, const char *module_config_path,
 	obs = bzalloc(sizeof(struct obs_core));
 
 	pthread_mutex_init_value(&obs->audio.monitoring_mutex);
+	pthread_mutex_init_value(&obs->audio.playing_data_mutex);
 	pthread_mutex_init_value(&obs->video.gpu_encoder_mutex);
 	pthread_mutex_init_value(&obs->video.task_mutex);
 
@@ -3263,4 +3269,36 @@ void obs_remove_raw_audio_callback(audio_output_callback_t callback,
 		return;
 
 	audio_output_disconnect(audio, 0, callback, param);
+}
+
+void obs_add_playing_audio_data(uint8_t *data, int size)
+{
+	struct obs_core_audio *audio = &obs->audio;
+	if (!audio)
+		return;
+
+	pthread_mutex_lock(&audio->playing_data_mutex);
+	circlebuf_push_back(&audio->playing_datas, data, size);
+	pthread_mutex_unlock(&audio->playing_data_mutex);
+}
+
+bool obs_get_playing_audio_data(uint8_t *data, int req_size)
+{
+	struct obs_core_audio *audio = &obs->audio;
+	if (!audio)
+		return false;
+
+	bool res = false;
+	pthread_mutex_lock(&audio->playing_data_mutex);
+	if (audio->playing_datas.size > 0) {
+		int pop_size = min(req_size, audio->playing_datas.size);
+		circlebuf_pop_front(&audio->playing_datas, data, pop_size);
+		if (pop_size != req_size) {
+			memset(data + pop_size, 0, req_size - pop_size);
+		}
+		res = true;
+	}
+	pthread_mutex_unlock(&audio->playing_data_mutex);
+
+	return res;
 }

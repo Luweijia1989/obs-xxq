@@ -12,6 +12,8 @@
 
 #include <thread>
 
+#include "xxq-aec.h"
+
 using namespace std;
 
 #define OPT_DEVICE_ID "device_id"
@@ -22,6 +24,7 @@ static void GetWASAPIDefaults(obs_data_t *settings);
 #define OBS_KSAUDIO_SPEAKER_4POINT1 \
 	(KSAUDIO_SPEAKER_SURROUND | SPEAKER_LOW_FREQUENCY)
 
+class XXQAec;
 class WASAPISource {
 	ComPtr<IMMDevice> device;
 	ComPtr<IAudioClient> client;
@@ -29,6 +32,8 @@ class WASAPISource {
 	ComPtr<IAudioRenderClient> render;
 	ComPtr<IMMDeviceEnumerator> enumerator;
 	ComPtr<IMMNotificationClient> notify;
+
+	XXQAec *aec = nullptr;
 
 	obs_source_t *source;
 	wstring default_id;
@@ -194,6 +199,11 @@ inline WASAPISource::~WASAPISource()
 	Stop();
 
 	DeleteCriticalSection(&mutex);
+
+	if (aec) {
+		delete aec;
+		aec = nullptr;
+	}
 }
 
 void WASAPISource::UpdateSettings(obs_data_t *settings)
@@ -379,6 +389,15 @@ void WASAPISource::InitCapture()
 				     this, 0, nullptr);
 	if (!captureThread.Valid())
 		throw "Failed to create capture thread";
+	
+	if (!isInputDevice) {
+		if (aec) {
+			delete aec;
+			aec = nullptr;
+		}
+		aec = new XXQAec;
+		aec->initResamplers(sampleRate, format, speakers);
+	}
 
 	client->Start();
 	active = true;
@@ -552,8 +571,13 @@ bool WASAPISource::ProcessCaptureData()
 			return false;
 		}
 
+		uint8_t *audio_data = nullptr;
+		if (!isInputDevice) {
+			aec->processData(buffer, frames, &audio_data);
+		}
+
 		obs_source_audio data = {};
-		data.data[0] = (const uint8_t *)buffer;
+		data.data[0] = audio_data;
 		data.frames = (uint32_t)frames;
 		data.speakers = speakers;
 		data.samples_per_sec = sampleRate;

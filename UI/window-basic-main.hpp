@@ -128,6 +128,10 @@ public:
 	}
 };
 
+namespace Cicada {
+class MediaPlayer;
+}
+
 class OBSBasic : public OBSMainWindow {
 	Q_OBJECT
 
@@ -155,6 +159,8 @@ class OBSBasic : public OBSMainWindow {
 	};
 
 private:
+	std::shared_ptr<Cicada::MediaPlayer> player;
+
 	int m_sourceCount = 0;
 	QEventLoop m_sourceReleaseLoop;
 
