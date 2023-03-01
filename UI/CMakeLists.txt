@@ -389,7 +389,6 @@ target_link_libraries(obs
 	Qt5::Widgets
 	Qt5::Svg
 	obs-frontend-api
-	"C:/Users/luweijia/.conan/data/Cicada-Player_x64/0.0.1/bixin/stable/package/8cf01e2f50fcd6b63525e70584df0326550364e1/lib/media_player.lib"
 	${FFMPEG_LIBRARIES}
 	${LIBCURL_LIBRARIES}
 	${obs_PLATFORM_LIBRARIES})

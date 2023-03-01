@@ -82,8 +82,6 @@ using namespace std;
 
 #include "ui-config.h"
 
-#include <MediaPlayer.h>
-
 struct QCef;
 struct QCefCookieManager;
 
@@ -213,20 +211,9 @@ void sceneitem_destroy_handler(obs_sceneitem_t *item)
 		WaitConnection());
 }
 
-static void audioFrame(void *userData, uint8_t *data, int size)
-{
-	obs_add_playing_audio_data(data, size);
-}
-
 OBSBasic::OBSBasic(QWidget *parent)
 	: OBSMainWindow(parent), ui(new Ui::OBSBasic)
 {
-	player = std::make_shared<Cicada::MediaPlayer>();
-	player->SetDataSource("D:/test.mkv");
-	player->SetAudioRenderingCallback(audioFrame, this);
-	player->SetAutoPlay(true);
-	player->SetLoop(false);
-
 	obs_source_set_destroy_handler(source_destroy_handler);
 	obs_sceneitem_set_destroy_handler(sceneitem_destroy_handler);
 	setAttribute(Qt::WA_NativeWindow);
@@ -5861,10 +5848,6 @@ void OBSBasic::on_recordButton_clicked()
 		}
 
 		StartRecording();
-
-		QTimer::singleShot(5000, this, [=](){
-			player->Prepare();
-		});
 	}
 }
 

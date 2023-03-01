@@ -574,7 +574,8 @@ bool WASAPISource::ProcessCaptureData()
 		uint8_t *audio_data = nullptr;
 		if (!isInputDevice) {
 			aec->processData(buffer, frames, &audio_data);
-		}
+		} else
+			audio_data = buffer;
 
 		obs_source_audio data = {};
 		data.data[0] = audio_data;
