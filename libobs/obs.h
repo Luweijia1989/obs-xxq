@@ -1982,6 +1982,12 @@ EXPORT void obs_output_signal_stop(obs_output_t *output, int code);
 
 EXPORT uint64_t obs_output_get_pause_offset(obs_output_t *output);
 
+typedef void (*new_video_packet)(void *param, struct video_data *packet);
+typedef void (*new_audio_packet)(void *param, struct audio_data *frames);
+EXPORT void obs_output_set_raw_data_callback(obs_output_t *output, new_video_packet vcb, new_audio_packet acb, void *param);
+EXPORT void obs_output_output_raw_video(obs_output_t *output, struct video_data *packet);
+EXPORT void obs_output_output_raw_audio(obs_output_t *output, struct audio_data *frames);
+
 /* ------------------------------------------------------------------------- */
 /* Encoders */
 
@@ -2302,7 +2308,7 @@ EXPORT void obs_source_custom_command_xxqsource(int type, obs_data_t *settings);
 
 EXPORT void
 obs_add_raw_audio_callback(const struct audio_convert_info *conversion,
-			   audio_output_callback_t callback, void *param);
+			   audio_output_callback_t callback, void *param, bool final_mix);
 
 EXPORT void obs_remove_raw_audio_callback(audio_output_callback_t callback,
 					  void *param);

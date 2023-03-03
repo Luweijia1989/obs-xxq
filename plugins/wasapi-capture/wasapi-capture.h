@@ -142,7 +142,7 @@ static inline HMODULE kernel32(void)
 	return kernel32_handle;
 }
 
-inline HANDLE open_process(DWORD desired_access, bool inherit_handle, DWORD process_id)
+HANDLE open_process(DWORD desired_access, bool inherit_handle, DWORD process_id)
 {
 	static HANDLE(WINAPI * open_process_proc)(DWORD, BOOL, DWORD) = NULL;
 	if (!open_process_proc)

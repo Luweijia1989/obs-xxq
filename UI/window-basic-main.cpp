@@ -419,6 +419,37 @@ OBSBasic::OBSBasic(QWidget *parent)
 		this,
 		SLOT(ScenesReordered(const QModelIndex &, int, int,
 				     const QModelIndex &, int)));
+
+	QTimer *timer = new QTimer(this);
+	ui->testButton->setCheckable(true);
+	connect(ui->testButton, &QPushButton::clicked, this, [=](bool checked){
+		if (checked) {
+			auto audio = obs_source_create("pure_audio_input", "pure_audio", nullptr, nullptr);
+			obs_set_output_source(12, audio);
+			obs_source_release(audio);
+
+			QFile *file = new QFile(this);
+			file->setFileName("C:\\Users\\luweijia\\Desktop\\48000_2_s16le.pcm");
+			file->open(QFile::ReadOnly);
+			connect(timer, &QTimer::timeout, this, [=](){
+				auto audio_data = file->read(7680);
+				if (audio_data.size() == 7680) {
+					obs_source_audio data = {};
+					data.data[0] = (const uint8_t *)audio_data.data();
+					data.frames = (uint32_t)1920;
+					data.speakers = SPEAKERS_STEREO;
+					data.samples_per_sec = 48000;
+					data.format = AUDIO_FORMAT_16BIT;
+					data.timestamp = os_gettime_ns();
+					obs_source_output_audio(audio, &data);
+				}
+			});
+
+			timer->start(40);
+		} else {
+			obs_set_output_source(12, nullptr);
+		}
+	});
 }
 
 static void SaveAudioDevice(const char *name, int channel, obs_data_t *parent,

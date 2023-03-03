@@ -382,7 +382,7 @@ static inline void release_audio_sources(struct obs_core_audio *audio)
 
 bool audio_callback(void *param, uint64_t start_ts_in, uint64_t end_ts_in,
 		    uint64_t *out_ts, uint32_t mixers,
-		    struct audio_output_data *mixes)
+		    struct audio_output_data *mixes, struct audio_output_data *temp_mixes)
 {
 	struct obs_core_data *data = &obs->data;
 	struct obs_core_audio *audio = &obs->audio;
@@ -453,11 +453,36 @@ bool audio_callback(void *param, uint64_t start_ts_in, uint64_t end_ts_in,
 	/* ------------------------------------------------ */
 	/* mix audio */
 	if (!audio->buffering_wait_ticks) {
+		DARRAY(struct obs_source *) final_mix_order;
+		da_init(final_mix_order);
 		for (size_t i = 0; i < audio->root_nodes.num; i++) {
 			obs_source_t *source = audio->root_nodes.array[i];
 
 			if (source->audio_pending)
 				continue;
+
+			if (source->info.output_flags & OBS_SOURCE_MIX_FINAL) {
+				da_push_back(final_mix_order, &source);
+				continue;
+			}
+
+			pthread_mutex_lock(&source->audio_buf_mutex);
+
+			if (source->audio_output_buf[0][0] && source->audio_ts)
+				mix_audio(temp_mixes, source, channels, sample_rate,
+					  &ts);
+
+			pthread_mutex_unlock(&source->audio_buf_mutex);
+		}
+
+		for (size_t idx = 0; idx < MAX_AUDIO_MIXES; idx++) {
+			for (size_t i = 0; i < audio_output_get_planes(obs->audio.audio); i++) {
+				memcpy(mixes[idx].data[i], temp_mixes[idx].data[i], AUDIO_OUTPUT_FRAMES * sizeof(float));
+			}
+		}
+
+		for (size_t i = 0; i < final_mix_order.num; i++) {
+			obs_source_t *source = final_mix_order.array[i];
 
 			pthread_mutex_lock(&source->audio_buf_mutex);
 
@@ -467,6 +492,7 @@ bool audio_callback(void *param, uint64_t start_ts_in, uint64_t end_ts_in,
 
 			pthread_mutex_unlock(&source->audio_buf_mutex);
 		}
+		da_free(final_mix_order);
 	}
 
 	/* ------------------------------------------------ */

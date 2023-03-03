@@ -188,7 +188,7 @@
      <x>0</x>
      <y>0</y>
      <width>1079</width>
-     <height>22</height>
+     <height>21</height>
     </rect>
    </property>
    <widget class="QMenu" name="menu_File">
@@ -414,9 +414,6 @@
   </widget>
   <widget class="OBSBasicStatusBar" name="statusbar"/>
   <widget class="OBSDock" name="scenesDock">
-   <property name="features">
-    <set>QDockWidget::AllDockWidgetFeatures</set>
-   </property>
    <property name="windowTitle">
     <string>Basic.Main.Scenes</string>
    </property>
@@ -546,9 +543,6 @@
    </widget>
   </widget>
   <widget class="OBSDock" name="sourcesDock">
-   <property name="features">
-    <set>QDockWidget::AllDockWidgetFeatures</set>
-   </property>
    <property name="windowTitle">
     <string>Basic.Main.Sources</string>
    </property>
@@ -679,9 +673,6 @@
    </widget>
   </widget>
   <widget class="OBSDock" name="mixerDock">
-   <property name="features">
-    <set>QDockWidget::AllDockWidgetFeatures</set>
-   </property>
    <property name="windowTitle">
     <string>Mixer</string>
    </property>
@@ -728,7 +719,7 @@
           <rect>
            <x>0</x>
            <y>0</y>
-           <width>64</width>
+           <width>73</width>
            <height>16</height>
           </rect>
          </property>
@@ -816,9 +807,6 @@
    </widget>
   </widget>
   <widget class="OBSDock" name="transitionsDock">
-   <property name="features">
-    <set>QDockWidget::AllDockWidgetFeatures</set>
-   </property>
    <property name="windowTitle">
     <string>Basic.SceneTransitions</string>
    </property>
@@ -1063,9 +1051,6 @@
    </widget>
   </widget>
   <widget class="OBSDock" name="controlsDock">
-   <property name="features">
-    <set>QDockWidget::AllDockWidgetFeatures</set>
-   </property>
    <property name="windowTitle">
     <string>Basic.Main.Controls</string>
    </property>
@@ -1185,6 +1170,13 @@
        </property>
        <property name="text">
         <string>Exit</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QPushButton" name="testButton">
+       <property name="text">
+        <string>Test</string>
        </property>
       </widget>
      </item>

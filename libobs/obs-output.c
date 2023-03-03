@@ -1834,13 +1834,13 @@ static inline void start_raw_audio(obs_output_t *output)
 				audio_output_connect(
 					output->audio, idx,
 					get_audio_conversion(output),
-					default_raw_audio_callback, output);
+					default_raw_audio_callback, output, true);
 			}
 		}
 	} else {
 		audio_output_connect(output->audio, get_first_mixer(output),
 				     get_audio_conversion(output),
-				     default_raw_audio_callback, output);
+				     default_raw_audio_callback, output, true);
 	}
 }
 
@@ -2602,4 +2602,36 @@ void obs_output_call_function(obs_output_t *output, obs_data_t *param)
 
 	if (output->info.custom_command)
 		output->info.custom_command(output->context.data, param);
+}
+
+void obs_output_set_raw_data_callback(obs_output_t *output, new_video_packet vcb, new_audio_packet acb, void *param)
+{
+	if (!obs_output_valid(output, "obs_output_set_raw_data_callback"))
+		return;
+
+	output->raw_video_cb = vcb;
+	output->raw_audio_cb = acb;
+	output->raw_param = param;
+}
+
+void obs_output_output_raw_video(obs_output_t *output, struct video_data *packet)
+{
+	if (!obs_output_valid(output, "obs_output_output_raw_video"))
+		return;
+
+	if (!output->raw_video_cb)
+		return;
+
+	output->raw_video_cb(output->raw_param, packet);
+}
+
+void obs_output_output_raw_audio(obs_output_t *output, struct audio_data *frames)
+{
+	if (!obs_output_valid(output, "obs_output_output_raw_audio"))
+		return;
+
+	if (!output->raw_audio_cb)
+		return;
+
+	output->raw_audio_cb(output->raw_param, frames);
 }

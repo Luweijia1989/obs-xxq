@@ -10,6 +10,7 @@ set(win-wasapi_HEADERS
 set(win-wasapi_SOURCES
 	xxq-aec.cpp
 	win-wasapi.cpp
+	pure-audio-source.cpp
 	enum-wasapi.cpp
 	plugin-main.cpp)
 
