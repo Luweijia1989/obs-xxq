@@ -674,7 +674,7 @@ static void parse_packet(struct obs_x264 *obsx264,
 	int sei_len = 0;
 	bool got_sei = obs_encoder_get_sei(obsx264->encoder, sei_buf, &sei_len);
 	if (got_sei) {
-		da_push_back_array(obsx264->packet_data, sei_buf, sei_len);
+		da_insert_array(obsx264->packet_data, 0, sei_buf, sei_len);
 	}
 
 	packet->data = obsx264->packet_data.array;

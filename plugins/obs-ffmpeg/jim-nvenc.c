@@ -889,7 +889,7 @@ static bool nvenc_encode_tex(void *data, uint32_t handle, int64_t pts,
 		bool got_sei =
 			obs_encoder_get_sei(enc->encoder, sei_buf, &sei_len);
 		if (got_sei) {
-			da_push_back_array(enc->packet_data, sei_buf, sei_len);
+			da_insert_array(enc->packet_data, 0, sei_buf, sei_len);
 		}
 
 		*received_packet = true;
