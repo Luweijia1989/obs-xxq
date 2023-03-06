@@ -756,6 +756,8 @@ struct obs_source {
 	uint32_t placeholder_width;
 	uint32_t placeholder_height;
 
+	enum obs_source_audio_type audio_type;
+
 	/* async video deinterlacing */
 	uint64_t deinterlace_offset;
 	uint64_t deinterlace_frame_ts;

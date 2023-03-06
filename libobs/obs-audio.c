@@ -79,6 +79,21 @@ static inline void mix_audio(struct audio_output_data *mixes,
 	}
 }
 
+static inline void mix_audios(DARRAY(struct obs_source *) *audios, struct audio_output_data *mixes, size_t channels,
+			     size_t sample_rate, struct ts_info *ts)
+{
+	for (size_t i = 0; i < audios->num; i++) {
+			obs_source_t *source = audios->array[i];
+
+		pthread_mutex_lock(&source->audio_buf_mutex);
+
+		if (source->audio_output_buf[0][0] && source->audio_ts)
+			mix_audio(mixes, source, channels, sample_rate, ts);
+
+		pthread_mutex_unlock(&source->audio_buf_mutex);
+	}
+}
+
 static void ignore_audio(obs_source_t *source, size_t channels,
 			 size_t sample_rate)
 {
@@ -382,7 +397,7 @@ static inline void release_audio_sources(struct obs_core_audio *audio)
 
 bool audio_callback(void *param, uint64_t start_ts_in, uint64_t end_ts_in,
 		    uint64_t *out_ts, uint32_t mixers,
-		    struct audio_output_data *mixes, struct audio_output_data *temp_mixes)
+		    struct audio_output_data *mixes, struct audio_output_data *link_mixes)
 {
 	struct obs_core_data *data = &obs->data;
 	struct obs_core_audio *audio = &obs->audio;
@@ -453,46 +468,39 @@ bool audio_callback(void *param, uint64_t start_ts_in, uint64_t end_ts_in,
 	/* ------------------------------------------------ */
 	/* mix audio */
 	if (!audio->buffering_wait_ticks) {
-		DARRAY(struct obs_source *) final_mix_order;
-		da_init(final_mix_order);
+		DARRAY(struct obs_source *) only_rtmp_sources, link_extra_sources, both_sources;
+		da_init(only_rtmp_sources);
+		da_init(link_extra_sources);
+		da_init(both_sources);
+
 		for (size_t i = 0; i < audio->root_nodes.num; i++) {
 			obs_source_t *source = audio->root_nodes.array[i];
 
 			if (source->audio_pending)
 				continue;
 
-			if (source->info.output_flags & OBS_SOURCE_MIX_FINAL) {
-				da_push_back(final_mix_order, &source);
-				continue;
-			}
-
-			pthread_mutex_lock(&source->audio_buf_mutex);
-
-			if (source->audio_output_buf[0][0] && source->audio_ts)
-				mix_audio(temp_mixes, source, channels, sample_rate,
-					  &ts);
-
-			pthread_mutex_unlock(&source->audio_buf_mutex);
+			if (source->audio_type == OBS_SOURCE_AUDIO_BOTH)
+				da_push_back(both_sources, &source);
+			else if (source->audio_type == OBS_SOURCE_AUDIO_ONLY_RTMP)
+				da_push_back(only_rtmp_sources, &source);
+			else if (source->audio_type == OBS_SOURCE_AUDIO_LINK)
+				da_push_back(link_extra_sources, &both_sources);
 		}
+
+		mix_audios(&both_sources, link_mixes, channels, sample_rate, &ts);
 
 		for (size_t idx = 0; idx < MAX_AUDIO_MIXES; idx++) {
 			for (size_t i = 0; i < audio_output_get_planes(obs->audio.audio); i++) {
-				memcpy(mixes[idx].data[i], temp_mixes[idx].data[i], AUDIO_OUTPUT_FRAMES * sizeof(float));
+				memcpy(mixes[idx].data[i], link_mixes[idx].data[i], AUDIO_OUTPUT_FRAMES * sizeof(float));
 			}
 		}
 
-		for (size_t i = 0; i < final_mix_order.num; i++) {
-			obs_source_t *source = final_mix_order.array[i];
+		mix_audios(&link_extra_sources, link_mixes, channels, sample_rate, &ts);
+		mix_audios(&only_rtmp_sources, mixes, channels, sample_rate, &ts);
 
-			pthread_mutex_lock(&source->audio_buf_mutex);
-
-			if (source->audio_output_buf[0][0] && source->audio_ts)
-				mix_audio(mixes, source, channels, sample_rate,
-					  &ts);
-
-			pthread_mutex_unlock(&source->audio_buf_mutex);
-		}
-		da_free(final_mix_order);
+		da_free(only_rtmp_sources);
+		da_free(link_extra_sources);
+		da_free(both_sources);
 	}
 
 	/* ------------------------------------------------ */

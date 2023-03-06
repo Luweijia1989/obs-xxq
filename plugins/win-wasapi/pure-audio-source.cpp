@@ -28,7 +28,7 @@ void RegisterPureAudioSource()
 	obs_source_info info = {};
 	info.id = "pure_audio_input";
 	info.type = OBS_SOURCE_TYPE_INPUT;
-	info.output_flags = OBS_SOURCE_AUDIO | OBS_SOURCE_MIX_FINAL;
+	info.output_flags = OBS_SOURCE_AUDIO;
 	info.get_name = pure_audioget_name;
 	info.create = pure_audio_create;
 	info.destroy = pure_audio_destroy;

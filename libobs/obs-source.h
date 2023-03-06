@@ -165,8 +165,6 @@ enum obs_source_game_status {
 /** Used internally for audio submixing */
 #define OBS_SOURCE_SUBMIX (1 << 12)
 
-#define OBS_SOURCE_MIX_FINAL (1 << 13)
-
 /** @} */
 
 typedef void (*obs_source_enum_proc_t)(obs_source_t *parent,

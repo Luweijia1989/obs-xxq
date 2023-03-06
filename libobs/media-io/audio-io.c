@@ -53,7 +53,7 @@ static inline void audio_input_free(struct audio_input *input)
 struct audio_mix {
 	DARRAY(struct audio_input) inputs;
 	float buffer[MAX_AUDIO_CHANNELS][AUDIO_OUTPUT_FRAMES];
-	float buffer_temp[MAX_AUDIO_CHANNELS][AUDIO_OUTPUT_FRAMES];
+	float buffer_link[MAX_AUDIO_CHANNELS][AUDIO_OUTPUT_FRAMES];
 };
 
 struct audio_output {
@@ -157,7 +157,7 @@ static inline void do_audio_output(struct audio_output *audio, size_t mix_idx,
 		struct audio_input *input = mix->inputs.array + (i - 1);
 
 		for (size_t i = 0; i < audio->planes; i++)
-			data.data[i] = input->final_mix ? (uint8_t *)mix->buffer[i] : (uint8_t *)mix->buffer_temp[i];
+			data.data[i] = input->final_mix ? (uint8_t *)mix->buffer[i] : (uint8_t *)mix->buffer_link[i];
 		data.frames = frames;
 		data.timestamp = timestamp;
 
@@ -192,7 +192,7 @@ static inline void clamp_audio_output(struct audio_output *audio, size_t bytes)
 		}
 
 		for (size_t plane = 0; plane < audio->planes; plane++) {
-			float *temp_mix_data = mix->buffer_temp[plane];
+			float *temp_mix_data = mix->buffer_link[plane];
 			float *temp_mix_end = &temp_mix_data[float_size];
 
 			while (temp_mix_data < temp_mix_end) {
@@ -239,13 +239,13 @@ static void input_and_output(struct audio_output *audio, uint64_t audio_time,
 		       AUDIO_OUTPUT_FRAMES * MAX_AUDIO_CHANNELS *
 			       sizeof(float));
 
-		memset(mix->buffer_temp[0], 0,
+		memset(mix->buffer_link[0], 0,
 		       AUDIO_OUTPUT_FRAMES * MAX_AUDIO_CHANNELS *
 			       sizeof(float));
 
 		for (size_t i = 0; i < audio->planes; i++) {
 			data[mix_idx].data[i] = mix->buffer[i];
-			temp_data[mix_idx].data[i] = mix->buffer_temp[i];
+			temp_data[mix_idx].data[i] = mix->buffer_link[i];
 		}
 	}
 

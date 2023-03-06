@@ -1383,6 +1383,14 @@ image holder used when a source is async video and there is no video frame curre
 EXPORT void obs_source_set_placeholder_image(obs_source_t *source,
 					     char *image_path);
 
+enum obs_source_audio_type {
+	OBS_SOURCE_AUDIO_ONLY_RTMP,
+	OBS_SOURCE_AUDIO_LINK,
+	OBS_SOURCE_AUDIO_BOTH,
+};
+
+EXPORT void obs_source_set_audio_type(obs_source_t *source, enum obs_source_audio_type type);
+
 /* ------------------------------------------------------------------------- */
 /* Transition-specific functions */
 enum obs_transition_target {

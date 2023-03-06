@@ -359,6 +359,7 @@ obs_source_create_internal(const char *id, const char *name,
 			isprivate = true;
 	}
 
+	source->audio_type = OBS_SOURCE_AUDIO_BOTH;
 	source->mute_unmute_key = OBS_INVALID_HOTKEY_PAIR_ID;
 	source->push_to_mute_key = OBS_INVALID_HOTKEY_ID;
 	source->push_to_talk_key = OBS_INVALID_HOTKEY_ID;
@@ -4942,4 +4943,12 @@ void obs_source_set_placeholder_image(obs_source_t *source, char *image_path)
 	source->placeholder_height =
 		gs_texture_get_height(source->async_holder_image);
 	gs_leave_context();
+}
+
+void obs_source_set_audio_type(obs_source_t *source, enum obs_source_audio_type type)
+{
+	if (!data_valid(source, "obs_source_set_audio_type"))
+		return;
+
+	source->audio_type = type;
 }
