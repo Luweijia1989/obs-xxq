@@ -634,8 +634,9 @@ static void *wasapi_capture_create(obs_data_t *settings, obs_source_t *source)
 
 	struct wasapi_capture *wc = bzalloc(sizeof(*wc));
 	wc->source = source;
+	wc->hook_rate = 0.1f;
 	wc->initial_config = true;
-	wc->retry_interval = DEFAULT_RETRY_INTERVAL;
+	wc->retry_interval = DEFAULT_RETRY_INTERVAL * wc->hook_rate;
 	wc->capture_thread = INVALID_HANDLE_VALUE;
 	pthread_mutex_init_value(&wc->channel_mutex);
 	pthread_mutex_init(&wc->channel_mutex, NULL);
@@ -736,7 +737,7 @@ static void wasapi_capture_update(void *data, obs_data_t *settings)
 	wc->error_acquiring = false;
 	wc->activate_hook = !!process && !!*process;
 
-	wc->retry_interval = DEFAULT_RETRY_INTERVAL;
+	wc->retry_interval = DEFAULT_RETRY_INTERVAL * wc->hook_rate;
 	wc->wait_for_target_startup = false;
 
 	dstr_free(&wc->executable);
@@ -1027,7 +1028,7 @@ static void setup_process(struct wasapi_capture *wc, DWORD id)
 	 * (such as steam) need a little bit of time to load.  ultimately this
 	 * helps prevent crashes */
 	if (wc->wait_for_target_startup) {
-		wc->retry_interval = 3.0f;
+		wc->retry_interval = 3.0f * wc->hook_rate;
 		wc->wait_for_target_startup = false;
 	} else {
 		wc->next_process_id = id;
@@ -1139,7 +1140,7 @@ static void wasapi_capture_tick(void *data, float seconds)
 			debug("init_capture_data failed");
 
 		if (result != CAPTURE_RETRY && !wc->capturing) {
-			wc->retry_interval = ERROR_RETRY_INTERVAL;
+			wc->retry_interval = ERROR_RETRY_INTERVAL * wc->hook_rate;
 			stop_capture(wc);
 		}
 	}

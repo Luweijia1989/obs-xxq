@@ -19,6 +19,8 @@ using namespace std;
 #define OPT_DEVICE_ID "device_id"
 #define OPT_USE_DEVICE_TIMING "use_device_timing"
 
+#define OUTPUT_RTC_SOURCE_CHANNEL MAX_CHANNELS-2
+
 static void GetWASAPIDefaults(obs_data_t *settings);
 
 #define OBS_KSAUDIO_SPEAKER_4POINT1 \
@@ -34,6 +36,7 @@ class WASAPISource {
 	ComPtr<IMMNotificationClient> notify;
 
 	XXQAec *aec = nullptr;
+	obs_source_t *output_rtc_source = nullptr;
 
 	obs_source_t *source;
 	wstring default_id;
@@ -148,6 +151,9 @@ WASAPISource::WASAPISource(obs_data_t *settings, obs_source_t *source_,
 			   bool input)
 	: source(source_), isInputDevice(input)
 {
+	if (!isInputDevice)
+		obs_source_set_audio_type(source, OBS_SOURCE_AUDIO_ONLY_RTMP);
+
 	InitializeCriticalSection(&mutex);
 
 	UpdateSettings(settings);
@@ -571,14 +577,8 @@ bool WASAPISource::ProcessCaptureData()
 			return false;
 		}
 
-		uint8_t *audio_data = nullptr;
-		if (!isInputDevice) {
-			aec->processData(buffer, frames, &audio_data);
-		} else
-			audio_data = buffer;
-
 		obs_source_audio data = {};
-		data.data[0] = audio_data;
+		data.data[0] = buffer;
 		data.frames = (uint32_t)frames;
 		data.speakers = speakers;
 		data.samples_per_sec = sampleRate;
@@ -590,6 +590,22 @@ bool WASAPISource::ProcessCaptureData()
 							 sampleRate);
 
 		obs_source_output_audio(source, &data);
+
+		if (!isInputDevice) {
+			uint8_t *audio_data = nullptr;
+			bool processed = aec->processData(buffer, frames, &audio_data);
+			if (processed) {
+				if (!output_rtc_source) {
+					output_rtc_source = obs_source_create("pure_audio_input", "pure_audio", nullptr, nullptr);
+					obs_source_set_audio_type(output_rtc_source, OBS_SOURCE_AUDIO_LINK);
+					obs_set_output_source(OUTPUT_RTC_SOURCE_CHANNEL, output_rtc_source);
+					obs_source_release(output_rtc_source);
+				}
+
+				data.data[0] = audio_data;
+				obs_source_output_audio(output_rtc_source, &data);
+			}
+		} 
 
 		capture->ReleaseBuffer(frames);
 	}
@@ -623,6 +639,11 @@ DWORD WINAPI WASAPISource::CaptureThread(LPVOID param)
 			reconnect = true;
 			break;
 		}
+	}
+	
+	if (source->output_rtc_source) {
+		obs_set_output_source(OUTPUT_RTC_SOURCE_CHANNEL, nullptr);
+		source->output_rtc_source = nullptr;
 	}
 
 	source->client->Stop();

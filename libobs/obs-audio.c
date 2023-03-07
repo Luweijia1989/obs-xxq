@@ -484,7 +484,7 @@ bool audio_callback(void *param, uint64_t start_ts_in, uint64_t end_ts_in,
 			else if (source->audio_type == OBS_SOURCE_AUDIO_ONLY_RTMP)
 				da_push_back(only_rtmp_sources, &source);
 			else if (source->audio_type == OBS_SOURCE_AUDIO_LINK)
-				da_push_back(link_extra_sources, &both_sources);
+				da_push_back(link_extra_sources, &source);
 		}
 
 		mix_audios(&both_sources, link_mixes, channels, sample_rate, &ts);

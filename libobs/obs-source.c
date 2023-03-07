@@ -4947,7 +4947,7 @@ void obs_source_set_placeholder_image(obs_source_t *source, char *image_path)
 
 void obs_source_set_audio_type(obs_source_t *source, enum obs_source_audio_type type)
 {
-	if (!data_valid(source, "obs_source_set_audio_type"))
+	if (!obs_source_valid(source, "obs_source_set_audio_type"))
 		return;
 
 	source->audio_type = type;

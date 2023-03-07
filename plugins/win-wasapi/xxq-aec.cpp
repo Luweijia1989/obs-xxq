@@ -1,5 +1,6 @@
 #include "xxq-aec.h"
 #include <util/bmem.h>
+#include <util/platform.h>
 #include <obs.h>
 
 #define FRAME_SIZE_IN_MS 10
@@ -8,8 +9,8 @@
 
 XXQAec::XXQAec()
 {
-	frame_size = (FRAME_SIZE_IN_MS  * SAMPLERATE) / 1000;
-	filter_size = (FILTER_SIZE_IN_MS  * SAMPLERATE) / 1000;
+	frame_size = (FRAME_SIZE_IN_MS * SAMPLERATE) / 1000;
+	filter_size = (FILTER_SIZE_IN_MS * SAMPLERATE) / 1000;
 	buffer = (uint8_t *)bmalloc(frame_size * 4);
 	middle_buffer = (uint8_t *)bmalloc(frame_size * 4);
 
@@ -75,7 +76,7 @@ bool XXQAec::processData(uint8_t *data, int frames, uint8_t **output)
 
 	speex_echo_cancellation(echo_state, (const spx_int16_t *)resample_data[0], (const spx_int16_t *)buffer, (spx_int16_t *)middle_buffer);
 	speex_preprocess_run(preprocess_state, (spx_int16_t *)middle_buffer);
-	
+
 	uint8_t *out[MAX_AV_PLANES];
 	uint32_t out_frames;
 	input[0] = middle_buffer;
@@ -84,6 +85,7 @@ bool XXQAec::processData(uint8_t *data, int frames, uint8_t **output)
 		*output = data;
 		return false;
 	}
+
 	*output = out[0];
 	return true;
 }

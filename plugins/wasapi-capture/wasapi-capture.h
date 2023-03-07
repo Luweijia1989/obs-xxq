@@ -30,6 +30,7 @@ struct wasapi_capture {
 	DWORD next_process_id;
 	float retry_time;
 	float retry_interval;
+	float hook_rate;
 
 	struct dstr executable;
 
