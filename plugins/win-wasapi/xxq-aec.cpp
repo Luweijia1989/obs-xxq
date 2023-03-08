@@ -40,6 +40,8 @@ XXQAec::~XXQAec()
 //target always 48000hz, 2channels, s16
 void XXQAec::initResamplers(uint32_t samplerate, audio_format format, speaker_layout layout)
 {
+	src_channel = get_audio_channels(layout);
+
 	resample_info dst;
 	dst.format = AUDIO_FORMAT_16BIT;
 	dst.samples_per_sec = 48000;
@@ -61,6 +63,12 @@ bool XXQAec::processData(uint8_t *data, int frames, uint8_t **output)
 		*output = data;
 		return false;
 	}
+
+	auto current_ts = os_gettime_ns() / 1000000;
+	if (current_ts - last_audio_ts > 500)
+		volume = 0.0f;
+
+	last_audio_ts = current_ts;
 
 	uint8_t *input[MAX_AV_PLANES] = {nullptr};
 	input[0] = data;
@@ -84,6 +92,14 @@ bool XXQAec::processData(uint8_t *data, int frames, uint8_t **output)
 	if (!success) {
 		*output = data;
 		return false;
+	}
+
+	if (volume < 1) {
+		volume += 0.005f;
+		float *o = (float *)out[0];
+		float *end = o + out_frames * src_channel;
+		while (o < end)
+			*(o++) *= volume;
 	}
 
 	*output = out[0];

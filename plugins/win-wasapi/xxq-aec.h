@@ -26,4 +26,7 @@ private:
 
 	int frame_size = 0;
 	int filter_size = 0;
+	int64_t last_audio_ts = 0;
+	float volume = 0.0f;
+	int src_channel = 2;
 };

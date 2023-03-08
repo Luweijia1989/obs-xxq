@@ -289,7 +289,7 @@ uint64_t os_gettime_ns(void)
 static inline bool init_shared_info(size_t size)
 {
 	wchar_t name[64];
-	_snwprintf(name, 64, L"%s%u", SHMEM_AUDIO, ++shmem_id_counter);
+	_snwprintf(name, 64, L"%s%u%lu", SHMEM_AUDIO, ++shmem_id_counter, GetCurrentProcessId());
 
 	shmem_file_handle = CreateFileMappingW(INVALID_HANDLE_VALUE, NULL, PAGE_READWRITE, 0, (DWORD)size, name);
 	if (!shmem_file_handle) {

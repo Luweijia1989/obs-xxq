@@ -467,6 +467,21 @@ static void mix_thread_proc(LPVOID param)
 	}
 }
 
+static void channel_destroyed(struct wasapi_capture *wc, uint64_t ptr)
+{
+	struct audio_channel *channel = NULL;
+	pthread_mutex_lock(&wc->channel_mutex);
+	for (size_t i = 0; i < wc->audio_channels.num; i++) {
+		if (wc->audio_channels.array[i].ptr == ptr) {
+			channel = wc->audio_channels.array[i].channel;
+			audio_channel_destroy(channel);
+			da_erase(wc->audio_channels, i);
+			break;
+		}
+	}
+	pthread_mutex_unlock(&wc->channel_mutex);
+}
+
 static void output_audio_data(struct wasapi_capture *wc, struct obs_source_audio *data, uint64_t ptr)
 {
 	struct audio_channel *channel = NULL;
@@ -480,6 +495,7 @@ static void output_audio_data(struct wasapi_capture *wc, struct obs_source_audio
 	pthread_mutex_unlock(&wc->channel_mutex);
 
 	if (!channel) {
+		debug("create new audio channel: %p", ptr);
 		channel = audio_channel_create(&wc->out_sample_info);
 		struct audio_channel_info info;
 		info.channel = channel;
@@ -517,22 +533,27 @@ static void capture_thread_proc(LPVOID param)
 
 						uint64_t ptr = 0;
 						uint64_t timestamp = 0;
-						uint32_t channel = 0, samplerate = 0, format = 0, byte_per_sample = 0;
 						memcpy(&ptr, buffer_data, 8);
-						memcpy(&channel, buffer_data + 8, 4);
-						memcpy(&samplerate, buffer_data + 12, 4);
-						memcpy(&format, buffer_data + 16, 4);
-						memcpy(&byte_per_sample, buffer_data + 20, 4);
 						memcpy(&timestamp, buffer_data + 24, 8);
 
-						struct obs_source_audio data = {0};
-						data.data[0] = (const uint8_t *)(buffer_data + 32);
-						data.frames = (uint32_t)((nf - 36) / (channel * byte_per_sample));
-						data.speakers = (enum speaker_layout)channel;
-						data.samples_per_sec = samplerate;
-						data.format = format;
-						data.timestamp = timestamp;
-						output_audio_data(wc, &data, ptr);
+						if (nf - 36 <= 0 && timestamp == UINT64_MAX) {
+							channel_destroyed(wc, ptr);
+						} else {
+							uint32_t channel = 0, samplerate = 0, format = 0, byte_per_sample = 0;
+							memcpy(&channel, buffer_data + 8, 4);
+							memcpy(&samplerate, buffer_data + 12, 4);
+							memcpy(&format, buffer_data + 16, 4);
+							memcpy(&byte_per_sample, buffer_data + 20, 4);
+
+							struct obs_source_audio data = {0};
+							data.data[0] = (const uint8_t *)(buffer_data + 32);
+							data.frames = (uint32_t)((nf - 36) / (channel * byte_per_sample));
+							data.speakers = (enum speaker_layout)channel;
+							data.samples_per_sec = samplerate;
+							data.format = format;
+							data.timestamp = timestamp;
+							output_audio_data(wc, &data, ptr);
+						}
 
 						wc->shmem_data->available_audio_size -= nf;
 					}
@@ -618,6 +639,11 @@ static void stop_capture(struct wasapi_capture *wc)
 
 	if (wc->retrying)
 		wc->retrying--;
+
+	for (size_t i = 0; i < wc->audio_channels.num; i++) {
+		audio_channel_destroy(wc->audio_channels.array[i].channel);
+	}
+	da_free(wc->audio_channels);
 }
 
 static const char *wasapi_capture_name(void *unused)
@@ -663,11 +689,6 @@ static void wasapi_capture_destroy(void *data)
 	stop_capture(wc);
 
 	dstr_free(&wc->executable);
-
-	for (size_t i = 0; i < wc->audio_channels.num; i++) {
-		audio_channel_destroy(wc->audio_channels.array[i].channel);
-	}
-	da_free(wc->audio_channels);
 
 	pthread_mutex_destroy(&wc->channel_mutex);
 	circlebuf_free(&wc->buffered_timestamps);
@@ -1035,22 +1056,13 @@ static void setup_process(struct wasapi_capture *wc, DWORD id)
 	}
 }
 
-extern bool find_selectd_process(const char *process_image_name, DWORD *id, bool *changed, char *new_name);
+extern bool find_selectd_process(const char *process_image_name, DWORD *id);
 static void try_hook(struct wasapi_capture *wc)
 {
 	DWORD id = 0;
-	bool changed = false;
-	char new_name[MAX_PATH] = {0};
-	bool ret = find_selectd_process(wc->executable.array, &id, &changed, new_name);
+	bool ret = find_selectd_process(wc->executable.array, &id);
 	if (ret) {
 		setup_process(wc, id);
-		if (changed) {
-			dstr_free(&wc->executable);
-			dstr_copy(&wc->executable, new_name);
-			obs_data_t *s = obs_source_get_settings(wc->source);
-			obs_data_set_string(s, SETTING_CAPTURE_PROCESS, new_name);
-			obs_data_release(s);
-		}
 	} else {
 		wc->wait_for_target_startup = true;
 	}
@@ -1083,7 +1095,9 @@ static inline enum capture_result init_capture_data(struct wasapi_capture *wc)
 
 	CloseHandle(wc->hook_data_map);
 
-	wc->hook_data_map = open_map_plus_id(wc, SHMEM_AUDIO, wc->global_hook_info->map_id);
+	wchar_t new_name[64];
+	_snwprintf(new_name, 64, L"%s%u%lu", SHMEM_AUDIO, wc->global_hook_info->map_id, wc->process_id);
+	wc->hook_data_map = OpenFileMappingW(GC_MAPPING_FLAGS, false, new_name);
 	if (!wc->hook_data_map) {
 		DWORD error = GetLastError();
 		if (error == 2) {

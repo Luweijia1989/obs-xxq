@@ -1,10 +1,12 @@
 #include <Windows.h>
 #include <Psapi.h>
+#include <TlHelp32.h>
 #include <util/dstr.h>
 #include <obs.h>
 #include <map>
 #include <list>
 #include <vector>
+#include <set>
 #include <sstream>
 
 extern "C" {
@@ -45,52 +47,59 @@ fail:
 	return true;
 }
 
-bool find_selectd_process(const char *process_image_name, DWORD *id, bool *changed, char *new_name)
+struct ProcessInfo {
+	DWORD id;
+	DWORD parent_id;
+};
+
+bool find_selectd_process(const char *process_image_name, DWORD *id)
 {
 	//exe:pid
 	if (!process_image_name || strlen(process_image_name) == 0)
 		return false;
 
-	std::vector<std::string> strings;
-	std::istringstream f(process_image_name);
-	std::string s;
-	while (getline(f, s, ':')) {
-		strings.push_back(s);
-	}
-	if (strings.size() != 2)
-		return false;
+	std::vector<ProcessInfo> processes;
 
-	DWORD cid = std::stoi(strings[1]);
+	PROCESSENTRY32 pe32;
+	HANDLE hSnap = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+	if (hSnap != INVALID_HANDLE_VALUE) {
+		pe32.dwSize = sizeof(PROCESSENTRY32);
+		if (Process32First(hSnap, &pe32)) {
+			do {
+				if (pe32.th32ProcessID == 0)
+					continue;
 
-	DWORD processes[1024], process_count;
-	if (!EnumProcesses(processes, sizeof(processes), &process_count))
-		return false;
-
-	DWORD other_id = 0;
-	bool other_found = false;
-	process_count = process_count / sizeof(DWORD);
-	for (unsigned int i = 0; i < process_count; i++) {
-		if (processes[i] == cid) {
-			*id = processes[i];
-			return true;
-		} else {
-			if (!other_found) {
-				struct dstr exe = {0};
-				get_pid_exe(&exe, processes[i]);
-				if (s_cmp(exe.array, strings[0].c_str()) == 0) {
-					other_found = true;
-					other_id = processes[i];
+				struct dstr exe_name = {0};
+				dstr_from_wcs(&exe_name, pe32.szExeFile);
+				if (strcmp(process_image_name, exe_name.array) == 0) {
+					processes.push_back({pe32.th32ProcessID, pe32.th32ParentProcessID});
 				}
-				dstr_free(&exe);
-			}
+				dstr_free(&exe_name);
+			} while (Process32Next(hSnap, &pe32));
 		}
+		CloseHandle(hSnap);
 	}
 
-	if (other_found) {
-		*id = other_id;
-		*changed = true;
-		sprintf(new_name, "%s:%d", strings[0].c_str(), other_id);
+	if (processes.size() == 0)
+		return false;
+
+	if (processes.size() == 1) {
+		*id = processes[0].id;
 		return true;
+	}
+
+	std::set<DWORD> ids;
+	std::set<DWORD> parent_ids;
+	for (size_t i = 0; i < processes.size(); i++) {
+		ids.insert(processes[i].id);
+		parent_ids.insert(processes[i].parent_id);
+	}
+
+	for (auto iter = ids.begin(); iter != ids.end(); iter++) {
+		if (parent_ids.count(*iter) > 0) {
+			*id = *iter;
+			return true;
+		}
 	}
 
 	return false;

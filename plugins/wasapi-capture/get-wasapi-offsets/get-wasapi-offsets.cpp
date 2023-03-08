@@ -144,6 +144,7 @@ void get_wasapi_offset(struct wasapi_offset *ret)
 	auto module = GetModuleHandleA("AudioSes.dll");
 	ret->release_buffer = vtable_offset(module, audio_render_client, 4);
 	ret->get_service = vtable_offset(module, audio_client, 14);
+	ret->com_release = vtable_offset(module, audio_client, 2);
 
 	SAFE_RELEASE(dev_enum);
 	SAFE_RELEASE(imm_device);
@@ -158,6 +159,7 @@ int main(int argc, char *argv[])
 	struct wasapi_offset offset = {0};
 	get_wasapi_offset(&offset);
 	printf("[wasapi]\n");
+	printf("com_release=0x%" PRIx32 "\n", offset.com_release);
 	printf("release_buffer=0x%" PRIx32 "\n", offset.release_buffer);
 	printf("get_service=0x%" PRIx32 "\n", offset.get_service);
 	printf("audio_client_offset=0x%" PRIx32 "\n", offset.audio_client_offset);

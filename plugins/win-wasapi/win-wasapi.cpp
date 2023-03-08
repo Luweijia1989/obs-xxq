@@ -210,6 +210,11 @@ inline WASAPISource::~WASAPISource()
 		delete aec;
 		aec = nullptr;
 	}
+	
+	if (output_rtc_source) {
+		obs_set_output_source(OUTPUT_RTC_SOURCE_CHANNEL, nullptr);
+		output_rtc_source = nullptr;
+	}
 }
 
 void WASAPISource::UpdateSettings(obs_data_t *settings)
@@ -639,11 +644,6 @@ DWORD WINAPI WASAPISource::CaptureThread(LPVOID param)
 			reconnect = true;
 			break;
 		}
-	}
-	
-	if (source->output_rtc_source) {
-		obs_set_output_source(OUTPUT_RTC_SOURCE_CHANNEL, nullptr);
-		source->output_rtc_source = nullptr;
 	}
 
 	source->client->Stop();
