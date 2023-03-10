@@ -606,6 +606,10 @@ bool WASAPISource::ProcessCaptureData()
 					obs_set_output_source(OUTPUT_RTC_SOURCE_CHANNEL, output_rtc_source);
 					obs_source_release(output_rtc_source);
 				}
+				auto originVolume = obs_source_get_volume(source);
+				auto rtcSourceVolume = obs_source_get_volume(output_rtc_source);
+				if (originVolume != rtcSourceVolume)
+					obs_source_set_volume(output_rtc_source, originVolume);
 
 				data.data[0] = audio_data;
 				obs_source_output_audio(output_rtc_source, &data);
