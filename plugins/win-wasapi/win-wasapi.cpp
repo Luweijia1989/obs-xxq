@@ -12,21 +12,16 @@
 
 #include <thread>
 
-#include "xxq-aec.h"
-
 using namespace std;
 
 #define OPT_DEVICE_ID "device_id"
 #define OPT_USE_DEVICE_TIMING "use_device_timing"
-
-#define OUTPUT_RTC_SOURCE_CHANNEL MAX_CHANNELS-2
 
 static void GetWASAPIDefaults(obs_data_t *settings);
 
 #define OBS_KSAUDIO_SPEAKER_4POINT1 \
 	(KSAUDIO_SPEAKER_SURROUND | SPEAKER_LOW_FREQUENCY)
 
-class XXQAec;
 class WASAPISource {
 	ComPtr<IMMDevice> device;
 	ComPtr<IAudioClient> client;
@@ -34,9 +29,6 @@ class WASAPISource {
 	ComPtr<IAudioRenderClient> render;
 	ComPtr<IMMDeviceEnumerator> enumerator;
 	ComPtr<IMMNotificationClient> notify;
-
-	XXQAec *aec = nullptr;
-	obs_source_t *output_rtc_source = nullptr;
 
 	obs_source_t *source;
 	wstring default_id;
@@ -205,16 +197,6 @@ inline WASAPISource::~WASAPISource()
 	Stop();
 
 	DeleteCriticalSection(&mutex);
-
-	if (aec) {
-		delete aec;
-		aec = nullptr;
-	}
-	
-	if (output_rtc_source) {
-		obs_set_output_source(OUTPUT_RTC_SOURCE_CHANNEL, nullptr);
-		output_rtc_source = nullptr;
-	}
 }
 
 void WASAPISource::UpdateSettings(obs_data_t *settings)
@@ -400,15 +382,6 @@ void WASAPISource::InitCapture()
 				     this, 0, nullptr);
 	if (!captureThread.Valid())
 		throw "Failed to create capture thread";
-	
-	if (!isInputDevice) {
-		if (aec) {
-			delete aec;
-			aec = nullptr;
-		}
-		aec = new XXQAec;
-		aec->initResamplers(sampleRate, format, speakers);
-	}
 
 	client->Start();
 	active = true;
@@ -583,7 +556,7 @@ bool WASAPISource::ProcessCaptureData()
 		}
 
 		obs_source_audio data = {};
-		data.data[0] = buffer;
+		data.data[0] = (const uint8_t *)buffer;
 		data.frames = (uint32_t)frames;
 		data.speakers = speakers;
 		data.samples_per_sec = sampleRate;
@@ -595,26 +568,6 @@ bool WASAPISource::ProcessCaptureData()
 							 sampleRate);
 
 		obs_source_output_audio(source, &data);
-
-		if (!isInputDevice) {
-			uint8_t *audio_data = nullptr;
-			bool processed = aec->processData(buffer, frames, &audio_data);
-			if (processed) {
-				if (!output_rtc_source) {
-					output_rtc_source = obs_source_create("pure_audio_input", "pure_audio", nullptr, nullptr);
-					obs_source_set_audio_type(output_rtc_source, OBS_SOURCE_AUDIO_LINK);
-					obs_set_output_source(OUTPUT_RTC_SOURCE_CHANNEL, output_rtc_source);
-					obs_source_release(output_rtc_source);
-				}
-				auto originVolume = obs_source_get_volume(source);
-				auto rtcSourceVolume = obs_source_get_volume(output_rtc_source);
-				if (originVolume != rtcSourceVolume)
-					obs_source_set_volume(output_rtc_source, originVolume);
-
-				data.data[0] = audio_data;
-				obs_source_output_audio(output_rtc_source, &data);
-			}
-		} 
 
 		capture->ReleaseBuffer(frames);
 	}
