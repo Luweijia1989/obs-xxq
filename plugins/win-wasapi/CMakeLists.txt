@@ -4,9 +4,11 @@ find_package(Libspeexdsp REQUIRED)
 include_directories(${LIBSPEEXDSP_INCLUDE_DIRS})
 
 set(win-wasapi_HEADERS
-	enum-wasapi.hpp)
+	enum-wasapi.hpp
+	xxq-aec.h)
 
 set(win-wasapi_SOURCES
+	xxq-aec.cpp
 	win-wasapi.cpp
 	pure-audio-source.cpp
 	enum-wasapi.cpp

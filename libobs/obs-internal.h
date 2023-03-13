@@ -649,11 +649,6 @@ struct audio_cb_info {
 	void *param;
 };
 
-struct output_audio_cb_info {
-	obs_source_output_audio_callback_t callback;
-	void *param;
-};
-
 struct obs_source {
 	struct obs_context_data context;
 	struct obs_source_info info;
@@ -728,9 +723,6 @@ struct obs_source {
 	int64_t sync_offset;
 	int64_t last_sync_offset;
 	float balance;
-
-	pthread_mutex_t output_audio_cb_mutex;
-	DARRAY(struct output_audio_cb_info) output_audio_cb_list;
 
 	/* async video data */
 	gs_texture_t *async_textures[MAX_AV_PLANES];

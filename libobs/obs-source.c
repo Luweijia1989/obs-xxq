@@ -183,7 +183,6 @@ static bool obs_source_init(struct obs_source *source)
 	pthread_mutex_init_value(&source->audio_mutex);
 	pthread_mutex_init_value(&source->audio_buf_mutex);
 	pthread_mutex_init_value(&source->audio_cb_mutex);
-	pthread_mutex_init_value(&source->output_audio_cb_mutex);
 
 	if (pthread_mutexattr_init(&attr) != 0)
 		return false;
@@ -200,8 +199,6 @@ static bool obs_source_init(struct obs_source *source)
 	if (pthread_mutex_init(&source->audio_mutex, NULL) != 0)
 		return false;
 	if (pthread_mutex_init(&source->async_mutex, NULL) != 0)
-		return false;
-	if (pthread_mutex_init(&source->output_audio_cb_mutex, NULL) != 0)
 		return false;
 
 	if (is_audio_source(source) || is_composite_source(source))
@@ -675,7 +672,6 @@ void obs_source_destroy(struct obs_source *source)
 	pthread_mutex_destroy(&source->audio_cb_mutex);
 	pthread_mutex_destroy(&source->audio_mutex);
 	pthread_mutex_destroy(&source->async_mutex);
-	pthread_mutex_destroy(&source->output_audio_cb_mutex);
 	obs_data_release(source->private_settings);
 	obs_context_data_free(&source->context);
 
@@ -3190,13 +3186,6 @@ void obs_source_output_audio(obs_source_t *source,
 	if (!obs_ptr_valid(audio, "obs_source_output_audio"))
 		return;
 
-	pthread_mutex_lock(&source->output_audio_cb_mutex);
-	for (size_t i = source->output_audio_cb_list.num; i > 0; i--) {
-		struct output_audio_cb_info info = source->output_audio_cb_list.array[i - 1];
-		info.callback(info.param, source, audio);
-	}
-	pthread_mutex_unlock(&source->output_audio_cb_mutex);
-
 	process_audio(source, audio);
 
 	pthread_mutex_lock(&source->filter_mutex);
@@ -4962,28 +4951,4 @@ void obs_source_set_audio_type(obs_source_t *source, enum obs_source_audio_type 
 		return;
 
 	source->audio_type = type;
-}
-
-void obs_source_add_output_audio_callback(obs_source_t *source, obs_source_output_audio_callback_t cb, void *param)
-{
-	if (!obs_source_valid(source, "obs_source_add_output_audio_callback"))
-		return;
-
-	struct output_audio_cb_info info = {cb, param};
-
-	pthread_mutex_lock(&source->output_audio_cb_mutex);
-	da_push_back(source->output_audio_cb_list, &info);
-	pthread_mutex_unlock(&source->output_audio_cb_mutex);
-}
-
-void obs_source_remove_output_audio_callback(obs_source_t *source, obs_source_output_audio_callback_t cb, void *param)
-{
-	if (!obs_source_valid(source, "obs_source_remove_output_audio_callback"))
-		return;
-
-	struct output_audio_cb_info info = {cb, param};
-
-	pthread_mutex_lock(&source->output_audio_cb_mutex);
-	da_erase_item(source->output_audio_cb_list, &info);
-	pthread_mutex_unlock(&source->output_audio_cb_mutex);
 }

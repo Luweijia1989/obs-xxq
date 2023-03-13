@@ -1253,10 +1253,6 @@ EXPORT struct obs_source_frame *obs_source_get_frame(obs_source_t *source);
 EXPORT void obs_source_release_frame(obs_source_t *source,
 				     struct obs_source_frame *frame);
 
-typedef void (*obs_source_output_audio_callback_t)(void *data, obs_source_t *source, const struct obs_source_audio *audio);
-EXPORT void obs_source_add_output_audio_callback(obs_source_t *source, obs_source_output_audio_callback_t cb, void *param);
-EXPORT void obs_source_remove_output_audio_callback(obs_source_t *source, obs_source_output_audio_callback_t cb, void *param);
-
 /**
  * Default RGB filter handler for generic effect filters.  Processes the
  * filter chain and renders them to texture if needed, then the filter is
