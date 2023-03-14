@@ -87,6 +87,10 @@ public:
 	XXQAec *aec = nullptr;
 	obs_source_t *output_rtc_source = nullptr;
 	bool force_output = false;
+	std::string play_device;
+
+	static void loopback_volume(void *vptr, calldata_t *calldata);
+	static void loopback_muted(void *vptr, calldata_t *calldata);
 
 public:
 	WASAPISource(obs_data_t *settings, obs_source_t *source_, bool input);
@@ -153,8 +157,18 @@ WASAPISource::WASAPISource(obs_data_t *settings, obs_source_t *source_,
 			   bool input)
 	: source(source_), isInputDevice(input)
 {
-	if (!isInputDevice)
+	if (!isInputDevice) {
 		obs_source_set_audio_type(source, OBS_SOURCE_AUDIO_ONLY_RTMP);
+
+		output_rtc_source = obs_source_create("pure_audio_input", "pure_audio", nullptr, nullptr);
+		obs_source_set_audio_type(output_rtc_source, OBS_SOURCE_AUDIO_LINK);
+		obs_set_output_source(OUTPUT_RTC_SOURCE_CHANNEL, output_rtc_source);
+		obs_source_release(output_rtc_source);
+
+		auto sig_handler = obs_source_get_signal_handler(source);
+		signal_handler_connect(sig_handler, "volume", loopback_volume, this);
+		signal_handler_connect(sig_handler, "mute", loopback_muted, this);
+	}
 
 	InitializeCriticalSection(&mutex);
 
@@ -169,6 +183,20 @@ WASAPISource::WASAPISource(obs_data_t *settings, obs_source_t *source_,
 		throw "Could not create receive signal";
 
 	Start();
+}
+
+void WASAPISource::loopback_volume(void *vptr, calldata_t *calldata)
+{
+	WASAPISource *was = (WASAPISource *)vptr;
+	float mul = (float)calldata_float(calldata, "volume");
+	obs_source_set_volume(was->output_rtc_source, mul);
+}
+
+void WASAPISource::loopback_muted(void *vptr, calldata_t *calldata)
+{
+	WASAPISource *was = (WASAPISource *)vptr;
+	bool muted = (bool)calldata_bool(calldata, "muted");
+	obs_source_set_muted(was->output_rtc_source, muted);
 }
 
 inline void WASAPISource::Start()
@@ -207,6 +235,12 @@ inline WASAPISource::~WASAPISource()
 	Stop();
 
 	DeleteCriticalSection(&mutex);
+
+	if (!isInputDevice) {
+		auto sig_handler = obs_source_get_signal_handler(source);
+		signal_handler_disconnect(sig_handler, "volume", loopback_volume, this);
+		signal_handler_disconnect(sig_handler, "muted", loopback_muted, this);
+	}
 
 	if (aec) {
 		delete aec;
@@ -599,29 +633,21 @@ bool WASAPISource::ProcessCaptureData()
 		obs_source_output_audio(source, &data);
 
 		if (!isInputDevice) {
-			if (output_rtc_source) {
-				auto originVolume = obs_source_get_volume(source);
-				auto rtcSourceVolume = obs_source_get_volume(output_rtc_source);
-				if (originVolume != rtcSourceVolume)
-					obs_source_set_volume(output_rtc_source, originVolume);
-
-				obs_source_set_muted(output_rtc_source, obs_source_muted(source));
+			std::string did = device_id;
+			if (device_id == "default") {
+				char *buf = NULL;
+				os_wcs_to_utf8_ptr(default_id.c_str(), default_id.size(), &buf);
+				did = buf;
+				bfree(buf);
 			}
 
 			uint8_t *audio_data = nullptr;
-			bool processed = aec->processData(buffer, frames, &audio_data);
-			if (processed) {
-				if (!output_rtc_source) {
-					output_rtc_source = obs_source_create("pure_audio_input", "pure_audio", nullptr, nullptr);
-					obs_source_set_audio_type(output_rtc_source, OBS_SOURCE_AUDIO_LINK);
-					obs_set_output_source(OUTPUT_RTC_SOURCE_CHANNEL, output_rtc_source);
-					obs_source_release(output_rtc_source);
-				}
-				
+			bool processed = aec->processData(did == play_device, buffer, frames, &audio_data);
+			if (processed) {				
 				data.data[0] = audio_data;
 				obs_source_output_audio(output_rtc_source, &data);
 			} else {
-				if (force_output && output_rtc_source)
+				if (force_output)
 					obs_source_output_audio(output_rtc_source, &data);
 			}
 		} 
@@ -804,7 +830,12 @@ static obs_properties_t *GetWASAPIPropertiesOutput(void *)
 static void MakeWASAPICommand(void *param, obs_data_t *command)
 {
 	WASAPISource *was = (WASAPISource *)param;
-	was->force_output = obs_data_get_bool(command, "force_output");
+	int type = obs_data_get_int(command, "type");
+	if (type == 0)
+		was->force_output = obs_data_get_bool(command, "force_output");
+	else if (type == 1) {
+		was->play_device = obs_data_get_string(command, "play_device");
+	}
 }
 
 void RegisterWASAPIInput()

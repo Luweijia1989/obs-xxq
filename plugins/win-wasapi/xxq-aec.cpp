@@ -14,18 +14,12 @@ XXQAec::XXQAec()
 	buffer = (uint8_t *)bmalloc(frame_size * 4);
 	middle_buffer = (uint8_t *)bmalloc(frame_size * 4);
 
-	echo_state = speex_echo_state_init_mc(frame_size, filter_size, 2, 2); // for stereo
-	preprocess_state = speex_preprocess_state_init(frame_size * 2, SAMPLERATE);
-
-	int sampleRate = SAMPLERATE;
-	speex_echo_ctl(echo_state, SPEEX_ECHO_SET_SAMPLING_RATE, &sampleRate);
-	speex_preprocess_ctl(preprocess_state, SPEEX_PREPROCESS_SET_ECHO_STATE, echo_state);
+	initSpeex();
 }
 
 XXQAec::~XXQAec()
 {
-	speex_echo_state_destroy(echo_state);
-	speex_preprocess_state_destroy(preprocess_state);
+	destroySpeex();
 
 	if (convert2S16)
 		audio_resampler_destroy(convert2S16);
@@ -36,6 +30,23 @@ XXQAec::~XXQAec()
 	bfree(buffer);
 	bfree(middle_buffer);
 }
+
+void XXQAec::initSpeex()
+{
+	echo_state = speex_echo_state_init_mc(frame_size, filter_size, 2, 2); // for stereo
+	preprocess_state = speex_preprocess_state_init(frame_size * 2, SAMPLERATE);
+
+	int sampleRate = SAMPLERATE;
+	speex_echo_ctl(echo_state, SPEEX_ECHO_SET_SAMPLING_RATE, &sampleRate);
+	speex_preprocess_ctl(preprocess_state, SPEEX_PREPROCESS_SET_ECHO_STATE, echo_state);
+}
+
+void XXQAec::destroySpeex()
+{
+	speex_echo_state_destroy(echo_state);
+	speex_preprocess_state_destroy(preprocess_state);
+}
+
 
 //target always 48000hz, 2channels, s16
 void XXQAec::initResamplers(uint32_t samplerate, audio_format format, speaker_layout layout)
@@ -56,10 +67,10 @@ void XXQAec::initResamplers(uint32_t samplerate, audio_format format, speaker_la
 	convert_back = audio_resampler_create(&src, &dst);
 }
 
-bool XXQAec::processData(uint8_t *data, int frames, uint8_t **output)
+bool XXQAec::processData(bool needAec, uint8_t *data, int frames, uint8_t **output)
 {
 	bool res = obs_get_playing_audio_data(buffer, frame_size * 4);
-	if (!res) {
+	if (!res || !needAec) {
 		*output = data;
 		return false;
 	}

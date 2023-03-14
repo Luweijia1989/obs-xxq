@@ -3277,7 +3277,12 @@ void obs_add_playing_audio_data(uint8_t *data, int size)
 	if (!audio)
 		return;
 
+	if (size != 3840)
+		return;
+
 	pthread_mutex_lock(&audio->playing_data_mutex);
+	if (audio->playing_datas.size > 3840)
+		circlebuf_pop_front(&audio->playing_datas, NULL, 3840);
 	circlebuf_push_back(&audio->playing_datas, data, size);
 	pthread_mutex_unlock(&audio->playing_data_mutex);
 }

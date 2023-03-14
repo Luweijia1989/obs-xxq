@@ -12,7 +12,11 @@ public:
 	~XXQAec();
 
 	void initResamplers(uint32_t samplerate, audio_format format, speaker_layout layout);
-	bool processData(uint8_t *data, int frames, uint8_t **output);
+	bool processData(bool needAec, uint8_t *data, int frames, uint8_t **output);
+
+private:
+	void initSpeex();
+	void destroySpeex();
 
 private:
 	audio_resampler_t *convert2S16 = nullptr;
