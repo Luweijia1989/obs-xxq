@@ -35,9 +35,6 @@ class WASAPISource {
 	ComPtr<IMMDeviceEnumerator> enumerator;
 	ComPtr<IMMNotificationClient> notify;
 
-	XXQAec *aec = nullptr;
-	obs_source_t *output_rtc_source = nullptr;
-
 	obs_source_t *source;
 	wstring default_id;
 	string device_id;
@@ -85,6 +82,11 @@ class WASAPISource {
 	bool TryInitialize();
 
 	void UpdateSettings(obs_data_t *settings);
+
+public:
+	XXQAec *aec = nullptr;
+	obs_source_t *output_rtc_source = nullptr;
+	bool force_output = false;
 
 public:
 	WASAPISource(obs_data_t *settings, obs_source_t *source_, bool input);
@@ -597,6 +599,15 @@ bool WASAPISource::ProcessCaptureData()
 		obs_source_output_audio(source, &data);
 
 		if (!isInputDevice) {
+			if (output_rtc_source) {
+				auto originVolume = obs_source_get_volume(source);
+				auto rtcSourceVolume = obs_source_get_volume(output_rtc_source);
+				if (originVolume != rtcSourceVolume)
+					obs_source_set_volume(output_rtc_source, originVolume);
+
+				obs_source_set_muted(output_rtc_source, obs_source_muted(source));
+			}
+
 			uint8_t *audio_data = nullptr;
 			bool processed = aec->processData(buffer, frames, &audio_data);
 			if (processed) {
@@ -606,13 +617,12 @@ bool WASAPISource::ProcessCaptureData()
 					obs_set_output_source(OUTPUT_RTC_SOURCE_CHANNEL, output_rtc_source);
 					obs_source_release(output_rtc_source);
 				}
-				auto originVolume = obs_source_get_volume(source);
-				auto rtcSourceVolume = obs_source_get_volume(output_rtc_source);
-				if (originVolume != rtcSourceVolume)
-					obs_source_set_volume(output_rtc_source, originVolume);
-
+				
 				data.data[0] = audio_data;
 				obs_source_output_audio(output_rtc_source, &data);
+			} else {
+				if (force_output && output_rtc_source)
+					obs_source_output_audio(output_rtc_source, &data);
 			}
 		} 
 
@@ -791,6 +801,12 @@ static obs_properties_t *GetWASAPIPropertiesOutput(void *)
 	return GetWASAPIProperties(false);
 }
 
+static void MakeWASAPICommand(void *param, obs_data_t *command)
+{
+	WASAPISource *was = (WASAPISource *)param;
+	was->force_output = obs_data_get_bool(command, "force_output");
+}
+
 void RegisterWASAPIInput()
 {
 	obs_source_info info = {};
@@ -819,5 +835,6 @@ void RegisterWASAPIOutput()
 	info.update = UpdateWASAPISource;
 	info.get_defaults = GetWASAPIDefaultsOutput;
 	info.get_properties = GetWASAPIPropertiesOutput;
+	info.make_command = MakeWASAPICommand;
 	obs_register_source(&info);
 }
