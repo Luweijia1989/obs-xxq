@@ -642,12 +642,13 @@ bool WASAPISource::ProcessCaptureData()
 			}
 
 			uint8_t *audio_data = nullptr;
-			bool processed = aec->processData(did == play_device, buffer, frames, &audio_data);
+			bool need_aec = did == play_device;
+			bool processed = aec->processData(need_aec, buffer, frames, &audio_data);
 			if (processed) {				
 				data.data[0] = audio_data;
 				obs_source_output_audio(output_rtc_source, &data);
 			} else {
-				if (force_output)
+				if (force_output && !need_aec)
 					obs_source_output_audio(output_rtc_source, &data);
 			}
 		} 
