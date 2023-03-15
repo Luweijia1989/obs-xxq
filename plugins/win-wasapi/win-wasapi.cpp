@@ -86,7 +86,7 @@ class WASAPISource {
 public:
 	XXQAec *aec = nullptr;
 	obs_source_t *output_rtc_source = nullptr;
-	bool force_output = false;
+	bool looback_output_to_rtc = false;
 	std::string play_device;
 
 	static void loopback_volume(void *vptr, calldata_t *calldata);
@@ -633,23 +633,26 @@ bool WASAPISource::ProcessCaptureData()
 		obs_source_output_audio(source, &data);
 
 		if (!isInputDevice) {
-			std::string did = device_id;
-			if (device_id == "default") {
-				char *buf = NULL;
-				os_wcs_to_utf8_ptr(default_id.c_str(), default_id.size(), &buf);
-				did = buf;
-				bfree(buf);
-			}
+			if (looback_output_to_rtc) {
+				std::string did = device_id;
+				if (device_id == "default") {
+					char *buf = NULL;
+					os_wcs_to_utf8_ptr(default_id.c_str(), default_id.size(), &buf);
+					did = buf;
+					bfree(buf);
+				}
 
-			uint8_t *audio_data = nullptr;
-			bool need_aec = did == play_device;
-			bool processed = aec->processData(need_aec, buffer, frames, &audio_data);
-			if (processed) {				
-				data.data[0] = audio_data;
-				obs_source_output_audio(output_rtc_source, &data);
-			} else {
-				if (force_output && !need_aec)
+				uint8_t *audio_data = nullptr;
+				bool need_aec = did == play_device;
+				bool processed = aec->processData(need_aec, buffer, frames, &audio_data);
+				if (need_aec) {
+					if (processed) {				
+						data.data[0] = audio_data;
+						obs_source_output_audio(output_rtc_source, &data);
+					}
+				} else {
 					obs_source_output_audio(output_rtc_source, &data);
+				}
 			}
 		} 
 
@@ -833,7 +836,7 @@ static void MakeWASAPICommand(void *param, obs_data_t *command)
 	WASAPISource *was = (WASAPISource *)param;
 	int type = obs_data_get_int(command, "type");
 	if (type == 0)
-		was->force_output = obs_data_get_bool(command, "force_output");
+		was->looback_output_to_rtc = obs_data_get_bool(command, "looback_output_to_rtc");
 	else if (type == 1) {
 		was->play_device = obs_data_get_string(command, "play_device");
 	}
