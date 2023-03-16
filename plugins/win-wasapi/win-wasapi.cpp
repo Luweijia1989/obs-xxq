@@ -9,31 +9,32 @@
 #include <util/windows/CoTaskMemPtr.hpp>
 #include <util/threading.h>
 #include <util/util_uint64.h>
+#include <media-io/audio-resampler.h>
 
 #include <thread>
-
-#include "xxq-aec.h"
 
 using namespace std;
 
 #define OPT_DEVICE_ID "device_id"
 #define OPT_USE_DEVICE_TIMING "use_device_timing"
 
-#define OUTPUT_RTC_SOURCE_CHANNEL MAX_CHANNELS-2
-
 static void GetWASAPIDefaults(obs_data_t *settings);
 
 #define OBS_KSAUDIO_SPEAKER_4POINT1 \
 	(KSAUDIO_SPEAKER_SURROUND | SPEAKER_LOW_FREQUENCY)
 
-class XXQAec;
 class WASAPISource {
 	ComPtr<IMMDevice> device;
 	ComPtr<IAudioClient> client;
+	ComPtr<IAudioClient> render_client;
 	ComPtr<IAudioCaptureClient> capture;
 	ComPtr<IAudioRenderClient> render;
 	ComPtr<IMMDeviceEnumerator> enumerator;
 	ComPtr<IMMNotificationClient> notify;
+
+	audio_resampler_t *resampler = nullptr;
+	resample_info resampler_src_fmt{};
+	WORD block_align = 0;
 
 	obs_source_t *source;
 	wstring default_id;
@@ -82,15 +83,6 @@ class WASAPISource {
 	bool TryInitialize();
 
 	void UpdateSettings(obs_data_t *settings);
-
-public:
-	XXQAec *aec = nullptr;
-	obs_source_t *output_rtc_source = nullptr;
-	bool looback_output_to_rtc = false;
-	std::string play_device;
-
-	static void loopback_volume(void *vptr, calldata_t *calldata);
-	static void loopback_muted(void *vptr, calldata_t *calldata);
 
 public:
 	WASAPISource(obs_data_t *settings, obs_source_t *source_, bool input);
@@ -159,15 +151,6 @@ WASAPISource::WASAPISource(obs_data_t *settings, obs_source_t *source_,
 {
 	if (!isInputDevice) {
 		obs_source_set_audio_type(source, OBS_SOURCE_AUDIO_ONLY_RTMP);
-
-		output_rtc_source = obs_source_create("pure_audio_input", "pure_audio", nullptr, nullptr);
-		obs_source_set_audio_type(output_rtc_source, OBS_SOURCE_AUDIO_LINK);
-		obs_set_output_source(OUTPUT_RTC_SOURCE_CHANNEL, output_rtc_source);
-		obs_source_release(output_rtc_source);
-
-		auto sig_handler = obs_source_get_signal_handler(source);
-		signal_handler_connect(sig_handler, "volume", loopback_volume, this);
-		signal_handler_connect(sig_handler, "mute", loopback_muted, this);
 	}
 
 	InitializeCriticalSection(&mutex);
@@ -183,20 +166,6 @@ WASAPISource::WASAPISource(obs_data_t *settings, obs_source_t *source_,
 		throw "Could not create receive signal";
 
 	Start();
-}
-
-void WASAPISource::loopback_volume(void *vptr, calldata_t *calldata)
-{
-	WASAPISource *was = (WASAPISource *)vptr;
-	float mul = (float)calldata_float(calldata, "volume");
-	obs_source_set_volume(was->output_rtc_source, mul);
-}
-
-void WASAPISource::loopback_muted(void *vptr, calldata_t *calldata)
-{
-	WASAPISource *was = (WASAPISource *)vptr;
-	bool muted = (bool)calldata_bool(calldata, "muted");
-	obs_source_set_muted(was->output_rtc_source, muted);
 }
 
 inline void WASAPISource::Start()
@@ -236,20 +205,9 @@ inline WASAPISource::~WASAPISource()
 
 	DeleteCriticalSection(&mutex);
 
-	if (!isInputDevice) {
-		auto sig_handler = obs_source_get_signal_handler(source);
-		signal_handler_disconnect(sig_handler, "volume", loopback_volume, this);
-		signal_handler_disconnect(sig_handler, "muted", loopback_muted, this);
-	}
-
-	if (aec) {
-		delete aec;
-		aec = nullptr;
-	}
-	
-	if (output_rtc_source) {
-		obs_set_output_source(OUTPUT_RTC_SOURCE_CHANNEL, nullptr);
-		output_rtc_source = nullptr;
+	if (resampler) {
+		audio_resampler_destroy(resampler);
+		resampler = nullptr;
 	}
 }
 
@@ -348,36 +306,36 @@ void WASAPISource::InitRender()
 	HRESULT res;
 	LPBYTE buffer;
 	UINT32 frames;
-	ComPtr<IAudioClient> client;
 
 	res = device->Activate(__uuidof(IAudioClient), CLSCTX_ALL, nullptr,
-			       (void **)client.Assign());
+			       (void **)render_client.Assign());
 	if (FAILED(res))
-		throw HRError("Failed to activate client context", res);
+		throw HRError("Failed to activate render_client context", res);
 
-	res = client->GetMixFormat(&wfex);
+	res = render_client->GetMixFormat(&wfex);
 	if (FAILED(res))
 		throw HRError("Failed to get mix format", res);
 
-	res = client->Initialize(AUDCLNT_SHAREMODE_SHARED, 0, BUFFER_TIME_100NS,
+	block_align = wfex->nBlockAlign;
+	res = render_client->Initialize(AUDCLNT_SHAREMODE_SHARED, 0, BUFFER_TIME_100NS,
 				 0, wfex, nullptr);
 	if (FAILED(res)) {
 		OutputCaptureFail();
-		throw HRError("Failed to get initialize audio client", res);
+		throw HRError("Failed to get initialize audio render_client", res);
 	}
 
 	/* Silent loopback fix. Prevents audio stream from stopping and */
 	/* messing up timestamps and other weird glitches during silence */
 	/* by playing a silent sample all over again. */
 
-	res = client->GetBufferSize(&frames);
+	res = render_client->GetBufferSize(&frames);
 	if (FAILED(res))
 		throw HRError("Failed to get buffer size", res);
 
-	res = client->GetService(__uuidof(IAudioRenderClient),
+	res = render_client->GetService(__uuidof(IAudioRenderClient),
 				 (void **)render.Assign());
 	if (FAILED(res))
-		throw HRError("Failed to get render client", res);
+		throw HRError("Failed to get render render_client", res);
 
 	res = render->GetBuffer(frames, &buffer);
 	if (FAILED(res))
@@ -386,6 +344,8 @@ void WASAPISource::InitRender()
 	memset(buffer, 0, frames * wfex->nBlockAlign);
 
 	render->ReleaseBuffer(frames, 0);
+
+	render_client->Start();
 }
 
 static speaker_layout ConvertSpeakerLayout(DWORD layout, WORD channels)
@@ -436,15 +396,6 @@ void WASAPISource::InitCapture()
 				     this, 0, nullptr);
 	if (!captureThread.Valid())
 		throw "Failed to create capture thread";
-	
-	if (!isInputDevice) {
-		if (aec) {
-			delete aec;
-			aec = nullptr;
-		}
-		aec = new XXQAec;
-		aec->initResamplers(sampleRate, format, speakers);
-	}
 
 	client->Start();
 	active = true;
@@ -591,6 +542,18 @@ bool WASAPISource::ProcessCaptureData()
 	UINT64 pos, ts;
 	UINT captureSize = 0;
 
+	if (!isInputDevice) {
+		res = render_client->GetBufferSize(&frames);
+		UINT32 padding;
+		render_client->GetCurrentPadding(&padding);
+		UINT32 req_size = frames - padding;
+		res = render->GetBuffer(req_size, &buffer);
+		if (!FAILED(res)) {
+			memset(buffer, 0, req_size * block_align);
+			render->ReleaseBuffer(req_size, 0);
+		}
+	}
+
 	while (true) {
 		res = capture->GetNextPacketSize(&captureSize);
 
@@ -619,7 +582,7 @@ bool WASAPISource::ProcessCaptureData()
 		}
 
 		obs_source_audio data = {};
-		data.data[0] = buffer;
+		data.data[0] = (const uint8_t *)buffer;
 		data.frames = (uint32_t)frames;
 		data.speakers = speakers;
 		data.samples_per_sec = sampleRate;
@@ -633,28 +596,40 @@ bool WASAPISource::ProcessCaptureData()
 		obs_source_output_audio(source, &data);
 
 		if (!isInputDevice) {
-			if (looback_output_to_rtc) {
-				std::string did = device_id;
-				if (device_id == "default") {
-					char *buf = NULL;
-					os_wcs_to_utf8_ptr(default_id.c_str(), default_id.size(), &buf);
-					did = buf;
-					bfree(buf);
+			if (resampler_src_fmt.samples_per_sec != sampleRate
+				|| resampler_src_fmt.speakers != speakers) {
+				if (resampler) {
+					audio_resampler_destroy(resampler);
+					resampler = nullptr;
 				}
 
-				uint8_t *audio_data = nullptr;
-				bool need_aec = did == play_device;
-				bool processed = aec->processData(need_aec, buffer, frames, &audio_data);
-				if (need_aec) {
-					if (processed) {				
-						data.data[0] = audio_data;
-						obs_source_output_audio(output_rtc_source, &data);
-					}
-				} else {
-					obs_source_output_audio(output_rtc_source, &data);
-				}
+				resampler_src_fmt.samples_per_sec = sampleRate;
+				resampler_src_fmt.speakers = speakers;
+				resampler_src_fmt.format = AUDIO_FORMAT_FLOAT;
+
+				resample_info dst;
+				dst.format = AUDIO_FORMAT_16BIT;
+				dst.samples_per_sec = 48000;
+				dst.speakers = SPEAKERS_STEREO;
+
+				resampler = audio_resampler_create(&dst, &resampler_src_fmt);
 			}
-		} 
+
+			uint8_t *input[MAX_AV_PLANES] = {nullptr};
+			input[0] = buffer;
+
+			uint8_t *resample_data[MAX_AV_PLANES];
+			uint32_t resample_frames;
+			uint64_t ts_offset;
+			bool success = audio_resampler_resample(resampler, resample_data, &resample_frames, &ts_offset, input, frames);
+			if (success) {
+				obs_data_t *event = obs_data_create();
+				obs_data_set_int(event, "data", (long long )(resample_data[0]));
+				obs_data_set_int(event, "size", resample_frames * 4);
+				obs_source_signal_event(source, event);
+				obs_data_release(event);
+			}
+		}
 
 		capture->ReleaseBuffer(frames);
 	}
@@ -831,17 +806,6 @@ static obs_properties_t *GetWASAPIPropertiesOutput(void *)
 	return GetWASAPIProperties(false);
 }
 
-static void MakeWASAPICommand(void *param, obs_data_t *command)
-{
-	WASAPISource *was = (WASAPISource *)param;
-	int type = obs_data_get_int(command, "type");
-	if (type == 0)
-		was->looback_output_to_rtc = obs_data_get_bool(command, "looback_output_to_rtc");
-	else if (type == 1) {
-		was->play_device = obs_data_get_string(command, "play_device");
-	}
-}
-
 void RegisterWASAPIInput()
 {
 	obs_source_info info = {};
@@ -870,6 +834,5 @@ void RegisterWASAPIOutput()
 	info.update = UpdateWASAPISource;
 	info.get_defaults = GetWASAPIDefaultsOutput;
 	info.get_properties = GetWASAPIPropertiesOutput;
-	info.make_command = MakeWASAPICommand;
 	obs_register_source(&info);
 }

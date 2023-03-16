@@ -398,9 +398,6 @@ struct obs_core_audio {
 	DARRAY(struct audio_monitor *) monitors;
 	char *monitoring_device_name;
 	char *monitoring_device_id;
-
-	pthread_mutex_t playing_data_mutex;
-	struct circlebuf playing_datas;
 };
 
 /* user sources, output channels, and displays */
