@@ -665,6 +665,9 @@ DWORD WINAPI WASAPISource::CaptureThread(LPVOID param)
 		}
 	}
 
+	if (!source->isInputDevice)
+		source->render_client->Stop();
+
 	source->client->Stop();
 
 	source->captureThread = nullptr;
