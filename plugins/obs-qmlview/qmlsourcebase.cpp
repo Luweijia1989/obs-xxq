@@ -1,9 +1,85 @@
-﻿#include "qmlsourcebase.h"
+#include "qmlsourcebase.h"
 #include "renderer.h"
+#include <qnetworkaccessmanager.h>
+#include <qnetworkreply.h>
+
+static QString GetAppDataDirPath()
+{
+    QString path = QStandardPaths::writableLocation(QStandardPaths::AppLocalDataLocation);
+    QDir    dir(path);
+    if(!dir.exists(path))
+        dir.mkdir(path);
+    return path;
+}
+
+static QString GetAppImageCachePath()
+{
+    QString path = GetAppDataDirPath() + "/cache/image";
+    QDir    dir;
+    if(!dir.exists(path))
+        dir.mkpath(path);
+
+    return path;
+}
+
+QMLBridge::QMLBridge(QObject *parent /*= nullptr*/)
+    : QObject(parent)
+{
+}
+
+void QMLBridge::downLoad(const QString &url, QJSValue callBack)
+{
+    QPointer< QJSEngine > pEngine = callBack.engine();
+    QJSValue              val     = pEngine->newObject();
+
+    auto cb = [=](const QString &file) mutable {
+        if(pEngine != nullptr)
+        {
+            val.setProperty("file", "file:///" + file);
+            QJSValueList args = { val };
+            callBack.call(args);
+        }
+    };
+
+    QUrl    u(url);
+    QString fn = u.fileName();
+    if (fn.contains('.')) {
+	    auto suffix = fn.mid(fn.lastIndexOf('.') + 1);
+	    if (suffix.toLower() == "png")
+		    suffix = "apng";
+
+	    fn = fn.left(fn.lastIndexOf('.') + 1) + suffix;
+    }
+    fn = QString("%1/%2").arg(GetAppImageCachePath()).arg(fn);
+
+    QFileInfo fileInfo(fn);
+    if(fileInfo.size() > 0) {
+            cb(fn);
+    } else {
+	    QNetworkAccessManager *net = new QNetworkAccessManager;
+	    auto reply = net->get(QNetworkRequest(QUrl(url)));
+	    connect(reply, &QNetworkReply::finished, this, [=]() mutable {
+		    if (reply->error() == QNetworkReply::NoError) {
+			    auto data = reply->readAll();
+			    if (!data.isEmpty()) {
+				    QFile file(fn);
+				    if (file.open(QFile::ReadWrite)) {
+					    file.write(data);
+					    file.close();
+					    cb(fn);
+				    }
+			    }
+		    }
+		    reply->deleteLater();
+		    net->deleteLater();
+	    });
+    }
+}
 
 QmlSourceBase::QmlSourceBase(QObject *parent /*= nullptr*/) : QObject(parent)
 {
 	quickView = new OBSQuickview(this);
+	quickView->m_quickView->addContextProperties("g_bridge", new QMLBridge(this));
 }
 
 QmlSourceBase::~QmlSourceBase() {}

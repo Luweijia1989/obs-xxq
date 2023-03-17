@@ -63,13 +63,14 @@ Item{
 				  height:parent.height
 				  radius: audioLiveLinkProperties.avatarSize/2
 				  visible: false
-				  Image {
+                  CommonAnimateImage {
 					  id: squareavatarImage
 					  smooth: true
 					  visible: true
-					  anchors.fill: parent
-					  source:  audioLiveLinkProperties.path
-				      sourceSize:Qt.size(audioLiveLinkProperties.avatarSize,audioLiveLinkProperties.avatarSize)
+                      width: audioLiveLinkProperties.avatarSize
+                      height: audioLiveLinkProperties.avatarSize
+                      anchors.centerIn: parent
+                      cacheSource: audioLiveLinkProperties.path
 					  antialiasing: true
 				  }
 
