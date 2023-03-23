@@ -143,10 +143,6 @@ WASAPISource::WASAPISource(obs_data_t *settings, obs_source_t *source_,
 			   bool input)
 	: source(source_), isInputDevice(input)
 {
-	if (!isInputDevice) {
-		obs_source_set_audio_type(source, OBS_SOURCE_AUDIO_BOTH_BUT_RTC_AEC);
-	}
-
 	InitializeCriticalSection(&mutex);
 
 	UpdateSettings(settings);
