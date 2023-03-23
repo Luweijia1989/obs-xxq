@@ -96,7 +96,7 @@ void OBSQTDisplay::CreateDisplay()
 
 	QTToGSWindow(winId(), info.window);
 
-	display = obs_display_create(&info, backgroundColor, init_cb, this);
+	display = obs_display_create(&info, backgroundColor, init_cb, nullptr, this, to_swapchain);
 
 	emit DisplayCreated(this);
 }

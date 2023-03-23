@@ -30,6 +30,7 @@
 #include <QSizePolicy>
 #include <QJsonObject>
 #include <QJsonDocument>
+#include <QQuickView>
 
 #include <util/dstr.h>
 #include <util/util.hpp>
@@ -450,6 +451,16 @@ OBSBasic::OBSBasic(QWidget *parent)
 			obs_set_output_source(12, nullptr);
 		}
 	});
+
+	QQuickView *view = new QQuickView;
+	//    QSurfaceFormat format;
+	//    format.setSwapInterval(0);
+	//    view.setFormat(format);
+	const QUrl url(QStringLiteral("file:///D:/obs-xxq/UI/forms/projector.qml"));
+	view->setResizeMode(QQuickView::SizeRootObjectToView);
+	view->setSource(url);
+	view->resize(1280, 720);
+	view->show();
 }
 
 static void SaveAudioDevice(const char *name, int channel, obs_data_t *parent,
@@ -3453,6 +3464,7 @@ void OBSBasic::DrawBackdrop(float cx, float cy)
 
 void OBSBasic::RenderMain(void *data, uint32_t cx, uint32_t cy)
 {
+	return;
 	GS_DEBUG_MARKER_BEGIN(GS_DEBUG_COLOR_DEFAULT, "RenderMain");
 
 	OBSBasic *window = static_cast<OBSBasic *>(data);
@@ -3501,14 +3513,13 @@ void OBSBasic::RenderMain(void *data, uint32_t cx, uint32_t cy)
 
 	gs_ortho(-window->previewX, right, -window->previewY, bottom, -100.0f,
 		 100.0f);
-	gs_reset_viewport();
+	gs_viewport_pop();
 
 	window->ui->preview->DrawSceneEditing();
 
 	/* --------------------------------------- */
 
 	gs_projection_pop();
-	gs_viewport_pop();
 
 	GS_DEBUG_MARKER_END();
 	window->ui->preview->DrawTest();

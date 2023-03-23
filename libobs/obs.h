@@ -794,6 +794,12 @@ EXPORT void obs_view_render(obs_view_t *view, void *output_order);
 /* ------------------------------------------------------------------------- */
 /* Display context */
 
+enum display_type
+{
+	to_swapchain,
+	to_texture,
+};
+
 /**
  * Adds a new window display linked to the main render pipeline.  This creates
  * a new swap chain which updates every frame.
@@ -801,9 +807,11 @@ EXPORT void obs_view_render(obs_view_t *view, void *output_order);
  * @param  graphics_data  The swap chain initialization data.
  * @return                The new display context, or NULL if failed.
  */
+typedef void (*imgui_init_t)(void *device, void *context, void *data);
+typedef void (*display_texture_data_t)(uint8_t *data, uint32_t linesize, uint32_t src_linesize, uint32_t src_height, void *param);
 EXPORT obs_display_t *obs_display_create(
 	const struct gs_init_data *graphics_data, uint32_t backround_color,
-	void (*imgui_init)(void *device, void *context, void *data), void *p);
+	imgui_init_t imgui_init, display_texture_data_t display_texture_data_cb, void *p, enum display_type type);
 
 /** Destroys a display context */
 EXPORT void obs_display_destroy(obs_display_t *display);

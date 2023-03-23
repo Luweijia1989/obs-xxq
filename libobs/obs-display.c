@@ -20,12 +20,15 @@
 #include "obs-internal.h"
 
 bool obs_display_init(struct obs_display *display,
-		      const struct gs_init_data *graphics_data)
+		      const struct gs_init_data *graphics_data, enum display_type type)
 {
 	pthread_mutex_init_value(&display->draw_callbacks_mutex);
 	pthread_mutex_init_value(&display->draw_info_mutex);
 
-	if (graphics_data) {
+	display->type = type;
+	display->cx = graphics_data->cx;
+	display->cy = graphics_data->cy;
+	if (graphics_data && type == to_swapchain) {
 #if NO_FONT_DEVICE
 		gs_font_set(u8"阿里巴巴普惠体 R", 12);
 #endif
@@ -35,9 +38,8 @@ bool obs_display_init(struct obs_display *display,
 					"create swap chain");
 			return false;
 		}
-
-		display->cx = graphics_data->cx;
-		display->cy = graphics_data->cy;
+	} else if (type == to_texture) {
+		display->display_texrender = gs_texrender_create(GS_RGBA, GS_ZS_NONE);
 	}
 
 	if (pthread_mutex_init(&display->draw_callbacks_mutex, NULL) != 0) {
@@ -54,15 +56,17 @@ bool obs_display_init(struct obs_display *display,
 }
 
 obs_display_t *obs_display_create(const struct gs_init_data *graphics_data,
-				  uint32_t background_color, void(*imgui_init)(void *device, void *context, void *data), void *p)
+				  uint32_t background_color, imgui_init_t imgui_init, display_texture_data_t display_texture_data_cb, void *p, enum display_type type)
 {
 	struct obs_display *display = bzalloc(sizeof(struct obs_display));
+	display->texture_data_cb = display_texture_data_cb;
+	display->cb_data = p;
 
 	gs_enter_context(obs->video.graphics);
 
 	display->background_color = background_color;
 
-	if (!obs_display_init(display, graphics_data)) {
+	if (!obs_display_init(display, graphics_data, type)) {
 		obs_display_destroy(display);
 		display = NULL;
 	} else {
@@ -82,6 +86,25 @@ obs_display_t *obs_display_create(const struct gs_init_data *graphics_data,
 	return display;
 }
 
+static void obs_display_free_texture_render_copy_rc(obs_display_t *display)
+{
+	if (display->mapped_surface) {
+		gs_stagesurface_unmap(display->mapped_surface);
+		display->mapped_surface = NULL;
+	}
+
+	for (size_t i = 0; i < NUM_TEXTURES; i++) {
+		if (display->copy_surfaces[i]) {
+			gs_stagesurface_destroy(display->copy_surfaces[i]);
+			display->copy_surfaces[i] = NULL;
+		}
+
+		display->textures_copied[i] = false;
+	}
+
+	int cur_texture = 0;
+}
+
 void obs_display_free(obs_display_t *display)
 {
 	pthread_mutex_destroy(&display->draw_callbacks_mutex);
@@ -91,6 +114,13 @@ void obs_display_free(obs_display_t *display)
 	if (display->swap) {
 		gs_swapchain_destroy(display->swap);
 		display->swap = NULL;
+	}
+
+	obs_display_free_texture_render_copy_rc(display);
+
+	if (display->display_texrender) {
+		gs_texrender_destroy(display->display_texrender);
+		display->display_texrender = NULL;
 	}
 }
 
@@ -162,12 +192,25 @@ static inline void render_display_begin(struct obs_display *display,
 {
 	struct vec4 clear_color;
 
-	gs_load_swapchain(display->swap);
+	if (display->type == to_swapchain) {
+		gs_load_swapchain(display->swap);
 
-	if (size_changed)
-		gs_resize(cx, cy);
+		if (size_changed)
+			gs_resize(cx, cy);
 
-	gs_begin_scene();
+		gs_begin_scene();
+	} else if (display->type == to_texture) {
+		if (size_changed) {
+			obs_display_free_texture_render_copy_rc(display);
+		}
+		for (size_t i = 0; i < NUM_TEXTURES; i++) {
+			if (!display->copy_surfaces[i])
+				display->copy_surfaces[i] = gs_stagesurface_create(cx, cy, GS_RGBA);
+		}
+
+		gs_texrender_reset(display->display_texrender);
+		gs_texrender_begin(display->display_texrender, cx, cy);
+	}
 
 	vec4_from_rgba(&clear_color, display->background_color);
 	clear_color.w = 1.0f;
@@ -183,9 +226,12 @@ static inline void render_display_begin(struct obs_display *display,
 	gs_set_viewport(0, 0, cx, cy);
 }
 
-static inline void render_display_end()
+static inline void render_display_end(struct obs_display *display)
 {
-	gs_end_scene();
+	if (display->type == to_swapchain)
+		gs_end_scene();
+	else if (display->type == to_texture)
+		gs_texrender_end(display->display_texrender);
 }
 
 void render_display(struct obs_display *display)
@@ -226,11 +272,47 @@ void render_display(struct obs_display *display)
 
 	pthread_mutex_unlock(&display->draw_callbacks_mutex);
 
-	render_display_end();
+	render_display_end(display);
 
 	GS_DEBUG_MARKER_END();
 
-	gs_present();
+	if (display->type == to_swapchain)
+		gs_present();
+	else if (display->type == to_texture) {
+		if (display->mapped_surface) {
+			gs_stagesurface_unmap(display->mapped_surface);
+			display->mapped_surface = NULL;
+		}
+
+		int cur_texture = display->cur_texture;
+		int prev_texture = cur_texture == 0 ? NUM_TEXTURES - 1
+						    : cur_texture - 1;
+
+
+		gs_stagesurf_t *copy = display->copy_surfaces[cur_texture];
+		if (copy)
+			gs_stage_texture(copy, gs_texrender_get_texture(display->display_texrender));
+		display->textures_copied[cur_texture] = true;
+
+		if (display->textures_copied[prev_texture]) {
+			gs_stagesurf_t *surface = display->copy_surfaces[prev_texture];
+			if (surface) {
+				uint8_t *data = NULL;
+				uint32_t linesize = 0;
+				if (gs_stagesurface_map(surface, &data, &linesize)) {
+					//output linesize not equal input linesize,copy fix
+					if (display->texture_data_cb)
+						display->texture_data_cb(data, linesize, cx * 4, cy, display->cb_data);
+				}
+				display->mapped_surface = surface;
+			}
+		}
+
+		if (++display->cur_texture == NUM_TEXTURES)
+			display->cur_texture = 0;
+
+		gs_flush();
+	}
 }
 
 void obs_display_set_enabled(obs_display_t *display, bool enable)

@@ -1720,7 +1720,7 @@ static auto ProfilerFree = [](void *) {
 
 	profiler_free();
 };
-
+#include "qt-opengl-display.hpp"
 static const char *run_program_init = "run_program_init";
 static int run_program(fstream &logFile, int argc, char *argv[])
 {
@@ -1739,7 +1739,7 @@ static int run_program(fstream &logFile, int argc, char *argv[])
 #if (QT_VERSION >= QT_VERSION_CHECK(5, 11, 0))
 	QGuiApplication::setAttribute(Qt::AA_EnableHighDpiScaling);
 #endif
-
+	qmlRegisterType<ProjectorItem>("com.xxq", 1, 0, "ProjectorItem");
 	QCoreApplication::addLibraryPath(".");
 
 	OBSApp program(argc, argv, profilerNameStore.get());

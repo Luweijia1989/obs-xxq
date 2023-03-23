@@ -211,12 +211,22 @@ struct obs_display {
 	pthread_mutex_t draw_info_mutex;
 	DARRAY(struct draw_callback) draw_callbacks;
 
+	enum display_type type;
+	gs_texrender_t *display_texrender;
+	gs_stagesurf_t *copy_surfaces[NUM_TEXTURES];
+	gs_stagesurf_t *mapped_surface;
+	bool textures_copied[NUM_TEXTURES];
+	int cur_texture;
+
+	display_texture_data_t texture_data_cb;
+	void *cb_data;
+
 	struct obs_display *next;
 	struct obs_display **prev_next;
 };
 
 extern bool obs_display_init(struct obs_display *display,
-			     const struct gs_init_data *graphics_data);
+			     const struct gs_init_data *graphics_data, enum display_type type);
 extern void obs_display_free(struct obs_display *display);
 
 /* ------------------------------------------------------------------------- */

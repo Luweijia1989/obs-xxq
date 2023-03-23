@@ -17,6 +17,8 @@
 
 #pragma once
 
+#include <QWidget>
+
 #if QT_VERSION >= QT_VERSION_CHECK(5, 6, 0)
 #define SUPPORTS_FRACTIONAL_SCALING
 #endif
