@@ -9,7 +9,6 @@
 #include <util/windows/CoTaskMemPtr.hpp>
 #include <util/threading.h>
 #include <util/util_uint64.h>
-#include <media-io/audio-resampler.h>
 
 #include <thread>
 
@@ -26,15 +25,10 @@ static void GetWASAPIDefaults(obs_data_t *settings);
 class WASAPISource {
 	ComPtr<IMMDevice> device;
 	ComPtr<IAudioClient> client;
-	ComPtr<IAudioClient> render_client;
 	ComPtr<IAudioCaptureClient> capture;
 	ComPtr<IAudioRenderClient> render;
 	ComPtr<IMMDeviceEnumerator> enumerator;
 	ComPtr<IMMNotificationClient> notify;
-
-	audio_resampler_t *resampler = nullptr;
-	resample_info resampler_src_fmt{};
-	WORD block_align = 0;
 
 	obs_source_t *source;
 	wstring default_id;
@@ -150,7 +144,7 @@ WASAPISource::WASAPISource(obs_data_t *settings, obs_source_t *source_,
 	: source(source_), isInputDevice(input)
 {
 	if (!isInputDevice) {
-		obs_source_set_audio_type(source, OBS_SOURCE_AUDIO_ONLY_RTMP);
+		obs_source_set_audio_type(source, OBS_SOURCE_AUDIO_BOTH_BUT_RTC_AEC);
 	}
 
 	InitializeCriticalSection(&mutex);
@@ -204,11 +198,6 @@ inline WASAPISource::~WASAPISource()
 	Stop();
 
 	DeleteCriticalSection(&mutex);
-
-	if (resampler) {
-		audio_resampler_destroy(resampler);
-		resampler = nullptr;
-	}
 }
 
 void WASAPISource::UpdateSettings(obs_data_t *settings)
@@ -306,36 +295,36 @@ void WASAPISource::InitRender()
 	HRESULT res;
 	LPBYTE buffer;
 	UINT32 frames;
+	ComPtr<IAudioClient> client;
 
 	res = device->Activate(__uuidof(IAudioClient), CLSCTX_ALL, nullptr,
-			       (void **)render_client.Assign());
+			       (void **)client.Assign());
 	if (FAILED(res))
-		throw HRError("Failed to activate render_client context", res);
+		throw HRError("Failed to activate client context", res);
 
-	res = render_client->GetMixFormat(&wfex);
+	res = client->GetMixFormat(&wfex);
 	if (FAILED(res))
 		throw HRError("Failed to get mix format", res);
 
-	block_align = wfex->nBlockAlign;
-	res = render_client->Initialize(AUDCLNT_SHAREMODE_SHARED, 0, BUFFER_TIME_100NS,
+	res = client->Initialize(AUDCLNT_SHAREMODE_SHARED, 0, BUFFER_TIME_100NS,
 				 0, wfex, nullptr);
 	if (FAILED(res)) {
 		OutputCaptureFail();
-		throw HRError("Failed to get initialize audio render_client", res);
+		throw HRError("Failed to get initialize audio client", res);
 	}
 
 	/* Silent loopback fix. Prevents audio stream from stopping and */
 	/* messing up timestamps and other weird glitches during silence */
 	/* by playing a silent sample all over again. */
 
-	res = render_client->GetBufferSize(&frames);
+	res = client->GetBufferSize(&frames);
 	if (FAILED(res))
 		throw HRError("Failed to get buffer size", res);
 
-	res = render_client->GetService(__uuidof(IAudioRenderClient),
+	res = client->GetService(__uuidof(IAudioRenderClient),
 				 (void **)render.Assign());
 	if (FAILED(res))
-		throw HRError("Failed to get render render_client", res);
+		throw HRError("Failed to get render client", res);
 
 	res = render->GetBuffer(frames, &buffer);
 	if (FAILED(res))
@@ -344,8 +333,6 @@ void WASAPISource::InitRender()
 	memset(buffer, 0, frames * wfex->nBlockAlign);
 
 	render->ReleaseBuffer(frames, 0);
-
-	render_client->Start();
 }
 
 static speaker_layout ConvertSpeakerLayout(DWORD layout, WORD channels)
@@ -542,18 +529,6 @@ bool WASAPISource::ProcessCaptureData()
 	UINT64 pos, ts;
 	UINT captureSize = 0;
 
-	if (!isInputDevice) {
-		res = render_client->GetBufferSize(&frames);
-		UINT32 padding;
-		render_client->GetCurrentPadding(&padding);
-		UINT32 req_size = frames - padding;
-		res = render->GetBuffer(req_size, &buffer);
-		if (!FAILED(res)) {
-			memset(buffer, 0, req_size * block_align);
-			render->ReleaseBuffer(req_size, 0);
-		}
-	}
-
 	while (true) {
 		res = capture->GetNextPacketSize(&captureSize);
 
@@ -595,42 +570,6 @@ bool WASAPISource::ProcessCaptureData()
 
 		obs_source_output_audio(source, &data);
 
-		if (!isInputDevice) {
-			if (resampler_src_fmt.samples_per_sec != sampleRate
-				|| resampler_src_fmt.speakers != speakers) {
-				if (resampler) {
-					audio_resampler_destroy(resampler);
-					resampler = nullptr;
-				}
-
-				resampler_src_fmt.samples_per_sec = sampleRate;
-				resampler_src_fmt.speakers = speakers;
-				resampler_src_fmt.format = AUDIO_FORMAT_FLOAT;
-
-				resample_info dst;
-				dst.format = AUDIO_FORMAT_16BIT;
-				dst.samples_per_sec = 48000;
-				dst.speakers = SPEAKERS_STEREO;
-
-				resampler = audio_resampler_create(&dst, &resampler_src_fmt);
-			}
-
-			uint8_t *input[MAX_AV_PLANES] = {nullptr};
-			input[0] = buffer;
-
-			uint8_t *resample_data[MAX_AV_PLANES];
-			uint32_t resample_frames;
-			uint64_t ts_offset;
-			bool success = audio_resampler_resample(resampler, resample_data, &resample_frames, &ts_offset, input, frames);
-			if (success) {
-				obs_data_t *event = obs_data_create();
-				obs_data_set_int(event, "data", (long long )(resample_data[0]));
-				obs_data_set_int(event, "size", resample_frames * 4);
-				obs_source_signal_event(source, event);
-				obs_data_release(event);
-			}
-		}
-
 		capture->ReleaseBuffer(frames);
 	}
 
@@ -664,9 +603,6 @@ DWORD WINAPI WASAPISource::CaptureThread(LPVOID param)
 			break;
 		}
 	}
-
-	if (!source->isInputDevice)
-		source->render_client->Stop();
 
 	source->client->Stop();
 
