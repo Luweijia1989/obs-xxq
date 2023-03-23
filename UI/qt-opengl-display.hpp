@@ -60,15 +60,19 @@ private:
 	QOpenGLBuffer vbo;
 	QOpenGLBuffer ebo;
 
-	QOpenGLTexture *texture = nullptr;
+	GLuint texture = 0;
+	GLuint unpack_buffer = 0;
 	obs_display_t *display = nullptr;
 	obs_source_t *source = nullptr;
 
 	QMutex data_mutex;
 	uint8_t *texture_data = nullptr;
 	uint32_t cache_linesize = 0;
+	uint32_t cache_srclinesize = 0;
 	uint32_t cache_height = 0;
 	bool size_changed = false;
+	bool map_buffer_ready = false;
+	void *map_buffer = nullptr;
 };
 
 class ProjectorItem : public QQuickFramebufferObject {

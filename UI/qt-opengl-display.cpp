@@ -3,6 +3,9 @@
 #include <qopenglframebufferobject.h>
 #include <QQuickWindow>
 #include <QTimer>
+#include <qopenglcontext.h>
+#include <qopenglextrafunctions.h>
+#include <qelapsedtimer.h>
 
 #include "display-helpers.hpp"
 
@@ -111,8 +114,11 @@ FBORenderer::~FBORenderer()
 	obs_display_remove_draw_callback(display, OBSRender, this);
 	obs_display_destroy(display);
 
+	if (unpack_buffer)
+		glDeleteBuffers(1, &unpack_buffer);
+
 	if (texture)
-		delete texture;
+		glDeleteTextures(1, &texture);
 
 	if (texture_data)
 		bfree(texture_data);
@@ -120,30 +126,63 @@ FBORenderer::~FBORenderer()
 
 void FBORenderer::render()
 {
-	glClearColor(0.1f, 0.1f, 0.3f, 1.0f);
+	{
+		QMutexLocker locker(&data_mutex);
+
+		if (size_changed) {
+			size_changed = false;
+			if (texture)
+				glDeleteTextures(1, &texture);
+
+			if (unpack_buffer)
+				glDeleteBuffers(1, &unpack_buffer);
+
+			glGenTextures(1, &texture);
+
+			glGenBuffers(1, &unpack_buffer);
+			glBindBuffer(GL_PIXEL_UNPACK_BUFFER, unpack_buffer);
+			auto size = cache_linesize * cache_height;
+			glBufferData(GL_PIXEL_UNPACK_BUFFER, size, 0, GL_DYNAMIC_DRAW);
+			glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
+
+			glBindTexture(GL_TEXTURE_2D, texture);
+			glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, cache_srclinesize / 4, cache_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
+			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, 0);
+			glBindTexture(GL_TEXTURE_2D, 0);
+
+			map_buffer_ready = false;
+			map_buffer = nullptr;
+		}
+
+		if (texture && unpack_buffer) {
+			if (!map_buffer_ready && !map_buffer) {
+				glBindBuffer(GL_PIXEL_UNPACK_BUFFER, unpack_buffer);
+				map_buffer = QOpenGLContext::currentContext()->extraFunctions()->glMapBufferRange(
+					GL_PIXEL_UNPACK_BUFFER, 0, cache_linesize * cache_height, GL_MAP_WRITE_BIT);
+				glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
+			}
+
+			if (map_buffer_ready) {
+				glBindBuffer(GL_PIXEL_UNPACK_BUFFER, unpack_buffer);
+				QOpenGLContext::currentContext()->extraFunctions()->glUnmapBuffer(GL_PIXEL_UNPACK_BUFFER);
+
+				glBindTexture(GL_TEXTURE_2D, texture);
+				glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, cache_srclinesize / 4, cache_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, 0);
+				glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
+				glBindTexture(GL_TEXTURE_2D, 0);
+
+				map_buffer_ready = false;
+				map_buffer = nullptr;
+			}
+		}
+	}
+
+	glClearColor(0.3f, 0.3f, 0.3f, 1.0f);
 	glEnable(GL_DEPTH_TEST);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-	{
-		QMutexLocker locker(&data_mutex);
-		if (texture_data) {
-			if (size_changed) {
-				size_changed = false;
-				if (texture)
-					delete texture;
-
-				texture = new QOpenGLTexture(QOpenGLTexture::Target2D);
-				texture->create();
-				texture->setSize(cache_linesize / 4, cache_height);
-				texture->setFormat(QOpenGLTexture::RGBA8_UNorm);
-				texture->allocateStorage();
-			}
-
-			texture->setData(QOpenGLTexture::RGBA, QOpenGLTexture::UInt8, texture_data);
-		}
-	}
 	if (texture)
-		texture->bind();
+		glBindTexture(GL_TEXTURE_2D, texture);
 
 	program.bind();
 
@@ -153,6 +192,8 @@ void FBORenderer::render()
 
 	vao.release();
 	program.release();
+
+	glBindTexture(GL_TEXTURE_2D, 0);
 }
 
 QOpenGLFramebufferObject *FBORenderer::createFramebufferObject(const QSize &size)
@@ -219,32 +260,27 @@ void FBORenderer::textureDataCallback(uint8_t *data, uint32_t linesize, uint32_t
 
 void FBORenderer::textureDataCallbackInternal(uint8_t *data, uint32_t linesize, uint32_t src_linesize, uint32_t src_height)
 {
-	QMutexLocker locker(&data_mutex);
-	if (data) {
-		if (src_linesize != cache_linesize || src_height != cache_height) {
+	if (data_mutex.tryLock()) {
+		if (linesize != cache_linesize || src_height != cache_height || src_linesize != cache_srclinesize) {
 			size_changed = true;
-			cache_linesize = src_linesize;
+			cache_linesize = linesize;
+			cache_srclinesize = src_linesize;
 			cache_height = src_height;
-
-			if (texture_data)
-				bfree(texture_data);
-
-			texture_data = (uint8_t *)bmalloc(cache_linesize * cache_height);
 		}
 
-		uint8_t *in_ptr = data;
-		uint8_t *out_ptr = texture_data;
-
-		/* if the line sizes match, do a single copy */
-		if (cache_linesize == linesize) {
-			//memcpy(out_ptr, in_ptr, cache_linesize * cache_height);
-		} else {
-			for (size_t y = 0; y < cache_height; y++) {
-				memcpy(out_ptr, in_ptr, cache_linesize);
-				in_ptr += linesize;
-				out_ptr += cache_linesize;
+		if (!size_changed && map_buffer && !map_buffer_ready) {
+			if (cache_linesize == cache_srclinesize)
+				memcpy(map_buffer, data, cache_linesize * src_height);
+			else {
+				auto ptr = (uint8_t *)map_buffer;
+				auto ss = cache_linesize < cache_srclinesize ? cache_linesize : cache_srclinesize;
+				for (size_t i = 0; i < cache_height; i++) {
+					memcpy(ptr + i * cache_srclinesize, data + i * cache_linesize, ss);
+				}
 			}
+			map_buffer_ready = true;
 		}
+		data_mutex.unlock();
 	}
 }
 
@@ -252,7 +288,7 @@ ProjectorItem::ProjectorItem(QQuickItem *parent) : QQuickFramebufferObject(paren
 {
 	QTimer *timer = new QTimer(this);
 	connect(timer, &QTimer::timeout, this, &ProjectorItem::update);
-	timer->start(40);
+	timer->start(17);
 }
 
 QQuickFramebufferObject::Renderer *ProjectorItem::createRenderer() const

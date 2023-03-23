@@ -461,6 +461,8 @@ OBSBasic::OBSBasic(QWidget *parent)
 	view->setSource(url);
 	view->resize(1280, 720);
 	view->show();
+
+	//QTimer::singleShot(10000, view, &QQuickView::deleteLater);
 }
 
 static void SaveAudioDevice(const char *name, int channel, obs_data_t *parent,
