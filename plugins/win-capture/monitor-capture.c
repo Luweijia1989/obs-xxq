@@ -3,7 +3,7 @@
 
 /* clang-format off */
 
-#define TEXT_MONITOR_CAPTURE obs_module_text("MonitorCapture")
+#define TEXT_MONITOR_CAPTURE obs_module_text("MonitorCapture_GDI")
 #define TEXT_CAPTURE_CURSOR  obs_module_text("CaptureCursor")
 #define TEXT_COMPATIBILITY   obs_module_text("Compatibility")
 #define TEXT_MONITOR         obs_module_text("Monitor")
@@ -229,7 +229,7 @@ static obs_properties_t *monitor_capture_properties(void *unused)
 }
 
 struct obs_source_info monitor_capture_info = {
-	.id = "monitor_capture",
+	.id = "monitor_capture_gdi",
 	.type = OBS_SOURCE_TYPE_INPUT,
 	.output_flags = OBS_SOURCE_VIDEO | OBS_SOURCE_CUSTOM_DRAW |
 			OBS_SOURCE_DO_NOT_DUPLICATE,

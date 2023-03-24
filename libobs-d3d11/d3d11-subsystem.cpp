@@ -3207,3 +3207,27 @@ extern "C" EXPORT void device_unregister_loss_callbacks(gs_device_t *device,
 		}
 	}
 }
+
+uint32_t gs_get_adapter_count(void)
+{
+	uint32_t count = 0;
+
+	ComPtr<IDXGIFactory1> factory;
+	HRESULT hr = CreateDXGIFactory1(IID_PPV_ARGS(&factory));
+	if (SUCCEEDED(hr)) {
+		ComPtr<IDXGIAdapter1> adapter;
+		for (UINT i = 0;
+		     factory->EnumAdapters1(i, adapter.Assign()) == S_OK; ++i) {
+			DXGI_ADAPTER_DESC desc;
+			if (SUCCEEDED(adapter->GetDesc(&desc))) {
+				/* ignore Microsoft's 'basic' renderer' */
+				if (desc.VendorId != 0x1414 &&
+				    desc.DeviceId != 0x8c) {
+					++count;
+				}
+			}
+		}
+	}
+
+	return count;
+}
