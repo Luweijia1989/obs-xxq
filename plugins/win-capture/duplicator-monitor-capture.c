@@ -696,7 +696,7 @@ static void duplicator_capture_render(void *data, gs_effect_t *effect)
 		}
 	} else {
 		if (!capture->duplicator)
-		return;
+			return;
 
 		gs_texture_t *texture = gs_duplicator_get_texture(capture->duplicator);
 		if (!texture)
