@@ -395,6 +395,7 @@ target_link_libraries(obs
 	Qt5::Svg
 	Qt5::Quick
 	obs-frontend-api
+	Opengl32
 	${FFMPEG_LIBRARIES}
 	${LIBCURL_LIBRARIES}
 	${obs_PLATFORM_LIBRARIES})

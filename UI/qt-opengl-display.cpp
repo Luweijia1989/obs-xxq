@@ -9,6 +9,21 @@
 
 #include "display-helpers.hpp"
 
+#define WGL_ACCESS_READ_ONLY_NV 0x0000
+#define WGL_ACCESS_READ_WRITE_NV 0x0001
+#define WGL_ACCESS_WRITE_DISCARD_NV 0x0002
+
+static WGLSETRESOURCESHAREHANDLENVPROC jimglDXSetResourceShareHandleNV = NULL;
+static WGLDXOPENDEVICENVPROC jimglDXOpenDeviceNV = NULL;
+static WGLDXCLOSEDEVICENVPROC jimglDXCloseDeviceNV = NULL;
+static WGLDXREGISTEROBJECTNVPROC jimglDXRegisterObjectNV = NULL;
+static WGLDXUNREGISTEROBJECTNVPROC jimglDXUnregisterObjectNV = NULL;
+static WGLDXOBJECTACCESSNVPROC jimglDXObjectAccessNV = NULL;
+static WGLDXLOCKOBJECTSNVPROC jimglDXLockObjectsNV = NULL;
+static WGLDXUNLOCKOBJECTSNVPROC jimglDXUnlockObjectsNV = NULL;
+
+static bool nv_capture_available = false;
+
 static inline void startRegion(int vX, int vY, int vCX, int vCY, float oL, float oR, float oT, float oB)
 {
 	gs_projection_push();
@@ -24,6 +39,27 @@ static inline void endRegion()
 }
 
 FBORenderer::FBORenderer()
+{
+	init_nv_functions();
+	init_gl();
+}
+
+FBORenderer::~FBORenderer()
+{
+	obs_display_remove_draw_callback(display, OBSRender, this);
+	obs_display_destroy(display);
+
+	if (unpack_buffer)
+		glDeleteBuffers(1, &unpack_buffer);
+
+	if (texture)
+		glDeleteTextures(1, &texture);
+
+	if (backup_texture)
+		glDeleteTextures(1, &backup_texture);
+}
+
+void FBORenderer::init_gl()
 {
 	initializeOpenGLFunctions();
 
@@ -115,24 +151,82 @@ FBORenderer::FBORenderer()
 	glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
 }
 
-FBORenderer::~FBORenderer()
+void FBORenderer::init_nv_functions()
 {
-	obs_display_remove_draw_callback(display, OBSRender, this);
-	obs_display_destroy(display);
+	static bool nv_inited = false;
 
-	if (unpack_buffer)
-		glDeleteBuffers(1, &unpack_buffer);
+	if (nv_inited)
+		return;
 
-	if (texture)
+	nv_inited = true;
+	jimglDXSetResourceShareHandleNV = (WGLSETRESOURCESHAREHANDLENVPROC)wglGetProcAddress("wglDXSetResourceShareHandleNV");
+	jimglDXOpenDeviceNV = (WGLDXOPENDEVICENVPROC)wglGetProcAddress("wglDXOpenDeviceNV");
+	jimglDXCloseDeviceNV = (WGLDXCLOSEDEVICENVPROC)wglGetProcAddress("wglDXCloseDeviceNV");
+	jimglDXRegisterObjectNV = (WGLDXREGISTEROBJECTNVPROC)wglGetProcAddress("wglDXRegisterObjectNV");
+	jimglDXUnregisterObjectNV = (WGLDXUNREGISTEROBJECTNVPROC)wglGetProcAddress("wglDXUnregisterObjectNV");
+	jimglDXObjectAccessNV = (WGLDXOBJECTACCESSNVPROC)wglGetProcAddress("wglDXObjectAccessNV");
+	jimglDXLockObjectsNV = (WGLDXLOCKOBJECTSNVPROC)wglGetProcAddress("wglDXLockObjectsNV");
+	jimglDXUnlockObjectsNV = (WGLDXUNLOCKOBJECTSNVPROC)wglGetProcAddress("wglDXUnlockObjectsNV");
+
+	nv_capture_available = !!jimglDXSetResourceShareHandleNV && !!jimglDXOpenDeviceNV && !!jimglDXCloseDeviceNV && !!jimglDXRegisterObjectNV &&
+			       !!jimglDXUnregisterObjectNV && !!jimglDXObjectAccessNV && !!jimglDXLockObjectsNV && !!jimglDXUnlockObjectsNV;
+
+	if (nv_capture_available)
+		qDebug("Shared-texture OpenGL capture available");
+}
+
+bool FBORenderer::init_gl_texture()
+{
+	obs_enter_graphics();
+	gl_device = jimglDXOpenDeviceNV(gs_get_device_obj());
+	if (!gl_device) {
+		qDebug("gl_shtex_init_gl_tex: failed to open device");
+		obs_leave_graphics();
+		return false;
+	}
+
+	glGenTextures(1, &texture);
+
+	auto tex = obs_display_get_texture(display);
+	gl_dxobj = jimglDXRegisterObjectNV(gl_device, gs_texture_get_obj(tex), texture, GL_TEXTURE_2D, WGL_ACCESS_READ_WRITE_NV);
+	if (!gl_dxobj) {
+		qDebug("gl_shtex_init_gl_tex: failed to register object");
+		obs_leave_graphics();
+		return false;
+	}
+
+	obs_leave_graphics();
+	return true;
+}
+
+void FBORenderer::release_gl_texture()
+{
+	if (texture) {
 		glDeleteTextures(1, &texture);
+		texture = 0;
+	}
 
-	if (backup_texture)
-		glDeleteTextures(1, &backup_texture);
+	if (gl_dxobj) {
+		jimglDXUnregisterObjectNV(gl_device, gl_dxobj);
+		gl_dxobj = INVALID_HANDLE_VALUE;
+	}
 }
 
 void FBORenderer::render()
 {
-	{
+	obs_enter_graphics();
+	auto tex = obs_display_get_texture(display);
+	if (tex && tex != last_renderer_texture) {
+		if (last_renderer_texture)
+			release_gl_texture();
+
+		init_gl_texture();
+
+		last_renderer_texture = tex;
+	}
+	obs_leave_graphics();
+
+	/*{
 		QMutexLocker locker(&data_mutex);
 		if (size_changed) {
 			size_changed = false;
@@ -174,10 +268,12 @@ void FBORenderer::render()
 				map_buffer = nullptr;
 			}
 		}
-	}
+	}*/
 
 	if (!texture && !backup_texture)
 		return;
+	obs_enter_graphics();
+	jimglDXLockObjectsNV(gl_device, 1, &gl_dxobj);
 
 	glClearColor(0.3f, 0.3f, 0.3f, 1.0f);
 	glEnable(GL_DEPTH_TEST);
@@ -198,6 +294,9 @@ void FBORenderer::render()
 	program.release();
 
 	glBindTexture(GL_TEXTURE_2D, 0);
+
+	jimglDXUnlockObjectsNV(gl_device, 1, &gl_dxobj);
+	obs_leave_graphics();
 }
 
 void FBORenderer::textureDataCallbackInternal(uint8_t *data, uint32_t linesize, uint32_t src_linesize, uint32_t src_height)

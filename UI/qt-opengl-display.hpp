@@ -37,6 +37,16 @@ Q_SIGNALS:                                                                   \
 #include <QOpenGLTexture>
 #include <QMutex>
 
+typedef BOOL(WINAPI *WGLSETRESOURCESHAREHANDLENVPROC)(void *, HANDLE);
+typedef HANDLE(WINAPI *WGLDXOPENDEVICENVPROC)(void *);
+typedef BOOL(WINAPI *WGLDXCLOSEDEVICENVPROC)(HANDLE);
+typedef HANDLE(WINAPI *WGLDXREGISTEROBJECTNVPROC)(HANDLE, void *, GLuint,
+						  GLenum, GLenum);
+typedef BOOL(WINAPI *WGLDXUNREGISTEROBJECTNVPROC)(HANDLE, HANDLE);
+typedef BOOL(WINAPI *WGLDXOBJECTACCESSNVPROC)(HANDLE, GLenum);
+typedef BOOL(WINAPI *WGLDXLOCKOBJECTSNVPROC)(HANDLE, GLint, HANDLE *);
+typedef BOOL(WINAPI *WGLDXUNLOCKOBJECTSNVPROC)(HANDLE, GLint, HANDLE *);
+
 class FBORenderer : public QObject, public QQuickFramebufferObject::Renderer, protected QOpenGLFunctions {
 	Q_OBJECT
 public:
@@ -51,6 +61,11 @@ public:
 private:
 	void textureDataCallbackInternal(uint8_t *data, uint32_t linesize, uint32_t src_linesize, uint32_t src_height);
 
+	void init_gl();
+	void init_nv_functions();
+	bool init_gl_texture();
+	void release_gl_texture();
+
 signals:
 	void update();
 
@@ -60,7 +75,6 @@ private:
 	QOpenGLBuffer vbo;
 	QOpenGLBuffer ebo;
 
-	GLuint texture = 0;
 	GLuint backup_texture = 0;
 	GLuint unpack_buffer = 0;
 	obs_display_t *display = nullptr;
@@ -73,6 +87,11 @@ private:
 	bool size_changed = false;
 	bool map_buffer_ready = false;
 	void *map_buffer = nullptr;
+
+	HANDLE gl_device = INVALID_HANDLE_VALUE;
+	HANDLE gl_dxobj = INVALID_HANDLE_VALUE;
+	GLuint texture = 0;
+	void *last_renderer_texture = nullptr;
 };
 
 class ProjectorItem : public QQuickFramebufferObject {

@@ -820,6 +820,8 @@ EXPORT void obs_display_destroy(obs_display_t *display);
 EXPORT void obs_display_resize(obs_display_t *display, uint32_t cx,
 			       uint32_t cy);
 
+EXPORT gs_texture_t *obs_display_get_texture(obs_display_t *display);
+
 /**
  * Adds a draw callback for this display context
  *

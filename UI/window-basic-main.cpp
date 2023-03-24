@@ -452,15 +452,15 @@ OBSBasic::OBSBasic(QWidget *parent)
 		}
 	});
 
-	QQuickView *view = new QQuickView;
-	    //QSurfaceFormat format;
-	    //format.setSwapInterval(0);
-	    //view->setFormat(format);
-	const QUrl url(QStringLiteral("file:///D:/obs-xxq/UI/forms/projector.qml"));
-	view->setResizeMode(QQuickView::SizeRootObjectToView);
-	view->setSource(url);
-	view->resize(1280, 720);
-	view->show();
+	//QQuickView *view = new QQuickView;
+	//    //QSurfaceFormat format;
+	//    //format.setSwapInterval(0);
+	//    //view->setFormat(format);
+	//const QUrl url(QStringLiteral("file:///D:/obs-xxq/UI/forms/projector.qml"));
+	//view->setResizeMode(QQuickView::SizeRootObjectToView);
+	//view->setSource(url);
+	//view->resize(1280, 720);
+	//view->show();
 
 	//QTimer::singleShot(10000, view, &QQuickView::deleteLater);
 }
@@ -3466,7 +3466,6 @@ void OBSBasic::DrawBackdrop(float cx, float cy)
 
 void OBSBasic::RenderMain(void *data, uint32_t cx, uint32_t cy)
 {
-	return;
 	GS_DEBUG_MARKER_BEGIN(GS_DEBUG_COLOR_DEFAULT, "RenderMain");
 
 	OBSBasic *window = static_cast<OBSBasic *>(data);
