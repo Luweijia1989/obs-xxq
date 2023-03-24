@@ -453,9 +453,9 @@ OBSBasic::OBSBasic(QWidget *parent)
 	});
 
 	QQuickView *view = new QQuickView;
-	//    QSurfaceFormat format;
-	//    format.setSwapInterval(0);
-	//    view.setFormat(format);
+	    //QSurfaceFormat format;
+	    //format.setSwapInterval(0);
+	    //view->setFormat(format);
 	const QUrl url(QStringLiteral("file:///D:/obs-xxq/UI/forms/projector.qml"));
 	view->setResizeMode(QQuickView::SizeRootObjectToView);
 	view->setSource(url);

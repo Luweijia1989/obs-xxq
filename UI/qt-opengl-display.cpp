@@ -126,19 +126,19 @@ FBORenderer::~FBORenderer()
 	if (texture)
 		glDeleteTextures(1, &texture);
 
-	if (texture_data)
-		bfree(texture_data);
+	if (backup_texture)
+		glDeleteTextures(1, &backup_texture);
 }
 
 void FBORenderer::render()
 {
 	{
 		QMutexLocker locker(&data_mutex);
-		bool texture_new_created = false;
 		if (size_changed) {
 			size_changed = false;
+
 			if (texture)
-				glDeleteTextures(1, &texture);
+				backup_texture = texture;
 
 			glGenTextures(1, &texture);
 
@@ -146,11 +146,9 @@ void FBORenderer::render()
 			glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, cache_srclinesize / 4, cache_height, 0, GL_RGBA, GL_UNSIGNED_BYTE, NULL);
 			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAX_LEVEL, 0);
 			glBindTexture(GL_TEXTURE_2D, 0);
-
-			texture_new_created = true;
 		}
 
-		if (texture && unpack_buffer) {
+		if (texture) {
 			if (!map_buffer) {
 				glBindBuffer(GL_PIXEL_UNPACK_BUFFER, unpack_buffer);
 				map_buffer = QOpenGLContext::currentContext()->extraFunctions()->glMapBufferRange(GL_PIXEL_UNPACK_BUFFER, 0, 3840 * 2160 * 4,
@@ -167,24 +165,27 @@ void FBORenderer::render()
 				glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
 				glBindTexture(GL_TEXTURE_2D, 0);
 
+				if (backup_texture) {
+					glDeleteTextures(1, &backup_texture);
+					backup_texture = 0;
+				}
+
 				map_buffer_ready = false;
 				map_buffer = nullptr;
-			} else {
-			
-				if (texture_new_created)
-					qDebug() <<"CCCCCCCC ";
 			}
 		}
 	}
 
-	if (!texture)
+	if (!texture && !backup_texture)
 		return;
 
 	glClearColor(0.3f, 0.3f, 0.3f, 1.0f);
 	glEnable(GL_DEPTH_TEST);
 	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 
-	if (texture)
+	if (backup_texture)
+		glBindTexture(GL_TEXTURE_2D, backup_texture);
+	else if (texture)
 		glBindTexture(GL_TEXTURE_2D, texture);
 
 	program.bind();
@@ -222,6 +223,8 @@ void FBORenderer::textureDataCallbackInternal(uint8_t *data, uint32_t linesize, 
 		map_buffer_ready = true;
 	}
 	data_mutex.unlock();
+
+	emit update();
 }
 
 QOpenGLFramebufferObject *FBORenderer::createFramebufferObject(const QSize &size)
@@ -288,6 +291,7 @@ void FBORenderer::textureDataCallback(uint8_t *data, uint32_t linesize, uint32_t
 
 ProjectorItem::ProjectorItem(QQuickItem *parent) : QQuickFramebufferObject(parent)
 {
+
 	QTimer *timer = new QTimer(this);
 	connect(timer, &QTimer::timeout, this, &ProjectorItem::update);
 	timer->start(17);
@@ -296,5 +300,6 @@ ProjectorItem::ProjectorItem(QQuickItem *parent) : QQuickFramebufferObject(paren
 QQuickFramebufferObject::Renderer *ProjectorItem::createRenderer() const
 {
 	auto render = new FBORenderer;
+	//connect(render, &FBORenderer::update, this, &ProjectorItem::update);
 	return render;
 }
