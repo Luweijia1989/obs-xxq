@@ -211,6 +211,7 @@ struct obs_display {
 	pthread_mutex_t draw_info_mutex;
 	DARRAY(struct draw_callback) draw_callbacks;
 
+	bool dx_interop_available;
 	enum display_type type;
 	gs_texrender_t *display_texrender;
 	gs_stagesurf_t *copy_surfaces[NUM_TEXTURES];
@@ -387,6 +388,7 @@ struct obs_core_video {
 	struct circlebuf tasks;
 
 	struct obs_rtc_mix rtc_mix;
+	bool dx_interop_enabled;
 };
 
 struct audio_monitor;

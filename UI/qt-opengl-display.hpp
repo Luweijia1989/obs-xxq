@@ -50,7 +50,7 @@ typedef BOOL(WINAPI *WGLDXUNLOCKOBJECTSNVPROC)(HANDLE, GLint, HANDLE *);
 class FBORenderer : public QObject, public QQuickFramebufferObject::Renderer, protected QOpenGLFunctions {
 	Q_OBJECT
 public:
-	FBORenderer();
+	FBORenderer(bool share_texture = false);
 	~FBORenderer();
 	void render() override;
 	QOpenGLFramebufferObject *createFramebufferObject(const QSize &size) override;
@@ -62,6 +62,7 @@ private:
 	void textureDataCallbackInternal(uint8_t *data, uint32_t linesize, uint32_t src_linesize, uint32_t src_height);
 
 	void init_gl();
+	void init_shader();
 	void init_nv_functions();
 	bool init_gl_texture();
 	void release_gl_texture();
@@ -75,8 +76,11 @@ private:
 	QOpenGLBuffer vbo;
 	QOpenGLBuffer ebo;
 
+	bool dx_interop_available = false;
+
 	GLuint backup_texture = 0;
 	GLuint unpack_buffer = 0;
+	int pbo_size = 0;
 	obs_display_t *display = nullptr;
 	obs_source_t *source = nullptr;
 
@@ -99,9 +103,13 @@ class ProjectorItem : public QQuickFramebufferObject {
 
 public:
 	ProjectorItem(QQuickItem *parent = nullptr);
+	~ProjectorItem();
 
 	QQuickFramebufferObject::Renderer *createRenderer() const override;
 
 private:
 	uint32_t backgroundColor = GREY_COLOR_BACKGROUND;
+
+	static QList<ProjectorItem *> items;
+	static QTimer *timer;
 };

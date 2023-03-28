@@ -61,6 +61,7 @@ obs_display_t *obs_display_create(const struct gs_init_data *graphics_data,
 	struct obs_display *display = bzalloc(sizeof(struct obs_display));
 	display->texture_data_cb = display_texture_data_cb;
 	display->cb_data = p;
+	display->dx_interop_available = graphics_data->dx_interop_available;
 
 	gs_enter_context(obs->video.graphics);
 
@@ -203,9 +204,12 @@ static inline void render_display_begin(struct obs_display *display,
 		if (size_changed) {
 			obs_display_free_texture_render_copy_rc(display);
 		}
-		for (size_t i = 0; i < NUM_TEXTURES; i++) {
-			if (!display->copy_surfaces[i])
-				display->copy_surfaces[i] = gs_stagesurface_create(cx, cy, GS_RGBA);
+
+		if (!display->dx_interop_available) {
+			for (size_t i = 0; i < NUM_TEXTURES; i++) {
+				if (!display->copy_surfaces[i])
+					display->copy_surfaces[i] = gs_stagesurface_create(cx, cy, GS_RGBA);
+			}
 		}
 
 		gs_texrender_reset(display->display_texrender);
@@ -279,40 +283,41 @@ void render_display(struct obs_display *display)
 	if (display->type == to_swapchain)
 		gs_present();
 	else if (display->type == to_texture) {
-		//if (display->mapped_surface) {
-		//	gs_stagesurface_unmap(display->mapped_surface);
-		//	display->mapped_surface = NULL;
-		//}
+		if (!display->dx_interop_available) {
+			if (display->mapped_surface) {
+				gs_stagesurface_unmap(display->mapped_surface);
+				display->mapped_surface = NULL;
+			}
 
-		//int cur_texture = display->cur_texture;
-		//int prev_texture = cur_texture == 0 ? NUM_TEXTURES - 1
-		//				    : cur_texture - 1;
+			int cur_texture = display->cur_texture;
+			int prev_texture = cur_texture == 0 ? NUM_TEXTURES - 1
+							    : cur_texture - 1;
 
 
-		//gs_stagesurf_t *copy = display->copy_surfaces[cur_texture];
-		//if (copy)
-		//	gs_stage_texture(copy, gs_texrender_get_texture(display->display_texrender));
-		//display->textures_copied[cur_texture] = true;
+			gs_stagesurf_t *copy = display->copy_surfaces[cur_texture];
+			if (copy)
+				gs_stage_texture(copy, gs_texrender_get_texture(display->display_texrender));
+			display->textures_copied[cur_texture] = true;
 
-		//if (display->textures_copied[prev_texture]) {
-		//	gs_stagesurf_t *surface = display->copy_surfaces[prev_texture];
-		//	if (surface) {
-		//		uint8_t *data = NULL;
-		//		uint32_t linesize = 0;
-		//		if (gs_stagesurface_map(surface, &data, &linesize)) {
-		//			//output linesize not equal input linesize,copy fix
-		//			if (display->texture_data_cb)
-		//				display->texture_data_cb(data, linesize, cx * 4, cy, display->cb_data);
-		//		}
-		//		display->mapped_surface = surface;
-		//	}
-		//}
+			if (display->textures_copied[prev_texture]) {
+				gs_stagesurf_t *surface = display->copy_surfaces[prev_texture];
+				if (surface) {
+					uint8_t *data = NULL;
+					uint32_t linesize = 0;
+					if (gs_stagesurface_map(surface, &data, &linesize)) {
+						//output linesize not equal input linesize,copy fix
+						if (display->texture_data_cb)
+							display->texture_data_cb(data, linesize, cx * 4, cy, display->cb_data);
+					}
+					display->mapped_surface = surface;
+				}
+			}
 
-		//if (++display->cur_texture == NUM_TEXTURES)
-		//	display->cur_texture = 0;
+			if (++display->cur_texture == NUM_TEXTURES)
+				display->cur_texture = 0;
 
-		//gs_flush();
-
+			gs_flush();
+		}
 	}
 
 
@@ -356,4 +361,9 @@ gs_texture_t *obs_display_get_texture(obs_display_t *display)
 		return NULL;
 
 	return gs_texrender_get_texture(display->display_texrender);
+}
+
+void obs_display_set_dxinterop_enabled(bool enabled)
+{
+	obs->video.dx_interop_enabled = enabled;
 }

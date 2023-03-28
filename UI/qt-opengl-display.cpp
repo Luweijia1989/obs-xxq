@@ -1,13 +1,44 @@
 #include "qt-opengl-display.hpp"
 #include <QDebug>
+#include <qapplication.h>
 #include <qopenglframebufferobject.h>
 #include <QQuickWindow>
 #include <QTimer>
+#include <QDateTime>
 #include <qopenglcontext.h>
 #include <qopenglextrafunctions.h>
 #include <qelapsedtimer.h>
 
 #include "display-helpers.hpp"
+
+static const char *vertex_str = R"(#version 330 core
+                                layout (location = 0) in vec3 aPos;
+                                layout (location = 1) in vec3 aColor;
+                                layout (location = 2) in vec2 aTexCoord;
+
+                                out vec3 ourColor;
+                                out vec2 TexCoord;
+
+                                void main()
+                                {
+                                    gl_Position = vec4(aPos, 1.0);
+                                    ourColor = aColor;
+                                    TexCoord = vec2(aTexCoord.x, aTexCoord.y);
+                                })";
+
+static const char *fragment_str = R"(#version 330 core
+                                out vec4 FragColor;
+
+                                in vec3 ourColor;
+                                in vec2 TexCoord;
+
+                                // texture sampler
+                                uniform sampler2D texture1;
+
+                                void main()
+                                {
+                                    FragColor = texture(texture1, TexCoord);
+                                })";
 
 #define WGL_ACCESS_READ_ONLY_NV 0x0000
 #define WGL_ACCESS_READ_WRITE_NV 0x0001
@@ -24,6 +55,8 @@ static WGLDXUNLOCKOBJECTSNVPROC jimglDXUnlockObjectsNV = NULL;
 
 static bool nv_capture_available = false;
 
+bool dx_gl_interop_available = true;
+
 static inline void startRegion(int vX, int vY, int vCX, int vCY, float oL, float oR, float oT, float oB)
 {
 	gs_projection_push();
@@ -38,9 +71,18 @@ static inline void endRegion()
 	gs_projection_pop();
 }
 
-FBORenderer::FBORenderer()
+FBORenderer::FBORenderer(bool share_texture) : dx_interop_available(share_texture)
 {
-	init_nv_functions();
+	static bool set_dx_interop_value = false;
+	if (!set_dx_interop_value) {
+		set_dx_interop_value = true;
+		obs_display_set_dxinterop_enabled(dx_interop_available);
+	}
+	pbo_size = 1920 * 1080 * 4;
+
+	if (dx_interop_available)
+		init_nv_functions();
+
 	init_gl();
 }
 
@@ -49,48 +91,48 @@ FBORenderer::~FBORenderer()
 	obs_display_remove_draw_callback(display, OBSRender, this);
 	obs_display_destroy(display);
 
-	if (unpack_buffer)
+	if (unpack_buffer) {
+		if (map_buffer) {
+			glBindBuffer(GL_PIXEL_UNPACK_BUFFER, unpack_buffer);
+			map_buffer =
+				QOpenGLContext::currentContext()->extraFunctions()->glMapBufferRange(GL_PIXEL_UNPACK_BUFFER, 0, pbo_size, GL_MAP_WRITE_BIT);
+			glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
+		}
+
 		glDeleteBuffers(1, &unpack_buffer);
+		unpack_buffer = 0;
+	}
 
-	if (texture)
+	if (texture) {
 		glDeleteTextures(1, &texture);
+		texture = 0;
+	}
 
-	if (backup_texture)
+	if (backup_texture) {
 		glDeleteTextures(1, &backup_texture);
+		backup_texture = 0;
+	}
+
+	if (dx_interop_available)
+		release_gl_texture();
 }
 
 void FBORenderer::init_gl()
 {
 	initializeOpenGLFunctions();
 
-	const char *vertex_str = R"(#version 330 core
-                                layout (location = 0) in vec3 aPos;
-                                layout (location = 1) in vec3 aColor;
-                                layout (location = 2) in vec2 aTexCoord;
+	init_shader();
 
-                                out vec3 ourColor;
-                                out vec2 TexCoord;
+	if (!dx_interop_available) {
+		glGenBuffers(1, &unpack_buffer);
+		glBindBuffer(GL_PIXEL_UNPACK_BUFFER, unpack_buffer);
+		glBufferData(GL_PIXEL_UNPACK_BUFFER, pbo_size, 0, GL_DYNAMIC_DRAW);
+		glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
+	}
+}
 
-                                void main()
-                                {
-                                    gl_Position = vec4(aPos, 1.0);
-                                    ourColor = aColor;
-                                    TexCoord = vec2(aTexCoord.x, aTexCoord.y);
-                                })";
-
-	const char *fragment_str = R"(#version 330 core
-                                out vec4 FragColor;
-
-                                in vec3 ourColor;
-                                in vec2 TexCoord;
-
-                                // texture sampler
-                                uniform sampler2D texture1;
-
-                                void main()
-                                {
-                                    FragColor = texture(texture1, TexCoord);
-                                })";
+void FBORenderer::init_shader()
+{
 
 	if (!program.addCacheableShaderFromSourceCode(QOpenGLShader::Vertex, vertex_str)) {
 		qDebug() << "compiler vertex error";
@@ -143,12 +185,6 @@ void FBORenderer::init_gl()
 
 	vao.release();
 	program.release();
-
-	glGenBuffers(1, &unpack_buffer);
-	glBindBuffer(GL_PIXEL_UNPACK_BUFFER, unpack_buffer);
-	auto size = 3840 * 2160 * 4;
-	glBufferData(GL_PIXEL_UNPACK_BUFFER, size, 0, GL_DYNAMIC_DRAW);
-	glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
 }
 
 void FBORenderer::init_nv_functions()
@@ -202,31 +238,36 @@ bool FBORenderer::init_gl_texture()
 void FBORenderer::release_gl_texture()
 {
 	if (texture) {
+		jimglDXLockObjectsNV(gl_device, 1, &gl_dxobj);
 		glDeleteTextures(1, &texture);
 		texture = 0;
+		jimglDXUnlockObjectsNV(gl_device, 1, &gl_dxobj);
 	}
 
 	if (gl_dxobj) {
 		jimglDXUnregisterObjectNV(gl_device, gl_dxobj);
 		gl_dxobj = INVALID_HANDLE_VALUE;
 	}
+
+	if (gl_device)
+		jimglDXCloseDeviceNV(gl_device);
 }
 
 void FBORenderer::render()
 {
-	obs_enter_graphics();
-	auto tex = obs_display_get_texture(display);
-	if (tex && tex != last_renderer_texture) {
-		if (last_renderer_texture)
-			release_gl_texture();
+	if (dx_interop_available) {
+		obs_enter_graphics();
+		auto tex = obs_display_get_texture(display);
+		if (tex && tex != last_renderer_texture) {
+			if (last_renderer_texture)
+				release_gl_texture();
 
-		init_gl_texture();
+			init_gl_texture();
 
-		last_renderer_texture = tex;
-	}
-	obs_leave_graphics();
-
-	/*{
+			last_renderer_texture = tex;
+		}
+		obs_leave_graphics();
+	} else {
 		QMutexLocker locker(&data_mutex);
 		if (size_changed) {
 			size_changed = false;
@@ -243,13 +284,6 @@ void FBORenderer::render()
 		}
 
 		if (texture) {
-			if (!map_buffer) {
-				glBindBuffer(GL_PIXEL_UNPACK_BUFFER, unpack_buffer);
-				map_buffer = QOpenGLContext::currentContext()->extraFunctions()->glMapBufferRange(GL_PIXEL_UNPACK_BUFFER, 0, 3840 * 2160 * 4,
-														  GL_MAP_WRITE_BIT);
-				glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
-			}
-
 			if (map_buffer_ready) {
 				glBindBuffer(GL_PIXEL_UNPACK_BUFFER, unpack_buffer);
 				QOpenGLContext::currentContext()->extraFunctions()->glUnmapBuffer(GL_PIXEL_UNPACK_BUFFER);
@@ -267,13 +301,24 @@ void FBORenderer::render()
 				map_buffer_ready = false;
 				map_buffer = nullptr;
 			}
-		}
-	}*/
 
-	if (!texture && !backup_texture)
+			if (!map_buffer) {
+				glBindBuffer(GL_PIXEL_UNPACK_BUFFER, unpack_buffer);
+				map_buffer = QOpenGLContext::currentContext()->extraFunctions()->glMapBufferRange(GL_PIXEL_UNPACK_BUFFER, 0, pbo_size,
+														  GL_MAP_WRITE_BIT);
+				glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
+			}
+		}
+	}
+	
+	if (!texture && !backup_texture) {
 		return;
-	obs_enter_graphics();
-	jimglDXLockObjectsNV(gl_device, 1, &gl_dxobj);
+	}
+
+	if (dx_interop_available) {
+		obs_enter_graphics();
+		jimglDXLockObjectsNV(gl_device, 1, &gl_dxobj);
+	}
 
 	glClearColor(0.3f, 0.3f, 0.3f, 1.0f);
 	glEnable(GL_DEPTH_TEST);
@@ -295,8 +340,10 @@ void FBORenderer::render()
 
 	glBindTexture(GL_TEXTURE_2D, 0);
 
-	jimglDXUnlockObjectsNV(gl_device, 1, &gl_dxobj);
-	obs_leave_graphics();
+	if (dx_interop_available) {
+		jimglDXUnlockObjectsNV(gl_device, 1, &gl_dxobj);
+		obs_leave_graphics();
+	}
 }
 
 void FBORenderer::textureDataCallbackInternal(uint8_t *data, uint32_t linesize, uint32_t src_linesize, uint32_t src_height)
@@ -322,23 +369,33 @@ void FBORenderer::textureDataCallbackInternal(uint8_t *data, uint32_t linesize, 
 		map_buffer_ready = true;
 	}
 	data_mutex.unlock();
-
-	emit update();
 }
 
 QOpenGLFramebufferObject *FBORenderer::createFramebufferObject(const QSize &size)
 {
+	int w = 0, h = 0;
+	if (dx_interop_available) {
+		w = size.width();
+		h = size.height();
+	} else {
+		w = (qreal)size.width() / qApp->devicePixelRatio();
+		h = (qreal)size.height() / qApp->devicePixelRatio();
+		w = qMin(w, 1920);
+		h = qMin(h, 1080);
+	}
+		
 	if (!display) {
 		gs_init_data info = {};
-		info.cx = size.width();
-		info.cy = size.height();
+		info.cx = w;
+		info.cy = h;
 		info.format = GS_RGBA;
 		info.zsformat = GS_ZS_NONE;
+		info.dx_interop_available = dx_interop_available;
 
 		display = obs_display_create(&info, GREY_COLOR_BACKGROUND, nullptr, FBORenderer::textureDataCallback, this, to_texture);
 		obs_display_add_draw_callback(display, OBSRender, this);
 	} else {
-		obs_display_resize(display, size.width(), size.height());
+		obs_display_resize(display, w, h);
 	}
 	QOpenGLFramebufferObjectFormat format;
 	format.setAttachment(QOpenGLFramebufferObject::CombinedDepthStencil);
@@ -388,17 +445,37 @@ void FBORenderer::textureDataCallback(uint8_t *data, uint32_t linesize, uint32_t
 	render->textureDataCallbackInternal(data, linesize, src_linesize, src_height);
 }
 
+QTimer *ProjectorItem::timer = nullptr;
+QList<ProjectorItem *> ProjectorItem::items;
+
 ProjectorItem::ProjectorItem(QQuickItem *parent) : QQuickFramebufferObject(parent)
 {
+	if (!timer) {
+		timer = new QTimer;
+		connect(timer, &QTimer::timeout, this, [=]() {
+			for (auto iter = items.begin(); iter != items.end(); iter++) {
+				auto item = *iter;
+				item->update();
+			}
+		});
+	}
 
-	QTimer *timer = new QTimer(this);
-	connect(timer, &QTimer::timeout, this, &ProjectorItem::update);
-	timer->start(17);
+	if (!timer->isActive())
+		timer->start(25);
+
+	items.append(this);
+}
+
+ProjectorItem::~ProjectorItem()
+{
+	items.removeOne(this);
+	if (items.isEmpty()) {
+		timer->deleteLater();
+		timer = nullptr;
+	}
 }
 
 QQuickFramebufferObject::Renderer *ProjectorItem::createRenderer() const
 {
-	auto render = new FBORenderer;
-	//connect(render, &FBORenderer::update, this, &ProjectorItem::update);
-	return render;
+	return new FBORenderer(dx_gl_interop_available);
 }

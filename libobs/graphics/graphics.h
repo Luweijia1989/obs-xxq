@@ -487,6 +487,7 @@ struct gs_init_data {
 	enum gs_color_format format;
 	enum gs_zstencil_format zsformat;
 	uint32_t adapter;
+	bool dx_interop_available;
 };
 
 #define GS_DEVICE_OPENGL 1

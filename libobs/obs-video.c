@@ -1497,9 +1497,20 @@ bool obs_graphics_thread_loop(struct obs_graphics_context *context)
 	output_frame(raw_active, gpu_active);
 	profile_end(output_frame_name);
 
-	profile_start(render_displays_name);
-	render_displays();
-	profile_end(render_displays_name);
+	bool should_render_display = true;
+	if (!obs->video.dx_interop_enabled && context->interval < 33333333) {
+		static int count = 0;
+		count++;
+		if (count % 2 != 0)
+			should_render_display = false;
+		else
+			count = 0;
+	}
+	if (should_render_display) {
+		profile_start(render_displays_name);
+		render_displays();
+		profile_end(render_displays_name);
+	}
 
 	frame_time_ns = os_gettime_ns() - frame_start;
 

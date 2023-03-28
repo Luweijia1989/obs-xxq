@@ -849,6 +849,8 @@ EXPORT void obs_display_set_background_color(obs_display_t *display,
 EXPORT void obs_display_size(obs_display_t *display, uint32_t *width,
 			     uint32_t *height);
 
+EXPORT void obs_display_set_dxinterop_enabled(bool enabled);
+
 /* ------------------------------------------------------------------------- */
 /* Sources */
 
