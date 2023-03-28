@@ -40,23 +40,23 @@ Q_SIGNALS:                                                                   \
 typedef BOOL(WINAPI *WGLSETRESOURCESHAREHANDLENVPROC)(void *, HANDLE);
 typedef HANDLE(WINAPI *WGLDXOPENDEVICENVPROC)(void *);
 typedef BOOL(WINAPI *WGLDXCLOSEDEVICENVPROC)(HANDLE);
-typedef HANDLE(WINAPI *WGLDXREGISTEROBJECTNVPROC)(HANDLE, void *, GLuint,
-						  GLenum, GLenum);
+typedef HANDLE(WINAPI *WGLDXREGISTEROBJECTNVPROC)(HANDLE, void *, GLuint, GLenum, GLenum);
 typedef BOOL(WINAPI *WGLDXUNREGISTEROBJECTNVPROC)(HANDLE, HANDLE);
 typedef BOOL(WINAPI *WGLDXOBJECTACCESSNVPROC)(HANDLE, GLenum);
 typedef BOOL(WINAPI *WGLDXLOCKOBJECTSNVPROC)(HANDLE, GLint, HANDLE *);
 typedef BOOL(WINAPI *WGLDXUNLOCKOBJECTSNVPROC)(HANDLE, GLint, HANDLE *);
 
-class FBORenderer : public QObject, public QQuickFramebufferObject::Renderer, protected QOpenGLFunctions {
-	Q_OBJECT
+class FBORenderer : public QQuickFramebufferObject::Renderer, protected QOpenGLFunctions {
 public:
-	FBORenderer(bool share_texture = false);
+	FBORenderer(bool share_texture);
 	~FBORenderer();
 	void render() override;
 	QOpenGLFramebufferObject *createFramebufferObject(const QSize &size) override;
 
-	static void OBSRender(void *data, uint32_t cx, uint32_t cy);
+	static void displayRenderCallback(void *data, uint32_t cx, uint32_t cy);
 	static void textureDataCallback(uint8_t *data, uint32_t linesize, uint32_t src_linesize, uint32_t src_height, void *param);
+
+	virtual void displayRender(uint32_t cx, uint32_t cy) = 0;
 
 private:
 	void textureDataCallbackInternal(uint8_t *data, uint32_t linesize, uint32_t src_linesize, uint32_t src_height);
@@ -67,9 +67,6 @@ private:
 	bool init_gl_texture();
 	void release_gl_texture();
 
-signals:
-	void update();
-
 private:
 	QOpenGLShaderProgram program;
 	QOpenGLVertexArrayObject vao;
@@ -78,11 +75,11 @@ private:
 
 	bool dx_interop_available = false;
 
+	GLuint texture = 0;
 	GLuint backup_texture = 0;
 	GLuint unpack_buffer = 0;
 	int pbo_size = 0;
 	obs_display_t *display = nullptr;
-	obs_source_t *source = nullptr;
 
 	QMutex data_mutex;
 	uint32_t cache_linesize = 0;
@@ -94,22 +91,32 @@ private:
 
 	HANDLE gl_device = INVALID_HANDLE_VALUE;
 	HANDLE gl_dxobj = INVALID_HANDLE_VALUE;
-	GLuint texture = 0;
 	void *last_renderer_texture = nullptr;
 };
 
 class ProjectorItem : public QQuickFramebufferObject {
 	Q_OBJECT
-
 public:
 	ProjectorItem(QQuickItem *parent = nullptr);
 	~ProjectorItem();
-
-	QQuickFramebufferObject::Renderer *createRenderer() const override;
 
 private:
 	uint32_t backgroundColor = GREY_COLOR_BACKGROUND;
 
 	static QList<ProjectorItem *> items;
 	static QTimer *timer;
+};
+
+class LinkRenderer : public FBORenderer {
+public:
+	LinkRenderer(bool share_texture = false);
+	virtual void displayRender(uint32_t cx, uint32_t cy);
+};
+
+class LinkProjectorItem : public ProjectorItem {
+	Q_OBJECT
+public:
+	LinkProjectorItem(QQuickItem *parent = nullptr);
+
+	QQuickFramebufferObject::Renderer *createRenderer() const override;
 };

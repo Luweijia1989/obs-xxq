@@ -55,7 +55,7 @@ static WGLDXUNLOCKOBJECTSNVPROC jimglDXUnlockObjectsNV = NULL;
 
 static bool nv_capture_available = false;
 
-bool dx_gl_interop_available = true;
+bool dx_gl_interop_available = false;
 
 static inline void startRegion(int vX, int vY, int vCX, int vCY, float oL, float oR, float oT, float oB)
 {
@@ -88,15 +88,15 @@ FBORenderer::FBORenderer(bool share_texture) : dx_interop_available(share_textur
 
 FBORenderer::~FBORenderer()
 {
-	obs_display_remove_draw_callback(display, OBSRender, this);
+	obs_display_remove_draw_callback(display, displayRenderCallback, this);
 	obs_display_destroy(display);
 
 	if (unpack_buffer) {
 		if (map_buffer) {
 			glBindBuffer(GL_PIXEL_UNPACK_BUFFER, unpack_buffer);
-			map_buffer =
-				QOpenGLContext::currentContext()->extraFunctions()->glMapBufferRange(GL_PIXEL_UNPACK_BUFFER, 0, pbo_size, GL_MAP_WRITE_BIT);
+			QOpenGLContext::currentContext()->extraFunctions()->glUnmapBuffer(GL_PIXEL_UNPACK_BUFFER);
 			glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
+			map_buffer = nullptr;
 		}
 
 		glDeleteBuffers(1, &unpack_buffer);
@@ -310,7 +310,7 @@ void FBORenderer::render()
 			}
 		}
 	}
-	
+
 	if (!texture && !backup_texture) {
 		return;
 	}
@@ -383,7 +383,7 @@ QOpenGLFramebufferObject *FBORenderer::createFramebufferObject(const QSize &size
 		w = qMin(w, 1920);
 		h = qMin(h, 1080);
 	}
-		
+
 	if (!display) {
 		gs_init_data info = {};
 		info.cx = w;
@@ -393,7 +393,7 @@ QOpenGLFramebufferObject *FBORenderer::createFramebufferObject(const QSize &size
 		info.dx_interop_available = dx_interop_available;
 
 		display = obs_display_create(&info, GREY_COLOR_BACKGROUND, nullptr, FBORenderer::textureDataCallback, this, to_texture);
-		obs_display_add_draw_callback(display, OBSRender, this);
+		obs_display_add_draw_callback(display, displayRenderCallback, this);
 	} else {
 		obs_display_resize(display, w, h);
 	}
@@ -403,40 +403,10 @@ QOpenGLFramebufferObject *FBORenderer::createFramebufferObject(const QSize &size
 	return new QOpenGLFramebufferObject(size, format);
 }
 
-void FBORenderer::OBSRender(void *data, uint32_t cx, uint32_t cy)
+void FBORenderer::displayRenderCallback(void *data, uint32_t cx, uint32_t cy)
 {
 	FBORenderer *render = reinterpret_cast<FBORenderer *>(data);
-	auto source = render->source;
-
-	uint32_t targetCX;
-	uint32_t targetCY;
-	int x, y;
-	int newCX, newCY;
-	float scale;
-
-	if (source) {
-		targetCX = std::max(obs_source_get_width(source), 1u);
-		targetCY = std::max(obs_source_get_height(source), 1u);
-	} else {
-		struct obs_video_info ovi;
-		obs_get_video_info(&ovi);
-		targetCX = ovi.base_width;
-		targetCY = ovi.base_height;
-	}
-
-	GetScaleAndCenterPos(targetCX, targetCY, cx, cy, x, y, scale);
-
-	newCX = int(scale * float(targetCX));
-	newCY = int(scale * float(targetCY));
-
-	startRegion(x, y, newCX, newCY, 0.0f, float(targetCX), 0.0f, float(targetCY));
-
-	if (source)
-		obs_source_video_render(source);
-	else
-		obs_render_main_texture();
-
-	endRegion();
+	render->displayRender(cx, cy);
 }
 
 void FBORenderer::textureDataCallback(uint8_t *data, uint32_t linesize, uint32_t src_linesize, uint32_t src_height, void *param)
@@ -450,6 +420,9 @@ QList<ProjectorItem *> ProjectorItem::items;
 
 ProjectorItem::ProjectorItem(QQuickItem *parent) : QQuickFramebufferObject(parent)
 {
+	setAcceptedMouseButtons(Qt::AllButtons);
+	setAcceptHoverEvents(true);
+
 	if (!timer) {
 		timer = new QTimer;
 		connect(timer, &QTimer::timeout, this, [=]() {
@@ -475,7 +448,46 @@ ProjectorItem::~ProjectorItem()
 	}
 }
 
-QQuickFramebufferObject::Renderer *ProjectorItem::createRenderer() const
+LinkRenderer::LinkRenderer(bool share_texture) : FBORenderer(share_texture) {}
+
+void LinkRenderer::displayRender(uint32_t cx, uint32_t cy)
 {
-	return new FBORenderer(dx_gl_interop_available);
+	uint32_t targetCX;
+	uint32_t targetCY;
+	int x, y;
+	int newCX, newCY;
+	float scale;
+
+	struct obs_video_info ovi;
+	obs_get_video_info(&ovi);
+	targetCX = ovi.base_width;
+	targetCY = ovi.base_height;
+
+	GetScaleAndCenterPos(targetCX, targetCY, cx, cy, x, y, scale);
+
+	newCX = int(scale * float(targetCX));
+	newCY = int(scale * float(targetCY));
+
+	startRegion(x, y, newCX, newCY, 0.0f, float(targetCX), 0.0f, float(targetCY));
+
+	obs_render_main_texture();
+
+	endRegion();
 }
+
+LinkProjectorItem::LinkProjectorItem(QQuickItem *parent) : ProjectorItem(parent) {}
+
+QQuickFramebufferObject::Renderer *LinkProjectorItem::createRenderer() const
+{
+	return new LinkRenderer(dx_gl_interop_available);
+}
+
+class QMLRegisterHelper
+{
+public:
+	QMLRegisterHelper() {
+		qmlRegisterType<LinkProjectorItem>("com.xxq", 1, 0, "LinkProjectorItem");
+	}
+};
+
+static QMLRegisterHelper registerHelper;

@@ -6,7 +6,7 @@ import com.xxq 1.0
 Item {
     visible: true
 
-    ProjectorItem {
+    LinkProjectorItem {
         visible: true
         anchors.fill: parent
     }
