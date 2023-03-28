@@ -121,17 +121,15 @@ bool obs_module_load(void)
 
 	obs_enter_graphics();
 	graphics_uses_d3d11 = gs_get_device_type() == GS_DEVICE_DIRECT3D_11;
+	obs_leave_graphics();
 
 	if (graphics_uses_d3d11)
 		wgc_supported = win_version_compare(&ver, &win1903) >= 0;
 
-	if (!has_multi_video_adapter() && win8_or_above && graphics_uses_d3d11)
+	if (win8_or_above && graphics_uses_d3d11)
 		obs_register_source(&duplicator_capture_info);
-	else
-		obs_register_source(&monitor_capture_info);
 
-	obs_leave_graphics();
-
+	obs_register_source(&monitor_capture_info);
 	obs_register_source(&window_capture_info);
 
 	char *config_path = obs_module_config_path(NULL);

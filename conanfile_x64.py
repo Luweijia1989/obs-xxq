@@ -15,15 +15,15 @@ class ObsXXQConan(ConanFile):
         self.copy("*.hpp", dst="include/libobs", src="libobs", keep_path=True)
         
         if self.settings.build_type=="Debug":
-            self.copy("*.dll", dst="bin", src="../dependencies2017/win64/bin", keep_path=False)
+            self.copy("*.dll", dst="bin", src="xxq-obs-deps/bin", keep_path=False)
             self.copy("*.lib", dst="lib", src="build64/libobs/Debug", keep_path=True)
         else:
-            self.copy("*.dll", dst="bin", src="../dependencies2017/win64/bin", keep_path=False, excludes="debug")
+            self.copy("*.dll", dst="bin", src="xxq-obs-deps/bin", keep_path=False, excludes="debug")
             self.copy("*.lib", dst="lib", src="build64/libobs/RelWithDebInfo", keep_path=True)
             
             
         if self.settings.build_type=="Debug":
-            self.copy("*.dll", dst="bin", src="../dependencies2017/win64/bin/debug", keep_path=False)
+            self.copy("*.dll", dst="bin", src="xxq-obs-deps/bin/debug", keep_path=False)
             self.copy("*.dll", dst="bin", src="build64/libobs/Debug", keep_path=False)
             self.copy("*.pdb", dst="bin", src="build64/libobs/Debug", keep_path=False)
             self.copy("*.dll", dst="bin", src="build64/libobs-d3d11/Debug", keep_path=False)

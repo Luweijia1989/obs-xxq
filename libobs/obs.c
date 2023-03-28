@@ -3246,13 +3246,13 @@ void obs_rtc_set_merge_info(int self_index, obs_data_t *merge_info,
 }
 
 void obs_add_raw_audio_callback(const struct audio_convert_info *conversion,
-				audio_output_callback_t callback, void *param, bool final_mix)
+				audio_output_callback_t callback, void *param, enum raw_audio_type type)
 {
 	audio_t *audio = obs->audio.audio;
 	if (!audio)
 		return;
 
-	audio_output_connect(audio, 0, conversion, callback, param, final_mix);
+	audio_output_connect(audio, 0, conversion, callback, param, type);
 }
 
 void obs_remove_raw_audio_callback(audio_output_callback_t callback,
