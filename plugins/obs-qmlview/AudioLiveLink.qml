@@ -28,12 +28,21 @@ Item{
 			visible: true
 		}
 		
-		FastBlur {
+		FastBlur{
 			anchors.fill: background
 			source: background
-			radius: 64
+			radius: 100
 		}
 		
+		Rectangle 
+		{
+			id:blurmask
+			x: 0
+			y: 0; 
+			width: audioLiveLinkProperties.basicWidth
+			height: audioLiveLinkProperties.basicHeight
+			color: "#66000000"
+		}
 		
 		  CommonAnimateImage{
 		  id: voicewave
@@ -110,7 +119,7 @@ Item{
 		id: anchorname
 			text: audioLiveLinkProperties.name
 			x: audioLiveLinkProperties.isMuliti?573:213
-			y: 643
+			y: audioLiveLinkProperties.voiceWaveTopMargin + audioLiveLinkProperties.voiceWaveSize
 			width:293
 			height:58
 			elide: Text.ElideRight
