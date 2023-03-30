@@ -28,10 +28,11 @@ Item{
 			visible: true
 		}
 		
-		FastBlur{
+		GaussianBlur {
 			anchors.fill: background
 			source: background
-			radius: 100
+			radius: 400
+			samples:400
 		}
 		
 		Rectangle 
