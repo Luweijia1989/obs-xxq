@@ -115,23 +115,6 @@ Item{
 			  }
 		  }
 		}
-		
-		Text {
-		id: anchorname
-			text: audioLiveLinkProperties.name
-			x: audioLiveLinkProperties.isMuliti?573:213
-			y: audioLiveLinkProperties.voiceWaveTopMargin + audioLiveLinkProperties.voiceWaveSize
-			width:293
-			height:58
-			elide: Text.ElideRight
-			font.family: "阿里巴巴普惠体 M"
-			font.pixelSize: 42
-			font.bold: true
-			color:"#FFFFFF"
-			visible: audioLiveLinkProperties.isMuliti?false:true
-			horizontalAlignment: Text.AlignHCenter
-			verticalAlignment: Text.AlignVCenter
-	}
 
 		  CommonAnimateImage{
 		  id: faceeffect
