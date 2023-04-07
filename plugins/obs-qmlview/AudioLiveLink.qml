@@ -28,12 +28,22 @@ Item{
 			visible: true
 		}
 		
-		FastBlur {
+		GaussianBlur {
 			anchors.fill: background
 			source: background
-			radius: 64
+			radius: 400
+			samples:400
 		}
 		
+		Rectangle 
+		{
+			id:blurmask
+			x: 0
+			y: 0; 
+			width: audioLiveLinkProperties.basicWidth
+			height: audioLiveLinkProperties.basicHeight
+			color: "#66000000"
+		}
 		
 		  CommonAnimateImage{
 		  id: voicewave
@@ -106,23 +116,6 @@ Item{
 			  }
 		  }
 		}
-		
-		Text {
-		id: anchorname
-			text: audioLiveLinkProperties.name
-			x: audioLiveLinkProperties.isMuliti?573:213
-			y: 643
-			width:293
-			height:58
-			elide: Text.ElideRight
-			font.family: "阿里巴巴普惠体 M"
-			font.pixelSize: 42
-			font.bold: true
-			color:"#FFFFFF"
-			visible: audioLiveLinkProperties.isMuliti?false:true
-			horizontalAlignment: Text.AlignHCenter
-			verticalAlignment: Text.AlignVCenter
-	}
 
 		  CommonAnimateImage{
 		  id: faceeffect
