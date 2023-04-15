@@ -190,7 +190,8 @@ inline WASAPISource::~WASAPISource()
 	if(defaultThread.joinable())
 		defaultThread.join();
 
-	enumerator->UnregisterEndpointNotificationCallback(notify);
+	if(enumerator)
+		enumerator->UnregisterEndpointNotificationCallback(notify);
 	Stop();
 
 	DeleteCriticalSection(&mutex);
