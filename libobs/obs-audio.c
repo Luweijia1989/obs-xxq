@@ -79,11 +79,12 @@ static inline void mix_audio(struct audio_output_data *mixes,
 	}
 }
 
-static inline void mix_audios(DARRAY(struct obs_source *) *audios, struct audio_output_data *mixes, size_t channels,
+static inline void mix_audios(void *audio, struct audio_output_data *mixes, size_t channels,
 			     size_t sample_rate, struct ts_info *ts)
 {
+	DARRAY(obs_source_t *) *audios = audio;
 	for (size_t i = 0; i < audios->num; i++) {
-			obs_source_t *source = audios->array[i];
+		obs_source_t *source = audios->array[i];
 
 		pthread_mutex_lock(&source->audio_buf_mutex);
 
@@ -297,7 +298,7 @@ static void add_audio_buffering(struct obs_core_audio *audio,
 							AUDIO_OUTPUT_FRAMES);
 
 	while (ticks--) {
-		int cur_ticks = ++audio->buffering_wait_ticks;
+		uint64_t cur_ticks = ++audio->buffering_wait_ticks;
 
 		new_ts.end = new_ts.start;
 		new_ts.start =
@@ -466,9 +467,9 @@ bool audio_callback(void *param, uint64_t start_ts_in, uint64_t end_ts_in,
 				    buffering_name);
 
 	/* ------------------------------------------------ */
-	/* mix audio */
+	/* mix audio */ 
 	if (!audio->buffering_wait_ticks) {
-		DARRAY(struct obs_source *) only_rtmp_sources, link_extra_sources, both_sources, aec_sources;
+		DARRAY(obs_source_t *) only_rtmp_sources, link_extra_sources, both_sources, aec_sources;
 		da_init(only_rtmp_sources);
 		da_init(link_extra_sources);
 		da_init(both_sources);

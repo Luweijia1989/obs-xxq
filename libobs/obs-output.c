@@ -2635,3 +2635,20 @@ void obs_output_output_raw_audio(obs_output_t *output, struct audio_data *frames
 
 	output->raw_audio_cb(output->raw_param, frames);
 }
+
+void obs_output_sig_event(obs_output_t *output, const char *event)
+{
+	if (!obs_output_valid(output, "obs_output_sig_connected"))
+		return;
+
+	obs_data_t *event_data = obs_data_create();
+	obs_data_set_string(event_data, "event_type", event);
+
+	struct calldata params = {0};
+	calldata_set_ptr(&params, "output", output);
+	calldata_set_ptr(&params, "data", event_data);
+	signal_handler_signal(output->context.signals, "sig_event", &params);
+	calldata_free(&params);
+
+	obs_data_release(event_data);
+}

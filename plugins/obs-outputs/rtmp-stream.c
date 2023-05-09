@@ -441,8 +441,13 @@ static int send_packet(struct rtmp_stream *stream,
 
 	if (is_header)
 		bfree(packet->data);
-	else
+	else {
 		obs_encoder_packet_release(packet);
+		if (!stream->sent_first_media_packet) {
+			stream->sent_first_media_packet = true;
+			obs_output_sig_event(stream->output, "SentFirstMediaPacket");
+		}
+	}
 
 	stream->total_bytes_sent += size;
 	return ret;
@@ -653,6 +658,7 @@ static void *send_thread(void *data)
 	os_event_reset(stream->stop_event);
 	os_atomic_set_bool(&stream->active, false);
 	stream->sent_headers = false;
+	stream->sent_first_media_packet = false;
 
 	/* reset bitrate on stop */
 	if (stream->dbr_enabled) {
@@ -1133,6 +1139,9 @@ static void *connect_thread(void *data)
 	if (ret != OBS_OUTPUT_SUCCESS) {
 		obs_output_signal_stop(stream->output, ret);
 		info("Connection to %s failed: %d", stream->path.array, ret);
+	} else {
+		obs_data_t *event_data = obs_data_create();
+		obs_output_sig_event(stream->output, "Connected");
 	}
 
 	obs_data_t *setting = obs_output_get_settings(stream->output);
