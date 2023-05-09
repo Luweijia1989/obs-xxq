@@ -105,7 +105,6 @@ struct ffmpeg_output {
 	URLContext *h;
 	AVIOContext *s;
 	bool got_headers;
-	bool sent_first_media_packet;
 };
 bool ffmpeg_data_init(struct ffmpeg_data *data, struct ffmpeg_cfg *config);
 void ffmpeg_data_free(struct ffmpeg_data *data);

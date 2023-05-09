@@ -1997,8 +1997,6 @@ EXPORT void obs_output_set_raw_data_callback(obs_output_t *output, new_video_pac
 EXPORT void obs_output_output_raw_video(obs_output_t *output, struct video_data *packet);
 EXPORT void obs_output_output_raw_audio(obs_output_t *output, struct audio_data *frames);
 
-EXPORT void obs_output_sig_event(obs_output_t *output, const char *event);
-
 /* ------------------------------------------------------------------------- */
 /* Encoders */
 
