@@ -794,6 +794,12 @@ EXPORT void obs_view_render(obs_view_t *view, void *output_order);
 /* ------------------------------------------------------------------------- */
 /* Display context */
 
+enum display_type
+{
+	to_swapchain,
+	to_texture,
+};
+
 /**
  * Adds a new window display linked to the main render pipeline.  This creates
  * a new swap chain which updates every frame.
@@ -801,9 +807,11 @@ EXPORT void obs_view_render(obs_view_t *view, void *output_order);
  * @param  graphics_data  The swap chain initialization data.
  * @return                The new display context, or NULL if failed.
  */
+typedef void (*imgui_init_t)(void *device, void *context, void *data);
+typedef void (*display_texture_data_t)(uint8_t *data, uint32_t linesize, uint32_t src_linesize, uint32_t src_height, void *param);
 EXPORT obs_display_t *obs_display_create(
 	const struct gs_init_data *graphics_data, uint32_t backround_color,
-	void (*imgui_init)(void *device, void *context, void *data), void *p);
+	imgui_init_t imgui_init, display_texture_data_t display_texture_data_cb, void *p, enum display_type type);
 
 /** Destroys a display context */
 EXPORT void obs_display_destroy(obs_display_t *display);
@@ -811,6 +819,8 @@ EXPORT void obs_display_destroy(obs_display_t *display);
 /** Changes the size of this display */
 EXPORT void obs_display_resize(obs_display_t *display, uint32_t cx,
 			       uint32_t cy);
+
+EXPORT gs_texture_t *obs_display_get_texture(obs_display_t *display);
 
 /**
  * Adds a draw callback for this display context
@@ -838,6 +848,8 @@ EXPORT void obs_display_set_background_color(obs_display_t *display,
 
 EXPORT void obs_display_size(obs_display_t *display, uint32_t *width,
 			     uint32_t *height);
+
+EXPORT void obs_display_set_dxinterop_enabled(bool enabled);
 
 /* ------------------------------------------------------------------------- */
 /* Sources */
