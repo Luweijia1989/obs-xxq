@@ -452,7 +452,7 @@ extern "C"
         int connect_time_ms;
         int last_error_code;
 
-        char cdn_addr[16];
+        char cdn_addr[256];
 #ifdef CRYPTO
         TLS_CTX RTMP_TLS_ctx;
 #endif

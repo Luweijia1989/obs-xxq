@@ -343,6 +343,10 @@ static inline int connect_mpegts_url(struct ffmpeg_output *stream, bool is_rist)
 		err = libsrt_open(uc, uc->url);
 	if (err < 0)
 		goto fail;
+
+	obs_data_t *setting = obs_output_get_settings(stream->output);
+	obs_data_set_string(setting, "cdn_ip", uc->cdn_addr);
+	obs_data_release(setting);
 	return 0;
 fail:
 	if (uc)
