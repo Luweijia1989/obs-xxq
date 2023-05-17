@@ -1140,7 +1140,6 @@ static void *connect_thread(void *data)
 		obs_output_signal_stop(stream->output, ret);
 		info("Connection to %s failed: %d", stream->path.array, ret);
 	} else {
-		obs_data_t *event_data = obs_data_create();
 		obs_output_sig_event(stream->output, "Connected");
 	}
 
