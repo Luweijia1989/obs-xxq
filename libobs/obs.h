@@ -1,4 +1,4 @@
-/******************************************************************************
+﻿/******************************************************************************
     Copyright (C) 2013-2014 by Hugh Bailey <jim@obsproject.com>
 
     This program is free software: you can redistribute it and/or modify
@@ -2346,19 +2346,26 @@ EXPORT void obs_remove_raw_audio_callback(audio_output_callback_t callback,
 //count type!=1时忽略 总共宫格数
 EXPORT void obs_rtc_set_merge_info(int self_index, obs_data_t *merge_info,
 				   char *background_image);
-
+/*
+self_crop_x		rtc推出去的画面在本地预览画面中的x偏移
+self_crop_y		rtc推出去的画面在本地预览画面中的y偏移
+self_crop_width		rtc推出去的画面裁剪宽度
+self_crop_height	rtc推出去的画面裁剪高度
+self_output_width	rtc推出去的画面宽度
+self_output_height	rtc推出去的画面高度
+*/
 EXPORT void obs_rtc_capture_begin(
 	uint32_t self_crop_x, uint32_t self_crop_y, uint32_t self_crop_width,
 	uint32_t self_crop_height, uint32_t self_output_width,
-	uint32_t self_output_height, uint32_t capture_width,
-	uint32_t capture_height,
+	uint32_t self_output_height,
 	void (*new_rtc_frame_output)(uint8_t **data, uint32_t *linesize,
 				     uint32_t width, uint32_t height,
 				     void *userdata),
 	void *userdata);
+EXPORT void obs_rtc_update_local_mix_crop_info(uint32_t self_crop_x, uint32_t self_crop_y, uint32_t self_crop_width, uint32_t self_crop_height);
 EXPORT void obs_rtc_capture_end();
-
 EXPORT void obs_rtc_capture_free(bool freeRender);
+
 
 //mixType 0->普通混流，画布为output_texture，尺寸已经修正过无需偏移
 //        1->优化后的混流，画布为rtc_frame_mix_output_texture,尺寸为1920*1080,有效区域是4：3，绘制时需要做偏移

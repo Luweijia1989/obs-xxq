@@ -270,6 +270,13 @@ struct obs_frame_render_info {
 typedef void (*rtc_frame_output_t)(uint8_t **data, uint32_t *linesize,
 				   uint32_t width, uint32_t height,
 				   void *userdata);
+
+struct rect {
+	uint32_t x;
+	uint32_t y;
+	uint32_t width;
+	uint32_t height;
+};
 struct obs_rtc_mix {
 	char rtc_background_image_path[512];
 	char rtc_seat_background_image_path[512];
@@ -283,14 +290,10 @@ struct obs_rtc_mix {
 	gs_texture_t *rtc_frame_mix_output_texture;
 	gs_texture_t *rtc_background_texture;
 	bool render_rtc_textures;
-	uint32_t self_crop_x;
-	uint32_t self_crop_y;
-	uint32_t self_crop_width;
-	uint32_t self_crop_height;
-	uint32_t output_texture_width;
-	uint32_t output_texture_height;
-	uint32_t capture_texture_width;
-	uint32_t capture_texture_height;
+	struct rect rtc_frame_crop_info;
+	struct rect rtc_local_mix_crop_info;
+	uint32_t rtc_frame_output_texture_width;
+	uint32_t rtc_frame_output_texture_height;
 	volatile bool rtc_frame_active;
 	volatile bool rtc_output_active;
 

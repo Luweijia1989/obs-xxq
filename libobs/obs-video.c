@@ -705,7 +705,7 @@ static void rtc_draw_background_image(gs_effect_t *effect, gs_technique_t *tech)
 }
 
 static inline gs_texture_t *
-render_rtc_output_texture(struct obs_core_video *video) //final output
+render_rtc_local_mix_output_texture(struct obs_core_video *video) //final output
 {
 	//rtc_frame_mix_output_texture作为本地混流的输出，尺寸和预览尺寸保持一致1920*1080
 	//普通连麦画布还是之前的output_texture，我们会去改变这个画布尺寸为1440*1080.多人连麦有效区域也是1440*1080，我们画的时候要做偏移
@@ -746,10 +746,10 @@ render_rtc_output_texture(struct obs_core_video *video) //final output
 				texture,
 				frame_info->x + x_offset,
 				frame_info->y + y_offset,
-				rtc_mix->self_crop_x,
-				rtc_mix->self_crop_y,
-				rtc_mix->self_crop_width,
-				rtc_mix->self_crop_height,
+				rtc_mix->rtc_local_mix_crop_info.x,
+				rtc_mix->rtc_local_mix_crop_info.y,
+				rtc_mix->rtc_local_mix_crop_info.width,
+				rtc_mix->rtc_local_mix_crop_info.height,
 				frame_info->width,
 				frame_info->height,
 				width,
@@ -811,19 +811,19 @@ render_rtc_frame_texture(struct obs_core_video *video,
 	vec4_zero(&clear_color);
 	gs_clear(GS_CLEAR_COLOR, &clear_color, 0.0f, 0);
 
-	render_rtc_textures(effect, tech, texture, 0, 0, rtc_mix->self_crop_x,
-			    rtc_mix->self_crop_y, rtc_mix->self_crop_width,
-			    rtc_mix->self_crop_height);
+	render_rtc_textures(effect, tech, texture, 0, 0, rtc_mix->rtc_frame_crop_info.x,
+			    rtc_mix->rtc_frame_crop_info.y, rtc_mix->rtc_frame_crop_info.width,
+			    rtc_mix->rtc_frame_crop_info.height);
 
-	if (rtc_mix->output_texture_width != rtc_mix->capture_texture_width ||
-	    rtc_mix->output_texture_height != rtc_mix->capture_texture_height) {
+	if (rtc_mix->rtc_frame_output_texture_width != rtc_mix->rtc_frame_crop_info.width ||
+	    rtc_mix->rtc_frame_output_texture_height != rtc_mix->rtc_frame_crop_info.height) {
 		render_texture_scale_internal(
 			rtc_mix->rtc_frame_texture,
 			rtc_mix->rtc_frame_output_texture,
 			video->bicubic_effect,
 			gs_effect_get_technique(video->bicubic_effect, "Draw"),
-			rtc_mix->capture_texture_width,
-			rtc_mix->capture_texture_height);
+			rtc_mix->rtc_frame_crop_info.width,
+			rtc_mix->rtc_frame_crop_info.height);
 		ret = rtc_mix->rtc_frame_output_texture;
 	}
 
@@ -1092,15 +1092,15 @@ static inline void render_video(struct obs_core_video *video, bool raw_active,
 				set_gpu_converted_data_internal(
 					false, rtc_mix->cache_frame, &frame,
 					VIDEO_FORMAT_I420,
-					rtc_mix->output_texture_width,
-					rtc_mix->output_texture_height);
+					rtc_mix->rtc_frame_output_texture_width,
+					rtc_mix->rtc_frame_output_texture_height);
 
 				if (rtc_mix->output_cb)
 					rtc_mix->output_cb(
 						rtc_mix->cache_frame->data,
 						rtc_mix->cache_frame->linesize,
-						rtc_mix->output_texture_width,
-						rtc_mix->output_texture_height,
+						rtc_mix->rtc_frame_output_texture_width,
+						rtc_mix->rtc_frame_output_texture_height,
 						rtc_mix->output_cb_data);
 			}
 		}
@@ -1109,7 +1109,7 @@ static inline void render_video(struct obs_core_video *video, bool raw_active,
 	if (raw_active || gpu_active) {
 		gs_texture_t *texture =
 			os_atomic_load_bool(&rtc_mix->rtc_output_active)
-				? render_rtc_output_texture(video)
+				? render_rtc_local_mix_output_texture(video)
 				: render_output_texture(video);
 
 #ifdef _WIN32
