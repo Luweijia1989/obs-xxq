@@ -3093,6 +3093,20 @@ void obs_rtc_capture_begin(
 	obs_leave_graphics();
 }
 
+void obs_rtc_crop_info(struct rect *info)
+{
+	if (!info)
+		return;
+
+	struct obs_rtc_mix *rtc_mix = &obs->video.rtc_mix;
+	obs_enter_graphics();
+	info->x = rtc_mix->rtc_frame_crop_info.x;
+	info->y = rtc_mix->rtc_frame_crop_info.y;
+	info->width = rtc_mix->rtc_frame_crop_info.width;
+	info->height = rtc_mix->rtc_frame_crop_info.height;
+	obs_leave_graphics();
+}
+
 void obs_rtc_update_local_mix_crop_info(uint32_t self_crop_x, uint32_t self_crop_y, uint32_t self_crop_width, uint32_t self_crop_height)
 {
 	struct obs_rtc_mix *rtc_mix = &obs->video.rtc_mix;

@@ -1,4 +1,4 @@
-﻿/******************************************************************************
+/******************************************************************************
     Copyright (C) 2013-2014 by Hugh Bailey <jim@obsproject.com>
 
     This program is free software: you can redistribute it and/or modify
@@ -2366,6 +2366,7 @@ EXPORT void obs_rtc_update_local_mix_crop_info(uint32_t self_crop_x, uint32_t se
 EXPORT void obs_rtc_capture_end();
 EXPORT void obs_rtc_capture_free(bool freeRender);
 
+EXPORT void obs_rtc_crop_info(struct rect *info);
 
 //mixType 0->普通混流，画布为output_texture，尺寸已经修正过无需偏移
 //        1->优化后的混流，画布为rtc_frame_mix_output_texture,尺寸为1920*1080,有效区域是4：3，绘制时需要做偏移
