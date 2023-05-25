@@ -711,9 +711,7 @@ render_rtc_local_mix_output_texture(struct obs_core_video *video) //final output
 	//普通连麦画布还是之前的output_texture，我们会去改变这个画布尺寸为1440*1080.多人连麦有效区域也是1440*1080，我们画的时候要做偏移
 	struct obs_rtc_mix *rtc_mix = &obs->video.rtc_mix;
 	gs_texture_t *texture = video->render_invisible_texture;
-	gs_texture_t *target = rtc_mix->mix_type == 0
-				       ? video->output_texture
-				       : rtc_mix->rtc_frame_mix_output_texture;
+	gs_texture_t *target = rtc_mix->rtc_frame_mix_output_texture;
 	uint32_t width = gs_texture_get_width(target);
 	uint32_t height = gs_texture_get_height(target);
 
@@ -775,23 +773,19 @@ render_rtc_local_mix_output_texture(struct obs_core_video *video) //final output
 		}
 	}
 
-	if (rtc_mix->mix_type == 0)
+	uint32_t mix_width = gs_texture_get_width(
+		rtc_mix->rtc_frame_mix_output_texture);
+	uint32_t mix_height = gs_texture_get_height(
+		rtc_mix->rtc_frame_mix_output_texture);
+	if (mix_width != video->output_width ||
+		mix_height != video->output_height) {
+		render_texture_scale_internal(
+			rtc_mix->rtc_frame_mix_output_texture,
+			video->output_texture, effect, tech, mix_width,
+			mix_height);
+		return video->output_texture;
+	} else
 		return target;
-	else {
-		uint32_t mix_width = gs_texture_get_width(
-			rtc_mix->rtc_frame_mix_output_texture);
-		uint32_t mix_height = gs_texture_get_height(
-			rtc_mix->rtc_frame_mix_output_texture);
-		if (mix_width != video->output_width ||
-		    mix_height != video->output_height) {
-			render_texture_scale_internal(
-				rtc_mix->rtc_frame_mix_output_texture,
-				video->output_texture, effect, tech, mix_width,
-				mix_height);
-			return video->output_texture;
-		} else
-			return target;
-	}
 }
 
 static inline gs_texture_t *
@@ -1108,7 +1102,7 @@ static inline void render_video(struct obs_core_video *video, bool raw_active,
 
 	if (raw_active || gpu_active) {
 		gs_texture_t *texture =
-			os_atomic_load_bool(&rtc_mix->rtc_output_active)
+			os_atomic_load_bool(&rtc_mix->rtc_local_mix_active)
 				? render_rtc_local_mix_output_texture(video)
 				: render_output_texture(video);
 

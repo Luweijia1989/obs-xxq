@@ -2341,11 +2341,23 @@ obs_add_raw_audio_callback(const struct audio_convert_info *conversion,
 EXPORT void obs_remove_raw_audio_callback(audio_output_callback_t callback,
 					  void *param);
 
+struct rtc_crop_info {
+	uint32_t x;
+	uint32_t y;
+	uint32_t width;
+	uint32_t height;
+};
+
+EXPORT void obs_rtc_crop_info(struct rtc_crop_info *info);
+
 //设置本地混流基本信息
 //type 0=>普通连麦 1=>多人连麦 宫格形式
 //count type!=1时忽略 总共宫格数
-EXPORT void obs_rtc_set_merge_info(int self_index, obs_data_t *merge_info,
-				   char *background_image);
+EXPORT void obs_rtc_local_mix_begin(int self_index, obs_data_t *merge_info, char *background_image);
+EXPORT void obs_rtc_local_mix_end();
+EXPORT void obs_rtc_local_mix_free();
+EXPORT void obs_rtc_update_local_mix_crop_info(uint32_t self_crop_x, uint32_t self_crop_y, uint32_t self_crop_width, uint32_t self_crop_height);
+
 /*
 self_crop_x		rtc推出去的画面在本地预览画面中的x偏移
 self_crop_y		rtc推出去的画面在本地预览画面中的y偏移
@@ -2362,16 +2374,8 @@ EXPORT void obs_rtc_capture_begin(
 				     uint32_t width, uint32_t height,
 				     void *userdata),
 	void *userdata);
-EXPORT void obs_rtc_update_local_mix_crop_info(uint32_t self_crop_x, uint32_t self_crop_y, uint32_t self_crop_width, uint32_t self_crop_height);
 EXPORT void obs_rtc_capture_end();
-EXPORT void obs_rtc_capture_free(bool freeRender);
-
-EXPORT void obs_rtc_crop_info(struct rect *info);
-
-//mixType 0->普通混流，画布为output_texture，尺寸已经修正过无需偏移
-//        1->优化后的混流，画布为rtc_frame_mix_output_texture,尺寸为1920*1080,有效区域是4：3，绘制时需要做偏移
-EXPORT void obs_rtc_output_begin(int mixType);
-EXPORT void obs_rtc_output_end();
+EXPORT void obs_rtc_capture_free();
 
 EXPORT void obs_rtc_all_end();
 

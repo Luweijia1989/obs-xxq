@@ -271,31 +271,26 @@ typedef void (*rtc_frame_output_t)(uint8_t **data, uint32_t *linesize,
 				   uint32_t width, uint32_t height,
 				   void *userdata);
 
-struct rect {
-	uint32_t x;
-	uint32_t y;
-	uint32_t width;
-	uint32_t height;
-};
 struct obs_rtc_mix {
+	//localmix
 	char rtc_background_image_path[512];
 	char rtc_seat_background_image_path[512];
-	int mix_type;
 	struct obs_frame_render_info rtc_frame_render_info;
 	gs_texture_t *rtc_textures[NUM_RTC_CHANNEL];
 	gs_texrender_t *rtc_texture_render[NUM_RTC_CHANNEL];
 	gs_texrender_t *self_texture_render;
-	gs_texture_t *rtc_frame_texture;
-	gs_texture_t *rtc_frame_output_texture;
 	gs_texture_t *rtc_frame_mix_output_texture;
 	gs_texture_t *rtc_background_texture;
-	bool render_rtc_textures;
-	struct rect rtc_frame_crop_info;
-	struct rect rtc_local_mix_crop_info;
+	struct rtc_crop_info rtc_local_mix_crop_info;
+	volatile bool rtc_local_mix_active;
+
+	//for rtc output
+	gs_texture_t *rtc_frame_texture;
+	gs_texture_t *rtc_frame_output_texture;
+	struct rtc_crop_info rtc_frame_crop_info;
 	uint32_t rtc_frame_output_texture_width;
 	uint32_t rtc_frame_output_texture_height;
 	volatile bool rtc_frame_active;
-	volatile bool rtc_output_active;
 
 	rtc_frame_output_t output_cb;
 	void *output_cb_data;
