@@ -60,8 +60,7 @@ Item{
 		  playing: false
 		  Rectangle {
 			  id: avartar
-			  x: audioLiveLinkProperties.avatarPos
-			  y: audioLiveLinkProperties.avatarPos
+              anchors.centerIn: parent
 			  width: audioLiveLinkProperties.avatarSize
 			  height: audioLiveLinkProperties.avatarSize
 			  radius: audioLiveLinkProperties.avatarSize/2
