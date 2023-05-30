@@ -58,6 +58,7 @@ Item{
 		  cache: true
 		  visible:true
 		  playing: false
+          playCount: 1
           Rectangle {
               id: avartar
               anchors.centerIn: parent
@@ -123,10 +124,7 @@ Item{
 		{
 			voicewave.play();
 		}
-		onStop:
-		{
-			voicewave.stop();
-		}
+
 		onShowPkEffect:
 		{
 			faceeffect.visible = true;
