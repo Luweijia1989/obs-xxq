@@ -3029,12 +3029,12 @@ void obs_rtc_capture_begin(
 	//force using nv12 texture
 	obs_enter_graphics();
 
-	rtc_mix->rtc_frame_output_texture_width = self_output_width;
-	rtc_mix->rtc_frame_output_texture_height = self_output_height;
+	rtc_mix->rtc_frame_output_texture_width = self_output_width % 2 == 0 ? self_output_width : self_output_width + 1;
+	rtc_mix->rtc_frame_output_texture_height = self_output_height % 2 == 0 ? self_output_height : self_output_height + 1;
 	rtc_mix->rtc_frame_crop_info.x = self_crop_x;
 	rtc_mix->rtc_frame_crop_info.y = self_crop_y;
-	rtc_mix->rtc_frame_crop_info.width = self_crop_width;
-	rtc_mix->rtc_frame_crop_info.height = self_crop_height;
+	rtc_mix->rtc_frame_crop_info.width = self_crop_width % 2 == 0 ? self_crop_width : self_crop_width + 1;
+	rtc_mix->rtc_frame_crop_info.height = self_crop_height % 2 == 0 ? self_crop_height : self_crop_height + 1;
 	rtc_mix->rtc_local_mix_crop_info = rtc_mix->rtc_frame_crop_info;
 
 	if (!obs_init_rtc_gpu_conversion(rtc_mix))
