@@ -58,62 +58,46 @@ Item{
 		  cache: true
 		  visible:true
 		  playing: false
-		  Rectangle {
-			  id: avartar
+          Rectangle {
+              id: avartar
               anchors.centerIn: parent
-			  width: audioLiveLinkProperties.avatarSize
-			  height: audioLiveLinkProperties.avatarSize
-			  radius: audioLiveLinkProperties.avatarSize/2
-			  Rectangle {
-				  id: imgeBg
-				  anchors.left: parent.left
-				  anchors.top: parent.top
-				  width:parent.width
-				  height:parent.height
-				  radius: audioLiveLinkProperties.avatarSize/2
-				  visible: false
-                  CommonAnimateImage {
-					  id: squareavatarImage
-					  smooth: true
-					  visible: true
-                      width: audioLiveLinkProperties.avatarSize
-                      height: audioLiveLinkProperties.avatarSize
-                      anchors.centerIn: parent
-                      cacheSource: audioLiveLinkProperties.path
-					  antialiasing: true
-				  }
+              width: audioLiveLinkProperties.avatarSize + audioLiveLinkProperties.borderWidth * 2
+              height: width
+              radius: width/2
+              border.width:audioLiveLinkProperties.borderWidth
+              border.color:"#FFFFFF"
 
-				  Rectangle {
-				  id: border1
-				  color: "#00000000"
-				  anchors.fill: parent
-				  radius: audioLiveLinkProperties.avatarSize/2
-				  visible: true
-				  antialiasing: true
-				  smooth: true
-				  border.width:audioLiveLinkProperties.borderWidth
-				  border.color:"#FFFFFF"
-			  }
-			  }
-			  Rectangle {
-				  id: mask1
-				  color: "black"
-				  anchors.fill: parent
-				  radius: audioLiveLinkProperties.avatarSize/2
-				  visible: false
-				  antialiasing: true
-				  smooth: true
-			  }
-			  OpacityMask {
-				  id: maskAvatar1
-				  anchors.fill: imgeBg
-				  anchors.centerIn: parent
-				  source: imgeBg
-				  maskSource: mask1
-				  visible: true
-				  antialiasing: true
-			  }
-		  }
+              Item {
+                  anchors.centerIn: parent
+                  width: audioLiveLinkProperties.avatarSize
+                  height: width
+
+                  CommonAnimateImage {
+                      id: img
+                      smooth: true
+                      visible: false
+                      anchors.fill: parent
+                      cacheSource: audioLiveLinkProperties.path
+                      antialiasing: true
+                  }
+
+                  Rectangle {
+                      id: mask
+                      visible: false
+                      antialiasing: true
+                      anchors.fill: parent
+                      radius: parent.width/2
+                  }
+
+                  OpacityMask {
+                      source: img
+                      maskSource: mask
+                      anchors.fill: img
+                      antialiasing: true
+                      visible: img.status === Image.Ready
+                  }
+              }
+          }
 		}
 
 		  CommonAnimateImage{

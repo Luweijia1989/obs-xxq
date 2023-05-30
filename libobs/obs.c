@@ -2825,9 +2825,11 @@ void obs_source_create_xxqsource(int type /*1=privacy 2=leave*/,
 			obs_source_activate(data->mask_source, MAIN_VIEW);
 		}
 	} else if (type == 6) {
-		data->audiolivelink_source = obs_source_create_private(
-			"audio_livelink_source", AUDIOLINK_ID, settings);
-		obs_source_activate(data->audiolivelink_source, MAIN_VIEW);
+		if (!data->audiolivelink_source) {
+			data->audiolivelink_source = obs_source_create_private(
+				"audio_livelink_source", AUDIOLINK_ID, settings);
+			obs_source_activate(data->audiolivelink_source, MAIN_VIEW);
+		}
 	}
 	obs_leave_graphics();
 }
