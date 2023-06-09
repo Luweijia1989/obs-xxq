@@ -163,23 +163,6 @@ void obs_view_render(obs_view_t *view, void *output_order)
 		gs_matrix_pop();
 	}
 
-	if (core_data->h5_source) {
-		obs_data_t *ss = core_data->h5_source->context.settings;
-		double wScale = obs_data_get_double(ss, "wScale");
-		double hScale = obs_data_get_double(ss, "hScale");
-
-		gs_matrix_push();
-		struct matrix4 h5_pos;
-		memset(&h5_pos, 0, sizeof(h5_pos));
-		vec4_set(&h5_pos.x, wScale, 0, 0, 0);
-		vec4_set(&h5_pos.y, 0, hScale, 0, 0);
-		vec4_set(&h5_pos.z, 0, 0, 1, 0);
-		vec4_set(&h5_pos.t, 0, 0, 0, 1);
-		gs_matrix_mul(&h5_pos);
-		obs_source_default_render(core_data->h5_source);
-		gs_matrix_pop();
-	}
-
 	if (core_data->mask_source)
 		obs_source_default_render(core_data->mask_source);
 

@@ -1034,6 +1034,26 @@ static inline void render_video(struct obs_core_video *video, bool raw_active,
 		gs_set_render_target(video->render_invisible_texture, NULL);
 		obs_source_default_render(obs->data.audiolivelink_source);
 	}
+	
+	if (obs->data.h5_source) {
+		gs_set_render_target(video->render_invisible_texture, NULL);
+		
+		obs_data_t *ss = obs->data.h5_source->context.settings;
+		double wScale = obs_data_get_double(ss, "wScale");
+		double hScale = obs_data_get_double(ss, "hScale");
+
+		gs_matrix_push();
+		struct matrix4 h5_pos;
+		memset(&h5_pos, 0, sizeof(h5_pos));
+		vec4_set(&h5_pos.x, wScale, 0, 0, 0);
+		vec4_set(&h5_pos.y, 0, hScale, 0, 0);
+		vec4_set(&h5_pos.z, 0, 0, 1, 0);
+		vec4_set(&h5_pos.t, 0, 1, 0, 1);
+		gs_matrix_translate3f(obs_data_get_int(ss, "x"), obs_data_get_int(ss, "y"), 0.0f);
+		gs_matrix_mul(&h5_pos);
+		obs_source_default_render(obs->data.h5_source);
+		gs_matrix_pop();
+	}
 
 	struct obs_rtc_mix *rtc_mix = &obs->video.rtc_mix;
 	if (os_atomic_load_bool(&rtc_mix->rtc_frame_active)) {
