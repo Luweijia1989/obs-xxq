@@ -11,6 +11,8 @@ Item{
 	visible: true
 	Rectangle {
 		id: audiolink
+        width: audioLiveLinkProperties.backWidth
+        height: audioLiveLinkProperties.backHeight
         anchors.fill: parent
 		x: audioLiveLinkProperties.posX
 		y: audioLiveLinkProperties.posY
