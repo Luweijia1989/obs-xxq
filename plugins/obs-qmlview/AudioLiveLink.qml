@@ -12,7 +12,7 @@ Item{
 	Rectangle {
 		id: audiolink
         width: audioLiveLinkProperties.backWidth
-        height: audioLiveLinkProperties.backHeight
+        height: parent.height
         anchors.fill: parent
 		x: audioLiveLinkProperties.posX
 		y: audioLiveLinkProperties.posY
