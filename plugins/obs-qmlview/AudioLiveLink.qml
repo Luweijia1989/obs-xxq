@@ -11,16 +11,14 @@ Item{
 	visible: true
 	Rectangle {
 		id: audiolink
-		width: audioLiveLinkProperties.backWidth
-		height: 1080
+        anchors.fill: parent
 		x: audioLiveLinkProperties.posX
 		y: audioLiveLinkProperties.posY
 		transformOrigin:Item.TopLeft
 		scale: audioLiveLinkProperties.scale
 		Image {
 			id: background
-			width: audioLiveLinkProperties.backWidth
-			height: 1080
+            anchors.fill: parent
 			source: audioLiveLinkProperties.path
 			fillMode:Image.PreserveAspectCrop
 			sourceSize: Qt.size(parent.width, parent.height)
