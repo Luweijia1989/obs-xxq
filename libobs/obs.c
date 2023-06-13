@@ -3165,7 +3165,7 @@ void obs_rtc_update_frame(int channel, char *data, uint32_t width,
 	}
 	if (!rtc_mix->rtc_textures[channel])
 		rtc_mix->rtc_textures[channel] = gs_texture_create(
-			width, height, GS_BGRA, GS_DYNAMIC, NULL, GS_DYNAMIC);
+			width, height, GS_BGRA, 1, NULL, GS_DYNAMIC);
 	gs_texture_set_image(rtc_mix->rtc_textures[channel], data, width * 4,
 			     false);
 	obs_leave_graphics();
