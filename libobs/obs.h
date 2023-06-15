@@ -630,6 +630,7 @@ enum obs_base_effect {
 	OBS_EFFECT_PREMULTIPLIED_ALPHA, /**< Premultiplied alpha */
 	OBS_EFFECT_REPEAT,              /**< RGB/YUV (repeating) */
 	OBS_EFFECT_AREA,                /**< Area rescale */
+	OBS_EFFECT_MAKEROUND,           /**< ROUND */
 };
 
 /** Returns a commonly used base effect */
@@ -2357,7 +2358,7 @@ EXPORT void obs_rtc_local_mix_begin(int self_index, obs_data_t *merge_info, char
 EXPORT void obs_rtc_local_mix_end();
 EXPORT void obs_rtc_local_mix_free();
 EXPORT void obs_rtc_update_local_mix_crop_info(uint32_t self_crop_x, uint32_t self_crop_y, uint32_t self_crop_width, uint32_t self_crop_height);
-
+EXPORT void obs_rtc_set_avatar(int index, const char *avatar_image, int width, int height, int posY, int avatarSize);
 /*
 self_crop_x		rtc推出去的画面在本地预览画面中的x偏移
 self_crop_y		rtc推出去的画面在本地预览画面中的y偏移

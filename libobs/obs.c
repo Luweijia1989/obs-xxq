@@ -339,6 +339,10 @@ static int obs_init_graphics(struct obs_video_info *ovi)
 		gs_effect_create_from_file(filename, NULL);
 	bfree(filename);
 
+	filename = obs_find_data_file("make_round.effect");
+	video->round_effect = gs_effect_create_from_file(filename, NULL);
+	bfree(filename);
+
 	point_sampler.max_anisotropy = 1;
 	video->point_sampler = gs_samplerstate_create(&point_sampler);
 
@@ -1741,6 +1745,8 @@ gs_effect_t *obs_get_base_effect(enum obs_base_effect effect)
 		return obs->video.bilinear_lowres_effect;
 	case OBS_EFFECT_PREMULTIPLIED_ALPHA:
 		return obs->video.premultiplied_alpha_effect;
+	case OBS_EFFECT_MAKEROUND:
+		return obs->video.round_effect;
 	}
 
 	return NULL;
@@ -3092,6 +3098,73 @@ void obs_rtc_update_local_mix_crop_info(uint32_t self_crop_x, uint32_t self_crop
 	obs_leave_graphics();
 }
 
+void obs_rtc_set_avatar(int index, const char *avatar_image, int width, int height, int posY, int avatarSize)
+{
+	if (index >= NUM_RTC_CHANNEL || index < 0)
+		return;
+	obs_enter_graphics();
+	struct obs_rtc_mix *rtc_mix = &obs->video.rtc_mix;
+	if (strlen(avatar_image) == 0) {
+		if (index == rtc_mix->rtc_frame_render_info.self_index)
+			os_atomic_set_bool(&rtc_mix->self_render_avatar, false);
+		obs_leave_graphics();
+		return;
+	}
+
+	// 如果纹理非空，且宽高不符合要求，则析构掉之前的
+	if (rtc_mix->rtc_textures[index]) {
+		uint32_t w = gs_texture_get_width(rtc_mix->rtc_textures[index]);
+		uint32_t h = gs_texture_get_height(rtc_mix->rtc_textures[index]);
+		if (w != width || h != height) {
+			gs_texture_destroy(rtc_mix->rtc_textures[index]);
+			rtc_mix->rtc_textures[index] = NULL;
+		}
+	}
+	if (!rtc_mix->rtc_textures[index])
+		rtc_mix->rtc_textures[index] = gs_texture_create(width, height, GS_BGRA, GS_DYNAMIC, NULL, GS_DYNAMIC);
+	// 纹理拷贝，生成头像相应的RTC纹理
+	gs_texrender_t *render = gs_texrender_create(GS_BGRA, GS_ZS_NONE);
+	int posX = (width - avatarSize) / 2;
+	gs_texrender_reset(render);
+	if (gs_texrender_begin(render, width, height)) {
+		gs_ortho(0.0f, (float)width, 0.0f, (float)height, -100.0f, 100.0f);
+		gs_set_viewport(0, 0, width, height);
+		gs_effect_t *effect = obs_get_base_effect(OBS_EFFECT_SOLID);
+		gs_eparam_t *color = gs_effect_get_param_by_name(effect, "color");
+		gs_technique_t *tech = gs_effect_get_technique(effect, "Solid");
+
+		struct vec4 colorVal = {30.0f / 255, 25.0f / 255, 57.0f / 255, 1.0f};
+		gs_effect_set_vec4(color, &colorVal);
+		gs_matrix_scale3f(1.0f, 1.0f, 1.0f);
+		gs_technique_begin(tech);
+		gs_technique_begin_pass(tech, 0);
+
+		gs_draw_sprite(0, 0, width, height);
+
+		gs_technique_end_pass(tech);
+		gs_technique_end(tech);
+		//////////////////////////////////////////////////////
+		gs_texture_t *tex = gs_texture_create_from_file(avatar_image);
+		effect = obs_get_base_effect(OBS_EFFECT_MAKEROUND);
+		tech = gs_effect_get_technique(effect, "Draw");
+
+		gs_technique_begin(tech);
+		gs_technique_begin_pass(tech, 0);
+		gs_matrix_translate3f(posX, posY, 0.0f);
+		gs_effect_set_texture(gs_effect_get_param_by_name(effect, "image"), tex);
+		gs_draw_sprite(tex, 0, avatarSize, avatarSize);
+		gs_technique_end_pass(tech);
+		gs_technique_end(tech);
+		gs_texrender_end(render);
+		gs_texture_destroy(tex);
+		gs_copy_texture(rtc_mix->rtc_textures[index], gs_texrender_get_texture(render));
+		if (index == rtc_mix->rtc_frame_render_info.self_index)
+			os_atomic_set_bool(&rtc_mix->self_render_avatar, true);
+	}
+	gs_texrender_destroy(render);
+	obs_leave_graphics();
+}
+
 void obs_rtc_local_mix_free()
 {
 	struct obs_rtc_mix *rtc_mix = &obs->video.rtc_mix;
@@ -3120,7 +3193,7 @@ void obs_rtc_local_mix_free()
 	gs_texture_destroy(rtc_mix->rtc_background_texture);
 	rtc_mix->rtc_frame_mix_output_texture = NULL;
 	rtc_mix->rtc_background_texture = NULL;
-
+	os_atomic_set_bool(&rtc_mix->self_render_avatar, false);
 	obs_leave_graphics();
 }
 

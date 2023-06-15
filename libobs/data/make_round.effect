@@ -1,0 +1,55 @@
+uniform float4x4 ViewProj;
+uniform float radius = 0.5f;
+uniform texture2d image;
+struct VSInput
+{
+    float4 position : POSITION;
+    float2 uv : TEXCOORD0;
+};
+
+struct VSOutput
+{
+    float4 position : SV_POSITION;
+    float2 uv : TEXCOORD0;
+};
+
+sampler_state samp {
+	Filter   = Linear;
+	AddressU = Clamp;
+	AddressV = Clamp;
+};
+
+VSOutput VertexMain(VSInput input)
+{
+	VSOutput vert_out;
+	vert_out.position = mul(float4(input.position.xyz, 1.0), ViewProj);
+	vert_out.uv  = input.uv;
+	return vert_out;
+}
+
+float4 PsMain(VSInput input) : TARGET
+{
+    // 计算当前像素到中心点的距离
+    float dist = length(input.uv - float2(0.5f, 0.5f));
+
+    if (dist > radius)
+    {
+        // 超出圆形区域的像素颜色设为透明
+        return float4(0.0f, 0.0f, 0.0f, 0.0f);
+    }
+    else
+    {
+        // 在圆形区域内的像素直接从纹理中采样并返回
+        float4 color = image.Sample(samp, input.uv);
+        return color;
+    }
+}
+
+technique Draw
+{
+	pass
+	{
+		vertex_shader = VertexMain(input);
+		pixel_shader  = PsMain(input);
+	}
+}

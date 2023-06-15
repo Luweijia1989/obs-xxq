@@ -306,6 +306,7 @@ struct obs_rtc_mix {
 	float conversion_width_i_raw;
 
 	struct video_frame *cache_frame;
+	bool self_render_avatar;
 };
 
 struct obs_core_video {
@@ -332,6 +333,7 @@ struct obs_core_video {
 	gs_effect_t *area_effect;
 	gs_effect_t *bilinear_lowres_effect;
 	gs_effect_t *premultiplied_alpha_effect;
+	gs_effect_t *round_effect;
 	gs_samplerstate_t *point_sampler;
 	gs_stagesurf_t *mapped_surfaces[NUM_CHANNELS];
 	int cur_texture;

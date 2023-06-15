@@ -551,6 +551,45 @@ static inline void render_rtc_textures(gs_effect_t *effect,
 	gs_viewport_pop();
 }
 
+static inline void render_final_rtc_textures(gs_effect_t *effect, gs_technique_t *tech, gs_texture_t *texture, uint32_t x_pos, uint32_t y_pos,
+					     uint32_t ret_width, uint32_t ret_height, uint32_t target_width, uint32_t target_height, uint32_t final_width,
+					     uint32_t final_height)
+{
+	if (!texture)
+		return;
+	size_t passes, i;
+	gs_eparam_t *image = gs_effect_get_param_by_name(effect, "image");
+
+	gs_viewport_push();
+	gs_projection_push();
+	gs_matrix_push();
+	gs_matrix_identity();
+
+	uint32_t src_width = gs_texture_get_width(texture);
+	uint32_t src_height = gs_texture_get_height(texture);
+
+	gs_effect_set_texture(image, texture);
+
+	gs_set_viewport(x_pos, y_pos, final_width, final_height);
+	gs_ortho(0.0f, (float)final_width, 0.0f, (float)final_height, -100.0f, 100.0f);
+
+	gs_matrix_scale3f((float)target_width / (float)ret_width, (float)target_height / (float)ret_height, 1.0f);
+
+	gs_enable_blending(false);
+	passes = gs_technique_begin(tech);
+	for (i = 0; i < passes; i++) {
+		gs_technique_begin_pass(tech, i);
+		gs_draw_sprite(texture, 0, src_width, src_height);
+		gs_technique_end_pass(tech);
+	}
+	gs_technique_end(tech);
+	gs_enable_blending(true);
+
+	gs_matrix_pop();
+	gs_projection_pop();
+	gs_viewport_pop();
+}
+
 static inline void render_merge_textures(
 	gs_texrender_t **render, gs_effect_t *effect, gs_technique_t *tech,
 	gs_texture_t *src_texture, uint32_t x_pos, uint32_t y_pos,
@@ -590,25 +629,19 @@ static inline void render_merge_textures(
 		vec4_zero(&clear_color);
 		gs_clear(GS_CLEAR_COLOR, &clear_color, 0.0f, 0);
 		gs_set_viewport(0, 0, width, height);
-		gs_ortho(0.0f, (float)width, 0.0f, (float)height, -100.0f,
-			 100.0f);
+		gs_ortho(0.0f, (float)width, 0.0f, (float)height, -100.0f, 100.0f);
 
-		gs_matrix_translate3f(-(float)crop_left, -(float)crop_top,
-				      0.0f);
+		gs_matrix_translate3f(-(float)crop_left, -(float)crop_top, 0.0f);
 
 		{
 			gs_effect_t *effect = obs->video.default_effect;
-			gs_technique_t *tech =
-				gs_effect_get_technique(effect, "Draw");
+			gs_technique_t *tech = gs_effect_get_technique(effect, "Draw");
 			size_t passes, i;
 
 			passes = gs_technique_begin(tech);
 			for (i = 0; i < passes; i++) {
 				gs_technique_begin_pass(tech, i);
-				gs_effect_set_texture(
-					gs_effect_get_param_by_name(effect,
-								    "image"),
-					src_texture);
+				gs_effect_set_texture(gs_effect_get_param_by_name(effect, "image"), src_texture);
 				gs_draw_sprite(src_texture, 0, width, height);
 				gs_technique_end_pass(tech);
 			}
@@ -618,42 +651,8 @@ static inline void render_merge_textures(
 		gs_texrender_end(*render);
 	}
 
-	size_t passes, i;
-	gs_eparam_t *image = gs_effect_get_param_by_name(effect, "image");
-
-	gs_viewport_push();
-	gs_projection_push();
-	gs_matrix_push();
-	gs_matrix_identity();
-
-	uint32_t src_width =
-		gs_texture_get_width(gs_texrender_get_texture(*render));
-	uint32_t src_height =
-		gs_texture_get_height(gs_texrender_get_texture(*render));
-
-	gs_effect_set_texture(image, gs_texrender_get_texture(*render));
-
-	gs_set_viewport(x_pos, y_pos, final_width, final_height);
-	gs_ortho(0.0f, (float)final_width, 0.0f, (float)final_height, -100.0f,
-		 100.0f);
-
-	gs_matrix_scale3f((float)target_width / (float)ret_width,
-			  (float)target_height / (float)ret_height, 1.0f);
-
-	gs_enable_blending(false);
-	passes = gs_technique_begin(tech);
-	for (i = 0; i < passes; i++) {
-		gs_technique_begin_pass(tech, i);
-		gs_draw_sprite(gs_texrender_get_texture(*render), 0, src_width,
-			       src_height);
-		gs_technique_end_pass(tech);
-	}
-	gs_technique_end(tech);
-	gs_enable_blending(true);
-
-	gs_matrix_pop();
-	gs_projection_pop();
-	gs_viewport_pop();
+	render_final_rtc_textures(effect, tech, gs_texrender_get_texture(*render), x_pos, y_pos, ret_width, ret_height, target_width, target_height,
+				  final_width, final_height);
 }
 
 static void rtc_draw_background_image(gs_effect_t *effect, gs_technique_t *tech)
@@ -710,7 +709,6 @@ render_rtc_local_mix_output_texture(struct obs_core_video *video) //final output
 	//rtc_frame_mix_output_texture作为本地混流的输出，尺寸和预览尺寸保持一致1920*1080
 	//普通连麦画布还是之前的output_texture，我们会去改变这个画布尺寸为1440*1080.多人连麦有效区域也是1440*1080，我们画的时候要做偏移
 	struct obs_rtc_mix *rtc_mix = &obs->video.rtc_mix;
-	gs_texture_t *texture = video->render_invisible_texture;
 	gs_texture_t *target = rtc_mix->rtc_frame_mix_output_texture;
 	uint32_t width = gs_texture_get_width(target);
 	uint32_t height = gs_texture_get_height(target);
@@ -736,12 +734,12 @@ render_rtc_local_mix_output_texture(struct obs_core_video *video) //final output
 	for (size_t i = 0; i < rtc_mix->rtc_frame_render_info.frame_infos.num; i++) {
 		struct obs_each_frame_render_info *frame_info;
 		frame_info = rtc_mix->rtc_frame_render_info.frame_infos.array + i;
-		if (frame_info->index == rtc_mix->rtc_frame_render_info.self_index) {
+		if (frame_info->index == rtc_mix->rtc_frame_render_info.self_index && !os_atomic_load_bool(&rtc_mix->self_render_avatar)) {
 			render_merge_textures(
 				&rtc_mix->self_texture_render,
 				effect,
 				tech,
-				texture,
+				video->render_invisible_texture,
 				frame_info->x + x_offset,
 				frame_info->y + y_offset,
 				rtc_mix->rtc_local_mix_crop_info.x,
