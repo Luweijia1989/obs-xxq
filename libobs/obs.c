@@ -620,6 +620,7 @@ static void obs_free_graphics(void)
 		gs_effect_destroy(video->lanczos_effect);
 		gs_effect_destroy(video->area_effect);
 		gs_effect_destroy(video->bilinear_lowres_effect);
+		gs_effect_destroy(video->round_effect);
 		video->default_effect = NULL;
 
 		gs_leave_context();
