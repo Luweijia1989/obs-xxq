@@ -29,9 +29,46 @@ void WebCapture::createTexture(int w, int h)
 	textureCreated = true;
 }
 
-void WebCapture::updateTextureData(uint8_t *data)
+void WebCapture::updateTextureData(obs_data_t *command)
 {
 	obs_enter_graphics();
+	uint8_t *data = (uint8_t *)obs_data_get_int(command, "imageData");
+	int w = obs_data_get_int(command, "width");
+	int h = obs_data_get_int(command, "height");
+	if (w != width || h != height) {
+		struct obs_video_info ovi;
+		obs_get_video_info(&ovi);
+
+		auto gameRatio = (float)w / (float)h;
+		auto viewRatio = (float)ovi.base_width / (float)ovi.base_height;
+		int tw = 0, th = 0;
+		if (gameRatio > viewRatio) {
+			tw = ovi.base_width;
+			th = ovi.base_width / gameRatio;
+		} else // 游戏竖着
+		{
+			if (gameRatio > 0.5f) {
+				tw = width > ovi.base_width ? ovi.base_width : width;
+				th = tw / gameRatio;
+			}
+			else
+			{
+				th = ovi.base_height;
+				tw = gameRatio * ovi.base_height;
+			}			
+		}
+
+		obs_data_t *setting = obs_source_get_settings(m_source);	
+		obs_data_set_double(setting, "wScale", (double)tw / (double)w);
+		obs_data_set_double(setting, "hScale", (double)th / (double)h);
+		obs_data_release(setting);
+
+		gs_texture_destroy(m_imageTexture);
+		width = w;
+		height = h;
+		m_imageTexture = gs_texture_create(width, height, GS_BGRA, 1, NULL, GS_DYNAMIC);
+	}
+
 	gs_texture_set_image(m_imageTexture, data, width * 4, false);
 	obs_leave_graphics();
 }
@@ -113,7 +150,7 @@ static void webcapture_command(void *data, obs_data_t *command)
 	if (strcmp(type, "create") == 0) {
 		capture->createTexture(obs_data_get_int(command, "width"), obs_data_get_int(command, "height"));
 	} else if (strcmp(type, "update") == 0) {
-		capture->updateTextureData((uint8_t*)obs_data_get_int(command, "imageData"));
+		capture->updateTextureData(command);
 	}
 }
 

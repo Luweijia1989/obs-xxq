@@ -10,7 +10,7 @@ public:
 	~WebCapture();
 
 	void createTexture(int w, int h);
-	void updateTextureData(uint8_t *data);
+	void updateTextureData(obs_data_t *command);
 
 	obs_source_t *m_source;
 	gs_texture_t *m_imageTexture;
