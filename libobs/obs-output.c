@@ -1834,13 +1834,13 @@ static inline void start_raw_audio(obs_output_t *output)
 				audio_output_connect(
 					output->audio, idx,
 					get_audio_conversion(output),
-					default_raw_audio_callback, output, true);
+					default_raw_audio_callback, output, obs_audio_rtmp);
 			}
 		}
 	} else {
 		audio_output_connect(output->audio, get_first_mixer(output),
 				     get_audio_conversion(output),
-				     default_raw_audio_callback, output, true);
+				     default_raw_audio_callback, output, obs_audio_rtmp);
 	}
 }
 

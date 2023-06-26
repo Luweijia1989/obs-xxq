@@ -41,6 +41,12 @@ extern "C" {
 struct audio_output;
 typedef struct audio_output audio_t;
 
+enum raw_audio_type {
+	obs_audio_aec,
+	obs_audio_rtmp,
+	obs_audio_rtc,
+};
+
 enum audio_format {
 	AUDIO_FORMAT_UNKNOWN,
 

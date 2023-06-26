@@ -246,6 +246,8 @@ static bool nvenc_update(void *data, obs_data_t *settings)
 							 &params))) {
 			return false;
 		}
+	} else {
+		blog(LOG_INFO, "not support change bitrate");
 	}
 
 	return true;

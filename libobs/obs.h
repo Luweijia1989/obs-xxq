@@ -2330,11 +2330,6 @@ EXPORT void obs_source_destroy_xxqsource(int type);
 
 EXPORT void obs_source_custom_command_xxqsource(int type, obs_data_t *settings);
 
-enum raw_audio_type {
-	obs_audio_aec,
-	obs_audio_rtmp,
-	obs_audio_rtc,
-};
 EXPORT void
 obs_add_raw_audio_callback(const struct audio_convert_info *conversion,
 			   audio_output_callback_t callback, void *param, enum raw_audio_type type);
