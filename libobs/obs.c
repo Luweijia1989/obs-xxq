@@ -2883,6 +2883,22 @@ void obs_source_destroy_xxqsource(int type)
 	obs_leave_graphics();
 }
 
+obs_source_t *obs_source_get_xxqsource(int type)
+{
+	struct obs_core_data *data = &obs->data;
+	if (type == 3) {
+		return data->h5_source;
+	} else if (type == 4) {
+		return data->sticker_source;
+	} else if (type == 5) {
+		return data->mask_source;
+	} else if (type == 6) {
+		return data->audiolivelink_source;
+	}
+
+	return NULL;
+}
+
 void obs_source_custom_command_xxqsource(int type, obs_data_t *settings)
 {
 	struct obs_core_data *data = &obs->data;

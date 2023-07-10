@@ -276,22 +276,33 @@ gs_texture_2d::gs_texture_2d(gs_device_t *device, ID3D11Texture2D *nv12tex,
 		InitRenderTargets();
 }
 
-gs_texture_2d::gs_texture_2d(gs_device_t *device, uint32_t handle)
+gs_texture_2d::gs_texture_2d(gs_device_t *device, uint32_t handle,
+			     bool ntHandle)
 	: gs_texture(device, gs_type::gs_texture_2d, GS_TEXTURE_2D),
 	  isShared(true),
 	  sharedHandle(handle)
 {
 	HRESULT hr;
-	hr = device->device->OpenSharedResource((HANDLE)(uintptr_t)handle,
-						__uuidof(ID3D11Texture2D),
-						(void **)texture.Assign());
+	if (ntHandle) {
+		ComQIPtr<ID3D11Device1> dev = device->device;
+		hr = dev->OpenSharedResource1((HANDLE)(uintptr_t)handle,
+					      __uuidof(ID3D11Texture2D),
+					      (void **)texture.Assign());
+	} else {
+		hr = device->device->OpenSharedResource(
+			(HANDLE)(uintptr_t)handle, __uuidof(ID3D11Texture2D),
+			(void **)texture.Assign());
+	}
+
 	if (FAILED(hr))
 		throw HRError("Failed to open shared 2D texture", hr);
 
 	texture->GetDesc(&td);
 
+	const gs_color_format format = ConvertDXGITextureFormat(td.Format);
+
 	this->type = GS_TEXTURE_2D;
-	this->format = ConvertDXGITextureFormat(td.Format);
+	this->format = format;
 	this->levels = 1;
 	this->device = device;
 
@@ -299,13 +310,5 @@ gs_texture_2d::gs_texture_2d(gs_device_t *device, uint32_t handle)
 	this->height = td.Height;
 	this->dxgiFormat = td.Format;
 
-	memset(&resourceDesc, 0, sizeof(resourceDesc));
-	resourceDesc.Format = td.Format;
-	resourceDesc.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
-	resourceDesc.Texture2D.MipLevels = 1;
-
-	hr = device->device->CreateShaderResourceView(texture, &resourceDesc,
-						      shaderRes.Assign());
-	if (FAILED(hr))
-		throw HRError("Failed to create shader resource view", hr);
+	InitResourceView();
 }
