@@ -3,6 +3,7 @@
 #include <QCryptographicHash>
 #include <QDateTime>
 #include <QImage>
+#include <graphics/matrix4.h>
 
 #define EVENT_CAPTURE_RESTART "CaptureHook_Restart"
 #define EVENT_CAPTURE_STOP "CaptureHook_Stop"
@@ -159,6 +160,7 @@ static obs_properties_t *webcapture_source_properties(void *data)
 {
 	obs_properties_t *ppts = obs_properties_create();
 	obs_properties_add_text(ppts, "url", "web url", OBS_TEXT_DEFAULT);
+	obs_properties_add_int(ppts, "stage", "capture stage", 0, 2, 1);
 	return ppts;
 }
 
@@ -188,28 +190,79 @@ static void webcapture_source_render(void *data, gs_effect_t *effect)
 		return;
 	WebCapture *capture = (WebCapture *)data;
 
+	auto compute_scale = [](uint32_t in_w, uint32_t in_h, float *out_w_scale, float *out_h_scale, float *x_offset, float *y_offset) {
+		struct obs_video_info ovi;
+		obs_get_video_info(&ovi);
+
+		auto gameRatio = (float)in_w / (float)in_h;
+		auto viewRatio = (float)ovi.base_width / (float)ovi.base_height;
+		int tw = 0, th = 0;
+		if (gameRatio > viewRatio) {
+			tw = ovi.base_width;
+			th = ovi.base_width / gameRatio;
+		} else {
+			if (gameRatio > 0.5f) {
+				tw = in_w > ovi.base_width ? ovi.base_width : in_w;
+				th = tw / gameRatio;
+			} else {
+				th = ovi.base_height;
+				tw = gameRatio * ovi.base_height;
+			}
+		}
+
+		*out_w_scale = (float)tw / (float)in_w;
+		*out_h_scale = (float)th / (float)in_h;
+
+		*x_offset = (float)(ovi.base_width - tw) / 2.f;
+		*y_offset = (float)(ovi.base_height - th) / 2.f;
+	};
+
+	gs_texture_t *render_texture = nullptr;
 	if (capture->stage == capture_stage::START) {
 		if (!capture->texture) {
 			return;
 		}
-
-		gs_effect_set_texture(gs_effect_get_param_by_name(effect, "image"), capture->texture);
-		obs_source_draw(capture->texture, 0, 0, 0, 0, false);
+		render_texture = capture->texture;
 	} else if (capture->stage == capture_stage::PAUSE) {
 		if (!capture->pause_texture) {
 			QImage ss(":/mark/image/main/xbox/cloudgame_bk.png");
 			uint8_t *bd = (uint8_t *)ss.constBits();
 
-			capture->pause_texture = gs_texture_create(ss.width(), ss.height(), GS_RGBA, 1, (const uint8_t **)bd, 0);
+			capture->pause_texture = gs_texture_create(ss.width(), ss.height(), GS_BGRA, 1, (const uint8_t **)&bd, 0);
 		}
 
-		if (capture->pause_texture) {
-			gs_effect_set_texture(gs_effect_get_param_by_name(effect, "image"), capture->pause_texture);
-			obs_source_draw(capture->pause_texture, 0, 0, 0, 0, false);
-		}
+		if (capture->pause_texture)
+			render_texture = capture->pause_texture;
 	} else if (capture->stage == capture_stage::STOP) {
 		// do nothing
 	}
+
+	if (!render_texture)
+		return;
+
+	auto w = gs_texture_get_width(render_texture);
+	auto h = gs_texture_get_height(render_texture);
+
+	if (capture->last_width != w || capture->last_height != h) {
+		compute_scale(w, h, &capture->w_s, &capture->h_s, &capture->x_offset, &capture->y_offset);
+		capture->last_width = w;
+		capture->last_height = h;
+	}
+
+	gs_matrix_push();
+	matrix4 matrix;
+	memset(&matrix, 0, sizeof(matrix));
+	vec4_set(&matrix.x, capture->w_s, 0.f, 0.f, 0.f);
+	vec4_set(&matrix.y, 0.f, capture->h_s, 0.f, 0.f);
+	vec4_set(&matrix.z, 0.f, 0.f, 1.f, 0.f);
+	vec4_set(&matrix.t, 0.f, 1.f, 0.f, 1.f);
+	gs_matrix_translate3f(capture->x_offset, capture->y_offset, 0.0f);
+	gs_matrix_mul(&matrix);
+
+	gs_effect_set_texture(gs_effect_get_param_by_name(effect, "image"), render_texture);
+	obs_source_draw(render_texture, 0, 0, 0, 0, false);
+
+	gs_matrix_pop();
 }
 
 void WebCapture::stopCapture()

@@ -62,4 +62,6 @@ public:
 	float retry_time{};
 	float retry_interval = 0.2;
 	uint64_t lastKeepaliveCheck_{};
+	float w_s = 0.f, h_s = 0.f, x_offset = 0.f, y_offset = 0.f;
+	uint32_t last_width = 0, last_height = 0;
 };
