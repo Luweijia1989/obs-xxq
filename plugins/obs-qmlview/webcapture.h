@@ -15,6 +15,7 @@ public:
 	bool init_events();
 	capture_result init_capture_data();
 	bool init_shmem_capture();
+	bool init_shtex_capture();
 	bool capture_client_active();
 
 	HANDLE open_event_gc(QString name);
@@ -26,6 +27,7 @@ public:
 	void stopCapture();
 	bool tryCapture();
 	void copyMemTexture();
+	void copyShareTexture();
 	void updateUrl(QString url);
 
 	obs_source_t *m_source{};
@@ -59,6 +61,10 @@ public:
 	HANDLE capture_data_map{};
 	HANDLE global_hook_info_map{};
 	HANDLE texture_mutexes[2]{};
+
+	HANDLE capture_process_id = NULL;
+	HANDLE dumped_tex_handle = NULL;
+
 	float retry_time{};
 	float retry_interval = 0.2;
 	uint64_t lastKeepaliveCheck_{};

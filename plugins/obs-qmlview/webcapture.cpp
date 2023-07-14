@@ -93,7 +93,9 @@ struct shmem_data {
 };
 
 struct shtex_data {
-	uint32_t tex_handle;
+	uintptr_t tex_handle;
+	bool tex_changed;
+	unsigned long process_id;
 };
 
 enum capture_type {
@@ -199,15 +201,10 @@ static void webcapture_source_render(void *data, gs_effect_t *effect)
 		int tw = 0, th = 0;
 		if (gameRatio > viewRatio) {
 			tw = ovi.base_width;
-			th = ovi.base_width / gameRatio;
+			th = tw / gameRatio;
 		} else {
-			if (gameRatio > 0.5f) {
-				tw = in_w > ovi.base_width ? ovi.base_width : in_w;
-				th = tw / gameRatio;
-			} else {
-				th = ovi.base_height;
-				tw = gameRatio * ovi.base_height;
-			}
+			th = ovi.base_height;
+			tw = th * gameRatio;
 		}
 
 		*out_w_scale = (float)tw / (float)in_w;
@@ -288,6 +285,8 @@ void WebCapture::stopCapture()
 	close_handle(&global_hook_info_map);
 	close_handle(&texture_mutexes[0]);
 	close_handle(&texture_mutexes[1]);
+	close_handle(&dumped_tex_handle);
+	close_handle(&capture_process_id);
 
 	if (texture) {
 		obs_enter_graphics();
@@ -492,6 +491,15 @@ bool WebCapture::init_shmem_capture()
 	return true;
 }
 
+bool WebCapture::init_shtex_capture()
+{
+	capture_process_id = OpenProcess(PROCESS_ALL_ACCESS, FALSE, shtex_data->process_id);
+	if (capture_process_id == NULL)
+		return false;
+
+	return true;
+}
+
 bool WebCapture::capture_client_active()
 {
 	auto client_alive = [this]() {
@@ -526,11 +534,11 @@ bool WebCapture::startCapture()
 
 		blog(LOG_DEBUG, "memory capture successful");
 	} else {
-		/*if (!init_shtex_capture(gc)) {
+		if (!init_shtex_capture()) {
 			return false;
 		}
 
-		info("shared texture capture successful");*/
+		blog(LOG_DEBUG, "shared texture capture successful");
 	}
 
 	return true;
@@ -585,6 +593,38 @@ void WebCapture::copyMemTexture()
 	ReleaseMutex(mutex);
 }
 
+void WebCapture::copyShareTexture()
+{
+	HANDLE mutex = NULL;
+	if (!shtex_data)
+		return;
+
+	if (object_signalled(texture_mutexes[0])) {
+		mutex = texture_mutexes[0];
+	} else {
+		return;
+	}
+
+	if (shtex_data->tex_changed) {
+		if (dumped_tex_handle)
+			close_handle(&dumped_tex_handle);
+
+		if (texture) {
+			gs_texture_destroy(texture);
+			texture = nullptr;
+		}
+
+		if (DuplicateHandle(capture_process_id, (HANDLE)shtex_data->tex_handle, GetCurrentProcess(), &dumped_tex_handle, 0, FALSE,
+				    DUPLICATE_SAME_ACCESS)) {
+			texture = gs_texture_open_nt_shared((uint32_t)dumped_tex_handle);
+		}
+
+		shtex_data->tex_changed = false;
+	}
+
+	ReleaseMutex(mutex);
+}
+
 static void webcapture_tick(void *data, float seconds)
 {
 	WebCapture *capture = (WebCapture *)data;
@@ -632,6 +672,10 @@ static void webcapture_tick(void *data, float seconds)
 			if (capture->global_hook_info->type == CAPTURE_TYPE_MEMORY) {
 				obs_enter_graphics();
 				capture->copyMemTexture();
+				obs_leave_graphics();
+			} else {
+				obs_enter_graphics();
+				capture->copyShareTexture();
 				obs_leave_graphics();
 			}
 		}
