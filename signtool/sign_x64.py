@@ -13,7 +13,7 @@ def sign(file):
     if rc == 0:
         return
     for i in range(0,3):
-        sign_proc = subprocess.Popen("signtool sign /v /fd sha256 /sha1 a4f5044d8b99978acad0e8c15ad3eac7d7a66fdc /tr http://rfc3161timestamp.globalsign.com/advanced /td sha256 %s" %(file))
+        sign_proc = sp.Popen("signtool sign /v /fd sha256 /sha1 a4f5044d8b99978acad0e8c15ad3eac7d7a66fdc /tr http://rfc3161timestamp.globalsign.com/advanced /td sha256 %s" %(file))
         ret = sign_proc.wait()
         if ret ==0:
             return
