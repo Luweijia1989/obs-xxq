@@ -257,7 +257,7 @@ static void webcapture_source_render(void *data, gs_effect_t *effect)
 	gs_matrix_mul(&matrix);
 
 	gs_effect_set_texture(gs_effect_get_param_by_name(effect, "image"), render_texture);
-	obs_source_draw(render_texture, 0, 0, 0, 0, false);
+	obs_source_draw(render_texture, 0, 0, 0, 0, true);
 
 	gs_matrix_pop();
 }
