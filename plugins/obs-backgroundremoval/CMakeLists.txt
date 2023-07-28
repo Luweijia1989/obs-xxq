@@ -26,8 +26,6 @@ set(PLUGIN_HEADERS
 # --- Platform-independent build settings ---
 add_library(obs-backgroundremoval MODULE ${PLUGIN_SOURCES} ${PLUGIN_HEADERS})
 
-find_package(libobs REQUIRED)
-
 target_link_libraries(obs-backgroundremoval
     libobs
     "${PROJECT_SOURCE_DIR}/dep/microsoft.ml.onnxruntime.directml/1.12.1/runtimes/win-x64/native/onnxruntime.lib"

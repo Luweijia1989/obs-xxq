@@ -30,6 +30,7 @@ struct wasapi_capture {
 	DWORD next_process_id;
 	float retry_time;
 	float retry_interval;
+	float hook_rate;
 
 	struct dstr executable;
 
@@ -142,7 +143,7 @@ static inline HMODULE kernel32(void)
 	return kernel32_handle;
 }
 
-inline HANDLE open_process(DWORD desired_access, bool inherit_handle, DWORD process_id)
+HANDLE open_process(DWORD desired_access, bool inherit_handle, DWORD process_id)
 {
 	static HANDLE(WINAPI * open_process_proc)(DWORD, BOOL, DWORD) = NULL;
 	if (!open_process_proc)

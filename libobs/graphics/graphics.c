@@ -2812,6 +2812,17 @@ bool gs_get_duplicator_monitor_info(int monitor_idx,
 		thread_graphics->device, monitor_idx, monitor_info);
 }
 
+int gs_duplicator_get_monitor_index(void *monitor)
+{
+	if (!gs_valid("gs_duplicator_get_monitor_index"))
+		return false;
+	if (!thread_graphics->exports.device_duplicator_get_monitor_index)
+		return false;
+
+	return thread_graphics->exports.device_duplicator_get_monitor_index(
+		thread_graphics->device, monitor);
+}
+
 gs_duplicator_t *gs_duplicator_create(int monitor_idx)
 {
 	if (!gs_valid("gs_duplicator_create"))
@@ -2855,6 +2866,16 @@ gs_texture_t *gs_duplicator_get_texture(gs_duplicator_t *duplicator)
 	return thread_graphics->exports.gs_duplicator_get_texture(duplicator);
 }
 
+uint32_t gs_get_adapter_count(void)
+{
+	if (!gs_valid("gs_get_adapter_count"))
+		return 0;
+	if (!thread_graphics->exports.gs_get_adapter_count)
+		return 0;
+
+	return thread_graphics->exports.gs_get_adapter_count();
+}
+
 /** creates a windows GDI-lockable texture */
 gs_texture_t *gs_texture_create_gdi(uint32_t width, uint32_t height)
 {
@@ -2896,6 +2917,18 @@ gs_texture_t *gs_texture_open_shared(uint32_t handle)
 
 	if (graphics->exports.device_texture_open_shared)
 		return graphics->exports.device_texture_open_shared(
+			graphics->device, handle);
+	return NULL;
+}
+
+gs_texture_t *gs_texture_open_nt_shared(uint32_t handle)
+{
+	graphics_t *graphics = thread_graphics;
+	if (!gs_valid("gs_texture_open_nt_shared"))
+		return NULL;
+
+	if (graphics->exports.device_texture_open_nt_shared)
+		return graphics->exports.device_texture_open_nt_shared(
 			graphics->device, handle);
 	return NULL;
 }

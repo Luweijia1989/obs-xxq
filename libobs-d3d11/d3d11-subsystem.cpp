@@ -3076,6 +3076,23 @@ extern "C" EXPORT gs_texture_t *device_texture_open_shared(gs_device_t *device,
 	return texture;
 }
 
+extern "C" EXPORT gs_texture_t *
+device_texture_open_nt_shared(gs_device_t *device, uint32_t handle)
+{
+	gs_texture *texture = nullptr;
+	try {
+		texture = new gs_texture_2d(device, handle, true);
+	} catch (const HRError &error) {
+		blog(LOG_ERROR, "gs_texture_open_nt_shared (D3D11): %s (%08lX)",
+		     error.str, error.hr);
+		LogD3D11ErrorDetails(error, device);
+	} catch (const char *error) {
+		blog(LOG_ERROR, "gs_texture_open_nt_shared (D3D11): %s", error);
+	}
+
+	return texture;
+}
+
 extern "C" EXPORT uint32_t device_texture_get_shared_handle(gs_texture_t *tex)
 {
 	gs_texture_2d *tex2d = reinterpret_cast<gs_texture_2d *>(tex);
@@ -3206,4 +3223,28 @@ extern "C" EXPORT void device_unregister_loss_callbacks(gs_device_t *device,
 			break;
 		}
 	}
+}
+
+uint32_t gs_get_adapter_count(void)
+{
+	uint32_t count = 0;
+
+	ComPtr<IDXGIFactory1> factory;
+	HRESULT hr = CreateDXGIFactory1(IID_PPV_ARGS(&factory));
+	if (SUCCEEDED(hr)) {
+		ComPtr<IDXGIAdapter1> adapter;
+		for (UINT i = 0;
+		     factory->EnumAdapters1(i, adapter.Assign()) == S_OK; ++i) {
+			DXGI_ADAPTER_DESC desc;
+			if (SUCCEEDED(adapter->GetDesc(&desc))) {
+				/* ignore Microsoft's 'basic' renderer' */
+				if (desc.VendorId != 0x1414 &&
+				    desc.DeviceId != 0x8c) {
+					++count;
+				}
+			}
+		}
+	}
+
+	return count;
 }

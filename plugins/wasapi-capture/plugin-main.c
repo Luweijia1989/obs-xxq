@@ -36,6 +36,7 @@ static inline bool load_offsets_from_string(struct wasapi_offset *offsets, const
 		return false;
 	}
 
+	offsets->com_release = (uint32_t)config_get_uint(config, "wasapi", "com_release");
 	offsets->release_buffer = (uint32_t)config_get_uint(config, "wasapi", "release_buffer");
 	offsets->get_service = (uint32_t)config_get_uint(config, "wasapi", "get_service");
 	offsets->audio_client_offset = (uint32_t)config_get_uint(config, "wasapi", "audio_client_offset");

@@ -41,6 +41,12 @@ extern "C" {
 struct audio_output;
 typedef struct audio_output audio_t;
 
+enum raw_audio_type {
+	obs_audio_aec,
+	obs_audio_rtmp,
+	obs_audio_rtc,
+};
+
 enum audio_format {
 	AUDIO_FORMAT_UNKNOWN,
 
@@ -88,7 +94,7 @@ struct audio_output_data {
 typedef bool (*audio_input_callback_t)(void *param, uint64_t start_ts,
 				       uint64_t end_ts, uint64_t *new_ts,
 				       uint32_t active_mixers,
-				       struct audio_output_data *mixes);
+				       struct audio_output_data *aec_mixes, struct audio_output_data *rtmp_mixes, struct audio_output_data *rtc_mixes);
 
 struct audio_output_info {
 	const char *name;
@@ -231,7 +237,7 @@ typedef void (*audio_output_callback_t)(void *param, size_t mix_idx,
 
 EXPORT bool audio_output_connect(audio_t *video, size_t mix_idx,
 				 const struct audio_convert_info *conversion,
-				 audio_output_callback_t callback, void *param);
+				 audio_output_callback_t callback, void *param, enum raw_audio_type type);
 EXPORT void audio_output_disconnect(audio_t *video, size_t mix_idx,
 				    audio_output_callback_t callback,
 				    void *param);

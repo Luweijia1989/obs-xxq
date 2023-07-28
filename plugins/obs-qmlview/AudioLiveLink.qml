@@ -11,16 +11,16 @@ Item{
 	visible: true
 	Rectangle {
 		id: audiolink
-		width: audioLiveLinkProperties.backWidth
-		height: 1080
+        width: audioLiveLinkProperties.backWidth
+        height: parent.height
+        anchors.fill: parent
 		x: audioLiveLinkProperties.posX
 		y: audioLiveLinkProperties.posY
 		transformOrigin:Item.TopLeft
 		scale: audioLiveLinkProperties.scale
 		Image {
 			id: background
-			width: audioLiveLinkProperties.backWidth
-			height: 1080
+            anchors.fill: parent
 			source: audioLiveLinkProperties.path
 			fillMode:Image.PreserveAspectCrop
 			sourceSize: Qt.size(parent.width, parent.height)
@@ -28,12 +28,22 @@ Item{
 			visible: true
 		}
 		
-		FastBlur {
+		GaussianBlur {
 			anchors.fill: background
 			source: background
-			radius: 64
+			radius: 400
+			samples:400
 		}
 		
+		Rectangle 
+		{
+			id:blurmask
+			x: 0
+			y: 0; 
+			width: audioLiveLinkProperties.basicWidth
+			height: audioLiveLinkProperties.basicHeight
+			color: "#66000000"
+		}
 		
 		  CommonAnimateImage{
 		  id: voicewave
@@ -48,80 +58,48 @@ Item{
 		  cache: true
 		  visible:true
 		  playing: false
-		  Rectangle {
-			  id: avartar
-			  x: audioLiveLinkProperties.avatarPos
-			  y: audioLiveLinkProperties.avatarPos
-			  width: audioLiveLinkProperties.avatarSize
-			  height: audioLiveLinkProperties.avatarSize
-			  radius: audioLiveLinkProperties.avatarSize/2
-			  Rectangle {
-				  id: imgeBg
-				  anchors.left: parent.left
-				  anchors.top: parent.top
-				  width:parent.width
-				  height:parent.height
-				  radius: audioLiveLinkProperties.avatarSize/2
-				  visible: false
-				  Image {
-					  id: squareavatarImage
-					  smooth: true
-					  visible: true
-					  anchors.fill: parent
-					  source:  audioLiveLinkProperties.path
-				      sourceSize:Qt.size(audioLiveLinkProperties.avatarSize,audioLiveLinkProperties.avatarSize)
-					  antialiasing: true
-				  }
+          playCount: 1
+          Rectangle {
+              id: avartar
+              anchors.centerIn: parent
+              width: audioLiveLinkProperties.avatarSize + audioLiveLinkProperties.borderWidth * 2
+              height: width
+              radius: width/2
+              border.width:audioLiveLinkProperties.borderWidth
+              border.color:"#FFFFFF"
 
-				  Rectangle {
-				  id: border1
-				  color: "#00000000"
-				  anchors.fill: parent
-				  radius: audioLiveLinkProperties.avatarSize/2
-				  visible: true
-				  antialiasing: true
-				  smooth: true
-				  border.width:audioLiveLinkProperties.borderWidth
-				  border.color:"#FFFFFF"
-			  }
-			  }
-			  Rectangle {
-				  id: mask1
-				  color: "black"
-				  anchors.fill: parent
-				  radius: audioLiveLinkProperties.avatarSize/2
-				  visible: false
-				  antialiasing: true
-				  smooth: true
-			  }
-			  OpacityMask {
-				  id: maskAvatar1
-				  anchors.fill: imgeBg
-				  anchors.centerIn: parent
-				  source: imgeBg
-				  maskSource: mask1
-				  visible: true
-				  antialiasing: true
-			  }
-		  }
+              Item {
+                  anchors.centerIn: parent
+                  width: audioLiveLinkProperties.avatarSize
+                  height: width
+
+                  CommonAnimateImage {
+                      id: img
+                      smooth: true
+                      visible: false
+                      anchors.fill: parent
+                      cacheSource: audioLiveLinkProperties.path
+                      antialiasing: true
+                  }
+
+                  Rectangle {
+                      id: mask
+                      visible: false
+                      antialiasing: true
+                      anchors.fill: parent
+                      radius: parent.width/2
+                  }
+
+                  OpacityMask {
+                      source: img
+                      maskSource: mask
+                      anchors.fill: img
+                      antialiasing: true
+                      visible: img.status === Image.Ready
+                  }
+              }
+          }
 		}
-		
-		Text {
-		id: anchorname
-			text: audioLiveLinkProperties.name
-			x: audioLiveLinkProperties.isMuliti?573:213
-			y: 643
-			width:293
-			height:58
-			elide: Text.ElideRight
-			font.family: "阿里巴巴普惠体 M"
-			font.pixelSize: 42
-			font.bold: true
-			color:"#FFFFFF"
-			visible: audioLiveLinkProperties.isMuliti?false:true
-			horizontalAlignment: Text.AlignHCenter
-			verticalAlignment: Text.AlignVCenter
-	}
 
 		  CommonAnimateImage{
 		  id: faceeffect
@@ -146,10 +124,7 @@ Item{
 		{
 			voicewave.play();
 		}
-		onStop:
-		{
-			voicewave.stop();
-		}
+
 		onShowPkEffect:
 		{
 			faceeffect.visible = true;

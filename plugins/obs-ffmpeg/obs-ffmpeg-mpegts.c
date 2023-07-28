@@ -343,6 +343,10 @@ static inline int connect_mpegts_url(struct ffmpeg_output *stream, bool is_rist)
 		err = libsrt_open(uc, uc->url);
 	if (err < 0)
 		goto fail;
+
+	obs_data_t *setting = obs_output_get_settings(stream->output);
+	obs_data_set_string(setting, "cdn_ip", uc->cdn_addr);
+	obs_data_release(setting);
 	return 0;
 fail:
 	if (uc)
@@ -490,6 +494,8 @@ static inline int open_output_file(struct ffmpeg_output *stream,
 			return OBS_OUTPUT_INVALID_STREAM;
 		}
 	}
+
+	obs_output_sig_event(stream->output, "Connected");
 
 	return 0;
 }
@@ -798,6 +804,11 @@ static void *write_thread(void *data)
 			obs_output_signal_stop(output->output, code);
 			ffmpeg_mpegts_deactivate(output);
 			break;
+		} else {
+			if (!output->sent_first_media_packet) {
+				output->sent_first_media_packet = true;
+				obs_output_sig_event(output->output, "SentFirstMediaPacket");
+			}
 		}
 	}
 
@@ -1012,6 +1023,7 @@ static bool ffmpeg_mpegts_start(void *data)
 	output->video_start_ts = 0;
 	output->total_bytes = 0;
 	output->got_headers = false;
+	output->sent_first_media_packet = false;
 
 	ret = pthread_create(&output->start_thread, NULL, start_thread, output);
 	return (output->connecting = (ret == 0));

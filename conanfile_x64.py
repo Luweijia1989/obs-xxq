@@ -15,15 +15,15 @@ class ObsXXQConan(ConanFile):
         self.copy("*.hpp", dst="include/libobs", src="libobs", keep_path=True)
         
         if self.settings.build_type=="Debug":
-            self.copy("*.dll", dst="bin", src="../dependencies2017/win64/bin", keep_path=False)
+            self.copy("*.dll", dst="bin", src="xxq-obs-deps/bin", keep_path=False)
             self.copy("*.lib", dst="lib", src="build64/libobs/Debug", keep_path=True)
         else:
-            self.copy("*.dll", dst="bin", src="../dependencies2017/win64/bin", keep_path=False, excludes="debug")
+            self.copy("*.dll", dst="bin", src="xxq-obs-deps/bin", keep_path=False, excludes="debug")
             self.copy("*.lib", dst="lib", src="build64/libobs/RelWithDebInfo", keep_path=True)
             
             
         if self.settings.build_type=="Debug":
-            self.copy("*.dll", dst="bin", src="../dependencies2017/win64/bin/debug", keep_path=False)
+            self.copy("*.dll", dst="bin", src="xxq-obs-deps/bin/debug", keep_path=False)
             self.copy("*.dll", dst="bin", src="build64/libobs/Debug", keep_path=False)
             self.copy("*.pdb", dst="bin", src="build64/libobs/Debug", keep_path=False)
             self.copy("*.dll", dst="bin", src="build64/libobs-d3d11/Debug", keep_path=False)
@@ -92,6 +92,8 @@ class ObsXXQConan(ConanFile):
             self.copy("*.pdb", dst="plugins/obs-plugins/64bit", src="build64/plugins/win-mf/Debug", keep_path=False)
             self.copy("*.dll", dst="plugins/obs-plugins/64bit", src="build64/plugins/win-wasapi/Debug", keep_path=False)
             self.copy("*.pdb", dst="plugins/obs-plugins/64bit", src="build64/plugins/win-wasapi/Debug", keep_path=False)
+            self.copy("*.dll", dst="plugins/obs-plugins/64bit", src="build64/plugins/wasapi-capture/Debug", keep_path=False)
+            self.copy("*.pdb", dst="plugins/obs-plugins/64bit", src="build64/plugins/wasapi-capture/Debug", keep_path=False)
             self.copy("*.dll", dst="plugins/obs-plugins/64bit", src="build64/plugins/win-airplay/Debug", keep_path=False)
             self.copy("*.pdb", dst="plugins/obs-plugins/64bit", src="build64/plugins/win-airplay/Debug", keep_path=False)
             self.copy("*.dll", dst="plugins/obs-plugins/64bit", src="build64/plugins/beauty-filter/Debug", keep_path=False)
@@ -100,16 +102,22 @@ class ObsXXQConan(ConanFile):
             self.copy("*.pdb", dst="plugins/obs-plugins/64bit", src="build64/plugins/obs-backgroundremoval/Debug", keep_path=False)
             self.copy("*.dll", dst="plugins/data/obs-plugins/win-capture", src="build64/plugins/win-capture/graphics-hook/Debug", keep_path=False)
             self.copy("*.pdb*", dst="plugins/data/obs-plugins/win-capture", src="build64/plugins/win-capture/graphics-hook/Debug", keep_path=False)
-            self.copy("*.dll", dst="plugins/data/obs-plugins/win-capture", src="build32/plugins/win-capture/graphics-hook/Debug", keep_path=False)
-            self.copy("*.pdb*", dst="plugins/data/obs-plugins/win-capture", src="build32/plugins/win-capture/graphics-hook/Debug", keep_path=False)
-            self.copy("*.dll", dst="plugins/data/obs-plugins/win-capture", src="build64/plugins/win-capture/get-graphics-offsets/Debug", keep_path=False)
-            self.copy("*.pdb*", dst="plugins/data/obs-plugins/win-capture", src="build64/plugins/win-capture/get-graphics-offsets/Debug", keep_path=False)
-            self.copy("*.dll", dst="plugins/data/obs-plugins/win-capture", src="build32/plugins/win-capture/get-graphics-offsets/Debug", keep_path=False)
-            self.copy("*.pdb*", dst="plugins/data/obs-plugins/win-capture", src="build32/plugins/win-capture/get-graphics-offsets/Debug", keep_path=False)
             self.copy("*.exe", dst="plugins/data/obs-plugins/win-capture", src="build64/plugins/win-capture/get-graphics-offsets/Debug", keep_path=False)
             self.copy("*.pdb*", dst="plugins/data/obs-plugins/win-capture", src="build64/plugins/win-capture/get-graphics-offsets/Debug", keep_path=False)
+            self.copy("*.dll", dst="plugins/data/obs-plugins/win-capture", src="build32/plugins/win-capture/graphics-hook/Debug", keep_path=False)
+            self.copy("*.pdb*", dst="plugins/data/obs-plugins/win-capture", src="build32/plugins/win-capture/graphics-hook/Debug", keep_path=False)
             self.copy("*.exe", dst="plugins/data/obs-plugins/win-capture", src="build32/plugins/win-capture/get-graphics-offsets/Debug", keep_path=False)
             self.copy("*.pdb*", dst="plugins/data/obs-plugins/win-capture", src="build32/plugins/win-capture/get-graphics-offsets/Debug", keep_path=False)
+
+            self.copy("*.dll", dst="plugins/data/obs-plugins/wasapi-capture", src="build64/plugins/wasapi-capture/wasapi-hook/Debug", keep_path=False)
+            self.copy("*.pdb*", dst="plugins/data/obs-plugins/wasapi-capture", src="build64/plugins/wasapi-capture/wasapi-hook/Debug", keep_path=False)
+            self.copy("*.exe", dst="plugins/data/obs-plugins/wasapi-capture", src="build64/plugins/wasapi-capture/get-wasapi-offsets/Debug", keep_path=False)
+            self.copy("*.pdb*", dst="plugins/data/obs-plugins/wasapi-capture", src="build64/plugins/wasapi-capture/get-wasapi-offsets/Debug", keep_path=False)
+            self.copy("*.dll", dst="plugins/data/obs-plugins/wasapi-capture", src="build32/plugins/wasapi-capture/wasapi-hook/Debug", keep_path=False)
+            self.copy("*.pdb*", dst="plugins/data/obs-plugins/wasapi-capture", src="build32/plugins/wasapi-capture/wasapi-hook/Debug", keep_path=False)
+            self.copy("*.exe", dst="plugins/data/obs-plugins/wasapi-capture", src="build32/plugins/wasapi-capture/get-wasapi-offsets/Debug", keep_path=False)
+            self.copy("*.pdb*", dst="plugins/data/obs-plugins/wasapi-capture", src="build32/plugins/wasapi-capture/get-wasapi-offsets/Debug", keep_path=False)
+
         else:
             self.copy("*.dll", dst="bin", src="build64/libobs/RelWithDebInfo", keep_path=False)
             self.copy("*.pdb", dst="bin", src="build64/libobs/RelWithDebInfo", keep_path=False)
@@ -177,6 +185,8 @@ class ObsXXQConan(ConanFile):
             self.copy("*.pdb", dst="plugins/obs-plugins/64bit", src="build64/plugins/win-dshow/RelWithDebInfo", keep_path=False)
             self.copy("*.dll", dst="plugins/obs-plugins/64bit", src="build64/plugins/win-mf/RelWithDebInfo", keep_path=False)
             self.copy("*.pdb", dst="plugins/obs-plugins/64bit", src="build64/plugins/win-mf/RelWithDebInfo", keep_path=False)
+            self.copy("*.dll", dst="plugins/obs-plugins/64bit", src="build64/plugins/wasapi-capture/RelWithDebInfo", keep_path=False)
+            self.copy("*.pdb", dst="plugins/obs-plugins/64bit", src="build64/plugins/wasapi-capture/RelWithDebInfo", keep_path=False)
             self.copy("*.dll", dst="plugins/obs-plugins/64bit", src="build64/plugins/win-wasapi/RelWithDebInfo", keep_path=False)
             self.copy("*.pdb", dst="plugins/obs-plugins/64bit", src="build64/plugins/win-wasapi/RelWithDebInfo", keep_path=False)
             self.copy("*.dll", dst="plugins/obs-plugins/64bit", src="build64/plugins/win-airplay/RelWithDebInfo", keep_path=False)
@@ -187,16 +197,21 @@ class ObsXXQConan(ConanFile):
             self.copy("*.pdb", dst="plugins/obs-plugins/64bit", src="build64/plugins/obs-backgroundremoval/RelWithDebInfo", keep_path=False)
             self.copy("*.dll", dst="plugins/data/obs-plugins/win-capture", src="build64/plugins/win-capture/graphics-hook/RelWithDebInfo", keep_path=False)
             self.copy("*.pdb", dst="plugins/data/obs-plugins/win-capture", src="build64/plugins/win-capture/graphics-hook/RelWithDebInfo", keep_path=False)
-            self.copy("*.dll", dst="plugins/data/obs-plugins/win-capture", src="build32/plugins/win-capture/graphics-hook/RelWithDebInfo", keep_path=False)
-            self.copy("*.pdb", dst="plugins/data/obs-plugins/win-capture", src="build32/plugins/win-capture/graphics-hook/RelWithDebInfo", keep_path=False)
-            self.copy("*.dll", dst="plugins/data/obs-plugins/win-capture", src="build64/plugins/win-capture/get-graphics-offsets/RelWithDebInfo", keep_path=False)
-            self.copy("*.pdb*", dst="plugins/data/obs-plugins/win-capture", src="build64/plugins/win-capture/get-graphics-offsets/RelWithDebInfo", keep_path=False)
-            self.copy("*.dll", dst="plugins/data/obs-plugins/win-capture", src="build32/plugins/win-capture/get-graphics-offsets/RelWithDebInfo", keep_path=False)
-            self.copy("*.pdb*", dst="plugins/data/obs-plugins/win-capture", src="build32/plugins/win-capture/get-graphics-offsets/RelWithDebInfo", keep_path=False)
             self.copy("*.exe", dst="plugins/data/obs-plugins/win-capture", src="build64/plugins/win-capture/get-graphics-offsets/RelWithDebInfo", keep_path=False)
             self.copy("*.pdb*", dst="plugins/data/obs-plugins/win-capture", src="build64/plugins/win-capture/get-graphics-offsets/RelWithDebInfo", keep_path=False)
+            self.copy("*.dll", dst="plugins/data/obs-plugins/win-capture", src="build32/plugins/win-capture/graphics-hook/RelWithDebInfo", keep_path=False)
+            self.copy("*.pdb", dst="plugins/data/obs-plugins/win-capture", src="build32/plugins/win-capture/graphics-hook/RelWithDebInfo", keep_path=False)
             self.copy("*.exe", dst="plugins/data/obs-plugins/win-capture", src="build32/plugins/win-capture/get-graphics-offsets/RelWithDebInfo", keep_path=False)
             self.copy("*.pdb*", dst="plugins/data/obs-plugins/win-capture", src="build32/plugins/win-capture/get-graphics-offsets/RelWithDebInfo", keep_path=False)
+            
+            self.copy("*.dll", dst="plugins/data/obs-plugins/wasapi-capture", src="build64/plugins/wasapi-capture/wasapi-hook/RelWithDebInfo", keep_path=False)
+            self.copy("*.pdb*", dst="plugins/data/obs-plugins/wasapi-capture", src="build64/plugins/wasapi-capture/wasapi-hook/RelWithDebInfo", keep_path=False)
+            self.copy("*.exe", dst="plugins/data/obs-plugins/wasapi-capture", src="build64/plugins/wasapi-capture/get-wasapi-offsets/RelWithDebInfo", keep_path=False)
+            self.copy("*.pdb*", dst="plugins/data/obs-plugins/wasapi-capture", src="build64/plugins/wasapi-capture/get-wasapi-offsets/RelWithDebInfo", keep_path=False)
+            self.copy("*.dll", dst="plugins/data/obs-plugins/wasapi-capture", src="build32/plugins/wasapi-capture/wasapi-hook/RelWithDebInfo", keep_path=False)
+            self.copy("*.pdb*", dst="plugins/data/obs-plugins/wasapi-capture", src="build32/plugins/wasapi-capture/wasapi-hook/RelWithDebInfo", keep_path=False)
+            self.copy("*.exe", dst="plugins/data/obs-plugins/wasapi-capture", src="build32/plugins/wasapi-capture/get-wasapi-offsets/RelWithDebInfo", keep_path=False)
+            self.copy("*.pdb*", dst="plugins/data/obs-plugins/wasapi-capture", src="build32/plugins/wasapi-capture/get-wasapi-offsets/RelWithDebInfo", keep_path=False)
             
             
         self.copy("*.*", dst="plugins/data/libobs", src="libobs/data", keep_path=True)
@@ -220,6 +235,7 @@ class ObsXXQConan(ConanFile):
         self.copy("*.*", dst="plugins/data/obs-plugins/win-mf", src="plugins/win-mf/data", keep_path=True)
         self.copy("*.*", dst="plugins/data/obs-plugins/win-wasapi", src="plugins/win-wasapi/data", keep_path=True)
         self.copy("*.exe", dst="plugins/data/obs-plugins/win-capture", src="win-capture-data", keep_path=True)
+        self.copy("*.exe", dst="plugins/data/obs-plugins/wasapi-capture", src="win-capture-data", keep_path=True)
         self.copy("rvm_mobilenetv3_fp32.onnx", dst="plugins/data/obs-plugins/obs-backgroundremoval", src="plugins/obs-backgroundremoval/data", keep_path=True)
         
         if self.settings.build_type!="Debug":

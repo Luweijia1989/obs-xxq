@@ -22,6 +22,7 @@ typedef struct URLContext {
 	int max_packet_size;
 	AVIOInterruptCB interrupt_callback;
 	int64_t rw_timeout; /* max time to wait for write completion in mcs */
+	char cdn_addr[256];
 } URLContext;
 
 #define UDP_DEFAULT_PAYLOAD_SIZE 1316

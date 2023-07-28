@@ -211,12 +211,23 @@ struct obs_display {
 	pthread_mutex_t draw_info_mutex;
 	DARRAY(struct draw_callback) draw_callbacks;
 
+	bool dx_interop_available;
+	enum display_type type;
+	gs_texrender_t *display_texrender;
+	gs_stagesurf_t *copy_surfaces[NUM_TEXTURES];
+	gs_stagesurf_t *mapped_surface;
+	bool textures_copied[NUM_TEXTURES];
+	int cur_texture;
+
+	display_texture_data_t texture_data_cb;
+	void *cb_data;
+
 	struct obs_display *next;
 	struct obs_display **prev_next;
 };
 
 extern bool obs_display_init(struct obs_display *display,
-			     const struct gs_init_data *graphics_data);
+			     const struct gs_init_data *graphics_data, enum display_type type);
 extern void obs_display_free(struct obs_display *display);
 
 /* ------------------------------------------------------------------------- */
@@ -259,29 +270,27 @@ struct obs_frame_render_info {
 typedef void (*rtc_frame_output_t)(uint8_t **data, uint32_t *linesize,
 				   uint32_t width, uint32_t height,
 				   void *userdata);
+
 struct obs_rtc_mix {
+	//localmix
 	char rtc_background_image_path[512];
 	char rtc_seat_background_image_path[512];
-	int mix_type;
 	struct obs_frame_render_info rtc_frame_render_info;
 	gs_texture_t *rtc_textures[NUM_RTC_CHANNEL];
 	gs_texrender_t *rtc_texture_render[NUM_RTC_CHANNEL];
 	gs_texrender_t *self_texture_render;
-	gs_texture_t *rtc_frame_texture;
-	gs_texture_t *rtc_frame_output_texture;
 	gs_texture_t *rtc_frame_mix_output_texture;
 	gs_texture_t *rtc_background_texture;
-	bool render_rtc_textures;
-	uint32_t self_crop_x;
-	uint32_t self_crop_y;
-	uint32_t self_crop_width;
-	uint32_t self_crop_height;
-	uint32_t output_texture_width;
-	uint32_t output_texture_height;
-	uint32_t capture_texture_width;
-	uint32_t capture_texture_height;
+	struct rtc_crop_info rtc_local_mix_crop_info;
+	volatile bool rtc_local_mix_active;
+
+	//for rtc output
+	gs_texture_t *rtc_frame_texture;
+	gs_texture_t *rtc_frame_output_texture;
+	struct rtc_crop_info rtc_frame_crop_info;
+	uint32_t rtc_frame_output_texture_width;
+	uint32_t rtc_frame_output_texture_height;
 	volatile bool rtc_frame_active;
-	volatile bool rtc_output_active;
 
 	rtc_frame_output_t output_cb;
 	void *output_cb_data;
@@ -297,6 +306,7 @@ struct obs_rtc_mix {
 	float conversion_width_i_raw;
 
 	struct video_frame *cache_frame;
+	bool self_render_avatar;
 };
 
 struct obs_core_video {
@@ -323,6 +333,7 @@ struct obs_core_video {
 	gs_effect_t *area_effect;
 	gs_effect_t *bilinear_lowres_effect;
 	gs_effect_t *premultiplied_alpha_effect;
+	gs_effect_t *round_effect;
 	gs_samplerstate_t *point_sampler;
 	gs_stagesurf_t *mapped_surfaces[NUM_CHANNELS];
 	int cur_texture;
@@ -377,6 +388,7 @@ struct obs_core_video {
 	struct circlebuf tasks;
 
 	struct obs_rtc_mix rtc_mix;
+	bool dx_interop_enabled;
 };
 
 struct audio_monitor;
@@ -518,9 +530,9 @@ extern bool obs_graphics_thread_loop(struct obs_graphics_context *context);
 
 extern gs_effect_t *obs_load_effect(gs_effect_t **effect, const char *file);
 
-extern bool audio_callback(void *param, uint64_t start_ts_in,
-			   uint64_t end_ts_in, uint64_t *out_ts,
-			   uint32_t mixers, struct audio_output_data *mixes);
+extern bool audio_callback(void *param, uint64_t start_ts_in, uint64_t end_ts_in,
+			   uint64_t *out_ts, uint32_t mixers,
+			   struct audio_output_data *aec_mixes, struct audio_output_data *rtmp_mixes, struct audio_output_data *rtc_mixes);
 
 extern void
 start_raw_video(video_t *video, const struct video_scale_info *conversion,
@@ -752,6 +764,8 @@ struct obs_source {
 	gs_texture_t *async_holder_image;
 	uint32_t placeholder_width;
 	uint32_t placeholder_height;
+
+	enum obs_source_audio_type audio_type;
 
 	/* async video deinterlacing */
 	uint64_t deinterlace_offset;
@@ -1063,6 +1077,9 @@ struct obs_output {
 	float audio_data[MAX_AUDIO_CHANNELS][AUDIO_OUTPUT_FRAMES];
 
 	uint32_t sei_count_per_second;
+	new_video_packet raw_video_cb;
+	new_audio_packet raw_audio_cb;
+	void *raw_param;
 };
 
 static inline void do_output_signal(struct obs_output *output,

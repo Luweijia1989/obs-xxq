@@ -241,6 +241,12 @@ static int libsrt_listen_connect(int eid, SRTSOCKET fd,
 			     h->url, av_err2str(ret));
 		}
 	}
+
+	struct sockaddr_storage service;
+	memset(&service, 0, sizeof(service));
+	memcpy(&service, addr, addrlen);
+	char* ips = inet_ntoa((*(struct sockaddr_in *)&service).sin_addr);
+	strcpy(h->cdn_addr, ips);
 	return ret;
 }
 

@@ -630,6 +630,7 @@ enum obs_base_effect {
 	OBS_EFFECT_PREMULTIPLIED_ALPHA, /**< Premultiplied alpha */
 	OBS_EFFECT_REPEAT,              /**< RGB/YUV (repeating) */
 	OBS_EFFECT_AREA,                /**< Area rescale */
+	OBS_EFFECT_MAKEROUND,           /**< ROUND */
 };
 
 /** Returns a commonly used base effect */
@@ -794,6 +795,12 @@ EXPORT void obs_view_render(obs_view_t *view, void *output_order);
 /* ------------------------------------------------------------------------- */
 /* Display context */
 
+enum display_type
+{
+	to_swapchain,
+	to_texture,
+};
+
 /**
  * Adds a new window display linked to the main render pipeline.  This creates
  * a new swap chain which updates every frame.
@@ -801,9 +808,11 @@ EXPORT void obs_view_render(obs_view_t *view, void *output_order);
  * @param  graphics_data  The swap chain initialization data.
  * @return                The new display context, or NULL if failed.
  */
+typedef void (*imgui_init_t)(void *device, void *context, void *data);
+typedef void (*display_texture_data_t)(uint8_t *data, uint32_t linesize, uint32_t src_linesize, uint32_t src_height, void *param);
 EXPORT obs_display_t *obs_display_create(
 	const struct gs_init_data *graphics_data, uint32_t backround_color,
-	void (*imgui_init)(void *device, void *context, void *data), void *p);
+	imgui_init_t imgui_init, display_texture_data_t display_texture_data_cb, void *p, enum display_type type);
 
 /** Destroys a display context */
 EXPORT void obs_display_destroy(obs_display_t *display);
@@ -811,6 +820,8 @@ EXPORT void obs_display_destroy(obs_display_t *display);
 /** Changes the size of this display */
 EXPORT void obs_display_resize(obs_display_t *display, uint32_t cx,
 			       uint32_t cy);
+
+EXPORT gs_texture_t *obs_display_get_texture(obs_display_t *display);
 
 /**
  * Adds a draw callback for this display context
@@ -838,6 +849,8 @@ EXPORT void obs_display_set_background_color(obs_display_t *display,
 
 EXPORT void obs_display_size(obs_display_t *display, uint32_t *width,
 			     uint32_t *height);
+
+EXPORT void obs_display_set_dxinterop_enabled(bool enabled);
 
 /* ------------------------------------------------------------------------- */
 /* Sources */
@@ -1382,6 +1395,15 @@ image holder used when a source is async video and there is no video frame curre
 */
 EXPORT void obs_source_set_placeholder_image(obs_source_t *source,
 					     char *image_path);
+
+enum obs_source_audio_type {
+	OBS_SOURCE_AUDIO_RTMP,
+	OBS_SOURCE_AUDIO_RTC,
+	OBS_SOURCE_AUDIO_BOTH,
+	OBS_SOURCE_AUDIO_BOTH_BUT_RTC_AEC,
+};
+
+EXPORT void obs_source_set_audio_type(obs_source_t *source, enum obs_source_audio_type type);
 
 /* ------------------------------------------------------------------------- */
 /* Transition-specific functions */
@@ -1982,6 +2004,14 @@ EXPORT void obs_output_signal_stop(obs_output_t *output, int code);
 
 EXPORT uint64_t obs_output_get_pause_offset(obs_output_t *output);
 
+typedef void (*new_video_packet)(void *param, struct video_data *packet);
+typedef void (*new_audio_packet)(void *param, struct audio_data *frames);
+EXPORT void obs_output_set_raw_data_callback(obs_output_t *output, new_video_packet vcb, new_audio_packet acb, void *param);
+EXPORT void obs_output_output_raw_video(obs_output_t *output, struct video_data *packet);
+EXPORT void obs_output_output_raw_audio(obs_output_t *output, struct audio_data *frames);
+
+EXPORT void obs_output_sig_event(obs_output_t *output, const char *event);
+
 /* ------------------------------------------------------------------------- */
 /* Encoders */
 
@@ -2297,39 +2327,52 @@ EXPORT void obs_source_create_xxqsource(int type /*1=privacy 2=leave*/,
 EXPORT void obs_source_update_xxqsource(int type /*1=privacy 2=leave*/,
 					obs_data_t *settings);
 EXPORT void obs_source_destroy_xxqsource(int type);
+EXPORT obs_source_t *obs_source_get_xxqsource(int type);
 
 EXPORT void obs_source_custom_command_xxqsource(int type, obs_data_t *settings);
 
 EXPORT void
 obs_add_raw_audio_callback(const struct audio_convert_info *conversion,
-			   audio_output_callback_t callback, void *param);
+			   audio_output_callback_t callback, void *param, enum raw_audio_type type);
 
 EXPORT void obs_remove_raw_audio_callback(audio_output_callback_t callback,
 					  void *param);
 
+struct rtc_crop_info {
+	uint32_t x;
+	uint32_t y;
+	uint32_t width;
+	uint32_t height;
+};
+
+EXPORT void obs_rtc_crop_info(struct rtc_crop_info *info);
+
 //设置本地混流基本信息
 //type 0=>普通连麦 1=>多人连麦 宫格形式
 //count type!=1时忽略 总共宫格数
-EXPORT void obs_rtc_set_merge_info(int self_index, obs_data_t *merge_info,
-				   char *background_image);
-
+EXPORT void obs_rtc_local_mix_begin(int self_index, obs_data_t *merge_info, char *background_image);
+EXPORT void obs_rtc_local_mix_end();
+EXPORT void obs_rtc_local_mix_free();
+EXPORT void obs_rtc_update_local_mix_crop_info(uint32_t self_crop_x, uint32_t self_crop_y, uint32_t self_crop_width, uint32_t self_crop_height);
+EXPORT void obs_rtc_set_avatar(int index, const char *avatar_image, int width, int height, int posY, int avatarSize);
+/*
+self_crop_x		rtc推出去的画面在本地预览画面中的x偏移
+self_crop_y		rtc推出去的画面在本地预览画面中的y偏移
+self_crop_width		rtc推出去的画面裁剪宽度
+self_crop_height	rtc推出去的画面裁剪高度
+self_output_width	rtc推出去的画面宽度
+self_output_height	rtc推出去的画面高度
+*/
 EXPORT void obs_rtc_capture_begin(
 	uint32_t self_crop_x, uint32_t self_crop_y, uint32_t self_crop_width,
 	uint32_t self_crop_height, uint32_t self_output_width,
-	uint32_t self_output_height, uint32_t capture_width,
-	uint32_t capture_height,
+	uint32_t self_output_height,
 	void (*new_rtc_frame_output)(uint8_t **data, uint32_t *linesize,
 				     uint32_t width, uint32_t height,
 				     void *userdata),
 	void *userdata);
 EXPORT void obs_rtc_capture_end();
-
-EXPORT void obs_rtc_capture_free(bool freeRender);
-
-//mixType 0->普通混流，画布为output_texture，尺寸已经修正过无需偏移
-//        1->优化后的混流，画布为rtc_frame_mix_output_texture,尺寸为1920*1080,有效区域是4：3，绘制时需要做偏移
-EXPORT void obs_rtc_output_begin(int mixType);
-EXPORT void obs_rtc_output_end();
+EXPORT void obs_rtc_capture_free();
 
 EXPORT void obs_rtc_all_end();
 

@@ -221,7 +221,7 @@ static void add_connection(struct obs_encoder *encoder)
 		get_audio_info(encoder, &audio_info);
 
 		audio_output_connect(encoder->media, encoder->mixer_idx,
-				     &audio_info, receive_audio, encoder);
+				     &audio_info, receive_audio, encoder, obs_audio_rtmp);
 	} else {
 		struct video_scale_info info = {0};
 		get_video_info(encoder, &info);

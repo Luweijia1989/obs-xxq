@@ -41,8 +41,9 @@ public:
 	WASCaptureData();
 	~WASCaptureData();
 
-	void capture_check(IAudioRenderClient *pAudioRenderClient);
+	void capture_check();
 	void out_audio_data(IAudioRenderClient *pAudioRenderClient, UINT32 nFrameWritten);
+	void audio_client_destroy(IAudioClient *client);
 
 private:
 	uint8_t *audio_data_pointer = nullptr;

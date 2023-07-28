@@ -487,6 +487,7 @@ struct gs_init_data {
 	enum gs_color_format format;
 	enum gs_zstencil_format zsformat;
 	uint32_t adapter;
+	bool dx_interop_available;
 };
 
 #define GS_DEVICE_OPENGL 1
@@ -858,12 +859,16 @@ EXPORT bool
 gs_get_duplicator_monitor_info(int monitor_idx,
 			       struct gs_monitor_info *monitor_info);
 
+EXPORT int gs_duplicator_get_monitor_index(void *monitor);
+
 /** creates a windows 8+ output duplicator (monitor capture) */
 EXPORT gs_duplicator_t *gs_duplicator_create(int monitor_idx);
 EXPORT void gs_duplicator_destroy(gs_duplicator_t *duplicator);
 
 EXPORT bool gs_duplicator_update_frame(gs_duplicator_t *duplicator);
 EXPORT gs_texture_t *gs_duplicator_get_texture(gs_duplicator_t *duplicator);
+
+EXPORT uint32_t gs_get_adapter_count(void);
 
 /** creates a windows GDI-lockable texture */
 EXPORT gs_texture_t *gs_texture_create_gdi(uint32_t width, uint32_t height);
@@ -873,6 +878,7 @@ EXPORT void gs_texture_release_dc(gs_texture_t *gdi_tex);
 
 /** creates a windows shared texture from a texture handle */
 EXPORT gs_texture_t *gs_texture_open_shared(uint32_t handle);
+EXPORT gs_texture_t *gs_texture_open_nt_shared(uint32_t handle);
 
 #define GS_INVALID_HANDLE (uint32_t) - 1
 EXPORT uint32_t gs_texture_get_shared_handle(gs_texture_t *tex);

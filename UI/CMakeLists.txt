@@ -57,6 +57,7 @@ set(CMAKE_INCLUDE_CURRENT_DIR TRUE)
 set(CMAKE_AUTOMOC TRUE)
 
 find_package(Qt5Svg ${FIND_MODE})
+find_package(Qt5Quick REQUIRED)
 
 find_package(FFmpeg REQUIRED COMPONENTS avcodec avutil avformat)
 
@@ -73,6 +74,7 @@ if(NOT Qt5Widgets_FOUND)
 	endif()
 endif()
 
+add_definitions(-D_HAS_STD_BYTE=0)
 
 include_directories(${FFMPEG_INCLUDE_DIRS})
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
@@ -80,6 +82,7 @@ include_directories(SYSTEM "obs-frontend-api")
 include_directories(SYSTEM "${CMAKE_SOURCE_DIR}/libobs")
 include_directories(SYSTEM "${CMAKE_SOURCE_DIR}/deps/libff")
 include_directories(SYSTEM "${CMAKE_SOURCE_DIR}/deps/json11")
+include_directories("C:/Users/luweijia/.conan/data/Cicada-Player_x64/0.0.1/bixin/stable/package/8cf01e2f50fcd6b63525e70584df0326550364e1/include")
 if(BROWSER_AVAILABLE_INTERNAL)
 	include_directories(SYSTEM "${CMAKE_SOURCE_DIR}/plugins/obs-browser/panel")
 endif()
@@ -253,6 +256,7 @@ set(obs_SOURCES
 	window-namedialog.cpp
 	window-log-reply.cpp
 	window-projector.cpp
+	window-opengl-projector.cpp
 	window-remux.cpp
 	auth-base.cpp
 	source-tree.cpp
@@ -272,6 +276,7 @@ set(obs_SOURCES
 	visibility-item-widget.cpp
 	slider-absoluteset-style.cpp
 	qt-display.cpp
+	qt-opengl-display.cpp
 	crash-report.cpp
 	hotkey-edit.cpp
 	source-label.cpp
@@ -305,6 +310,7 @@ set(obs_HEADERS
 	window-namedialog.hpp
 	window-log-reply.hpp
 	window-projector.hpp
+	window-opengl-projector.hpp
 	window-remux.hpp
 	auth-base.hpp
 	source-tree.hpp
@@ -331,6 +337,7 @@ set(obs_HEADERS
 	visibility-item-widget.hpp
 	slider-absoluteset-style.hpp
 	qt-display.hpp
+	qt-opengl-display.hpp
 	crash-report.hpp
 	hotkey-edit.hpp
 	source-label.hpp
@@ -386,7 +393,9 @@ target_link_libraries(obs
 	libobs
 	Qt5::Widgets
 	Qt5::Svg
+	Qt5::Quick
 	obs-frontend-api
+	Opengl32
 	${FFMPEG_LIBRARIES}
 	${LIBCURL_LIBRARIES}
 	${obs_PLATFORM_LIBRARIES})

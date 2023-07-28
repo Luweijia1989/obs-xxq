@@ -551,6 +551,45 @@ static inline void render_rtc_textures(gs_effect_t *effect,
 	gs_viewport_pop();
 }
 
+static inline void render_final_rtc_textures(gs_effect_t *effect, gs_technique_t *tech, gs_texture_t *texture, uint32_t x_pos, uint32_t y_pos,
+					     uint32_t ret_width, uint32_t ret_height, uint32_t target_width, uint32_t target_height, uint32_t final_width,
+					     uint32_t final_height)
+{
+	if (!texture)
+		return;
+	size_t passes, i;
+	gs_eparam_t *image = gs_effect_get_param_by_name(effect, "image");
+
+	gs_viewport_push();
+	gs_projection_push();
+	gs_matrix_push();
+	gs_matrix_identity();
+
+	uint32_t src_width = gs_texture_get_width(texture);
+	uint32_t src_height = gs_texture_get_height(texture);
+
+	gs_effect_set_texture(image, texture);
+
+	gs_set_viewport(x_pos, y_pos, final_width, final_height);
+	gs_ortho(0.0f, (float)final_width, 0.0f, (float)final_height, -100.0f, 100.0f);
+
+	gs_matrix_scale3f((float)target_width / (float)ret_width, (float)target_height / (float)ret_height, 1.0f);
+
+	gs_enable_blending(false);
+	passes = gs_technique_begin(tech);
+	for (i = 0; i < passes; i++) {
+		gs_technique_begin_pass(tech, i);
+		gs_draw_sprite(texture, 0, src_width, src_height);
+		gs_technique_end_pass(tech);
+	}
+	gs_technique_end(tech);
+	gs_enable_blending(true);
+
+	gs_matrix_pop();
+	gs_projection_pop();
+	gs_viewport_pop();
+}
+
 static inline void render_merge_textures(
 	gs_texrender_t **render, gs_effect_t *effect, gs_technique_t *tech,
 	gs_texture_t *src_texture, uint32_t x_pos, uint32_t y_pos,
@@ -590,25 +629,19 @@ static inline void render_merge_textures(
 		vec4_zero(&clear_color);
 		gs_clear(GS_CLEAR_COLOR, &clear_color, 0.0f, 0);
 		gs_set_viewport(0, 0, width, height);
-		gs_ortho(0.0f, (float)width, 0.0f, (float)height, -100.0f,
-			 100.0f);
+		gs_ortho(0.0f, (float)width, 0.0f, (float)height, -100.0f, 100.0f);
 
-		gs_matrix_translate3f(-(float)crop_left, -(float)crop_top,
-				      0.0f);
+		gs_matrix_translate3f(-(float)crop_left, -(float)crop_top, 0.0f);
 
 		{
 			gs_effect_t *effect = obs->video.default_effect;
-			gs_technique_t *tech =
-				gs_effect_get_technique(effect, "Draw");
+			gs_technique_t *tech = gs_effect_get_technique(effect, "Draw");
 			size_t passes, i;
 
 			passes = gs_technique_begin(tech);
 			for (i = 0; i < passes; i++) {
 				gs_technique_begin_pass(tech, i);
-				gs_effect_set_texture(
-					gs_effect_get_param_by_name(effect,
-								    "image"),
-					src_texture);
+				gs_effect_set_texture(gs_effect_get_param_by_name(effect, "image"), src_texture);
 				gs_draw_sprite(src_texture, 0, width, height);
 				gs_technique_end_pass(tech);
 			}
@@ -618,42 +651,8 @@ static inline void render_merge_textures(
 		gs_texrender_end(*render);
 	}
 
-	size_t passes, i;
-	gs_eparam_t *image = gs_effect_get_param_by_name(effect, "image");
-
-	gs_viewport_push();
-	gs_projection_push();
-	gs_matrix_push();
-	gs_matrix_identity();
-
-	uint32_t src_width =
-		gs_texture_get_width(gs_texrender_get_texture(*render));
-	uint32_t src_height =
-		gs_texture_get_height(gs_texrender_get_texture(*render));
-
-	gs_effect_set_texture(image, gs_texrender_get_texture(*render));
-
-	gs_set_viewport(x_pos, y_pos, final_width, final_height);
-	gs_ortho(0.0f, (float)final_width, 0.0f, (float)final_height, -100.0f,
-		 100.0f);
-
-	gs_matrix_scale3f((float)target_width / (float)ret_width,
-			  (float)target_height / (float)ret_height, 1.0f);
-
-	gs_enable_blending(false);
-	passes = gs_technique_begin(tech);
-	for (i = 0; i < passes; i++) {
-		gs_technique_begin_pass(tech, i);
-		gs_draw_sprite(gs_texrender_get_texture(*render), 0, src_width,
-			       src_height);
-		gs_technique_end_pass(tech);
-	}
-	gs_technique_end(tech);
-	gs_enable_blending(true);
-
-	gs_matrix_pop();
-	gs_projection_pop();
-	gs_viewport_pop();
+	render_final_rtc_textures(effect, tech, gs_texrender_get_texture(*render), x_pos, y_pos, ret_width, ret_height, target_width, target_height,
+				  final_width, final_height);
 }
 
 static void rtc_draw_background_image(gs_effect_t *effect, gs_technique_t *tech)
@@ -705,15 +704,12 @@ static void rtc_draw_background_image(gs_effect_t *effect, gs_technique_t *tech)
 }
 
 static inline gs_texture_t *
-render_rtc_output_texture(struct obs_core_video *video) //final output
+render_rtc_local_mix_output_texture(struct obs_core_video *video) //final output
 {
 	//rtc_frame_mix_output_texture作为本地混流的输出，尺寸和预览尺寸保持一致1920*1080
 	//普通连麦画布还是之前的output_texture，我们会去改变这个画布尺寸为1440*1080.多人连麦有效区域也是1440*1080，我们画的时候要做偏移
 	struct obs_rtc_mix *rtc_mix = &obs->video.rtc_mix;
-	gs_texture_t *texture = video->render_invisible_texture;
-	gs_texture_t *target = rtc_mix->mix_type == 0
-				       ? video->output_texture
-				       : rtc_mix->rtc_frame_mix_output_texture;
+	gs_texture_t *target = rtc_mix->rtc_frame_mix_output_texture;
 	uint32_t width = gs_texture_get_width(target);
 	uint32_t height = gs_texture_get_height(target);
 
@@ -738,18 +734,18 @@ render_rtc_output_texture(struct obs_core_video *video) //final output
 	for (size_t i = 0; i < rtc_mix->rtc_frame_render_info.frame_infos.num; i++) {
 		struct obs_each_frame_render_info *frame_info;
 		frame_info = rtc_mix->rtc_frame_render_info.frame_infos.array + i;
-		if (frame_info->index == rtc_mix->rtc_frame_render_info.self_index) {
+		if (frame_info->index == rtc_mix->rtc_frame_render_info.self_index && !os_atomic_load_bool(&rtc_mix->self_render_avatar)) {
 			render_merge_textures(
 				&rtc_mix->self_texture_render,
 				effect,
 				tech,
-				texture,
+				video->render_invisible_texture,
 				frame_info->x + x_offset,
 				frame_info->y + y_offset,
-				rtc_mix->self_crop_x,
-				rtc_mix->self_crop_y,
-				rtc_mix->self_crop_width,
-				rtc_mix->self_crop_height,
+				rtc_mix->rtc_local_mix_crop_info.x,
+				rtc_mix->rtc_local_mix_crop_info.y,
+				rtc_mix->rtc_local_mix_crop_info.width,
+				rtc_mix->rtc_local_mix_crop_info.height,
 				frame_info->width,
 				frame_info->height,
 				width,
@@ -775,23 +771,19 @@ render_rtc_output_texture(struct obs_core_video *video) //final output
 		}
 	}
 
-	if (rtc_mix->mix_type == 0)
+	uint32_t mix_width = gs_texture_get_width(
+		rtc_mix->rtc_frame_mix_output_texture);
+	uint32_t mix_height = gs_texture_get_height(
+		rtc_mix->rtc_frame_mix_output_texture);
+	if (mix_width != video->output_width ||
+		mix_height != video->output_height) {
+		render_texture_scale_internal(
+			rtc_mix->rtc_frame_mix_output_texture,
+			video->output_texture, effect, tech, mix_width,
+			mix_height);
+		return video->output_texture;
+	} else
 		return target;
-	else {
-		uint32_t mix_width = gs_texture_get_width(
-			rtc_mix->rtc_frame_mix_output_texture);
-		uint32_t mix_height = gs_texture_get_height(
-			rtc_mix->rtc_frame_mix_output_texture);
-		if (mix_width != video->output_width ||
-		    mix_height != video->output_height) {
-			render_texture_scale_internal(
-				rtc_mix->rtc_frame_mix_output_texture,
-				video->output_texture, effect, tech, mix_width,
-				mix_height);
-			return video->output_texture;
-		} else
-			return target;
-	}
 }
 
 static inline gs_texture_t *
@@ -811,19 +803,19 @@ render_rtc_frame_texture(struct obs_core_video *video,
 	vec4_zero(&clear_color);
 	gs_clear(GS_CLEAR_COLOR, &clear_color, 0.0f, 0);
 
-	render_rtc_textures(effect, tech, texture, 0, 0, rtc_mix->self_crop_x,
-			    rtc_mix->self_crop_y, rtc_mix->self_crop_width,
-			    rtc_mix->self_crop_height);
+	render_rtc_textures(effect, tech, texture, 0, 0, rtc_mix->rtc_frame_crop_info.x,
+			    rtc_mix->rtc_frame_crop_info.y, rtc_mix->rtc_frame_crop_info.width,
+			    rtc_mix->rtc_frame_crop_info.height);
 
-	if (rtc_mix->output_texture_width != rtc_mix->capture_texture_width ||
-	    rtc_mix->output_texture_height != rtc_mix->capture_texture_height) {
+	if (rtc_mix->rtc_frame_output_texture_width != rtc_mix->rtc_frame_crop_info.width ||
+	    rtc_mix->rtc_frame_output_texture_height != rtc_mix->rtc_frame_crop_info.height) {
 		render_texture_scale_internal(
 			rtc_mix->rtc_frame_texture,
 			rtc_mix->rtc_frame_output_texture,
 			video->bicubic_effect,
 			gs_effect_get_technique(video->bicubic_effect, "Draw"),
-			rtc_mix->capture_texture_width,
-			rtc_mix->capture_texture_height);
+			rtc_mix->rtc_frame_crop_info.width,
+			rtc_mix->rtc_frame_crop_info.height);
 		ret = rtc_mix->rtc_frame_output_texture;
 	}
 
@@ -1034,6 +1026,11 @@ static inline void render_video(struct obs_core_video *video, bool raw_active,
 		gs_set_render_target(video->render_invisible_texture, NULL);
 		obs_source_default_render(obs->data.audiolivelink_source);
 	}
+	
+	if (obs->data.h5_source) {
+		gs_set_render_target(video->render_invisible_texture, NULL);
+		obs_source_default_render(obs->data.h5_source);
+	}
 
 	struct obs_rtc_mix *rtc_mix = &obs->video.rtc_mix;
 	if (os_atomic_load_bool(&rtc_mix->rtc_frame_active)) {
@@ -1092,15 +1089,15 @@ static inline void render_video(struct obs_core_video *video, bool raw_active,
 				set_gpu_converted_data_internal(
 					false, rtc_mix->cache_frame, &frame,
 					VIDEO_FORMAT_I420,
-					rtc_mix->output_texture_width,
-					rtc_mix->output_texture_height);
+					rtc_mix->rtc_frame_output_texture_width,
+					rtc_mix->rtc_frame_output_texture_height);
 
 				if (rtc_mix->output_cb)
 					rtc_mix->output_cb(
 						rtc_mix->cache_frame->data,
 						rtc_mix->cache_frame->linesize,
-						rtc_mix->output_texture_width,
-						rtc_mix->output_texture_height,
+						rtc_mix->rtc_frame_output_texture_width,
+						rtc_mix->rtc_frame_output_texture_height,
 						rtc_mix->output_cb_data);
 			}
 		}
@@ -1108,8 +1105,8 @@ static inline void render_video(struct obs_core_video *video, bool raw_active,
 
 	if (raw_active || gpu_active) {
 		gs_texture_t *texture =
-			os_atomic_load_bool(&rtc_mix->rtc_output_active)
-				? render_rtc_output_texture(video)
+			os_atomic_load_bool(&rtc_mix->rtc_local_mix_active)
+				? render_rtc_local_mix_output_texture(video)
 				: render_output_texture(video);
 
 #ifdef _WIN32
@@ -1497,9 +1494,20 @@ bool obs_graphics_thread_loop(struct obs_graphics_context *context)
 	output_frame(raw_active, gpu_active);
 	profile_end(output_frame_name);
 
-	profile_start(render_displays_name);
-	render_displays();
-	profile_end(render_displays_name);
+	bool should_render_display = true;
+	if (!obs->video.dx_interop_enabled && context->interval < 33333333) {
+		static int count = 0;
+		count++;
+		if (count % 2 != 0)
+			should_render_display = false;
+		else
+			count = 0;
+	}
+	if (should_render_display) {
+		profile_start(render_displays_name);
+		render_displays();
+		profile_end(render_displays_name);
+	}
 
 	frame_time_ns = os_gettime_ns() - frame_start;
 

@@ -13,7 +13,7 @@ def sign(file):
     if rc == 0:
         return
     for i in range(0,3):
-        sign_proc = sp.Popen("signtool sign /v /fd sha1 /f pcyuer.pfx /p Xxqpc111! /tr http://rfc3161timestamp.globalsign.com/advanced /td sha256 %s" %(file))
+        sign_proc = sp.Popen("signtool sign /v /fd sha256 /sha1 a4f5044d8b99978acad0e8c15ad3eac7d7a66fdc /tr http://rfc3161timestamp.globalsign.com/advanced /td sha256 %s" %(file))
         ret = sign_proc.wait()
         if ret ==0:
             return
@@ -45,3 +45,7 @@ sign(sys.argv[1]+'/plugins/data/obs-plugins/win-capture/graphics-hook64.dll')
 sign(sys.argv[1]+'/plugins/data/obs-plugins/win-capture/graphics-hook32.dll')
 sign(sys.argv[1]+'/plugins/data/obs-plugins/win-capture/get-graphics-offsets64.exe')
 sign(sys.argv[1]+'/plugins/data/obs-plugins/win-capture/get-graphics-offsets32.exe')
+sign(sys.argv[1]+'/plugins/data/obs-plugins/wasapi-capture/wasapi-hook64.dll')
+sign(sys.argv[1]+'/plugins/data/obs-plugins/wasapi-capture/wasapi-hook32.dll')
+sign(sys.argv[1]+'/plugins/data/obs-plugins/wasapi-capture/get-wasapi-offsets64.exe')
+sign(sys.argv[1]+'/plugins/data/obs-plugins/wasapi-capture/get-wasapi-offsets32.exe')

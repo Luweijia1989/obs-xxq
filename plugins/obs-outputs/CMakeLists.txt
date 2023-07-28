@@ -95,6 +95,7 @@ set(obs-outputs_HEADERS
 set(obs-outputs_SOURCES
 	obs-outputs.c
 	null-output.c
+	raw-output.c
 	rtmp-stream.c
 	rtmp-windows.c
 	flv-output.c

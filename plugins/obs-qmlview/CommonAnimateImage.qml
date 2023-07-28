@@ -57,7 +57,7 @@ AnimatedImage {
             }
         }
 
-        g_bridge.downLoad(str, downloadCallBack, suffix)
+        g_bridge.downLoad(str, downloadCallBack)
     }
 
     function downloadCallBack(res){
@@ -69,7 +69,7 @@ AnimatedImage {
             return
         }
 
-        if((frameCount != 0) && (currentFrame == frameCount - 1)){
+        if((frameCount != 0) && (currentFrame === frameCount - 1)){
             tempPlayCount--
             if(tempPlayCount == 0)
             {

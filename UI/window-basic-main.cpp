@@ -30,6 +30,7 @@
 #include <QSizePolicy>
 #include <QJsonObject>
 #include <QJsonDocument>
+#include <QQuickView>
 
 #include <util/dstr.h>
 #include <util/util.hpp>
@@ -210,72 +211,10 @@ void sceneitem_destroy_handler(obs_sceneitem_t *item)
 		qApp, [=]() { obs_sceneitem_mannual_destroy(item); },
 		WaitConnection());
 }
-obs_output_t *outputttt;
 
 OBSBasic::OBSBasic(QWidget *parent)
 	: OBSMainWindow(parent), ui(new Ui::OBSBasic)
 {
-	//QWidget *w = new QWidget;
-	//w->show();
-	//w->setFixedSize(200, 40);
-	//QPushButton *btn = new QPushButton("start", w);
-	//btn->setVisible(true);
-
-	//RTCView *view = new RTCView;
-	//view->setFixedSize(640, 480);
-	//view->setVisible(true);
-	//connect(btn, &QPushButton::clicked, this, [=](){
-	//	obs_output_pause(outputHandler->streamOutput, true);
-	//	obs_data_t *setting = obs_data_create();
-	//	obs_data_set_int(setting, "rtc_type", 0);
-	//	obs_data_set_int(setting, "audiobitrate", config_get_uint(basicConfig, "SimpleOutput", "ABitrate"));
-	//	obs_data_set_int(setting, "videobitrate", config_get_uint(basicConfig, "SimpleOutput", "VBitrate"));
-	//	obs_data_set_int(setting, "fps", 30);
-	//	obs_data_set_int(setting, "hwnd", view->winId());
-	//	obs_data_set_int(setting, "cropX", 600);
-	//	QJsonObject obj;
-	//	obj["userId"] = "333333";
-	//	obj["roomId"] = 333333;
-	//	obj["userSig"] = "";
-	//	obs_data_set_string(setting, "linkInfo", QJsonDocument(obj).toJson(QJsonDocument::Compact).data());
-	//	outputttt = obs_output_create("rtc_output", "rtc_output", setting, NULL);
-	//	signal_handler_connect(obs_output_get_signal_handler(outputttt),
-	//		"sig_event", [](void *data, calldata_t *params){
-	//		obs_data_t *eventData = (obs_data_t *)calldata_ptr(params, "data");
-	//		blog(LOG_DEBUG, "AAAAAAA %lld", obs_data_get_int(eventData, "event_type"));
-	//	},
-	//		this);
-	//	obs_data_release(setting);
-	//	obs_output_start(outputttt);
-	//	blog(LOG_INFO, "output start complete");
-	//});
-
-	//QPushButton *btn1 = new QPushButton("stop", w);
-	//btn1->move(100, 0);
-	//btn1->setVisible(true);
-	//connect(btn1, &QPushButton::clicked, this, [=]() {
-	//	//obs_output_force_stop(outputttt);
-	//	obs_output_pause(outputHandler->streamOutput, false);
-	//	obs_output_release(outputttt);
-	//});
-
-	//QPushButton *btn2 = new QPushButton("connect", w);
-	//btn2->move(0, 20);
-	//btn2->setVisible(true);
-	//connect(btn2, &QPushButton::clicked, this, [=]() {
-	//	QJsonObject obj;
-	//	obj["roomId"] = 222222;
-	//	obj["userId"] = "222222";
-
-	//	obs_data_t *data = obs_data_create();
-	//	obs_data_set_string(data, "func", "connectOtherRoom");
-	//	obs_data_set_string(data, "param",
-	//			    QJsonDocument(obj).toJson().data());
-	//	QString dd = obs_data_get_string(data, "param");
-	//	obs_output_call_function(outputttt, data);
-	//	obs_data_release(data);
-	//});
-
 	obs_source_set_destroy_handler(source_destroy_handler);
 	obs_sceneitem_set_destroy_handler(sceneitem_destroy_handler);
 	setAttribute(Qt::WA_NativeWindow);
@@ -481,6 +420,49 @@ OBSBasic::OBSBasic(QWidget *parent)
 		this,
 		SLOT(ScenesReordered(const QModelIndex &, int, int,
 				     const QModelIndex &, int)));
+
+	QTimer *timer = new QTimer(this);
+	ui->testButton->setCheckable(true);
+	connect(ui->testButton, &QPushButton::clicked, this, [=](bool checked){
+		if (checked) {
+			auto audio = obs_source_create("pure_audio_input", "pure_audio", nullptr, nullptr);
+			obs_set_output_source(12, audio);
+			obs_source_release(audio);
+
+			QFile *file = new QFile(this);
+			file->setFileName("C:\\Users\\luweijia\\Desktop\\48000_2_s16le.pcm");
+			file->open(QFile::ReadOnly);
+			connect(timer, &QTimer::timeout, this, [=](){
+				auto audio_data = file->read(7680);
+				if (audio_data.size() == 7680) {
+					obs_source_audio data = {};
+					data.data[0] = (const uint8_t *)audio_data.data();
+					data.frames = (uint32_t)1920;
+					data.speakers = SPEAKERS_STEREO;
+					data.samples_per_sec = 48000;
+					data.format = AUDIO_FORMAT_16BIT;
+					data.timestamp = os_gettime_ns();
+					obs_source_output_audio(audio, &data);
+				}
+			});
+
+			timer->start(40);
+		} else {
+			obs_set_output_source(12, nullptr);
+		}
+	});
+
+	//QQuickView *view = new QQuickView;
+	//    //QSurfaceFormat format;
+	//    //format.setSwapInterval(0);
+	//    //view->setFormat(format);
+	//const QUrl url(QStringLiteral("file:///D:/obs-xxq/UI/forms/projector.qml"));
+	//view->setResizeMode(QQuickView::SizeRootObjectToView);
+	//view->setSource(url);
+	//view->resize(1280, 720);
+	//view->show();
+
+	//QTimer::singleShot(10000, view, &QQuickView::deleteLater);
 }
 
 static void SaveAudioDevice(const char *name, int channel, obs_data_t *parent,
@@ -3532,14 +3514,13 @@ void OBSBasic::RenderMain(void *data, uint32_t cx, uint32_t cy)
 
 	gs_ortho(-window->previewX, right, -window->previewY, bottom, -100.0f,
 		 100.0f);
-	gs_reset_viewport();
+	gs_viewport_pop();
 
 	window->ui->preview->DrawSceneEditing();
 
 	/* --------------------------------------- */
 
 	gs_projection_pop();
-	gs_viewport_pop();
 
 	GS_DEBUG_MARKER_END();
 	window->ui->preview->DrawTest();

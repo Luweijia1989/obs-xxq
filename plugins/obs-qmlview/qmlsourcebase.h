@@ -1,9 +1,17 @@
-﻿#pragma once
+#pragma once
 
 #include <QObject>
 #include <QMutex>
 #include "defines.h"
 #include "qmlview.h"
+
+class QMLBridge : public QObject
+{
+    Q_OBJECT
+public:
+    QMLBridge(QObject *parent = nullptr);
+    Q_INVOKABLE void downLoad(const QString &url, QJSValue callBack);
+};
 
 class QmlSourceBase : public QObject {
 	Q_OBJECT

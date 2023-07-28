@@ -395,7 +395,7 @@ static bool nvenc_encode(void *data, struct encoder_frame *frame,
 			obs_encoder_get_sei(enc->encoder, sei_buf, &sei_len);
 		uint32_t rate = obs_encoder_get_sei_rate(enc->encoder);
 		if (got_sei) {
-			da_push_back_array(enc->buffer, sei_buf, sei_len);
+			da_insert_array(enc->buffer, 0, sei_buf, sei_len);
 		}
 
 		packet->pts = av_pkt.pts;
